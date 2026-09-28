@@ -12,6 +12,7 @@ import {
   createStdoutWriter,
   type Writer,
 } from "./seams/io.ts";
+import { createProcSeam, type ProcSeam } from "./seams/proc.ts";
 import { createPromptSeam, type PromptSeam } from "./seams/prompt.ts";
 
 export interface Context {
@@ -20,6 +21,7 @@ export interface Context {
   readonly fs: FsSeam;
   readonly clock: ClockSeam;
   readonly prompt: PromptSeam;
+  readonly proc: ProcSeam;
   readonly stdout: Writer;
   readonly stderr: Writer;
   readonly cwd: string;
@@ -33,6 +35,7 @@ export function createRealContext(): Context {
     fs: createFsSeam(),
     clock: createClockSeam(),
     prompt: createPromptSeam(),
+    proc: createProcSeam(),
     stdout: createStdoutWriter(),
     stderr: createStderrWriter(),
     cwd: process.cwd(),

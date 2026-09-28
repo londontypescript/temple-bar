@@ -7,6 +7,7 @@ import type { FsSeam } from "../seams/fs.ts";
 import type { GhResult, GhSeam } from "../seams/gh.ts";
 import type { GitResult, GitSeam } from "../seams/git.ts";
 import type { Writer } from "../seams/io.ts";
+import type { ProcRunOptions, ProcSeam } from "../seams/proc.ts";
 import type { ConfirmResult, PromptSeam } from "../seams/prompt.ts";
 
 export interface RecordedCall {
@@ -93,6 +94,41 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
   };
 }
 
+export interface RecordedProcCall {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+  readonly env: Readonly<NodeJS.ProcessEnv>;
+}
+
+export interface FakeProc extends ProcSeam {
+  readonly calls: RecordedProcCall[];
+}
+
+/**
+ * `script` decides the exit code for each call and may also write to the
+ * call's stdout/stderr writers (`options.stdout`/`options.stderr`), the way
+ * the real seam streams output.
+ */
+export function createFakeProc(
+  script: (call: RecordedProcCall, options: ProcRunOptions) => number = () => 0,
+): FakeProc {
+  const calls: RecordedProcCall[] = [];
+  return {
+    calls,
+    run(command, args, options) {
+      const call: RecordedProcCall = {
+        command,
+        args,
+        cwd: options.cwd,
+        env: options.env,
+      };
+      calls.push(call);
+      return Promise.resolve(script(call, options));
+    },
+  };
+}
+
 export function createFakeClock(
   date: Date = new Date("2026-09-28T00:00:00.000Z"),
 ): ClockSeam {
@@ -131,6 +167,7 @@ export function createFakeContext(overrides: Partial<Context> = {}): Context {
     fs: createFakeFs(),
     clock: createFakeClock(),
     prompt: createFakePrompt(),
+    proc: createFakeProc(),
     stdout: createFakeWriter(),
     stderr: createFakeWriter(),
     cwd: "/repo",
