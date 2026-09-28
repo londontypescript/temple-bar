@@ -1,6 +1,6 @@
 # Plan: temple-bar
 
-Status: **Layer 1 (phase 1) APPROVED 2026-09-28, in progress: 1.1 done, 1.2 in review.** Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
+Status: **Layer 1 (phase 1) APPROVED 2026-09-28, in progress: 1.1 and 1.2 done; 1.3, 1.4 and 1.9 in progress.** Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
 
 Approval is in two layers, as agreed:
 
@@ -103,13 +103,13 @@ Ratings: **R** routine · **I** involved · **D** delicate. "∥" marks work tha
 - [x] Tests with `node:test`. `pnpm check` runs typecheck, lint, format check and tests.
 - [x] The file-length cap, defined in one config place only, and checked.
 - [x] **Verify P9.1a first:** confirm on Node 24 and 26 that type stripping refuses files under `node_modules`, so the published package must ship built JavaScript. Write the result down.
-- **Done when:** `pnpm check` passes on a clean clone, and the P9.1a finding is recorded.
+- **Done when:** `pnpm check` passes on a clean clone, and the P9.1a finding is recorded. **Done** 2026-09-28, [#2](https://github.com/londontypescript/temple-bar/pull/2).
 - **P9.1a finding (2026-09-28):** confirmed on Node 24.21.0. Running a `.ts` file under `node_modules` fails with `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`, and the same file elsewhere runs. So the packages ship `tsc` output from `dist/`. The check is a test (`packages/temple-bar/src/type-stripping.test.ts`), so CI proves it on Node 26 as well.
 - **Toolchain note:** TypeScript is pinned to 6.0.3, not 7. typescript-eslint 8.71 supports only `<6.1.0`, and type-aware linting stays on. Re-pin when typescript-eslint supports TypeScript 7. `@types/node` tracks the minimum Node (24).
 
 #### 1.3 CI ∥ — **R**
 
-- [ ] `ci.yml`: a matrix of {ubuntu, macos, windows} × {Node 24, 26}, pnpm installed at the pinned version, running `pnpm check`. Stable job names, so they can become required checks (U6).
+- [x] `ci.yml`: a matrix of {ubuntu, macos, windows} × {Node 24, 26}, pnpm installed at the pinned version, running `pnpm check`. Stable job names, so they can become required checks (U6).
 - **Done when:** all six jobs are green on a PR. Break-it evidence: a deliberately failing test turns the PR red.
 
 #### 1.4 CLI core — **I**, sequential after 1.2
@@ -162,7 +162,7 @@ Ratings: **R** routine · **I** involved · **D** delicate. "∥" marks work tha
 
 #### 1.9 Release workflow ∥ — **I**
 
-- [ ] `release.yml`, run by hand (`workflow_dispatch`) or on a version tag: build, `pnpm check`, then publish both packages in lockstep on the `next` tag, with `id-token: write`, npm ≥11.5.1 and provenance.
+- [x] `release.yml`, run by hand (`workflow_dispatch`) or on a version tag: build, `pnpm check`, then publish both packages in lockstep on the `next` tag, with `id-token: write`, npm ≥11.5.1 and provenance.
 - **Done when:** the workflow is reviewed and merged. It can't run for real until U7 and U8 are done.
 
 #### 1.10 Stage0 release and self-protection — **D**, orchestrator with you
@@ -305,4 +305,4 @@ Where every brief item lives. The brief requires each one to be built, deferred 
 
 No incident tool exists until theme F. Agents write proposals here, one line each, and you curate them later.
 
-- (none yet)
+- 2026-09-28: v1's merge-method rule (quick change squashed onto `main`; feature branch fast-forwarded, one commit per phase) was dropped when 1.1 rewrote branching for pull requests, so PRs #1 and #2 landed as merge commits. The same pattern as F11. To discuss after phase 1: squash or rebase only, linear history in the ruleset.
