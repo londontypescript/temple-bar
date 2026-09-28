@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify commit is reachable from origin/main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::The commit being released is not reachable from origin/main. Nothing is published from an unmerged branch." >&2
+            exit 1
+          fi
+
+      - name: Verify package versions
+        run: node -e "$RELEASE_VERSION_CHECK"
+        env:
+          RELEASE_VERSION_CHECK: |
+            const { readFileSync } = require("node:fs");
+
+            const tbPkg = JSON.parse(readFileSync("packages/temple-bar/package.json", "utf8"));
+            const ctbPkg = JSON.parse(readFileSync("packages/create-temple-bar/package.json", "utf8"));
+
+            if (tbPkg.version !== ctbPkg.version) {
+              console.error(
+                `Version mismatch: @londontypescript/temple-bar is ${tbPkg.version}, ` +
+                  `create-temple-bar is ${ctbPkg.version}. Both packages must publish in lockstep.`,
+              );
+              process.exit(1);
+            }
+
+            const ref = process.env.GITHUB_REF ?? "";
+            if (ref.startsWith("refs/tags/")) {
+              const tag = ref.slice("refs/tags/".length);
+              const expected = tag.replace(/^v/, "");
+              if (tbPkg.version !== expected) {
+                console.error(
+                  `Tag ${tag} does not match package version ${tbPkg.version}. ` +
+                    `Bump the package versions to match the tag before releasing.`,
+                );
+                process.exit(1);
+              }
+            }
+
+            console.log(`Publishing version ${tbPkg.version}`);
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+          # No registry-url here: actions/setup-node writes an _authToken line
+          # to .npmrc whenever registry-url is set, and with no NODE_AUTH_TOKEN
+          # that empty line makes npm skip the OIDC trusted-publishing exchange
+          # (actions/setup-node#1551). Trusted publishing authenticates against
+          # the default npmjs.org registry on its own, via the id-token
+          # permission above, so registry-url is both unnecessary and harmful
+          # here.
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check
+        run: pnpm check
+
+      - name: Build
+        run: pnpm build
+
+      # pnpm 10.34.5 (pinned in package.json) does not support npm trusted
+      # publishing (OIDC): https://github.com/pnpm/pnpm/issues/9812 is still
+      # open with no released fix, and pnpm's changelog up to its current
+      # 12.8.x releases has no mention of OIDC/id-token support for
+      # `pnpm publish`. Trusted publishing needs npm CLI >= 11.5.1
+      # (https://docs.npmjs.com/trusted-publishers/), so we install a pinned,
+      # current npm on the runner and publish each package with `npm publish`
+      # from its own folder instead of `pnpm publish`. Neither package depends
+      # on the other via a `workspace:` specifier today, so publishing with
+      # plain npm (which does not rewrite those) loses nothing.
+      - name: Install pinned npm for trusted publishing
+        run: npm install -g npm@12.1.0
+
+      # Lockstep: if the second publish could fail on an existing version after
+      # the first succeeded, the packages would drift apart. Refuse up front.
+      - name: Verify neither version is on npm yet
+        run: |
+          set -euo pipefail
+          for dir in packages/temple-bar packages/create-temple-bar; do
+            spec=$(node -p "const p = require('./$dir/package.json'); p.name + '@' + p.version")
+            published=$(npm view "$spec" version 2>/dev/null || true)
+            if [ -n "$published" ]; then
+              echo "::error::$spec is already on npm. Bump both package versions before releasing." >&2
+              exit 1
+            fi
+          done
+
+      - name: Publish @londontypescript/temple-bar
+        working-directory: packages/temple-bar
+        run: npm publish --tag next --provenance --access public
+
+      - name: Publish create-temple-bar
+        working-directory: packages/create-temple-bar
+        run: npm publish --tag next --provenance --access public
