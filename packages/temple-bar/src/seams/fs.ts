@@ -1,0 +1,51 @@
+// The only place domain code touches the filesystem. Deliberately small and
+// missing a delete method: setup (1.7) never deletes anything (N6/N9), so
+// there is no method that would let it.
+
+import { promises as fsp } from "node:fs";
+
+export interface FsSeam {
+  /** Reads a file as UTF-8 text, or returns undefined if it doesn't exist. */
+  readText(path: string): Promise<string | undefined>;
+  writeText(path: string, content: string): Promise<void>;
+  exists(path: string): Promise<boolean>;
+  /** Creates a directory and any missing parents; a no-op if it exists. */
+  mkdirp(path: string): Promise<void>;
+  chmod(path: string, mode: number): Promise<void>;
+}
+
+function isErrnoException(value: unknown): value is NodeJS.ErrnoException {
+  return value instanceof Error && "code" in value;
+}
+
+export function createFsSeam(): FsSeam {
+  return {
+    async readText(path) {
+      try {
+        return await fsp.readFile(path, "utf8");
+      } catch (error) {
+        if (isErrnoException(error) && error.code === "ENOENT") {
+          return undefined;
+        }
+        throw error;
+      }
+    },
+    async writeText(path, content) {
+      await fsp.writeFile(path, content, "utf8");
+    },
+    async exists(path) {
+      try {
+        await fsp.access(path);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    async mkdirp(path) {
+      await fsp.mkdir(path, { recursive: true });
+    },
+    async chmod(path, mode) {
+      await fsp.chmod(path, mode);
+    },
+  };
+}
