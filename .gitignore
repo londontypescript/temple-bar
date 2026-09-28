@@ -1,0 +1,16 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+*.tgz
+
+# Env files hold secrets; their .example templates are committed.
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+!*.example
+
+# OS and editor
+.DS_Store
+Thumbs.db
