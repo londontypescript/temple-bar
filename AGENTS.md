@@ -70,8 +70,8 @@ overlapping files.
   phase branch from its parent), and every push is the orchestrator's.
 - **Done-conditions sit inside the subagent's scope.** "Report back with the
   known failure" is a valid ending.
-- **The handoff report** has three parts: *resolved*, *deliberately deferred*,
-  *needs a decision*. It includes break-it evidence for each new check, and
+- **The handoff report** has three parts: _resolved_, _deliberately deferred_,
+  _needs a decision_. It includes break-it evidence for each new check, and
   answers "did you run anything outside your sandbox?".
 
 ## 4. Checks and review
@@ -92,8 +92,8 @@ condition. From 1.10, the pinned temple-bar gate is.
 - **Break-it evidence for every new check:** disable the fix, show the check
   fail, restore it.
 - **Diagnose before working around.** A workaround names its cause. "Flaky" is
-  not a diagnosis: reproduce and name the cause, or report it as *needs a
-  decision*.
+  not a diagnosis: reproduce and name the cause, or report it as _needs a
+  decision_.
 - **Verified means exercised through the real delivery path.** For this repo
   that is the packed package installed from its tarball, not the source tree.
 - **Say "passes locally; CI not yet seen"** until a CI run is green.
@@ -156,20 +156,20 @@ say how many.
 Stated plainly so nothing here is mistaken for a control. This table describes
 the repo today, and changes as phase 1 lands.
 
-| Rule | Mechanism | Strength |
-| --- | --- | --- |
-| `main` changes only through pull requests | GitHub ruleset on `main` | **Blocked** on GitHub |
-| No force-push or deletion of `main` | GitHub ruleset on `main` | **Blocked** on GitHub |
-| CI passes before merge | required status checks, once added (U6) | **Blocked** from U6 |
-| No commits to local `main` | nothing until 1.10 | **Prose only** |
-| Delegated file scopes | nothing until theme D | **Prose only** |
-| File length | nothing until 1.2 | **Prose only** |
-| No weakened checks | nothing until theme B | **Prose only** |
-| Plan before code | nothing | **Prose only** |
-| Tracker updated per subtask | nothing | **Prose only** |
-| Intake stays the user's | nothing | **Prose only** |
-| Whether wide changes mean duplication | nothing: judgement | **Prose only** |
-| Recording an incident at all | nothing until theme F | **Prose only** |
+| Rule                                      | Mechanism                               | Strength              |
+| ----------------------------------------- | --------------------------------------- | --------------------- |
+| `main` changes only through pull requests | GitHub ruleset on `main`                | **Blocked** on GitHub |
+| No force-push or deletion of `main`       | GitHub ruleset on `main`                | **Blocked** on GitHub |
+| CI passes before merge                    | required status checks, once added (U6) | **Blocked** from U6   |
+| No commits to local `main`                | nothing until 1.10                      | **Prose only**        |
+| Delegated file scopes                     | nothing until theme D                   | **Prose only**        |
+| File length                               | nothing until 1.2                       | **Prose only**        |
+| No weakened checks                        | nothing until theme B                   | **Prose only**        |
+| Plan before code                          | nothing                                 | **Prose only**        |
+| Tracker updated per subtask               | nothing                                 | **Prose only**        |
+| Intake stays the user's                   | nothing                                 | **Prose only**        |
+| Whether wide changes mean duplication     | nothing: judgement                      | **Prose only**        |
+| Recording an incident at all              | nothing until theme F                   | **Prose only**        |
 
 A rule that exists only as prose is a rule that will eventually be broken. If
 you find one drifting, the fix is a mechanism, not stronger wording.

@@ -18,15 +18,15 @@ An agent's output will never be deterministic: ask twice and you get two differe
 - **The same verdict every time.** The gate runs the full suite on every merge, whatever changed. The same code always gets the same answer, locally and in CI.
 - **The same limits every time.** What an agent may never do (commit to `main`, merge its own work, weaken a check to make it pass) is refused by a mechanism, not left to the agent to remember.
 
-The agent decides *how* to build something. temple-bar decides *what counts as done*, and makes that the same on every run.
+The agent decides _how_ to build something. temple-bar decides _what counts as done_, and makes that the same on every run.
 
-Where a rule *can't* be enforced by a script, temple-bar says so. Every rule is labelled with how strongly it's actually held:
+Where a rule _can't_ be enforced by a script, temple-bar says so. Every rule is labelled with how strongly it's actually held:
 
-| Strength | Meaning |
-| --- | --- |
-| **Blocked** | A hook, the gate or GitHub refuses it outright. |
-| **Detected** | Something notices afterwards and says so. |
-| **Prompted** | You're asked at the right moment; nothing checks the answer. |
+| Strength       | Meaning                                                               |
+| -------------- | --------------------------------------------------------------------- |
+| **Blocked**    | A hook, the gate or GitHub refuses it outright.                       |
+| **Detected**   | Something notices afterwards and says so.                             |
+| **Prompted**   | You're asked at the right moment; nothing checks the answer.          |
 | **Prose only** | Written down, and nothing more. The weakest kind, and listed as such. |
 
 Every rule in temple-bar exists because something went wrong in a real project. When a rule is found to be prose-only and still being broken, the fix is a script, not stronger wording.

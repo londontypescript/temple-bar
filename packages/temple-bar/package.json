@@ -1,0 +1,20 @@
+{
+  "name": "@londontypescript/temple-bar",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "temple-bar": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/londontypescript/temple-bar.git",
+    "directory": "packages/temple-bar"
+  }
+}
