@@ -252,6 +252,7 @@ The themes below are grouped by the problem they solve. They are **not ordered**
 3. **Q7:** upstream filing (5 options), redaction (P7.2), and curation without a terminal (P8.3).
 4. **Q8:** which harnesses get harness hooks, and for which tools.
 5. **After phase 1:** an automatic PR review by an agent from a different provider (for example Gemini or ChatGPT), triggered by tagging it on GitHub, so a second model family reviews every PR. Which theme it belongs to, and whether its verdict is advisory or blocking, are yours to decide. (Added 2026-09-29.)
+6. **Once `0.0.2` works: rewrite the README.** It's too front-loaded. It should say simply and quickly what temple-bar actually does and how to use it, before any of the background (the vision, the incident loop, the name). (Added 2026-09-29.)
 
 ---
 
