@@ -7,6 +7,7 @@
 
 import path from "node:path";
 
+import { HELP_TEXT, wantsHelp } from "./help.ts";
 import {
   addDevDependencyCommand,
   detectPackageManager,
@@ -24,11 +25,13 @@ export interface WriterLike {
 }
 
 export interface MainDeps {
+  readonly argv: readonly string[];
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
   readonly ownVersion: string;
   readonly fs: FsLike;
   readonly run: ProcessRunner;
+  readonly stdout: WriterLike;
   readonly stderr: WriterLike;
 }
 
@@ -66,6 +69,10 @@ async function ensurePackageJson(deps: MainDeps): Promise<void> {
 }
 
 export async function main(deps: MainDeps): Promise<number> {
+  if (wantsHelp(deps.argv)) {
+    deps.stdout.write(HELP_TEXT);
+    return 0;
+  }
   const pm = detectPackageManager(deps.env.npm_config_user_agent);
   await ensurePackageJson(deps);
 
