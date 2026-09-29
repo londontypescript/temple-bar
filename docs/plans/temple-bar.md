@@ -1,6 +1,6 @@
 # Plan: temple-bar
 
-Status: **Layer 1 (phase 1) APPROVED 2026-09-28, in progress: 1.1, 1.2, 1.3, 1.4 and 1.9 done; 1.6 lands with PR #5; 1.5 in review; 1.7 in progress.** Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
+Status: **Layer 1 (phase 1) APPROVED 2026-09-28, in progress: 1.1, 1.2, 1.3, 1.4, 1.6 and 1.9 done; 1.5 lands with its PR; 1.7 in progress.** Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
 
 Approval is in two layers, as agreed:
 
@@ -120,10 +120,10 @@ Ratings: **R** routine · **I** involved · **D** delicate. "∥" marks work tha
 
 #### 1.5 Hooks — **D**, ∥ with 1.6 and 1.7 (separate folders)
 
-- [ ] `pre-commit`: refuses commits while `main` is checked out.
-- [ ] `reference-transaction`: local `main` may only move to a commit already on `origin/main`. The shell shim only starts Node when `main` is in the update, so it stays fast on fetches.
-- [ ] `init` sets `pull.ff=only`.
-- [ ] Integration tests against real git repos in temp folders:
+- [x] `pre-commit`: refuses commits while `main` is checked out.
+- [x] `reference-transaction`: local `main` may only move to a commit already on `origin/main`. The shell shim only starts Node when `main` is in the update, so it stays fast on fetches.
+- [x] `init` sets `pull.ff=only`. (1.5 ships `hook install`, which sets it; `init` calls it in 1.7.)
+- [x] Integration tests against real git repos in temp folders:
   - a direct commit to `main` is refused (N1)
   - a local squash, merge, cherry-pick or reset onto `main` is refused
   - `git pull --ff-only` after a merge on GitHub is allowed
@@ -251,6 +251,7 @@ The themes below are grouped by the problem they solve. They are **not ordered**
 2. **Q6:** whether futura-maximila migrates, and when.
 3. **Q7:** upstream filing (5 options), redaction (P7.2), and curation without a terminal (P8.3).
 4. **Q8:** which harnesses get harness hooks, and for which tools.
+5. **After phase 1:** an automatic PR review by an agent from a different provider (for example Gemini or ChatGPT), triggered by tagging it on GitHub, so a second model family reviews every PR. Which theme it belongs to, and whether its verdict is advisory or blocking, are yours to decide. (Added 2026-09-29.)
 
 ---
 
@@ -308,3 +309,4 @@ No incident tool exists until theme F. Agents write proposals here, one line eac
 - 2026-09-28: v1's merge-method rule (quick change squashed onto `main`; feature branch fast-forwarded, one commit per phase) was dropped when 1.1 rewrote branching for pull requests, so PRs #1 and #2 landed as merge commits. The same pattern as F11. To discuss after phase 1: squash or rebase only, linear history in the ruleset.
 - 2026-09-29: 1.6's e2e tests created temp repos that inherited the developer's global `commit.gpgsign=true`, so they failed locally in agent sessions (no pinentry) but passed on CI (no signing). The handoff had recorded "68 of 68 pass" from a run that only passed because a passphrase was cached. Fixed with a shared `initTestRepo` helper; a suite-wide `GIT_CONFIG_GLOBAL` isolation is proposed.
 - 2026-09-29: 1.6 was reviewed and reported green on macOS only. Its first CI run failed 11 tests on Windows: the fake fs didn't normalise path separators, and the `proc` seam refused every non-allowlisted command on win32, including `node`. Windows was left for CI to prove, and only CI caught it.
+- 2026-09-29: 1.5's handoff reported break-it evidence for every hook, but review found three tests that passed with their check broken: a pre-commit test that the other hook satisfied, a cherry-pick test where git rejected `--no-verify` before any hook ran, and refusal tests that only checked for a non-zero exit. A red run shows a test _can_ fail; it doesn't show the test fails for the right reason. Fixed by asserting each hook's own refusal message.
