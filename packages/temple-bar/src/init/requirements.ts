@@ -18,6 +18,12 @@ export interface RequirementOk<T> {
 export type RequirementResult<T = undefined> =
   RequirementOk<T> | RequirementFailure;
 
+/** How a user reruns init. `temple-bar` is installed in the project, not on
+ * PATH, so a bare `temple-bar init` isn't found; npx finds the project's
+ * copy whichever package manager installed it. Every "then run init again"
+ * message uses this. */
+export const RERUN_INIT = "`npx temple-bar init`";
+
 function fail(message: string): RequirementFailure {
   return { ok: false, message };
 }
@@ -30,7 +36,8 @@ export async function checkGitRepo(
   const result = await ctx.git.run(["rev-parse", "--show-toplevel"], cwd);
   if (result.code !== 0) {
     return fail(
-      "Not a git repository. Fix: run `git init` in this folder, then run `temple-bar init` again.",
+      "Not a git repository. Fix: run `git init` in this folder, then run " +
+        `${RERUN_INIT} again.`,
     );
   }
   return { ok: true, value: result.stdout.trim() };
@@ -44,7 +51,7 @@ export async function checkGhInstalled(
   if (result.notFound) {
     return fail(
       'The GitHub CLI ("gh") is not installed. Fix: install it yourself from ' +
-        "https://cli.github.com and run `temple-bar init` again. Agents must " +
+        `https://cli.github.com and run ${RERUN_INIT} again. Agents must ` +
         "not install it on your behalf.",
     );
   }
@@ -59,7 +66,7 @@ export async function checkGhSignedIn(
   if (result.code !== 0) {
     return fail(
       "The GitHub CLI is not signed in. Fix: run `gh auth login`, then run " +
-        "`temple-bar init` again.",
+        `${RERUN_INIT} again.`,
     );
   }
   return { ok: true, value: undefined };
@@ -123,6 +130,7 @@ export function wrongHostMessage(url: string): string {
   return (
     `The "origin" remote (${url}) doesn't point at GitHub. Fix: point it at ` +
     "a GitHub repository, e.g. `git remote set-url origin " +
-    "git@github.com:<owner>/<repo>.git`, then run `temple-bar init` again."
+    "git@github.com:<owner>/<repo>.git`, then run " +
+    `${RERUN_INIT} again.`
   );
 }

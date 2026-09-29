@@ -115,7 +115,10 @@ export async function referenceTransactionCheck(
 
     if (!(await isAncestorOfUpstream(ctx, repoRoot, update.newValue))) {
       ctx.stderr.write(
-        `temple-bar: refusing to move local main to a commit not on ${UPSTREAM_REF} (${update.newValue})\n`,
+        `temple-bar: refusing to move local main to a commit not on ${UPSTREAM_REF} (${update.newValue})\n` +
+          "If git left the refused changes in your working tree, keep them " +
+          "on a new branch with `git switch -c <name>`, or drop them with " +
+          "`git reset --hard`.\n",
       );
       return 1;
     }
