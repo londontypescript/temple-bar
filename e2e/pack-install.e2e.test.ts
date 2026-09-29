@@ -29,6 +29,7 @@ const PACKAGE_NAME = "@londontypescript/temple-bar";
 
 let workDir = "";
 let tarballs: Tarballs;
+let version = "";
 let registry: LocalRegistry;
 let baseEnv: NodeJS.ProcessEnv;
 
@@ -49,6 +50,7 @@ before(async () => {
       "utf8",
     ),
   ) as { name: string; version: string };
+  version = manifest.version;
   registry = await serveTarball(manifest, tarballs.templeBar);
   baseEnv = {
     ...createFakeGh(workDir, cleanEnv()),
@@ -118,10 +120,8 @@ for (const pm of ["npm", "pnpm"] as const) {
         devDependencies?: Record<string, string>;
         scripts?: Record<string, string>;
       };
-      assert.ok(
-        pkg.devDependencies?.[PACKAGE_NAME],
-        "temple-bar is a dev dependency",
-      );
+      // Exact, not a ^ range, so a later install can't drift.
+      assert.equal(pkg.devDependencies?.[PACKAGE_NAME], version);
       assert.equal(pkg.scripts?.gate, "temple-bar gate");
       assert.equal(pkg.scripts.prepare, "temple-bar hook install");
       assert.ok(existsSync(path.join(dir, "AGENTS.md")));

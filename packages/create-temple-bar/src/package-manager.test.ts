@@ -22,19 +22,24 @@ void test("detectPackageManager defaults to npm when the agent is unrecognised o
 void test("addDevDependencyCommand pins the exact version for every package manager", () => {
   assert.deepEqual(addDevDependencyCommand("pnpm", "0.1.2"), {
     command: "pnpm",
-    args: ["add", "-D", "@londontypescript/temple-bar@0.1.2"],
+    args: ["add", "-D", "--save-exact", "@londontypescript/temple-bar@0.1.2"],
   });
   assert.deepEqual(addDevDependencyCommand("npm", "0.1.2"), {
     command: "npm",
-    args: ["install", "-D", "@londontypescript/temple-bar@0.1.2"],
+    args: [
+      "install",
+      "-D",
+      "--save-exact",
+      "@londontypescript/temple-bar@0.1.2",
+    ],
   });
   assert.deepEqual(addDevDependencyCommand("yarn", "0.1.2"), {
     command: "yarn",
-    args: ["add", "-D", "@londontypescript/temple-bar@0.1.2"],
+    args: ["add", "-D", "--exact", "@londontypescript/temple-bar@0.1.2"],
   });
   assert.deepEqual(addDevDependencyCommand("bun", "0.1.2"), {
     command: "bun",
-    args: ["add", "-d", "@londontypescript/temple-bar@0.1.2"],
+    args: ["add", "-d", "--exact", "@londontypescript/temple-bar@0.1.2"],
   });
 });
 
