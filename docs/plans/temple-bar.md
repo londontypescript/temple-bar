@@ -1,6 +1,6 @@
 # Plan: temple-bar
 
-Status: **Layer 1 (phase 1) APPROVED 2026-09-28, in progress: 1.1, 1.2, 1.3 and 1.9 done; 1.4 in review.** Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
+Status: **Layer 1 (phase 1) APPROVED 2026-09-28, in progress: 1.1, 1.2, 1.3, 1.4 and 1.9 done; 1.6 lands with PR #5; 1.5 in review; 1.7 in progress.** Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
 
 Approval is in two layers, as agreed:
 
@@ -133,13 +133,13 @@ Ratings: **R** routine · **I** involved · **D** delicate. "∥" marks work tha
 
 #### 1.6 Gate v0 — **I**, ∥
 
-- [ ] `temple-bar gate`:
+- [x] `temple-bar gate` (#5):
   - runs the project's `typecheck`, `lint` and `test` scripts from `package.json`
   - exits 2 when code exists but those scripts are missing (D2, first part)
   - runs with `CI=true` (P3.3)
   - checks the file-length cap
   - always runs the full suite
-- [ ] A held lock, or the presence of worktrees, never fails it (P3.7). Only the test for this lands now; locks arrive later.
+- [x] A held lock, or the presence of worktrees, never fails it (P3.7). Only the test for this lands now; locks arrive later. (#5: the nested-worktree test)
 - **Done when:** tested against sample projects: one passing, one failing, and one with code but no scripts.
 
 #### 1.7 Setup (`init`) and launcher — **I**, ∥
@@ -306,3 +306,5 @@ Where every brief item lives. The brief requires each one to be built, deferred 
 No incident tool exists until theme F. Agents write proposals here, one line each, and you curate them later.
 
 - 2026-09-28: v1's merge-method rule (quick change squashed onto `main`; feature branch fast-forwarded, one commit per phase) was dropped when 1.1 rewrote branching for pull requests, so PRs #1 and #2 landed as merge commits. The same pattern as F11. To discuss after phase 1: squash or rebase only, linear history in the ruleset.
+- 2026-09-29: 1.6's e2e tests created temp repos that inherited the developer's global `commit.gpgsign=true`, so they failed locally in agent sessions (no pinentry) but passed on CI (no signing). The handoff had recorded "68 of 68 pass" from a run that only passed because a passphrase was cached. Fixed with a shared `initTestRepo` helper; a suite-wide `GIT_CONFIG_GLOBAL` isolation is proposed.
+- 2026-09-29: 1.6 was reviewed and reported green on macOS only. Its first CI run failed 11 tests on Windows: the fake fs didn't normalise path separators, and the `proc` seam refused every non-allowlisted command on win32, including `node`. Windows was left for CI to prove, and only CI caught it.

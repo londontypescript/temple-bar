@@ -1,12 +1,15 @@
 // In-memory fakes for every seam, for tests only. Excluded from the built
 // package (tsconfig.build.json).
 
+import { normalize } from "node:path";
+
 import type { Context } from "../context.ts";
 import type { ClockSeam } from "../seams/clock.ts";
 import type { FsSeam } from "../seams/fs.ts";
 import type { GhResult, GhSeam } from "../seams/gh.ts";
 import type { GitResult, GitSeam } from "../seams/git.ts";
 import type { Writer } from "../seams/io.ts";
+import type { ProcRunOptions, ProcSeam } from "../seams/proc.ts";
 import type { ConfirmResult, PromptSeam } from "../seams/prompt.ts";
 
 export interface RecordedCall {
@@ -67,28 +70,68 @@ export interface FakeFs extends FsSeam {
   readonly writes: RecordedWrite[];
 }
 
+// Keys are normalised like the real filesystem treats them, so a test's
+// "/repo/x" and the code's path.join(cwd, "x") (backslashes on Windows) name
+// the same file.
 export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
-  const files = new Map(Object.entries(initial));
+  const files = new Map(
+    Object.entries(initial).map(([key, value]) => [normalize(key), value]),
+  );
   const writes: RecordedWrite[] = [];
   return {
     files,
     writes,
     readText(path) {
-      return Promise.resolve(files.get(path));
+      return Promise.resolve(files.get(normalize(path)));
     },
     writeText(path, content) {
-      files.set(path, content);
+      files.set(normalize(path), content);
       writes.push({ path, content });
       return Promise.resolve();
     },
     exists(path) {
-      return Promise.resolve(files.has(path));
+      return Promise.resolve(files.has(normalize(path)));
     },
     mkdirp() {
       return Promise.resolve();
     },
     chmod() {
       return Promise.resolve();
+    },
+  };
+}
+
+export interface RecordedProcCall {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+  readonly env: Readonly<NodeJS.ProcessEnv>;
+}
+
+export interface FakeProc extends ProcSeam {
+  readonly calls: RecordedProcCall[];
+}
+
+/**
+ * `script` decides the exit code for each call and may also write to the
+ * call's stdout/stderr writers (`options.stdout`/`options.stderr`), the way
+ * the real seam streams output.
+ */
+export function createFakeProc(
+  script: (call: RecordedProcCall, options: ProcRunOptions) => number = () => 0,
+): FakeProc {
+  const calls: RecordedProcCall[] = [];
+  return {
+    calls,
+    run(command, args, options) {
+      const call: RecordedProcCall = {
+        command,
+        args,
+        cwd: options.cwd,
+        env: options.env,
+      };
+      calls.push(call);
+      return Promise.resolve(script(call, options));
     },
   };
 }
@@ -131,6 +174,7 @@ export function createFakeContext(overrides: Partial<Context> = {}): Context {
     fs: createFakeFs(),
     clock: createFakeClock(),
     prompt: createFakePrompt(),
+    proc: createFakeProc(),
     stdout: createFakeWriter(),
     stderr: createFakeWriter(),
     cwd: "/repo",
