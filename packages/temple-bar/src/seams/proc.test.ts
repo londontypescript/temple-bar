@@ -67,6 +67,7 @@ void test("isAllowedShellCommand only allows npm and pnpm", () => {
 void test("isSafeShellArg only allows the narrow charset the gate needs", () => {
   assert.equal(isSafeShellArg("run"), true);
   assert.equal(isSafeShellArg("typecheck"), true);
+  assert.equal(isSafeShellArg("format:check"), true);
   assert.equal(isSafeShellArg("pre:build"), true);
   assert.equal(isSafeShellArg("; rm -rf /"), false);
   assert.equal(isSafeShellArg("$(echo hi)"), false);

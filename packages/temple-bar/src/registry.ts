@@ -13,6 +13,10 @@ export type Command = (
 export interface CommandEntry {
   readonly name: string;
   readonly summary: string;
+  /** What follows the command name on its usage line, e.g. "<state>". */
+  readonly args?: string;
+  /** Extra paragraphs for `temple-bar <name> --help`, after the summary. */
+  readonly details?: string;
   readonly run: Command;
 }
 
@@ -43,4 +47,18 @@ export function buildUsage(registry: CommandRegistry): string {
     lines.push(`  ${entry.name.padEnd(10)} ${entry.summary}`);
   }
   return `${lines.join("\n")}\n`;
+}
+
+/** "Usage: temple-bar <name> [args]", the first line of a command's help. */
+export function formatUsageLine(name: string, args?: string): string {
+  return `Usage: temple-bar ${name}${args === undefined ? "" : ` ${args}`}`;
+}
+
+/** What `temple-bar <name> --help` prints: usage line, summary, details. */
+export function buildCommandHelp(entry: CommandEntry): string {
+  const parts = [formatUsageLine(entry.name, entry.args), entry.summary];
+  if (entry.details !== undefined) {
+    parts.push(entry.details);
+  }
+  return `${parts.join("\n\n")}\n`;
 }

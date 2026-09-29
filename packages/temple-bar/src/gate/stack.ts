@@ -1,12 +1,20 @@
 // The gate's stack checks: detecting the package manager and the project's
-// typecheck/lint/test scripts, and running them (D2, P3.1, P3.3).
+// typecheck/lint/format:check/test scripts, and running them (D2, P3.1,
+// P3.3, decision 23).
 
 import path from "node:path";
 import type { Context } from "../context.ts";
 import { listGitPaths } from "./lengths.ts";
 
-/** In the order the gate runs them. */
-export const REQUIRED_SCRIPTS = ["typecheck", "lint", "test"] as const;
+/** In the order the gate runs them. Every script runs whatever the others
+ * return, so the order only decides how soon each result appears: the fast
+ * static checks first, the usually slowest (test) last. */
+export const REQUIRED_SCRIPTS = [
+  "typecheck",
+  "lint",
+  "format:check",
+  "test",
+] as const;
 export type RequiredScript = (typeof REQUIRED_SCRIPTS)[number];
 
 const CODE_EXTENSIONS = new Set([
@@ -48,8 +56,8 @@ export async function readPackageManifest(
   return isPackageManifest(parsed) ? parsed : undefined;
 }
 
-/** Which of the three required scripts are missing from `manifest`. A
- * missing manifest (no package.json at all) counts as all three missing:
+/** Which of the required scripts are missing from `manifest`. A missing
+ * manifest (no package.json at all) counts as every one missing:
  * there is nowhere for them to be defined. */
 export function missingRequiredScripts(
   manifest: PackageManifest | undefined,

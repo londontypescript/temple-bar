@@ -12,6 +12,7 @@ import {
   type FakeWriter,
 } from "../testing/fakes.ts";
 import { gateCommand } from "./command.ts";
+import { DEFAULT_MAX_FILE_LINES } from "./lengths.ts";
 
 function registryWithGate(): CommandRegistry {
   const registry = new CommandRegistry();
@@ -20,6 +21,38 @@ function registryWithGate(): CommandRegistry {
 }
 
 const SMALL_FILE = "one\ntwo\nthree\n";
+
+const ALL_SCRIPTS = {
+  typecheck: "tsc",
+  lint: "eslint .",
+  "format:check": "prettier --check .",
+  test: "node --test",
+};
+
+function codeProject(
+  scripts: Record<string, string>,
+  exitCodeFor: (script: string | undefined) => number = () => 0,
+): {
+  ctx: ReturnType<typeof createFakeContext>;
+  proc: ReturnType<typeof createFakeProc>;
+  stdout: FakeWriter;
+  stderr: FakeWriter;
+} {
+  const git = createFakeGit(() => ({
+    code: 0,
+    stdout: "package.json\nsrc/index.ts\n",
+    stderr: "",
+  }));
+  const proc = createFakeProc((call) => exitCodeFor(call.args[1]));
+  const fs = createFakeFs({
+    "/repo/package.json": JSON.stringify({ scripts }),
+    "/repo/src/index.ts": SMALL_FILE,
+  });
+  const stdout = createFakeWriter();
+  const stderr = createFakeWriter();
+  const ctx = createFakeContext({ git, proc, fs, stdout, stderr });
+  return { ctx, proc, stdout, stderr };
+}
 
 void test("gate: a passing project (stack + length cap both pass) exits 0", async () => {
   const git = createFakeGit(() => ({
@@ -30,7 +63,7 @@ void test("gate: a passing project (stack + length cap both pass) exits 0", asyn
   const proc = createFakeProc(() => 0);
   const fs = createFakeFs({
     "/repo/package.json": JSON.stringify({
-      scripts: { typecheck: "tsc", lint: "eslint .", test: "node --test" },
+      scripts: ALL_SCRIPTS,
     }),
     "/repo/src/index.ts": SMALL_FILE,
   });
@@ -39,10 +72,10 @@ void test("gate: a passing project (stack + length cap both pass) exits 0", asyn
   const code = await route(["gate"], ctx, registryWithGate());
 
   assert.equal(code, 0);
-  assert.equal(proc.calls.length, 3);
+  assert.equal(proc.calls.length, 4);
 });
 
-void test("gate: a failing test script exits 1, but typecheck and lint still run", async () => {
+void test("gate: a failing test script exits 1, but the other scripts still run", async () => {
   const git = createFakeGit(() => ({
     code: 0,
     stdout: "package.json\nsrc/index.ts\n",
@@ -51,7 +84,7 @@ void test("gate: a failing test script exits 1, but typecheck and lint still run
   const proc = createFakeProc((call) => (call.args[1] === "test" ? 1 : 0));
   const fs = createFakeFs({
     "/repo/package.json": JSON.stringify({
-      scripts: { typecheck: "tsc", lint: "eslint .", test: "node --test" },
+      scripts: ALL_SCRIPTS,
     }),
     "/repo/src/index.ts": SMALL_FILE,
   });
@@ -62,11 +95,11 @@ void test("gate: a failing test script exits 1, but typecheck and lint still run
   assert.equal(code, 1);
   assert.deepEqual(
     proc.calls.map((c) => c.args[1]),
-    ["typecheck", "lint", "test"],
+    ["typecheck", "lint", "format:check", "test"],
   );
 });
 
-void test("gate: code exists but package.json has no scripts exits 2, naming all three", async () => {
+void test("gate: code exists but package.json has no scripts exits 2, naming every required script", async () => {
   const git = createFakeGit(() => ({
     code: 0,
     stdout: "package.json\nsrc/index.ts\n",
@@ -84,9 +117,69 @@ void test("gate: code exists but package.json has no scripts exits 2, naming all
   assert.equal(code, 2);
   assert.equal(proc.calls.length, 0, "missing scripts: nothing is run");
   const text = (ctx.stderr as FakeWriter).lines.join("");
-  assert.match(text, /typecheck/);
-  assert.match(text, /lint/);
-  assert.match(text, /test/);
+  assert.match(
+    text,
+    /missing script\(s\): typecheck, lint, format:check, test\n/,
+  );
+});
+
+void test("gate: format:check is required: a project without it exits 2 and runs nothing", async () => {
+  const { typecheck, lint, test: testScript } = ALL_SCRIPTS;
+  const { ctx, proc, stderr } = codeProject({
+    typecheck,
+    lint,
+    test: testScript,
+  });
+
+  const code = await route(["gate"], ctx, registryWithGate());
+
+  assert.equal(code, 2);
+  assert.equal(proc.calls.length, 0, "missing scripts: nothing is run");
+  const text = stderr.lines.join("");
+  assert.match(text, /missing script\(s\): format:check\n/);
+  assert.match(text, /add "format:check" to "scripts" in package\.json/);
+  assert.match(text, /^ {2}missing {2}format:check \(not in package\.json\)$/m);
+  assert.match(text, /^gate: failed: format:check$/m);
+});
+
+void test("gate: a pass lists every check that ran, each passed, on stdout", async () => {
+  const { ctx, stdout, stderr } = codeProject(ALL_SCRIPTS);
+
+  const code = await route(["gate"], ctx, registryWithGate());
+
+  assert.equal(code, 0);
+  assert.equal(stderr.lines.join(""), "");
+  assert.equal(
+    stdout.lines.join(""),
+    [
+      "gate: checks:",
+      "  passed  typecheck",
+      "  passed  lint",
+      "  passed  format:check",
+      "  passed  test",
+      `  passed  file-length cap (all 2 tracked text file(s) are within the ${String(DEFAULT_MAX_FILE_LINES)}-line cap)`,
+      "gate: passed",
+      "",
+    ].join("\n"),
+  );
+});
+
+void test("gate: a failure lists every check the same way, on stderr, and names what failed", async () => {
+  const { ctx, stdout, stderr } = codeProject(ALL_SCRIPTS, (script) =>
+    script === "lint" || script === "test" ? 1 : 0,
+  );
+
+  const code = await route(["gate"], ctx, registryWithGate());
+
+  assert.equal(code, 1);
+  assert.equal(stdout.lines.join(""), "");
+  const text = stderr.lines.join("");
+  assert.match(text, /^ {2}passed {2}typecheck$/m);
+  assert.match(text, /^ {2}failed {2}lint \(exit 1\)$/m);
+  assert.match(text, /^ {2}passed {2}format:check$/m);
+  assert.match(text, /^ {2}failed {2}test \(exit 1\)$/m);
+  assert.match(text, /^ {2}passed {2}file-length cap /m);
+  assert.match(text, /^gate: failed: lint, test$/m);
 });
 
 void test("gate: a docs-only project with no package.json and no code passes on the base check alone", async () => {
@@ -118,7 +211,7 @@ void test("gate: the length cap fails the gate even when the stack checks pass",
   const fs = createFakeFs({
     "/repo/temple-bar.config.json": JSON.stringify({ maxFileLines: 2 }),
     "/repo/package.json": JSON.stringify({
-      scripts: { typecheck: "tsc", lint: "eslint .", test: "node --test" },
+      scripts: ALL_SCRIPTS,
     }),
     "/repo/src/index.ts": "1\n2\n3\n",
   });

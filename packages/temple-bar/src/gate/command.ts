@@ -1,6 +1,6 @@
 // `temple-bar gate`: the merge gate (subtask 1.6). Runs the project's stack
-// checks (typecheck/lint/test, D2/P3.3) and the file-length cap (always,
-// P3.1), and combines them into one exit code:
+// checks (typecheck/lint/format:check/test, D2/P3.3/decision 23) and the
+// file-length cap (always, P3.1), and combines them into one exit code:
 //
 //   0  everything passes
 //   1  a check failed (stack script(s), the length cap, or both)
@@ -11,10 +11,14 @@
 // length cap still runs and is still reported in that case (P1.6: a
 // docs-only/mid-setup repo must be able to pass on the base check alone,
 // which only works if the base check always runs and is judged on its own).
+//
+// Every run ends with the same report, pass or fail: each check and its
+// outcome, then the verdict (report.ts, decision 20).
 
 import type { CommandEntry } from "../registry.ts";
 import type { Context } from "../context.ts";
 import { checkFileLengths, formatLengthFailure } from "./lengths.ts";
+import { writeReport, type CheckOutcome } from "./report.ts";
 import {
   codeExists,
   detectPackageManager,
@@ -23,6 +27,8 @@ import {
   runRequiredScripts,
   REQUIRED_SCRIPTS,
 } from "./stack.ts";
+
+const LENGTH_CHECK = "file-length cap";
 
 function formatMissingScripts(missing: readonly string[]): string {
   const lines = [
@@ -34,54 +40,84 @@ function formatMissingScripts(missing: readonly string[]): string {
   return `${lines.join("\n")}\n`;
 }
 
-async function runStackChecks(ctx: Context): Promise<number | undefined> {
+interface StackResult {
+  readonly outcomes: CheckOutcome[];
+  /** Exit 2 (D2): code exists and a required script is missing. */
+  readonly missingScripts: boolean;
+}
+
+async function runStackChecks(ctx: Context): Promise<StackResult> {
   const manifest = await readPackageManifest(ctx);
-  const missing = missingRequiredScripts(manifest);
+  const missing: readonly string[] = missingRequiredScripts(manifest);
 
   if (missing.length > 0) {
-    if (await codeExists(ctx)) {
-      ctx.stderr.write(formatMissingScripts(missing));
-      return 2;
+    if (!(await codeExists(ctx))) {
+      // No code and no scripts: nothing to run, nothing to fail (P1.6).
+      return {
+        outcomes: REQUIRED_SCRIPTS.map((name) => ({
+          name,
+          status: "skipped",
+          detail: "no code yet",
+        })),
+        missingScripts: false,
+      };
     }
-    // No code and no scripts: nothing to run, nothing to fail (P1.6).
-    return undefined;
+    ctx.stderr.write(formatMissingScripts(missing));
+    return {
+      outcomes: REQUIRED_SCRIPTS.map((name) =>
+        missing.includes(name)
+          ? { name, status: "missing", detail: "not in package.json" }
+          : { name, status: "skipped", detail: "a required script is missing" },
+      ),
+      missingScripts: true,
+    };
   }
 
   // missingRequiredScripts only returns [] when every required script is
   // present, which requires a manifest to have been found.
   const manager = await detectPackageManager(ctx, manifest);
   const results = await runRequiredScripts(ctx, manager, REQUIRED_SCRIPTS);
-  const failed = results.filter((result) => result.exitCode !== 0);
+  return {
+    outcomes: results.map(({ script, exitCode }) =>
+      exitCode === 0
+        ? { name: script, status: "passed" }
+        : {
+            name: script,
+            status: "failed",
+            detail: `exit ${String(exitCode)}`,
+          },
+    ),
+    missingScripts: false,
+  };
+}
 
-  if (failed.length === 0) {
-    return undefined;
+async function runLengthCheck(ctx: Context): Promise<CheckOutcome> {
+  const result = await checkFileLengths(ctx);
+  const cap = `${String(result.maxLines)}-line cap`;
+  if (result.offenders.length > 0) {
+    ctx.stderr.write(formatLengthFailure(result));
+    return {
+      name: LENGTH_CHECK,
+      status: "failed",
+      detail: `${String(result.offenders.length)} file(s) over the ${cap}`,
+    };
   }
-  ctx.stderr.write(
-    `gate: failed: ${failed.map((result) => result.script).join(", ")}\n`,
-  );
-  return 1;
+  return {
+    name: LENGTH_CHECK,
+    status: "passed",
+    detail: `all ${String(result.totalChecked)} tracked text file(s) are within the ${cap}`,
+  };
 }
 
 async function runGate(ctx: Context): Promise<number> {
-  const stackExitCode = await runStackChecks(ctx);
+  const stack = await runStackChecks(ctx);
+  const outcomes = [...stack.outcomes, await runLengthCheck(ctx)];
+  writeReport(ctx, outcomes);
 
-  const lengthResult = await checkFileLengths(ctx);
-  if (lengthResult.offenders.length > 0) {
-    ctx.stderr.write(formatLengthFailure(lengthResult));
-  } else {
-    ctx.stdout.write(
-      `gate: all ${String(lengthResult.totalChecked)} tracked text file(s) are within the ${String(lengthResult.maxLines)}-line cap\n`,
-    );
-  }
-  const lengthFailed = lengthResult.offenders.length > 0;
-
-  if (stackExitCode === 2) {
+  if (stack.missingScripts) {
     return 2;
   }
-  if (stackExitCode === 1 || lengthFailed) {
-    return 1;
-  }
-  return 0;
+  return outcomes.some((outcome) => outcome.status === "failed") ? 1 : 0;
 }
 
 // Anything the gate can't determine (git failing, an unreadable config) is
@@ -99,5 +135,14 @@ async function runGateSafely(ctx: Context): Promise<number> {
 export const gateCommand: CommandEntry = {
   name: "gate",
   summary: "Run the merge gate: stack checks and the file-length cap.",
+  details: [
+    "Once the project has code, runs these package.json scripts in order:",
+    `${REQUIRED_SCRIPTS.join(", ")}. Then checks every tracked text file`,
+    "against the file-length cap (maxFileLines in temple-bar.config.json).",
+    "Ends by listing each check and its outcome.",
+    "",
+    "Exit codes: 0 every check passed, 1 a check failed,",
+    "2 code exists but a required script is missing from package.json.",
+  ].join("\n"),
   run: (_args, ctx) => runGateSafely(ctx),
 };

@@ -5,13 +5,13 @@
 // no other effect (same contract as an unknown top-level command, F12/P8.2).
 
 import type { Context } from "../context.ts";
-import type { CommandEntry } from "../registry.ts";
+import { formatUsageLine, type CommandEntry } from "../registry.ts";
 import { installHooks } from "./install.ts";
 import { preCommitCheck } from "./pre-commit.ts";
 import { referenceTransactionCheck } from "./reference-transaction.ts";
 
-const USAGE =
-  "Usage: temple-bar hook <pre-commit|reference-transaction <state>|install>\n";
+const ARGS = "<pre-commit|reference-transaction <state>|install>";
+const USAGE = `${formatUsageLine("hook", ARGS)}\n`;
 
 async function findRepoRoot(ctx: Context): Promise<string | undefined> {
   const result = await ctx.git.run(["rev-parse", "--show-toplevel"], ctx.cwd);
@@ -44,6 +44,7 @@ export function createHookCommand(
   return {
     name: "hook",
     summary: "Git hook entry points, installed by `hook install`.",
+    args: ARGS,
     async run(args, ctx) {
       const [sub, ...rest] = args;
 

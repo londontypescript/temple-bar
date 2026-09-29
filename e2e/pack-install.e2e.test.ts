@@ -152,7 +152,7 @@ for (const pm of ["npm", "pnpm"] as const) {
       assert.notEqual(gateWithCode.code, 0, describe(gateWithCode));
       assert.match(
         gateWithCode.stderr,
-        /missing script\(s\): typecheck, lint, test/,
+        /missing script\(s\): typecheck, lint, format:check, test/,
       );
     },
   );
