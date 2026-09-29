@@ -138,6 +138,9 @@ void test("reference-transaction: a local merge onto main is refused", () => {
       merge.stderr + merge.stdout,
       /refusing to move local main to a commit not on/,
     );
+    // git has already written the merge into the working tree, so the
+    // refusal says how to keep or drop it.
+    assert.match(merge.stderr + merge.stdout, /git switch -c <name>/);
     const head = runGit(fixture.repoDir, ["rev-parse", "HEAD"]).stdout.trim();
     assert.equal(head, origin, "main must not have moved");
   } finally {

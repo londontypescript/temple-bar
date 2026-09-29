@@ -134,9 +134,28 @@ async function runInit(deps: InitDeps, ctx: Context): Promise<number> {
 
   if (exitCode === 0) {
     ctx.stdout.write("temple-bar is set up.\n");
+    const changed =
+      wroteAgents ||
+      packageOutcome.wrote ||
+      hooksReport.items.some((item) => item.status === "written");
+    if (changed) {
+      ctx.stdout.write(NEXT_STEPS);
+    }
   }
   return exitCode;
 }
+
+/** The setup is uncommitted, and main now refuses direct commits: say how
+ * to land it. Files are named, not `git add -A`, so unrelated work stays
+ * out of the setup commit. */
+export const NEXT_STEPS =
+  "Next: main now refuses direct commits, so land this setup through a " +
+  "pull request:\n" +
+  "  git switch -c temple-bar-setup\n" +
+  "  git add AGENTS.md package.json .githooks   (plus your lockfile)\n" +
+  '  git commit -m "Set up temple-bar"\n' +
+  "  git push -u origin temple-bar-setup\n" +
+  "  gh pr create --fill\n";
 
 export function createInitCommand(deps: InitDeps): CommandEntry {
   return {

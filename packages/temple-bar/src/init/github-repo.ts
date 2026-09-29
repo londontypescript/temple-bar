@@ -4,7 +4,11 @@
 // writes anything.
 
 import type { Context } from "../context.ts";
-import { parseGithubOrigin, type GithubOrigin } from "./requirements.ts";
+import {
+  parseGithubOrigin,
+  RERUN_INIT,
+  type GithubOrigin,
+} from "./requirements.ts";
 
 export function repoCreateCommand(name: string): string {
   return `gh repo create ${name} --public --source . --remote origin --push`;
@@ -23,14 +27,14 @@ export function noTerminalSteps(name: string): string {
   return (
     "No terminal to ask in, so nothing was created. To finish setup " +
     `yourself, run:\n  ${repoCreateCommand(name)}\nthen run ` +
-    "`temple-bar init` again."
+    `${RERUN_INIT} again.`
   );
 }
 
 export function declinedSteps(name: string): string {
   return (
     "OK, nothing was created. Run this yourself when you're ready:\n  " +
-    `${repoCreateCommand(name)}\nthen run \`temple-bar init\` again.`
+    `${repoCreateCommand(name)}\nthen run ${RERUN_INIT} again.`
   );
 }
 
@@ -41,7 +45,7 @@ export function noCommitsSteps(name: string): string {
     "main branch before that happens. Run:\n" +
     '  git add -A && git commit -m "Initial commit"\n' +
     `  ${repoCreateCommand(name)}\n` +
-    "then run `temple-bar init` again."
+    `then run ${RERUN_INIT} again.`
   );
 }
 

@@ -5,6 +5,7 @@
 import path from "node:path";
 
 import type { Context } from "../context.ts";
+import { RERUN_INIT } from "./requirements.ts";
 
 const MINIMAL_AGENTS_MD = `# Agent directives
 
@@ -104,7 +105,7 @@ export async function ensurePackageJsonScripts(
         conflicts: [],
         invalid:
           "package.json isn't a valid JSON object, so it was left alone. Fix: " +
-          "correct it, then run `temple-bar init` again.",
+          `correct it, then run ${RERUN_INIT} again.`,
       };
     }
     pkg = parsed;

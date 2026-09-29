@@ -76,9 +76,14 @@ void test("integration: init sets up a real repo (AGENTS.md, scripts, real hooks
     };
     const command = createInitCommand({ installHooks });
 
-    const code = await command.run([], ctx);
+    const firstStdout = createFakeWriter();
+    const code = await command.run([], { ...ctx, stdout: firstStdout });
 
     assert.equal(code, 0, stderr.lines.join(""));
+    // The setup is uncommitted and main now refuses direct commits, so the
+    // first run says how to land it through a pull request.
+    assert.match(firstStdout.lines.join(""), /git switch -c temple-bar-setup/);
+    assert.match(firstStdout.lines.join(""), /gh pr create/);
     const agents = readFileSync(path.join(dir, "AGENTS.md"), "utf8");
     assert.match(agents, /pull requests the user merges/);
     const pkg = JSON.parse(
@@ -99,6 +104,7 @@ void test("integration: init sets up a real repo (AGENTS.md, scripts, real hooks
     assert.match(second, /AGENTS\.md already exists; left it alone/);
     assert.match(second, /already has the required scripts; left it alone/);
     assert.match(second, /Git hooks already installed; left them alone/);
+    assert.doesNotMatch(second, /Next:/, "nothing to land on a second run");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
