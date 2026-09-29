@@ -32,6 +32,22 @@ export interface MainDeps {
   readonly stderr: WriterLike;
 }
 
+/**
+ * `npm create temple-bar` runs this launcher through
+ * `npm exec --package=@londontypescript/create-temple-bar`, and npm passes
+ * that `--package` down to every child as `npm_config_package`. Left in, it
+ * makes the `npx temple-bar init` step below look for `temple-bar` inside
+ * the launcher package instead of the project. So the launcher's own
+ * commands run without it.
+ */
+export function childEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(env).filter(
+      ([key]) => key.toLowerCase() !== "npm_config_package",
+    ),
+  );
+}
+
 function folderName(cwd: string): string {
   return path.basename(cwd) || "app";
 }
@@ -53,7 +69,7 @@ export async function main(deps: MainDeps): Promise<number> {
   const pm = detectPackageManager(deps.env.npm_config_user_agent);
   await ensurePackageJson(deps);
 
-  const options: RunOptions = { cwd: deps.cwd, env: deps.env };
+  const options: RunOptions = { cwd: deps.cwd, env: childEnv(deps.env) };
 
   const addDep = addDevDependencyCommand(pm, deps.ownVersion);
   const addResult = await deps.run(addDep.command, addDep.args, options);

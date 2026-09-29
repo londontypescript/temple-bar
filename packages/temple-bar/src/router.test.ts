@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { Context } from "./context.ts";
-import { route } from "./router.ts";
+import { createRegistry, route } from "./router.ts";
 import {
   createFakeFs,
   createFakeGh,
@@ -85,4 +85,11 @@ void test("an unknown command prints usage plus the error to stderr, exits 2, an
   assert.equal(fs.writes.length, 0);
   assert.equal(git.calls.length, 0);
   assert.equal(gh.calls.length, 0);
+});
+
+void test("the real registry has every shipped command", () => {
+  const registry = createRegistry();
+  for (const name of ["help", "version", "init", "gate", "hook"]) {
+    assert.ok(registry.get(name), `missing command: ${name}`);
+  }
 });
