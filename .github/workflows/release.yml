@@ -95,7 +95,7 @@ jobs:
       # 12.8.x releases has no mention of OIDC/id-token support for
       # `pnpm publish`. Trusted publishing needs npm CLI >= 11.5.1
       # (https://docs.npmjs.com/trusted-publishers/), so we install a pinned,
-      # current npm on the runner and publish each package with `npm publish`
+      # current npm on the runner and stage each package with `npm stage publish`
       # from its own folder instead of `pnpm publish`. Neither package depends
       # on the other via a `workspace:` specifier today, so publishing with
       # plain npm (which does not rewrite those) loses nothing.
@@ -116,10 +116,35 @@ jobs:
             fi
           done
 
-      - name: Publish @londontypescript/temple-bar
+      # Staged, not published: a staged version isn't installable until a
+      # maintainer approves it with 2FA (npm stage approve, or npmjs.com).
+      # CI can prepare a release; only a human can release it. The trusted
+      # publishers on npm allow "stage publish" only, so a plain
+      # `npm publish` here is refused (E403, OIDC permission denied).
+      #
+      # A staged version already takes its number, but `npm view` above can't
+      # see staged versions and listing them needs an interactive login. If
+      # the second stage ever fails after the first succeeded, reject the
+      # first (npm stage reject) before running this again.
+      - name: Stage @londontypescript/temple-bar
         working-directory: packages/temple-bar
-        run: npm publish --tag next --provenance --access public
+        run: npm stage publish --tag next --provenance --access public
 
-      - name: Publish create-temple-bar
+      - name: Stage create-temple-bar
         working-directory: packages/create-temple-bar
-        run: npm publish --tag next --provenance --access public
+        run: npm stage publish --tag next --provenance --access public
+
+      - name: Say what's next
+        run: |
+          {
+            echo "## Staged, not yet public"
+            echo
+            echo "Both packages are staged. Approve each one with 2FA, on npmjs.com or with:"
+            echo
+            echo '```'
+            echo 'npm stage list @londontypescript/temple-bar'
+            echo 'npm stage approve <stage-id>'
+            echo '```'
+            echo
+            echo "Approve @londontypescript/temple-bar first, then create-temple-bar."
+          } >> "$GITHUB_STEP_SUMMARY"
