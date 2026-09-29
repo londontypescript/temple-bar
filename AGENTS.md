@@ -91,9 +91,9 @@ overlapping files.
 
 ## 4. Checks and review
 
-CI is the merge condition. Until 0.0.3 is pinned (step M5 of the 0.0.3 plan),
-CI runs the repo's own `pnpm check`; from then it runs the pinned `pnpm gate`,
-so the last published temple-bar judges every pull request.
+CI is the merge condition, and CI runs the pinned `pnpm gate`, so the last
+published temple-bar judges every pull request. `pnpm check` is the same gate,
+kept as a familiar local alias.
 
 - The full suite runs regardless of what changed. Never select tests by diff.
 - Never weaken a check, suppress a rule, narrow an ignore list or skip a test
@@ -181,7 +181,7 @@ the repo today, and changes as each phase lands.
 | No merge commits on `main`                | ruleset: squash or rebase only, linear history, from M2 | **Blocked** from M2   |
 | No commits to local `main`                | pinned temple-bar hooks, once installed                 | **Blocked** locally   |
 | Local `main` moves only to `origin/main`  | pinned `reference-transaction` hook                     | **Blocked** locally   |
-| File length                               | length check in CI (the pinned gate from M5)            | **Blocked** via CI    |
+| File length                               | the pinned gate in CI                                   | **Blocked** via CI    |
 | Delegated file scopes                     | nothing until theme D                                   | **Prose only**        |
 | No weakened checks                        | nothing until theme B                                   | **Prose only**        |
 | Who merges without asking                 | nothing                                                 | **Prose only**        |
