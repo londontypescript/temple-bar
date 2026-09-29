@@ -47,6 +47,9 @@ export function createFakeGh(
   return {
     ...env,
     [pathKey]: `${binDir}${path.delimiter}${env[pathKey] ?? ""}`,
-    NODE_OPTIONS: `${env.NODE_OPTIONS ?? ""} --require "${preload}"`.trim(),
+    // NODE_OPTIONS reads a backslash inside quotes as an escape, which would
+    // eat every separator in a Windows path; Node takes forward slashes.
+    NODE_OPTIONS:
+      `${env.NODE_OPTIONS ?? ""} --require "${preload.replaceAll("\\", "/")}"`.trim(),
   };
 }
