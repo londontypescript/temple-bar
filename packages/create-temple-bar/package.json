@@ -1,13 +1,14 @@
 {
   "name": "@londontypescript/create-temple-bar",
-  "version": "0.0.1",
+  "version": "0.0.2",
+  "description": "Set up temple-bar, rules for AI coding agents that git actually enforces.",
   "type": "module",
   "license": "MIT",
   "engines": {
     "node": ">=24"
   },
   "bin": {
-    "create-temple-bar": "./dist/index.js"
+    "create-temple-bar": "dist/index.js"
   },
   "files": [
     "dist"

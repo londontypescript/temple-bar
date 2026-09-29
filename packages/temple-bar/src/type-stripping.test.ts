@@ -10,7 +10,11 @@ import test from "node:test";
 // JavaScript rather than relying on Node to strip types at runtime. This
 // is what forces packages/*/dist to exist. CI proves this on Node 24 and
 // 26; this test proves it wherever it runs.
-const ERASABLE_SOURCE = "const answer: number = 1;\nconsole.log(answer);\n";
+// Prints with process.stdout.write, not console.log: console.log colours a
+// number whenever colour is forced, which some terminals do, and the check
+// below compares plain text.
+const ERASABLE_SOURCE =
+  "const answer: number = 1;\nprocess.stdout.write(`${String(answer)}\\n`);\n";
 
 void test("Node refuses type stripping under node_modules but allows it elsewhere", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-p9-1a-"));
@@ -33,6 +37,8 @@ void test("Node refuses type stripping under node_modules but allows it elsewher
     writeFileSync(outsideNodeModules, ERASABLE_SOURCE);
     const output = execFileSync(process.execPath, [outsideNodeModules], {
       encoding: "utf8",
+      // Forced on purpose: the result must not depend on the terminal.
+      env: { ...process.env, FORCE_COLOR: "1" },
     });
     assert.equal(output, "1\n");
   } finally {

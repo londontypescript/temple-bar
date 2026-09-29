@@ -30,7 +30,8 @@ const PACKAGE_NAME = "@londontypescript/temple-bar";
 /**
  * Adds `@londontypescript/temple-bar` as a dev dependency, pinned to
  * `version` (the launcher's own version, so both packages stay in lockstep
- * since they're published together).
+ * since they're published together). Saved exact, not as a `^` range, so a
+ * later install can't drift to a newer temple-bar.
  */
 export function addDevDependencyCommand(
   pm: PackageManager,
@@ -39,13 +40,13 @@ export function addDevDependencyCommand(
   const spec = `${PACKAGE_NAME}@${version}`;
   switch (pm) {
     case "pnpm":
-      return { command: "pnpm", args: ["add", "-D", spec] };
+      return { command: "pnpm", args: ["add", "-D", "--save-exact", spec] };
     case "yarn":
-      return { command: "yarn", args: ["add", "-D", spec] };
+      return { command: "yarn", args: ["add", "-D", "--exact", spec] };
     case "bun":
-      return { command: "bun", args: ["add", "-d", spec] };
+      return { command: "bun", args: ["add", "-d", "--exact", spec] };
     case "npm":
-      return { command: "npm", args: ["install", "-D", spec] };
+      return { command: "npm", args: ["install", "-D", "--save-exact", spec] };
   }
 }
 

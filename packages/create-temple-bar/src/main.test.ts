@@ -74,6 +74,7 @@ void test("main: pnpm runs `pnpm add -D` then `pnpm exec temple-bar init`", asyn
   assert.deepEqual(firstCall?.args, [
     "add",
     "-D",
+    "--save-exact",
     "@londontypescript/temple-bar@0.3.0",
   ]);
   assert.equal(firstCall.command, "pnpm");
@@ -100,6 +101,7 @@ void test("main: npm runs `npm install -D` then `npx --no-install temple-bar ini
   assert.deepEqual(first?.args, [
     "install",
     "-D",
+    "--save-exact",
     "@londontypescript/temple-bar@0.3.0",
   ]);
   assert.deepEqual(second?.args, ["--no-install", "temple-bar", "init"]);
@@ -120,7 +122,7 @@ void test("main: yarn runs `yarn add -D` then `yarn exec temple-bar init`", asyn
   await main(deps);
   assert.deepEqual(calls[0], {
     command: "yarn",
-    args: ["add", "-D", "@londontypescript/temple-bar@0.3.0"],
+    args: ["add", "-D", "--exact", "@londontypescript/temple-bar@0.3.0"],
     options: { cwd: "/app", env: deps.env },
   });
   assert.deepEqual(calls[1]?.args, ["exec", "temple-bar", "init"]);
@@ -141,6 +143,7 @@ void test("main: bun runs `bun add -d` then `bunx temple-bar init`", async () =>
   assert.deepEqual(calls[0]?.args, [
     "add",
     "-d",
+    "--exact",
     "@londontypescript/temple-bar@0.3.0",
   ]);
   assert.deepEqual(calls[1], {
