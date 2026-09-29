@@ -22,17 +22,10 @@ import { createGhSeam } from "../seams/gh.ts";
 import { createFsSeam } from "../seams/fs.ts";
 import { createProcSeam } from "../seams/proc.ts";
 import { createFakeClock, createFakePrompt } from "../testing/fakes.ts";
+import { initTestRepo } from "../testing/git-repo.ts";
 import type { Context } from "../context.ts";
 import { gateCommand } from "./command.ts";
 import { detectPackageManager } from "./stack.ts";
-
-function initRepo(dir: string): void {
-  execFileSync("git", ["init", "--initial-branch=main"], { cwd: dir });
-  execFileSync("git", ["config", "user.email", "test@example.com"], {
-    cwd: dir,
-  });
-  execFileSync("git", ["config", "user.name", "Test"], { cwd: dir });
-}
 
 function stageAll(dir: string): void {
   // Untracked-but-not-ignored files are already picked up by
@@ -99,7 +92,7 @@ function markerScript(name: string, extra = ""): string {
 void test("gate e2e: a passing project (typecheck, lint, test all pass) exits 0", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-pass-"));
   try {
-    initRepo(dir);
+    initTestRepo(dir);
     writePackageJson(dir, {
       typecheck: markerScript("typecheck"),
       lint: markerScript("lint"),
@@ -127,7 +120,7 @@ void test("gate e2e: a passing project (typecheck, lint, test all pass) exits 0"
 void test("gate e2e: a failing test script exits 1, but typecheck and lint still ran", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-fail-"));
   try {
-    initRepo(dir);
+    initTestRepo(dir);
     writePackageJson(dir, {
       typecheck: markerScript("typecheck"),
       lint: markerScript("lint"),
@@ -156,7 +149,7 @@ void test("gate e2e: a failing test script exits 1, but typecheck and lint still
 void test("gate e2e: code but no scripts in package.json exits 2, naming all three", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-noscripts-"));
   try {
-    initRepo(dir);
+    initTestRepo(dir);
     writePackageJson(dir, {});
     writeFileSync(path.join(dir, "index.js"), "module.exports = 1;\n");
     stageAll(dir);
@@ -177,7 +170,7 @@ void test("gate e2e: code but no scripts in package.json exits 2, naming all thr
 void test("gate e2e: a docs-only project with no package.json passes", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-docs-"));
   try {
-    initRepo(dir);
+    initTestRepo(dir);
     writeFileSync(path.join(dir, "README.md"), "# Sample\n\nDocs only.\n");
     stageAll(dir);
 
@@ -193,7 +186,7 @@ void test("gate e2e: a docs-only project with no package.json passes", async () 
 void test("gate e2e: CI=true reaches the scripts", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-ci-"));
   try {
-    initRepo(dir);
+    initTestRepo(dir);
     // npm echoes each script's own source text to stdout before running it
     // (a "> node -e ..." preamble), so the runtime marker is built by
     // concatenation: the contiguous string "CI-OK" never appears in the
@@ -222,7 +215,7 @@ void test("gate e2e: CI=true reaches the scripts", async () => {
 void test("gate e2e: pnpm is detected from packageManager without needing pnpm on PATH (detection only, no run)", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-pnpm-"));
   try {
-    initRepo(dir);
+    initTestRepo(dir);
     writeFileSync(
       path.join(dir, "package.json"),
       JSON.stringify({
@@ -249,7 +242,7 @@ void test("gate e2e: a nested worktree inside the project leaves the gate passin
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-worktree-"));
   const nestedDir = path.join(dir, "nested-worktree");
   try {
-    initRepo(dir);
+    initTestRepo(dir);
     writeFileSync(path.join(dir, "README.md"), "# Sample\n\nDocs only.\n");
     execFileSync("git", ["commit", "--allow-empty", "-m", "root"], {
       cwd: dir,

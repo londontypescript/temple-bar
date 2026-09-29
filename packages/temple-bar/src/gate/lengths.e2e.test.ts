@@ -12,16 +12,9 @@ import test from "node:test";
 
 import { createFsSeam } from "../seams/fs.ts";
 import { createGitSeam } from "../seams/git.ts";
+import { initTestRepo } from "../testing/git-repo.ts";
 import type { Context } from "../context.ts";
 import { checkFileLengths, DEFAULT_MAX_FILE_LINES } from "./lengths.ts";
-
-function initRepo(dir: string): void {
-  execFileSync("git", ["init", "--initial-branch=main"], { cwd: dir });
-  execFileSync("git", ["config", "user.email", "test@example.com"], {
-    cwd: dir,
-  });
-  execFileSync("git", ["config", "user.name", "Test"], { cwd: dir });
-}
 
 function stageAll(dir: string): void {
   execFileSync("git", ["add", "-A"], { cwd: dir });
@@ -51,7 +44,7 @@ function minimalContext(cwd: string): Context {
 void test("lengths e2e: a file over the configured cap fails, naming itself", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-lengths-over-"));
   try {
-    initRepo(dir);
+    initTestRepo(dir);
     writeFileSync(
       path.join(dir, "temple-bar.config.json"),
       JSON.stringify({ maxFileLines: 3 }),
@@ -75,7 +68,7 @@ void test("lengths e2e: a file over the configured cap fails, naming itself", as
 void test("lengths e2e: maxFileLines from the project's config is honoured (a file that would pass the default fails a tighter cap)", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-lengths-config-"));
   try {
-    initRepo(dir);
+    initTestRepo(dir);
     writeFileSync(
       path.join(dir, "temple-bar.config.json"),
       JSON.stringify({ maxFileLines: 2 }),
@@ -97,7 +90,7 @@ void test("lengths e2e: maxFileLines from the project's config is honoured (a fi
 void test("lengths e2e: the package default applies with no config file present", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-lengths-default-"));
   try {
-    initRepo(dir);
+    initTestRepo(dir);
     const overDefault = "line\n".repeat(DEFAULT_MAX_FILE_LINES + 1);
     writeFileSync(path.join(dir, "huge.txt"), overDefault);
     writeFileSync(path.join(dir, "small.txt"), "line\n");
@@ -119,7 +112,7 @@ void test("lengths e2e: a nested worktree inside the project passes, even one wi
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-lengths-worktree-"));
   const nestedDir = path.join(dir, "nested-worktree");
   try {
-    initRepo(dir);
+    initTestRepo(dir);
     writeFileSync(path.join(dir, "small.txt"), "1\n2\n3\n");
     stageAll(dir);
     execFileSync("git", ["commit", "-m", "init"], { cwd: dir });
