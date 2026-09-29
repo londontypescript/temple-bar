@@ -1,6 +1,6 @@
 # Plan: temple-bar
 
-Status: **Layer 1 (phase 1) DONE 2026-09-29: this repo is gated by the published temple-bar 0.0.2.** The 0.0.3 mini plan (§3a) is approved and in progress. The rest of the post-phase-1 review follows it, then Layer 2. Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
+Status: **Layer 1 (phase 1) DONE 2026-09-29. The 0.0.3 mini plan (§3a) DONE 2026-09-29: 0.0.3 is on npm as `latest`, and CI here runs the published 0.0.3 gate.** Next: the release-workflow PR (full CI before staging, `latest` on approval, draft GitHub Releases), then the rest of the post-phase-1 review, then Layer 2.
 
 Approval is in two layers, as agreed:
 
@@ -218,7 +218,7 @@ Ratings: **R** routine · **I** involved · **D** delicate. "∥" marks work tha
 
 ## 3a. Mini plan: 0.0.3 and the easy review decisions
 
-Approved 2026-09-29. Implements decisions 17–27. Ratings as in §3; models, your choice: **I** Opus 5.5, **R** Sonnet 5.5, orchestrator Opus.
+Approved 2026-09-29; **done 2026-09-29**, approved by you: #18, #20–#24 and the `v0.0.3` release. Added along the way: `--help` for the `npm create` launcher (#22). Implements decisions 17–27. Ratings as in §3; models, your choice: **I** Opus 5.5, **R** Sonnet 5.5, orchestrator Opus.
 
 - **M1 Plan pull request** (D, orchestrator): decisions 17–27 in §1, this section, the AGENTS.md changes (§0, §1, §2, §4, §7, §8, §9) and the §6 proposals from the review. The handoff moves to `planning/`. **You:** yes to merge (it changes AGENTS.md).
 - **M2 GitHub settings** (R, orchestrator, after M1): ruleset allows only squash and rebase, requires linear history, and requires CodeQL. **Break-it:** a merge-commit attempt is refused.
@@ -348,3 +348,5 @@ No incident tool exists until theme F. Agents write proposals here, one line eac
 - 2026-09-29: after #16, fast-forwarding local `main` in the main checkout was refused. `init` in a worktree had set `core.hooksPath` in the config shared by every worktree, so the fast-forward checked out `.githooks/` before `temple-bar` was installed there, and the shim failed closed. Git left `main` at the old commit with the new tree staged. Recovered with `pnpm install` and a retried fast-forward. Worktrees on branches from before the setup have no hooks at all, silently. To discuss: worktree setup scripts.
 - 2026-09-29: AGENTS.md §4 says the pinned gate is the merge condition from 1.10, but CI still runs the source tree's `pnpm check`, not `pnpm gate`. The gate also skips `format:check`, and the length cap is checked twice (`scripts/check-lengths.ts` and the gate).
 - 2026-09-29: in the review, the agent folded "README rewrite: first task of the next phase" into its own implementation plan. You write the README; the decision said when, not who. A decision with no owner invites the agent to assume it's the owner.
+- 2026-09-29: M3a's brief allowed `e2e/pack-install` to change "only if its fixture needs format:check", but an assertion on the gate's changed message also had to change. Briefs should name assertions on changed messages, not only fixtures. (Proposed by the M3a subagent.)
+- 2026-09-29: 1.9's review listed what the release must defend against (tokens, provenance, only from `main`, lockstep, no overwrite) but not "never publish code that hasn't passed the full CI". "On `main`" was taken to mean tested, and the release's own Ubuntu-only check to mean fully tested. The release could stage before the 3-OS CI finished. Found by your question at 0.0.3, not by a mechanism; the fix is the next PR.
