@@ -38,8 +38,12 @@ export function createFakeGit(
   };
 }
 
+export interface RecordedGhCall extends RecordedCall {
+  readonly input?: string;
+}
+
 export interface FakeGh extends GhSeam {
-  readonly calls: RecordedCall[];
+  readonly calls: RecordedGhCall[];
 }
 
 export function createFakeGh(
@@ -50,11 +54,11 @@ export function createFakeGh(
     notFound: false,
   }),
 ): FakeGh {
-  const calls: RecordedCall[] = [];
+  const calls: RecordedGhCall[] = [];
   return {
     calls,
-    run(args, cwd) {
-      calls.push({ args, cwd });
+    run(args, cwd, input) {
+      calls.push(input === undefined ? { args, cwd } : { args, cwd, input });
       return Promise.resolve(script(args, cwd));
     },
   };

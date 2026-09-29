@@ -13,14 +13,19 @@ export interface GhResult {
 }
 
 export interface GhSeam {
-  /** Runs `gh <args>` in `cwd`. Never throws, including on a non-zero exit. */
-  run(args: readonly string[], cwd: string): Promise<GhResult>;
+  /** Runs `gh <args>` in `cwd`, writing `input` to its stdin when given
+   * (for `gh api --input -`). Never throws, including on a non-zero exit. */
+  run(args: readonly string[], cwd: string, input?: string): Promise<GhResult>;
 }
 
 export function createGhSeam(env: NodeJS.ProcessEnv = process.env): GhSeam {
   return {
-    async run(args, cwd) {
-      const outcome = await runCommand("gh", args, { cwd, env });
+    async run(args, cwd, input) {
+      const outcome = await runCommand(
+        "gh",
+        args,
+        input === undefined ? { cwd, env } : { cwd, env, input },
+      );
       return {
         code: outcome.code,
         stdout: outcome.stdout,

@@ -17,6 +17,8 @@ export interface ExecOutcome {
 export interface ExecOptions {
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
+  /** Written to the child's stdin, which is then closed. */
+  readonly input?: string;
 }
 
 function isErrnoException(value: unknown): value is NodeJS.ErrnoException {
@@ -35,7 +37,7 @@ export function runCommand(
   options: ExecOptions,
 ): Promise<ExecOutcome> {
   return new Promise((resolve) => {
-    execFile(
+    const child = execFile(
       command,
       args,
       {
@@ -67,5 +69,8 @@ export function runCommand(
         });
       },
     );
+    if (options.input !== undefined) {
+      child.stdin?.end(options.input);
+    }
   });
 }

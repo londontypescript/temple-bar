@@ -1,6 +1,6 @@
 # Plan: temple-bar
 
-Status: **Layer 1 (phase 1) APPROVED 2026-09-28, in progress: 1.1, 1.2, 1.3, 1.4, 1.6 and 1.9 done; 1.5 lands with its PR; 1.7 in progress.** Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
+Status: **Layer 1 (phase 1) APPROVED 2026-09-28, in progress: 1.1–1.7 and 1.9 done (1.7 lands with its PR); 1.8 next.** Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
 
 Approval is in two layers, as agreed:
 
@@ -144,14 +144,14 @@ Ratings: **R** routine · **I** involved · **D** delicate. "∥" marks work tha
 
 #### 1.7 Setup (`init`) and launcher — **I**, ∥
 
-- [ ] `init`:
+- [x] `init`:
   - checks for a git repo, `gh` installed and signed in, and `origin` on GitHub, stopping with the exact fix if one is missing
   - offers `gh repo create` and the `main` ruleset only on an explicit yes; with no terminal it prints the steps and exits non-zero
   - writes a _minimal_ `AGENTS.md` only if none exists (the full rules come in theme A)
   - installs the hook shims and sets `core.hooksPath`
   - adds `prepare` and `gate` scripts
   - never deletes anything, and a second run changes nothing (N6, N9)
-- [ ] `create-temple-bar`: detects the package manager, creates `package.json` if needed, adds `@londontypescript/temple-bar` as a dev dependency, and runs `temple-bar init`.
+- [x] `create-temple-bar`: detects the package manager, creates `package.json` if needed, adds `@londontypescript/temple-bar` as a dev dependency, and runs `temple-bar init`.
 - **Done when:** tests cover a new empty repo, an existing project, a second run, and each missing requirement.
 
 #### 1.8 Pack-and-install test — **I**, after 1.5–1.7
@@ -310,3 +310,4 @@ No incident tool exists until theme F. Agents write proposals here, one line eac
 - 2026-09-29: 1.6's e2e tests created temp repos that inherited the developer's global `commit.gpgsign=true`, so they failed locally in agent sessions (no pinentry) but passed on CI (no signing). The handoff had recorded "68 of 68 pass" from a run that only passed because a passphrase was cached. Fixed with a shared `initTestRepo` helper; a suite-wide `GIT_CONFIG_GLOBAL` isolation is proposed.
 - 2026-09-29: 1.6 was reviewed and reported green on macOS only. Its first CI run failed 11 tests on Windows: the fake fs didn't normalise path separators, and the `proc` seam refused every non-allowlisted command on win32, including `node`. Windows was left for CI to prove, and only CI caught it.
 - 2026-09-29: 1.5's handoff reported break-it evidence for every hook, but review found three tests that passed with their check broken: a pre-commit test that the other hook satisfied, a cherry-pick test where git rejected `--no-verify` before any hook ran, and refusal tests that only checked for a non-zero exit. A red run shows a test _can_ fail; it doesn't show the test fails for the right reason. Fixed by asserting each hook's own refusal message.
+- 2026-09-29: 1.7's `init` ruleset call had never run against real `gh`, and its unit test asserted the arguments it built, so it copied three bugs instead of catching them: `gh api -f` put the pull-request parameters on the wrong rule, sent `exclude` as `[""]`, and used the rule type `non_fastforward` (GitHub's is `non_fast_forward`). GitHub would have rejected it every time, and `init` would still have exited 0. Found by capturing `gh`'s request locally and reading the repo's real ruleset; replaced with a JSON body on stdin. Tests that assert what the code builds can't catch a wrong spec: check against the real thing once.
