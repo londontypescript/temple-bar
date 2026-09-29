@@ -1,6 +1,6 @@
 # temple-bar
 
-> **Pre-release.** Nothing is published to npm yet. This README describes how temple-bar will work once `0.x` is out; the setup commands below won't run until then. Progress: [docs/plans/temple-bar.md](docs/plans/temple-bar.md).
+> **Pre-release.** `0.0.x` is on npm and works, but only part of what this README describes is built: setup, the git hooks that guard `main`, and the `gate` command. Running the gate automatically on every pull request, the strength label on every rule, and the incident loop are still to come. Progress: [docs/plans/temple-bar.md](docs/plans/temple-bar.md).
 
 ## Prose != Enforcement
 
@@ -112,13 +112,13 @@ Already ran `npm install -D @londontypescript/temple-bar`? Installing the packag
 ## What setup does
 
 - Checks the requirements: a git repo, `gh` signed in, and `origin` pointing at GitHub. If one is missing, it stops with the exact fix, or offers `gh repo create` and waits for your yes.
-- Offers to switch on `main`'s protection rules on GitHub (pull request required, CI required, no direct pushes) if you're an admin of the repo. Otherwise it prints the settings to switch on.
+- Offers to switch on `main`'s protection rules on GitHub: pull request required, no force-pushes, and `main` can't be deleted. If it can't (for example, you're not an admin of the repo), it prints the settings to switch on by hand. Requiring CI checks isn't part of it yet.
 - Adds `@londontypescript/temple-bar` as a dev dependency with your package manager, creating `package.json` if there isn't one.
-- Writes `AGENTS.md` (the rules) and `temple-bar.config.json`.
+- Writes `AGENTS.md` (the rules) if there isn't one already.
 - Installs the git hooks, and adds a `prepare` script so they come back on every install.
 - Adds a `gate` script: `npm run gate` is the merge check.
 - Guards local `main`: it can only move to commits that are already on GitHub's `main`.
-- **Never** deletes files, rewrites history or pushes, and never creates anything on GitHub without asking. Running it twice changes nothing.
+- **Never** deletes files or rewrites history, and never creates or pushes anything on GitHub without asking. Running it twice changes nothing.
 
 temple-bar has no install scripts: installing it never changes your repo by itself.
 
@@ -130,7 +130,7 @@ You've been asked to set up temple-bar. Follow these steps exactly.
 2. If setup reports something missing (`gh` not installed or not signed in, no GitHub remote), **stop and tell the user** exactly what it said. Don't install tools globally and don't work around it.
 3. If setup asks to create a GitHub repository or change GitHub settings, **ask the user** and pass on their answer. Never answer yes on their behalf.
 4. Don't install the package on its own (`npm install -D …`). That leaves the repo unprotected.
-5. When setup finishes, read `AGENTS.md` and follow it. For a new project, start by asking the user what they want to build. Then write a plan, and don't scaffold a framework or write code before the user approves it.
+5. When setup finishes, `main` refuses direct commits, so land the setup through a pull request, as setup's output describes. Then read `AGENTS.md` and follow it. For a new project, start by asking the user what they want to build. Then write a plan, and don't scaffold a framework or write code before the user approves it.
 
 ## Licence
 
