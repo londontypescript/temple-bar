@@ -14,10 +14,13 @@
     "test": "node --test",
     "lengths": "node scripts/check-lengths.ts",
     "build": "tsc -p packages/temple-bar/tsconfig.build.json && tsc -p packages/create-temple-bar/tsconfig.build.json",
-    "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run test && pnpm run lengths"
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run test && pnpm run lengths",
+    "prepare": "temple-bar hook install",
+    "gate": "temple-bar gate"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@londontypescript/temple-bar": "0.0.2",
     "@types/node": "24.19.0",
     "eslint": "10.11.0",
     "eslint-config-prettier": "10.1.8",
