@@ -65,6 +65,7 @@ export function createFakeGh(
 }
 
 export interface RecordedWrite {
+  /** Normalised like PathMap's keys: compare with path.normalize(...). */
   readonly path: string;
   readonly content: string;
 }
@@ -74,27 +75,41 @@ export interface FakeFs extends FsSeam {
   readonly writes: RecordedWrite[];
 }
 
-// Keys are normalised like the real filesystem treats them, so a test's
-// "/repo/x" and the code's path.join(cwd, "x") (backslashes on Windows) name
-// the same file.
+/** A Map whose keys are paths normalised the way the real filesystem
+ * treats them, so a test's "/repo/x" and the code's path.join(cwd, "x")
+ * (backslashes on Windows) name the same file, whether read through the
+ * seam or straight from `files` in a test. */
+class PathMap extends Map<string, string> {
+  override get(key: string): string | undefined {
+    return super.get(normalize(key));
+  }
+  override set(key: string, value: string): this {
+    return super.set(normalize(key), value);
+  }
+  override has(key: string): boolean {
+    return super.has(normalize(key));
+  }
+  override delete(key: string): boolean {
+    return super.delete(normalize(key));
+  }
+}
+
 export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
-  const files = new Map(
-    Object.entries(initial).map(([key, value]) => [normalize(key), value]),
-  );
+  const files = new PathMap(Object.entries(initial));
   const writes: RecordedWrite[] = [];
   return {
     files,
     writes,
     readText(path) {
-      return Promise.resolve(files.get(normalize(path)));
+      return Promise.resolve(files.get(path));
     },
     writeText(path, content) {
-      files.set(normalize(path), content);
-      writes.push({ path, content });
+      files.set(path, content);
+      writes.push({ path: normalize(path), content });
       return Promise.resolve();
     },
     exists(path) {
-      return Promise.resolve(files.has(normalize(path)));
+      return Promise.resolve(files.has(path));
     },
     mkdirp() {
       return Promise.resolve();

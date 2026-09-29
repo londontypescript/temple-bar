@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { normalize } from "node:path";
 import test from "node:test";
 
 import { main, type FsLike, type MainDeps, type WriterLike } from "./main.ts";
@@ -10,15 +11,19 @@ interface RecordedRun {
   readonly options: RunOptions;
 }
 
+/** Keys are normalised the way the real filesystem treats them, so the
+ * tests' "/app/x" and main's path.join (backslashes on Windows) match. */
 function makeFakeFs(initial: Record<string, string> = {}): FsLike & {
-  files: Map<string, string>;
+  file(filePath: string): string | undefined;
 } {
-  const files = new Map(Object.entries(initial));
+  const files = new Map(
+    Object.entries(initial).map(([key, value]) => [normalize(key), value]),
+  );
   return {
-    files,
-    readText: (filePath) => Promise.resolve(files.get(filePath)),
+    file: (filePath) => files.get(normalize(filePath)),
+    readText: (filePath) => Promise.resolve(files.get(normalize(filePath))),
     writeText: (filePath, content) => {
-      files.set(filePath, content);
+      files.set(normalize(filePath), content);
       return Promise.resolve();
     },
   };
@@ -157,7 +162,7 @@ void test("main: creates package.json when none exists", async () => {
     stderr: makeFakeWriter(),
   };
   await main(deps);
-  const written = JSON.parse(fs.files.get("/my-app/package.json") ?? "{}") as {
+  const written = JSON.parse(fs.file("/my-app/package.json") ?? "{}") as {
     name: string;
     private: boolean;
   };
@@ -177,7 +182,7 @@ void test("main: leaves an existing package.json alone", async () => {
     stderr: makeFakeWriter(),
   };
   await main(deps);
-  assert.equal(fs.files.get("/app/package.json"), '{"name":"already-here"}');
+  assert.equal(fs.file("/app/package.json"), '{"name":"already-here"}');
 });
 
 void test("main: a failing add-dependency step stops before running init", async () => {
