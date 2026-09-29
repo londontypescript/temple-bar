@@ -9,14 +9,14 @@
 //
 // Windows can't start `npm` or `pnpm` directly — they are `.cmd` shims, and
 // `child_process.spawn`/`execFile` refuse to launch those without a shell.
-// So this seam sets `shell: true`, but only on win32. Once a shell is in the
-// picture, the whole command line is subject to shell parsing, so nothing
-// that reaches it may be attacker- or caller-controlled text: on win32 this
-// seam refuses to run anything but a fixed, known-safe command name (`npm`
-// or `pnpm`) with arguments that all match /^[A-Za-z0-9:_-]+$/ (covers
-// script names like "typecheck" and flags like "run"). On every other
-// platform `shell` stays false, so the OS execs the binary directly and
-// never interprets the arguments at all — no such check is needed there.
+// So this seam sets `shell: true` for exactly those two commands, and only
+// on win32. Once a shell is in the picture, the whole command line is
+// subject to shell parsing, so nothing that reaches it may be attacker- or
+// caller-controlled text: a shelled `npm`/`pnpm` call is refused unless every
+// argument matches /^[A-Za-z0-9:_-]+$/ (covers script names like "typecheck"
+// and flags like "run"). Every other command, on every platform, runs with
+// `shell` false, so the OS execs the binary directly and never interprets
+// the arguments at all: no such check is needed there.
 
 import { spawn } from "node:child_process";
 import type { Writer } from "./io.ts";
@@ -73,23 +73,33 @@ export function createProcSeam(): ProcSeam {
   return {
     run(command, args, options) {
       return new Promise((resolve) => {
-        const useShell = process.platform === "win32";
+        const useShell =
+          process.platform === "win32" && isAllowedShellCommand(command);
 
         if (useShell && !isSafeForShell(command, args)) {
           options.stderr.write(
-            `proc: refusing to run "${[command, ...args].join(" ")}" through a shell on Windows: not a recognised, safely-quotable command\n`,
+            `proc: refusing to run "${[command, ...args].join(" ")}" through a shell on Windows: an argument is not safely quotable\n`,
           );
           resolve(127);
           return;
         }
 
-        const child = spawn(command, args, {
-          cwd: options.cwd,
-          env: options.env,
-          shell: useShell,
-          windowsHide: true,
-          stdio: ["ignore", "pipe", "pipe"],
-        });
+        let child;
+        try {
+          child = spawn(command, args, {
+            cwd: options.cwd,
+            env: options.env,
+            shell: useShell,
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+        } catch {
+          // Node throws synchronously for some unstartable commands (on
+          // Windows, a `.cmd`/`.bat` without a shell is EINVAL): report it
+          // like any other start failure rather than rejecting.
+          resolve(127);
+          return;
+        }
 
         child.stdout.on("data", (chunk: Buffer) => {
           options.stdout.write(chunk.toString("utf8"));

@@ -1,6 +1,8 @@
 // In-memory fakes for every seam, for tests only. Excluded from the built
 // package (tsconfig.build.json).
 
+import { normalize } from "node:path";
+
 import type { Context } from "../context.ts";
 import type { ClockSeam } from "../seams/clock.ts";
 import type { FsSeam } from "../seams/fs.ts";
@@ -68,22 +70,27 @@ export interface FakeFs extends FsSeam {
   readonly writes: RecordedWrite[];
 }
 
+// Keys are normalised like the real filesystem treats them, so a test's
+// "/repo/x" and the code's path.join(cwd, "x") (backslashes on Windows) name
+// the same file.
 export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
-  const files = new Map(Object.entries(initial));
+  const files = new Map(
+    Object.entries(initial).map(([key, value]) => [normalize(key), value]),
+  );
   const writes: RecordedWrite[] = [];
   return {
     files,
     writes,
     readText(path) {
-      return Promise.resolve(files.get(path));
+      return Promise.resolve(files.get(normalize(path)));
     },
     writeText(path, content) {
-      files.set(path, content);
+      files.set(normalize(path), content);
       writes.push({ path, content });
       return Promise.resolve();
     },
     exists(path) {
-      return Promise.resolve(files.has(path));
+      return Promise.resolve(files.has(normalize(path)));
     },
     mkdirp() {
       return Promise.resolve();
