@@ -1,6 +1,6 @@
 # Plan: temple-bar
 
-Status: **Layer 1 (phase 1) APPROVED 2026-09-28, in progress: 1.1–1.7 and 1.9 done (1.7 lands with its PR); 1.8 next.** Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
+Status: **Layer 1 (phase 1) APPROVED 2026-09-28, in progress: 1.1–1.9 done (1.8 lands with its PR); 1.10 next, with you.** Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
 
 Approval is in two layers, as agreed:
 
@@ -156,8 +156,8 @@ Ratings: **R** routine · **I** involved · **D** delicate. "∥" marks work tha
 
 #### 1.8 Pack-and-install test — **I**, after 1.5–1.7
 
-- [ ] Pack both packages. In a temp git repo, install them from the tarballs **with npm and with pnpm**. Run the setup, then show that a commit to `main` is refused and the gate runs.
-- [ ] Faking GitHub in the test: put a fake `gh` first on `PATH`, and use git's `url.<local>.insteadOf` so a `github.com` origin points at a local bare repo.
+- [x] Pack both packages. In a temp git repo, install them from the tarballs **with npm and with pnpm**. Run the setup, then show that a commit to `main` is refused and the gate runs.
+- [x] Faking GitHub in the test: put a fake `gh` first on `PATH`, and use git's `url.<local>.insteadOf` so a `github.com` origin points at a local bare repo. **Changed in 1.8:** the fake `gh` is a copy of the Node binary named `gh` plus a preload script (the gh seam can't start a script shim on Windows). `insteadOf` was dropped: `git remote get-url` returns the rewritten URL, so `init` would see a non-GitHub origin, and the test never needs to push. The launcher gets temple-bar from a local registry on `node:http` serving the packed tarball.
 - **Done when:** green on all six CI jobs. This is the test that proves the published package works from `node_modules` (P9.1a, the G5 class of bug).
 
 #### 1.9 Release workflow ∥ — **I**
@@ -311,3 +311,4 @@ No incident tool exists until theme F. Agents write proposals here, one line eac
 - 2026-09-29: 1.6 was reviewed and reported green on macOS only. Its first CI run failed 11 tests on Windows: the fake fs didn't normalise path separators, and the `proc` seam refused every non-allowlisted command on win32, including `node`. Windows was left for CI to prove, and only CI caught it.
 - 2026-09-29: 1.5's handoff reported break-it evidence for every hook, but review found three tests that passed with their check broken: a pre-commit test that the other hook satisfied, a cherry-pick test where git rejected `--no-verify` before any hook ran, and refusal tests that only checked for a non-zero exit. A red run shows a test _can_ fail; it doesn't show the test fails for the right reason. Fixed by asserting each hook's own refusal message.
 - 2026-09-29: 1.7's `init` ruleset call had never run against real `gh`, and its unit test asserted the arguments it built, so it copied three bugs instead of catching them: `gh api -f` put the pull-request parameters on the wrong rule, sent `exclude` as `[""]`, and used the rule type `non_fastforward` (GitHub's is `non_fast_forward`). GitHub would have rejected it every time, and `init` would still have exited 0. Found by capturing `gh`'s request locally and reading the repo's real ruleset; replaced with a JSON body on stdin. Tests that assert what the code builds can't catch a wrong spec: check against the real thing once.
+- 2026-09-29: #5 changed the shared fake filesystem after checking only its own branch for tests that read the fake directly. The parallel 1.7 branch did, and its first CI run failed 11 tests on Windows. A change to shared test code needs checking against every open branch, not just the one it's made on.

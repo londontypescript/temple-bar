@@ -1,13 +1,16 @@
 // Maps a subcommand name to a Command and dispatches to it. This is the only
-// file that needs editing to register a new top-level command: 1.5 adds
-// `registry.register({ name: "hook", ... })` backed by src/hooks/, 1.6 adds
-// `gate` backed by src/gate/, and 1.7 adds `init` backed by src/init/. None
-// of them touch the usage text (registry.ts derives it from what's
-// registered) or this file's dispatch logic.
+// file that needs editing to register a new top-level command; the usage
+// text is derived from what's registered (registry.ts), and the dispatch
+// logic below never changes for a new command.
 
 import type { Context } from "./context.ts";
 import { helpCommand } from "./commands/help.ts";
 import { versionCommand } from "./commands/version.ts";
+import { gateCommand } from "./gate/command.ts";
+import { createHookCommand } from "./hooks/command.ts";
+import { installHooks } from "./hooks/install.ts";
+import { readRealStdin } from "./hooks/stdin.ts";
+import { createInitCommand } from "./init/command.ts";
 import { buildUsage, CommandRegistry } from "./registry.ts";
 
 // Flags that mean the same thing as a registered command name.
@@ -31,6 +34,10 @@ export function createRegistry(): CommandRegistry {
     summary: "Print the installed version.",
     run: (_args, ctx) => versionCommand(ctx),
   });
+
+  registry.register(createInitCommand({ installHooks }));
+  registry.register(gateCommand);
+  registry.register(createHookCommand(readRealStdin));
 
   return registry;
 }

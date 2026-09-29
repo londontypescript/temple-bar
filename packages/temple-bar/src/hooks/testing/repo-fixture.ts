@@ -21,7 +21,8 @@ import { fileURLToPath } from "node:url";
 import { configureTestRepo, initTestRepo } from "../../testing/git-repo.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const TEST_ENTRY_PATH = path.join(here, "..", "hook.test-entry.ts");
+/** The real CLI entry point, run from source under type stripping. */
+export const CLI_PATH = path.join(here, "..", "..", "cli.ts");
 
 export interface CommandResult {
   readonly code: number;
@@ -81,8 +82,8 @@ export interface HookFixture {
 
 /**
  * Sets up repoDir (a normal repo on `main`) with a bare originDir remote,
- * a fake node_modules/.bin/temple-bar that runs hook.test-entry.ts (the
- * real command.ts logic, since 1.5 doesn't own router.ts), and installs the
+ * a fake node_modules/.bin/temple-bar that runs the real CLI from source
+ * (src/cli.ts, through the router), and installs the
  * real shims into repoDir via `hook install`.
  */
 export function createHookFixture(): HookFixture {
@@ -101,7 +102,7 @@ export function createHookFixture(): HookFixture {
   const binPath = path.join(binDir, "temple-bar");
 
   function installRealBin(): void {
-    const script = `#!/bin/sh\nexec "${toShPath(process.execPath)}" "${toShPath(TEST_ENTRY_PATH)}" "$@"\n`;
+    const script = `#!/bin/sh\nexec "${toShPath(process.execPath)}" "${toShPath(CLI_PATH)}" "$@"\n`;
     writeFileSync(binPath, script, "utf8");
     chmodSync(binPath, 0o755);
   }

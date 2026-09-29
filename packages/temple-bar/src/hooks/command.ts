@@ -35,8 +35,8 @@ async function runInstall(ctx: Context): Promise<number> {
 
 /**
  * `readStdin` is only called for `reference-transaction`, so `pre-commit`
- * and `install` never wait on it. The test entry point (hook.test-entry.ts)
- * and the real CLI (wired by router.ts) each pass their own reader.
+ * and `install` never wait on it. router.ts passes the real reader; unit
+ * tests pass their own.
  */
 export function createHookCommand(
   readStdin: () => Promise<string>,

@@ -205,3 +205,27 @@ void test("main: a failing add-dependency step stops before running init", async
   assert.equal(calls.length, 1, "init must never run after a failed add");
   assert.match(stderr.lines.join(""), /Failed to add/);
 });
+
+void test("main: the launcher's own commands don't inherit npm exec's --package", async () => {
+  const { run, calls } = makeFakeRunner(() => ({ code: 0 }));
+  const deps: MainDeps = {
+    cwd: "/app",
+    env: {
+      npm_config_user_agent: userAgents.npm,
+      npm_config_package: "@londontypescript/create-temple-bar",
+      KEEP: "me",
+    },
+    ownVersion: "0.3.0",
+    fs: makeFakeFs({ "/app/package.json": "{}" }),
+    run,
+    stderr: makeFakeWriter(),
+  };
+
+  await main(deps);
+
+  assert.equal(calls.length, 2);
+  for (const call of calls) {
+    assert.equal(call.options.env.npm_config_package, undefined);
+    assert.equal(call.options.env.KEEP, "me");
+  }
+});
