@@ -11,8 +11,9 @@ approved decisions list: check every brief and change against it.
 
 - This repo is gated by the last published temple-bar. Its own source never
   runs as its tooling, and no feature exists to make it do so.
-- Until 1.10, the local rules are prose only. Every change goes through a pull
-  request.
+- Since 1.10, the pinned temple-bar's hooks refuse commits to local `main` and
+  any move of `main` that doesn't come from `origin/main`. Every change goes
+  through a pull request.
 - Bumping the pinned temple-bar version is a deliberate change in its own pull
   request, never a side effect of other work.
 - The repo is public. Nothing committed here (code, plans, incident proposals,
@@ -36,24 +37,38 @@ The user writes the intake themselves: the grouped list of fixes and features.
 That grouping carries their judgement of what matters. Do not reorder it by your
 own priorities, and do not offer to generate it.
 
-Update the tracker **at every subtask**, not at phase end. Until status tooling
-exists, the plan's checkboxes are the status. A tracker that only moves at phase
-end tells the user nothing about where to spend the rest of a usage window.
+Update the live tracker **at every subtask**, not at phase end. A tracker that
+only moves at phase end tells the user nothing about where to spend the rest of
+a usage window. The live tracker and the handoff live in the gitignored
+`planning/` folder, where every agent can read them. Git holds the record:
+decisions, phase definitions, incidents, and each phase's status when it starts
+and ends. Per-subtask progress never needs a pull request.
 
 ## 2. Branching
 
 `main` changes only through merged pull requests.
 
 - **Multi-phase plan:** `phase/<name>-N` → squash locally → `feature/<name>` →
-  pull request → `main`
-- **Quick change:** one branch → pull request → `main`
+  pull request, rebase-merged so each phase stays one commit → `main`
+- **Quick change:** one branch → pull request, squash-merged → `main`
+- **No merge commits.** The `main` ruleset allows only squash and rebase merges
+  and requires linear history.
 - **Never commit to `main`**, locally or on GitHub. A one-line fix gets a branch
   too. Local `main` only ever moves by fast-forwarding to `origin/main`.
 
-The user merges every pull request, on GitHub or by saying yes so the
-orchestrator runs `gh pr merge`. Ask before every merge, including local
-phase → feature squashes. Agents push branches and open pull requests, never
-`main`.
+The orchestrator merges a pull request once CI and CodeQL are green, except
+one that changes AGENTS.md, bumps the pinned temple-bar, tags or publishes:
+those need the user's yes. Ask before local phase → feature squashes too.
+Agents push branches and open pull requests, never `main`.
+
+**Commit messages**, and pull request titles and bodies, since a squash merge
+turns them into the commit on `main`:
+
+- A conventional prefix: `feat`, `fix`, `docs` or `chore`, with a scope where
+  it helps (`fix(gate): ...`).
+- Proportional to the change: one line for a small commit; for a phase, a
+  subject plus one bullet per distinct concern.
+- The subject names the change, never the trigger ("address feedback").
 
 ## 3. Delegation
 
@@ -76,8 +91,9 @@ overlapping files.
 
 ## 4. Checks and review
 
-Until the gate exists, `pnpm check` (from subtask 1.2) and CI are the merge
-condition. From 1.10, the pinned temple-bar gate is.
+CI is the merge condition. Until 0.0.3 is pinned (step M5 of the 0.0.3 plan),
+CI runs the repo's own `pnpm check`; from then it runs the pinned `pnpm gate`,
+so the last published temple-bar judges every pull request.
 
 - The full suite runs regardless of what changed. Never select tests by diff.
 - Never weaken a check, suppress a rule, narrow an ignore list or skip a test
@@ -133,8 +149,8 @@ choice.
 
 Clear or compact only at a phase boundary, only after writing state down, and
 ask first. Usage limits cut work off mid-phase routinely; on resume, read git,
-open pull requests and the plan's checkboxes rather than asking the user to
-remember.
+open pull requests and the live tracker and handoff in `planning/` rather than
+asking the user to remember.
 
 ## 8. Incidents
 
@@ -148,28 +164,33 @@ generously, with no project-private details.
 **The user curates.** Keeping, editing, dropping and grouping proposals is
 theirs. Never rank or regroup them.
 
-**You remind them.** When you ask for merge approval and proposals are waiting,
-say how many.
+**You remind them.** When you ask for a merge approval or report a merge, and
+proposals are waiting, say how many.
 
 ## 9. What is actually enforced
 
 Stated plainly so nothing here is mistaken for a control. This table describes
-the repo today, and changes as phase 1 lands.
+the repo today, and changes as each phase lands.
 
-| Rule                                      | Mechanism                               | Strength              |
-| ----------------------------------------- | --------------------------------------- | --------------------- |
-| `main` changes only through pull requests | GitHub ruleset on `main`                | **Blocked** on GitHub |
-| No force-push or deletion of `main`       | GitHub ruleset on `main`                | **Blocked** on GitHub |
-| CI passes before merge                    | required status checks, once added (U6) | **Blocked** from U6   |
-| No commits to local `main`                | nothing until 1.10                      | **Prose only**        |
-| Delegated file scopes                     | nothing until theme D                   | **Prose only**        |
-| File length                               | nothing until 1.2                       | **Prose only**        |
-| No weakened checks                        | nothing until theme B                   | **Prose only**        |
-| Plan before code                          | nothing                                 | **Prose only**        |
-| Tracker updated per subtask               | nothing                                 | **Prose only**        |
-| Intake stays the user's                   | nothing                                 | **Prose only**        |
-| Whether wide changes mean duplication     | nothing: judgement                      | **Prose only**        |
-| Recording an incident at all              | nothing until theme F                   | **Prose only**        |
+| Rule                                      | Mechanism                                               | Strength              |
+| ----------------------------------------- | ------------------------------------------------------- | --------------------- |
+| `main` changes only through pull requests | GitHub ruleset on `main`                                | **Blocked** on GitHub |
+| No force-push or deletion of `main`       | GitHub ruleset on `main`                                | **Blocked** on GitHub |
+| CI passes before merge                    | required status checks (U6)                             | **Blocked** on GitHub |
+| CodeQL passes before merge                | required check, from M2                                 | **Blocked** from M2   |
+| No merge commits on `main`                | ruleset: squash or rebase only, linear history, from M2 | **Blocked** from M2   |
+| No commits to local `main`                | pinned temple-bar hooks, once installed                 | **Blocked** locally   |
+| Local `main` moves only to `origin/main`  | pinned `reference-transaction` hook                     | **Blocked** locally   |
+| File length                               | length check in CI (the pinned gate from M5)            | **Blocked** via CI    |
+| Delegated file scopes                     | nothing until theme D                                   | **Prose only**        |
+| No weakened checks                        | nothing until theme B                                   | **Prose only**        |
+| Who merges without asking                 | nothing                                                 | **Prose only**        |
+| Commit-message format                     | nothing                                                 | **Prose only**        |
+| Plan before code                          | nothing                                                 | **Prose only**        |
+| Tracker updated per subtask               | nothing                                                 | **Prose only**        |
+| Intake stays the user's                   | nothing                                                 | **Prose only**        |
+| Whether wide changes mean duplication     | nothing: judgement                                      | **Prose only**        |
+| Recording an incident at all              | nothing until theme F                                   | **Prose only**        |
 
 A rule that exists only as prose is a rule that will eventually be broken. If
 you find one drifting, the fix is a mechanism, not stronger wording.
