@@ -131,6 +131,11 @@ Rerunning the checks is not a review.
   user prompts, so tests can fake them.
 - **Node built-ins only** for the machinery. Bash appears only as one-line hook
   shims that call Node.
+- **Comments explain why, in plain words** a newcomer can follow. No internal
+  plan IDs in code (`P3.1`, `D2`, "decision 23", "subtask 1.7"): state the
+  reason itself, and point to an ADR when the full story matters. History
+  belongs in git and ADRs, not in comments. TypeScript developers of every
+  level read this code.
 
 ## 6. Blast radius
 
@@ -186,6 +191,7 @@ the repo today, and changes as each phase lands.
 | No weakened checks                        | nothing until theme B                                   | **Prose only**        |
 | Who merges without asking                 | nothing                                                 | **Prose only**        |
 | Commit-message format                     | nothing                                                 | **Prose only**        |
+| Comments in plain words, no plan IDs      | nothing                                                 | **Prose only**        |
 | Plan before code                          | nothing                                                 | **Prose only**        |
 | Tracker updated per subtask               | nothing                                                 | **Prose only**        |
 | Intake stays the user's                   | nothing                                                 | **Prose only**        |
