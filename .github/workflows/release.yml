@@ -10,8 +10,18 @@ permissions:
   contents: read
 
 jobs:
+  # The full CI matrix (3 operating systems × 2 Node versions) on the exact
+  # commit being released. Nothing below runs unless every job in it passes,
+  # so a failure that only shows on one platform can't reach npm.
+  ci:
+    name: full CI
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   publish:
     name: publish
+    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -83,9 +93,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Gate (the pinned, published temple-bar)
-        run: pnpm gate
-
       - name: Build
         run: pnpm build
 
@@ -128,11 +135,11 @@ jobs:
       # first (npm stage reject) before running this again.
       - name: Stage @londontypescript/temple-bar
         working-directory: packages/temple-bar
-        run: npm stage publish --tag next --provenance --access public
+        run: npm stage publish --tag latest --provenance --access public
 
       - name: Stage create-temple-bar
         working-directory: packages/create-temple-bar
-        run: npm stage publish --tag next --provenance --access public
+        run: npm stage publish --tag latest --provenance --access public
 
       - name: Say what's next
         run: |
@@ -147,4 +154,39 @@ jobs:
             echo '```'
             echo
             echo "Approve @londontypescript/temple-bar first, then create-temple-bar."
+            echo "Approving makes each one \`latest\` on npm."
+            echo
+            echo "Then publish the draft GitHub Release for this tag, once npm serves both."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # A draft, not a published Release: the version isn't public until a
+  # maintainer approves it on npm, so GitHub mustn't announce it first.
+  draft-release:
+    name: draft GitHub Release
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+
+      - name: Draft the release from conventional commits
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          node scripts/release-notes.ts "$TAG" > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" --draft --verify-tag \
+            --title "temple-bar ${TAG#v}" --notes-file "$RUNNER_TEMP/notes.md"
