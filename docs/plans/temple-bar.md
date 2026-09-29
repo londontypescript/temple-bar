@@ -257,6 +257,7 @@ The themes below are grouped by the problem they solve. They are **not ordered**
 
 - Re-check whether the D4 pre-merge-commit guard and the P2.2 bypass ledger still add anything now that decision 4 exists. Delete whichever fails the deletion test.
 - P2.5: merge requests state any machinery changes and any waiting incident proposals.
+- **Commit messages enforced, not prose** (added 2026-09-29): a `commit-msg` hook refusing a subject without a conventional prefix; a CI check on the pull request title, since a squash merge turns it into the commit on `main`; a `temple-bar merge` command that writes the squash message (title subject, one bullet per change, co-authors once) and merges. The rule also goes into theme A's AGENTS.md template.
 
 ### Theme D — Subagents boxed in
 
