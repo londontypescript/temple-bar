@@ -89,41 +89,49 @@ function markerScript(name: string, extra = ""): string {
   return `node -e "require('fs').writeFileSync('${name}.marker', '1')${extra ? `; ${extra}` : ""}"`;
 }
 
-void test("gate e2e: a passing project (typecheck, lint, test all pass) exits 0", async () => {
+void test("gate e2e: a passing project (every required script passes) exits 0, listing each check", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-pass-"));
   try {
     initTestRepo(dir);
     writePackageJson(dir, {
       typecheck: markerScript("typecheck"),
       lint: markerScript("lint"),
+      "format:check": markerScript("format-check"),
       test: markerScript("test"),
     });
     writeFileSync(path.join(dir, "index.js"), "module.exports = 1;\n");
     stageAll(dir);
 
-    const { ctx } = makeContext(dir);
+    const { ctx, stdout } = makeContext(dir);
     const code = await gateCommand.run([], ctx);
 
     assert.equal(code, 0);
-    for (const name of ["typecheck", "lint", "test"]) {
+    for (const name of ["typecheck", "lint", "format-check", "test"]) {
       assert.equal(
         existsSync(path.join(dir, `${name}.marker`)),
         true,
         `${name} should have run`,
       );
     }
+    const text = stdout.lines.join("");
+    for (const check of ["typecheck", "lint", "format:check", "test"]) {
+      assert.match(text, new RegExp(`^ {2}passed {2}${check}$`, "m"));
+    }
+    assert.match(text, /^ {2}passed {2}file-length cap \(all \d+ /m);
+    assert.match(text, /^gate: passed$/m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-void test("gate e2e: a failing test script exits 1, but typecheck and lint still ran", async () => {
+void test("gate e2e: a failing test script exits 1, but the other scripts still ran", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-fail-"));
   try {
     initTestRepo(dir);
     writePackageJson(dir, {
       typecheck: markerScript("typecheck"),
       lint: markerScript("lint"),
+      "format:check": markerScript("format-check"),
       test: markerScript("test", "process.exit(1)"),
     });
     writeFileSync(path.join(dir, "index.js"), "module.exports = 1;\n");
@@ -133,20 +141,21 @@ void test("gate e2e: a failing test script exits 1, but typecheck and lint still
     const code = await gateCommand.run([], ctx);
 
     assert.equal(code, 1);
-    for (const name of ["typecheck", "lint", "test"]) {
+    for (const name of ["typecheck", "lint", "format-check", "test"]) {
       assert.equal(
         existsSync(path.join(dir, `${name}.marker`)),
         true,
         `${name} should have run`,
       );
     }
-    assert.match(stderr.lines.join(""), /failed: test/);
+    assert.match(stderr.lines.join(""), /^ {2}failed {2}test \(exit 1\)$/m);
+    assert.match(stderr.lines.join(""), /^gate: failed: test$/m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-void test("gate e2e: code but no scripts in package.json exits 2, naming all three", async () => {
+void test("gate e2e: code but no scripts in package.json exits 2, naming every required script", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-noscripts-"));
   try {
     initTestRepo(dir);
@@ -159,9 +168,10 @@ void test("gate e2e: code but no scripts in package.json exits 2, naming all thr
 
     assert.equal(code, 2);
     const text = stderr.lines.join("");
-    assert.match(text, /typecheck/);
-    assert.match(text, /lint/);
-    assert.match(text, /test/);
+    assert.match(
+      text,
+      /missing script\(s\): typecheck, lint, format:check, test\n/,
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -196,6 +206,7 @@ void test("gate e2e: CI=true reaches the scripts", async () => {
     writePackageJson(dir, {
       typecheck: requiresCi,
       lint: requiresCi,
+      "format:check": requiresCi,
       test: requiresCi,
     });
     writeFileSync(path.join(dir, "index.js"), "module.exports = 1;\n");
@@ -206,7 +217,7 @@ void test("gate e2e: CI=true reaches the scripts", async () => {
 
     assert.equal(code, 0);
     const occurrences = stdout.lines.join("").match(/CI-OK/g) ?? [];
-    assert.equal(occurrences.length, 3);
+    assert.equal(occurrences.length, 4);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

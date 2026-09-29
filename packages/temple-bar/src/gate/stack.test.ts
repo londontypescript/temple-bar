@@ -39,10 +39,15 @@ void test("readPackageManifest treats invalid JSON as absent", async () => {
   assert.equal(await readPackageManifest(ctx), undefined);
 });
 
-void test("missingRequiredScripts: none missing when all three are present", () => {
+void test("missingRequiredScripts: none missing when all four are present", () => {
   assert.deepEqual(
     missingRequiredScripts({
-      scripts: { typecheck: "tsc", lint: "eslint .", test: "node --test" },
+      scripts: {
+        typecheck: "tsc",
+        lint: "eslint .",
+        "format:check": "prettier --check .",
+        test: "node --test",
+      },
     }),
     [],
   );
@@ -51,7 +56,7 @@ void test("missingRequiredScripts: none missing when all three are present", () 
 void test("missingRequiredScripts: names each missing script, in the fixed order", () => {
   assert.deepEqual(
     missingRequiredScripts({ scripts: { test: "node --test" } }),
-    ["typecheck", "lint"],
+    ["typecheck", "lint", "format:check"],
   );
 });
 
@@ -127,12 +132,13 @@ void test("runRequiredScripts: runs every script in order, all with CI=true, eve
 
   const results = await runRequiredScripts(ctx, "npm", REQUIRED_SCRIPTS);
 
-  assert.deepEqual(calls, ["typecheck", "lint", "test"]);
+  assert.deepEqual(calls, ["typecheck", "lint", "format:check", "test"]);
   assert.deepEqual(
     results.map((r) => [r.script, r.exitCode]),
     [
       ["typecheck", 0],
       ["lint", 1],
+      ["format:check", 0],
       ["test", 0],
     ],
   );

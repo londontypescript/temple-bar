@@ -7,7 +7,13 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import {
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,6 +82,41 @@ void test("F12: an unknown subcommand exits non-zero, prints usage on stderr, an
 
     const after = snapshotTree(dir);
     assert.deepEqual(after, before, "the directory tree must be unchanged");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("gate --help prints the gate's help, exits 0, and runs no script", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-help-"));
+  try {
+    execFileSync("git", ["init", "--initial-branch=main"], { cwd: dir });
+    // Every required script would leave a file behind if it ran.
+    const marks = "node -e \"require('fs').writeFileSync('ran.marker', '1')\"";
+    const scripts = {
+      typecheck: marks,
+      lint: marks,
+      "format:check": marks,
+      test: marks,
+    };
+    writeFileSync(
+      path.join(dir, "package.json"),
+      JSON.stringify({
+        name: "sample",
+        scripts,
+      }),
+    );
+    writeFileSync(path.join(dir, "index.js"), "export {};\n");
+
+    const before = snapshotTree(dir);
+    const stdout = execFileSync(process.execPath, [cliPath, "gate", "--help"], {
+      cwd: dir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    assert.deepEqual(snapshotTree(dir), before, "no script may have run");
+    assert.match(stdout, /^Usage: temple-bar gate\n/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

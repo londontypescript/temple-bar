@@ -11,7 +11,7 @@ import { createHookCommand } from "./hooks/command.ts";
 import { installHooks } from "./hooks/install.ts";
 import { readRealStdin } from "./hooks/stdin.ts";
 import { createInitCommand } from "./init/command.ts";
-import { buildUsage, CommandRegistry } from "./registry.ts";
+import { buildCommandHelp, buildUsage, CommandRegistry } from "./registry.ts";
 
 // Flags that mean the same thing as a registered command name.
 const ALIASES: Readonly<Record<string, string>> = {
@@ -19,6 +19,11 @@ const ALIASES: Readonly<Record<string, string>> = {
   "--help": "help",
   "--version": "version",
 };
+
+// Asking any command for help shows its help and runs nothing (decision
+// 20). Checked here, once, so no command can forget it and do its real work
+// instead: `temple-bar gate --help` used to run the whole gate.
+const HELP_FLAGS = new Set(["--help", "-h"]);
 
 export function createRegistry(): CommandRegistry {
   const registry = new CommandRegistry();
@@ -47,7 +52,8 @@ export function createRegistry(): CommandRegistry {
  * and returns the process exit code. No arguments: usage to stderr, exit 2.
  * Unknown subcommand: usage plus "unknown command: <name>" to stderr, exit 2,
  * and nothing else happens (F12 / P8.2: an unrecognised command must not
- * write anything).
+ * write anything). `--help` or `-h` anywhere after a known command prints
+ * that command's help to stdout, exits 0, and never runs the command.
  */
 export async function route(
   argv: readonly string[],
@@ -68,6 +74,11 @@ export async function route(
     ctx.stderr.write(buildUsage(registry));
     ctx.stderr.write(`unknown command: ${first}\n`);
     return 2;
+  }
+
+  if (rest.some((arg) => HELP_FLAGS.has(arg))) {
+    ctx.stdout.write(buildCommandHelp(entry));
+    return 0;
   }
 
   return entry.run(rest, ctx);
