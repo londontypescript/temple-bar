@@ -1,6 +1,6 @@
 # Plan: temple-bar
 
-Status: **Layer 1 (phase 1) DONE 2026-09-29: this repo is gated by the published temple-bar 0.0.2.** Next: the post-phase-1 review, then Layer 2. Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
+Status: **Layer 1 (phase 1) DONE 2026-09-29: this repo is gated by the published temple-bar 0.0.2.** The 0.0.3 mini plan (§3a) is approved and in progress. The rest of the post-phase-1 review follows it, then Layer 2. Repo created with the `main` ruleset (U2 and U4 done). Layer 2 is still an outline.
 
 Approval is in two layers, as agreed:
 
@@ -9,7 +9,7 @@ Approval is in two layers, as agreed:
 
 Inputs, kept outside this public repo in the user's local v1 repo (`nnsee-agentic`) and only read, never copied in: the brief (P1–P9, §4), the incident intake beside it (IDs F = futura-maximila, G = grand-union, N = nnsee-agentic), and the frozen hardening plan (D1–D7). The agreed README draft became `README.md`.
 
-This file lives at `docs/plans/temple-bar.md` (P6.5) and is the progress tracker. Tick each checkbox as its subtask lands.
+This file lives at `docs/plans/temple-bar.md` (P6.5). It is the record: decisions, phase definitions, incidents, and each phase's status when it starts and ends (decision 27). Per-subtask progress and the handoff live in the gitignored `planning/` folder.
 
 ---
 
@@ -43,6 +43,22 @@ Decided 2026-09-28:
 | 14  | **Status:** a published contract (versioned schema, exported types, additive-only changes). A live JSONL log per worktree (status plus git events), cleared when the branch ends. One rule: _when a branch's work ends, everything local about it goes._                                                                                                                                                                                                                                                                                                                                                                         |
 | 15  | **Target matrix:** each project declares its delivery paths, each with an end-to-end check. The gate runs them all, won't accept the unit-test command as a target check, and requires at least one target once code exists. grand-union v2 is the first user; temple-bar doesn't use it on itself.                                                                                                                                                                                                                                                                                                                              |
 | 16  | **Worktrees:** the harness decides where they go, and `git worktree list` is the truth. temple-bar checks the harms instead: dependencies installed and in sync, `.env` keys present (env files copied in, keys never values), and an explanation when tools scan nested worktrees. P3.4 ("branch only from a gated commit") becomes a `reference-transaction` check keyed on what a branch is, not its name.                                                                                                                                                                                                                    |
+
+Decided 2026-09-29, in the post-phase-1 review (the easy items; the rest are still open):
+
+| #   | Decision                                                                                                                                                                                                                                                                                                                             |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 17  | **Merge method:** quick changes squash to one commit; a multi-phase feature rebases, one commit per phase. The `main` ruleset allows only squash and rebase and requires linear history. v1 had this rule, but only as the words "squash" and "fast-forward" inside local-merge arrows, so decision 4 removed it with the mechanism. |
+| 18  | **Who merges:** Claude merges a pull request once CI and CodeQL are green, except one that changes AGENTS.md, bumps the pinned temple-bar, tags or publishes; those need your yes.                                                                                                                                                   |
+| 19  | **README:** you write the rewrite yourself, after the 0.0.3 mini plan. Agents supply facts and show any README change as a draft first.                                                                                                                                                                                              |
+| 20  | **Gate polish:** `--help` on any command shows help and runs nothing; a passing gate lists the checks that ran.                                                                                                                                                                                                                      |
+| 21  | **Fresh clones:** the README says hooks arrive with the install. Nothing more; the audience runs the install anyway.                                                                                                                                                                                                                 |
+| 22  | **Before install:** hooks keep failing closed where temple-bar isn't installed. The friction is handled by worktree setup scripts (still open).                                                                                                                                                                                      |
+| 23  | **The gate owns the checks:** it requires `typecheck`, `lint`, `test` and `format:check`. CI runs the pinned `pnpm gate` as the merge condition; `pnpm build` stays a separate CI step; the repo's duplicate length script goes.                                                                                                     |
+| 24  | **Commit messages:** conventional prefixes (`feat`, `fix`, `docs`, `chore`, with a scope), proportional to the change, naming the change and never the trigger. Applies to pull request titles and bodies too.                                                                                                                       |
+| 25  | **CodeQL** is a required check on the `main` ruleset.                                                                                                                                                                                                                                                                                |
+| 26  | **Test isolation:** the whole suite runs shut off from the machine's git config (`GIT_CONFIG_GLOBAL`, no system config).                                                                                                                                                                                                             |
+| 27  | **Record versus live tracker:** git holds decisions, phase definitions, incidents, and phase status at start and end. Subtask progress and the handoff live in gitignored `planning/`, readable by every agent. The handoff leaves Claude's private memory.                                                                          |
 
 Brief items changed by these decisions (the rest stand as written):
 
@@ -200,6 +216,21 @@ Ratings: **R** routine · **I** involved · **D** delicate. "∥" marks work tha
 
 ---
 
+## 3a. Mini plan: 0.0.3 and the easy review decisions
+
+Approved 2026-09-29. Implements decisions 17–27. Ratings as in §3; models, your choice: **I** Opus 5.5, **R** Sonnet 5.5, orchestrator Opus.
+
+- **M1 Plan pull request** (D, orchestrator): decisions 17–27 in §1, this section, the AGENTS.md changes (§0, §1, §2, §4, §7, §8, §9) and the §6 proposals from the review. The handoff moves to `planning/`. **You:** yes to merge (it changes AGENTS.md).
+- **M2 GitHub settings** (R, orchestrator, after M1): ruleset allows only squash and rebase, requires linear history, and requires CodeQL. **Break-it:** a merge-commit attempt is refused.
+- **M3a Gate changes** (I, subagent, ∥ M2 and M3b): `--help` and `-h` on every command; `format:check` required; a pass lists the checks. Package READMEs made factually accurate; you see the diff first. Scope: `packages/*/src/**` except `src/testing/`, and `packages/*/README.md`.
+- **M3b Test isolation** (R, subagent, ∥): scope `src/testing/`, `e2e/support/`, a setup file under `scripts/`; the root `package.json` change is the orchestrator's. **Break-it:** a global config with signing on fails a test without the isolation and passes with it.
+- **M4 Release 0.0.3** (D, orchestrator with you, after M3a and M3b): bump PR; tag after your yes; the workflow stages both packages. **You:** approve on npmjs.com with 2FA, then move `latest`. **Check:** provenance.
+- **M5 Pin 0.0.3** (D, orchestrator, after M4): pin in its own PR; CI runs `pnpm gate` and `pnpm build`; `pnpm check` becomes an alias for the gate; `scripts/check-lengths.ts` goes. **Break-it:** a misformatted file fails CI through the pinned gate. **You:** yes to merge (it bumps the pin).
+- **Done when:** M5 is merged with its break-it evidence, and you approve.
+- **Not in it:** your README rewrite; open review items (worktree location, cross-provider PR review, the remaining 1.5 and 1.7 findings, the refused fast-forward after setup, worktree setup scripts, copying env vars into worktrees, incident curation, what temple-bar dictates about planning).
+
+---
+
 ## 4. Layer 2 — later phases (outline, waiting on decisions)
 
 **Waiting on first:** your grouping of what goes into the first real release, then the open questions listed at the end of this section.
@@ -316,3 +347,4 @@ No incident tool exists until theme F. Agents write proposals here, one line eac
 - 2026-09-29: 1.9's release workflow published directly, but the trusted publishers were set to staged publishing only, so the `v0.0.2` run got a 403. Nothing before a real release run could have shown the mismatch. Fixed in #15 with `npm stage publish`.
 - 2026-09-29: after #16, fast-forwarding local `main` in the main checkout was refused. `init` in a worktree had set `core.hooksPath` in the config shared by every worktree, so the fast-forward checked out `.githooks/` before `temple-bar` was installed there, and the shim failed closed. Git left `main` at the old commit with the new tree staged. Recovered with `pnpm install` and a retried fast-forward. Worktrees on branches from before the setup have no hooks at all, silently. To discuss: worktree setup scripts.
 - 2026-09-29: AGENTS.md §4 says the pinned gate is the merge condition from 1.10, but CI still runs the source tree's `pnpm check`, not `pnpm gate`. The gate also skips `format:check`, and the length cap is checked twice (`scripts/check-lengths.ts` and the gate).
+- 2026-09-29: in the review, the agent folded "README rewrite: first task of the next phase" into its own implementation plan. You write the README; the decision said when, not who. A decision with no owner invites the agent to assume it's the owner.
