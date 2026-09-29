@@ -63,6 +63,8 @@ void test("main: pnpm runs `pnpm add -D` then `pnpm exec temple-bar init`", asyn
   const deps: MainDeps = {
     cwd: "/app",
     env: { npm_config_user_agent: userAgents.pnpm },
+    argv: [],
+    stdout: makeFakeWriter(),
     ownVersion: "0.3.0",
     fs,
     run,
@@ -91,6 +93,8 @@ void test("main: npm runs `npm install -D` then `npx --no-install temple-bar ini
   const deps: MainDeps = {
     cwd: "/app",
     env: { npm_config_user_agent: userAgents.npm },
+    argv: [],
+    stdout: makeFakeWriter(),
     ownVersion: "0.3.0",
     fs,
     run,
@@ -114,6 +118,8 @@ void test("main: yarn runs `yarn add -D` then `yarn exec temple-bar init`", asyn
   const deps: MainDeps = {
     cwd: "/app",
     env: { npm_config_user_agent: userAgents.yarn },
+    argv: [],
+    stdout: makeFakeWriter(),
     ownVersion: "0.3.0",
     fs,
     run,
@@ -134,6 +140,8 @@ void test("main: bun runs `bun add -d` then `bunx temple-bar init`", async () =>
   const deps: MainDeps = {
     cwd: "/app",
     env: { npm_config_user_agent: userAgents.bun },
+    argv: [],
+    stdout: makeFakeWriter(),
     ownVersion: "0.3.0",
     fs,
     run,
@@ -159,6 +167,8 @@ void test("main: creates package.json when none exists", async () => {
   const deps: MainDeps = {
     cwd: "/my-app",
     env: {},
+    argv: [],
+    stdout: makeFakeWriter(),
     ownVersion: "0.3.0",
     fs,
     run,
@@ -179,6 +189,8 @@ void test("main: leaves an existing package.json alone", async () => {
   const deps: MainDeps = {
     cwd: "/app",
     env: {},
+    argv: [],
+    stdout: makeFakeWriter(),
     ownVersion: "0.3.0",
     fs,
     run,
@@ -195,6 +207,8 @@ void test("main: a failing add-dependency step stops before running init", async
   const deps: MainDeps = {
     cwd: "/app",
     env: { npm_config_user_agent: userAgents.pnpm },
+    argv: [],
+    stdout: makeFakeWriter(),
     ownVersion: "0.3.0",
     fs,
     run: (command, args, options) => {
@@ -218,6 +232,8 @@ void test("main: the launcher's own commands don't inherit npm exec's --package"
       npm_config_package: "@londontypescript/create-temple-bar",
       KEEP: "me",
     },
+    argv: [],
+    stdout: makeFakeWriter(),
     ownVersion: "0.3.0",
     fs: makeFakeFs({ "/app/package.json": "{}" }),
     run,
@@ -232,3 +248,43 @@ void test("main: the launcher's own commands don't inherit npm exec's --package"
     assert.equal(call.options.env.KEEP, "me");
   }
 });
+
+for (const flag of ["--help", "-h"]) {
+  void test(`main: ${flag} prints help to stdout, exits 0 and touches nothing`, async () => {
+    const reads: string[] = [];
+    const writes: string[] = [];
+    const fs: FsLike = {
+      readText: (filePath) => {
+        reads.push(filePath);
+        return Promise.resolve(undefined);
+      },
+      writeText: (filePath) => {
+        writes.push(filePath);
+        return Promise.resolve();
+      },
+    };
+    const runner = makeFakeRunner(() => ({ code: 0 }));
+    const stdout = makeFakeWriter();
+    const stderr = makeFakeWriter();
+    const code = await main({
+      argv: [flag],
+      stdout,
+      cwd: "/app",
+      env: { npm_config_user_agent: userAgents.npm },
+      ownVersion: "0.3.0",
+      fs,
+      run: runner.run,
+      stderr,
+    });
+    assert.equal(code, 0);
+    assert.ok(
+      stdout.lines
+        .join("")
+        .startsWith("Usage: npm create @londontypescript/temple-bar@latest"),
+    );
+    assert.deepEqual(stderr.lines, []);
+    assert.deepEqual(reads, []);
+    assert.deepEqual(writes, []);
+    assert.equal(runner.calls.length, 0);
+  });
+}

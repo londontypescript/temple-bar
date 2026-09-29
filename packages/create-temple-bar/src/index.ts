@@ -26,6 +26,7 @@ async function readText(filePath: string): Promise<string | undefined> {
 }
 
 const exitCode = await main({
+  argv: process.argv.slice(2),
   cwd: process.cwd(),
   env: process.env,
   ownVersion: readOwnVersion(),
@@ -34,6 +35,7 @@ const exitCode = await main({
     writeText: (filePath, content) => fsp.writeFile(filePath, content, "utf8"),
   },
   run: createProcessRunner(),
+  stdout: { write: (text) => process.stdout.write(text) },
   stderr: { write: (text) => process.stderr.write(text) },
 });
 process.exitCode = exitCode;
