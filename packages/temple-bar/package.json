@@ -1,6 +1,6 @@
 {
   "name": "@londontypescript/temple-bar",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Rules for AI coding agents that git actually enforces.",
   "type": "module",
   "license": "MIT",
