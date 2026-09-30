@@ -55,11 +55,23 @@ and ends. Per-subtask progress never needs a pull request.
   and requires linear history.
 - **Never commit to `main`**, locally or on GitHub. A one-line fix gets a branch
   too. Local `main` only ever moves by fast-forwarding to `origin/main`.
+- **Every branch gets its own worktree,** with dependencies installed before
+  its first commit. The primary checkout stays on `main`, so parallel work
+  never collides. Where the worktree goes is the harness's choice.
 
 The orchestrator merges a pull request once CI and CodeQL are green, except
 one that changes AGENTS.md, bumps the pinned temple-bar, tags or publishes:
 those need the user's yes. Ask before local phase → feature squashes too.
 Agents push branches and open pull requests, never `main`.
+
+Until `temple-bar merge` does these steps itself:
+
+- After opening a pull request, watch its checks until they finish, then act
+  on the result. Never end on "I'll merge when green" with nothing watching.
+- Check for open code-scanning alerts before merging and again on `main`
+  afterwards.
+- After merging, remove the worktree and the local branch, and confirm the
+  remote branch is gone: `gh` can silently leave it behind.
 
 **Commit messages**, and pull request titles and bodies, since a squash merge
 turns them into the commit on `main`:
@@ -200,6 +212,7 @@ the repo today, and changes as each phase lands.
 | Tracker updated per subtask               | nothing                                                 | **Prose only**        |
 | Intake stays the user's                   | nothing                                                 | **Prose only**        |
 | Whether wide changes mean duplication     | nothing: judgement                                      | **Prose only**        |
+| Worktree per branch; merge steps (§2)     | nothing until `temple-bar merge` and worktree setup     | **Prose only**        |
 | Recording an incident at all              | nothing until theme F                                   | **Prose only**        |
 
 A rule that exists only as prose is a rule that will eventually be broken. If
