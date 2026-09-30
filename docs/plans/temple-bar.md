@@ -7,7 +7,7 @@ Approval is in two layers, as agreed:
 1. **Layer 1: Phase 1 (stage0)** is fully detailed below. Approving it lets the build start.
 2. **Layer 2: later phases** are outlined only, each marked with what it's waiting on. Each one gets detailed and approved before it starts.
 
-Inputs, kept outside this public repo in the user's local v1 repo (`nnsee-agentic`) and only read, never copied in: the brief (P1–P9, §4), the incident intake beside it (IDs F = futura-maximila, G = grand-union, N = nnsee-agentic), and the frozen hardening plan (D1–D7). The agreed README draft became `README.md`.
+Inputs, kept outside this public repo in the user's local v1 repo (`nnsee-agentic`) and only read, never copied in: the brief (P1–P9, §4), the incident intake beside it (IDs X = another project, G = grand-union, N = nnsee-agentic), and the frozen hardening plan (D1–D7). The agreed README draft became `README.md`.
 
 This file lives at `docs/plans/temple-bar.md` (P6.5). It is the record: decisions, phase definitions, incidents, and each phase's status when it starts and ends (decision 27). Per-subtask progress and the handoff live in the gitignored `planning/` folder.
 
@@ -140,9 +140,9 @@ Ratings: **R** routine · **I** involved · **D** delicate. "∥" marks work tha
 
 #### 1.4 CLI core — **I**, sequential after 1.2
 
-- [x] The `temple-bar` command routes to subcommands. An unknown subcommand prints usage, exits non-zero and writes nothing (F12 / P8.2 regression test).
+- [x] The `temple-bar` command routes to subcommands. An unknown subcommand prints usage, exits non-zero and writes nothing (X12 / P8.2 regression test).
 - [x] Seams (separate modules the rest of the code calls through) for git, `gh`, the filesystem, the clock and user prompts, so tests can fake them.
-- **Done when:** tests cover the router, including the F12 case.
+- **Done when:** tests cover the router, including the X12 case.
 
 #### 1.5 Hooks — **D**, ∥ with 1.6 and 1.7 (separate folders)
 
@@ -221,7 +221,7 @@ Ratings: **R** routine · **I** involved · **D** delicate. "∥" marks work tha
   - 1.5 owns `packages/temple-bar/src/hooks/`
   - 1.6 owns `src/gate/`
   - 1.7 owns `src/init/` and `packages/create-temple-bar/`
-  - Root config files (`package.json`, the lockfile, tsconfig, ESLint config) belong to the orchestrator. A subtask that needs a change there reports it rather than making it (P5.1, F4).
+  - Root config files (`package.json`, the lockfile, tsconfig, ESLint config) belong to the orchestrator. A subtask that needs a change there reports it rather than making it (P5.1, X4).
 - **Honest note:** there's no lock enforcement yet. The orchestrator should only run in parallel what it's comfortable reviewing file by file.
 
 ---
@@ -256,7 +256,7 @@ The themes below are grouped by the problem they solve. They are **not ordered**
 
 ### Theme B — A gate that can't be quietly weakened
 
-- The rest of the base checks: markdown lint, the local link check (F9, N10), gitleaks through the verified-download helper.
+- The rest of the base checks: markdown lint, the local link check (X9, N10), gitleaks through the verified-download helper.
 - Stack detection beyond npm scripts (D2).
 - **AGENTS.md within 200 lines and 32 KiB** (decision 36), checked by the gate.
 - **Rules may not shrink** (P3.2): inline suppressions, ESLint's effective config, ignore lists, tsconfig excludes, test `.skip`/`.only`/retries, and deleted CI jobs. Shrinking needs an ADR in the same change. Plus canaries per rule (D3.1) and the machinery-change notice at merge (D3.3).
@@ -272,7 +272,7 @@ The themes below are grouped by the problem they solve. They are **not ordered**
 
 ### Theme D — Subagents boxed in
 
-- Scope locks (N2), with overlapping claims refused (N15). Subagents can't merge (P2.4, F6).
+- Scope locks (N2), with overlapping claims refused (N15). Subagents can't merge (P2.4, X6).
 - The P3.4 branch-start check (decision 16).
 - Worktree setup on `git worktree add`: dependencies installed, env files copied in (decision 32).
 - Worktree harm checks: dependencies, env keys and copies, port ranges allocated per worktree (decision 16).
@@ -289,7 +289,7 @@ The themes below are grouped by the problem they solve. They are **not ordered**
 
 ### Theme F — The incident loop
 
-- Capture: agents propose, you curate. The gate prompts once per branch (N5, P8.4). Each entry stamps its harness and version (P8.1, F13). Nothing ranks entries for you (P8.5).
+- Capture: agents propose, you curate. The gate prompts once per branch (N5, P8.4). Each entry stamps its harness and version (P8.1, X13). Nothing ranks entries for you (P8.5).
 - Upstream filing, redaction and curation without a terminal: **waiting on Q7.**
 
 ### Final pass — showcase quality (after every theme; decision 29)
@@ -302,7 +302,7 @@ The themes below are grouped by the problem they solve. They are **not ordered**
 ### Open questions (to settle while phase 1 is built)
 
 1. **Your grouping:** which themes and items go into the first real release.
-2. **Q6:** whether futura-maximila migrates, and when.
+2. **Q6:** whether other existing projects adopt temple-bar, and when.
 3. **Q7:** upstream filing (5 options), redaction (P7.2), and curation without a terminal (P8.3).
 4. **Q8:** which harnesses get harness hooks, and for which tools.
 5. **After phase 1:** an automatic PR review by an agent from a different provider (for example Gemini or ChatGPT), triggered by tagging it on GitHub, so a second model family reviews every PR. Which theme it belongs to, and whether its verdict is advisory or blocking, are yours to decide. (Added 2026-09-29.)
@@ -353,7 +353,7 @@ Where every brief item lives. The brief requires each one to be built, deferred 
 | P9.1b npm only                          | Decided                                                                                          |
 | P9.2 3-OS CI                            | Phase 1 (1.3)                                                                                    |
 | P9.3 fresh cloud session                | Nice-to-have; checked in theme A                                                                 |
-| §4 regressions                          | Phase 1: N1, F12. Theme A: N6, N7, N9, N10. Theme B: F5. Theme D: F1, N2, N15. Theme E: N11, N14 |
+| §4 regressions                          | Phase 1: N1, X12. Theme A: N6, N7, N9, N10. Theme B: X5. Theme D: X1, N2, N15. Theme E: N11, N14 |
 
 ---
 
@@ -361,7 +361,7 @@ Where every brief item lives. The brief requires each one to be built, deferred 
 
 No incident tool exists until theme F. Agents write proposals here, one line each, and you curate them later.
 
-- 2026-09-28: v1's merge-method rule (quick change squashed onto `main`; feature branch fast-forwarded, one commit per phase) was dropped when 1.1 rewrote branching for pull requests, so PRs #1 and #2 landed as merge commits. The same pattern as F11. To discuss after phase 1: squash or rebase only, linear history in the ruleset.
+- 2026-09-28: v1's merge-method rule (quick change squashed onto `main`; feature branch fast-forwarded, one commit per phase) was dropped when 1.1 rewrote branching for pull requests, so PRs #1 and #2 landed as merge commits. The same pattern as X11. To discuss after phase 1: squash or rebase only, linear history in the ruleset.
 - 2026-09-29: 1.6's e2e tests created temp repos that inherited the developer's global `commit.gpgsign=true`, so they failed locally in agent sessions (no pinentry) but passed on CI (no signing). The handoff had recorded "68 of 68 pass" from a run that only passed because a passphrase was cached. Fixed with a shared `initTestRepo` helper; a suite-wide `GIT_CONFIG_GLOBAL` isolation is proposed.
 - 2026-09-29: 1.6 was reviewed and reported green on macOS only. Its first CI run failed 11 tests on Windows: the fake fs didn't normalise path separators, and the `proc` seam refused every non-allowlisted command on win32, including `node`. Windows was left for CI to prove, and only CI caught it.
 - 2026-09-29: 1.5's handoff reported break-it evidence for every hook, but review found three tests that passed with their check broken: a pre-commit test that the other hook satisfied, a cherry-pick test where git rejected `--no-verify` before any hook ran, and refusal tests that only checked for a non-zero exit. A red run shows a test _can_ fail; it doesn't show the test fails for the right reason. Fixed by asserting each hook's own refusal message.
