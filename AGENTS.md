@@ -34,15 +34,13 @@ Decisions agreed in discussion go into the plan's decisions list, which the user
 approves. Summaries and briefs are checked against that list, not memory.
 
 The user writes the intake themselves: the grouped list of fixes and features.
-That grouping carries their judgement of what matters. Do not reorder it by your
-own priorities, and do not offer to generate it.
+Do not reorder it by your own priorities, and do not offer to generate it.
 
-Update the live tracker **at every subtask**, not at phase end. A tracker that
-only moves at phase end tells the user nothing about where to spend the rest of
-a usage window. The live tracker and the handoff live in the gitignored
-`planning/` folder, where every agent can read them. Git holds the record:
-decisions, phase definitions, incidents, and each phase's status when it starts
-and ends. Per-subtask progress never needs a pull request.
+Update the live tracker **at every subtask**, not at phase end. The live tracker
+and the handoff live in the gitignored `planning/` folder, where every agent can
+read them. Git holds the record: decisions, phase definitions, incidents, and
+each phase's status when it starts and ends. Per-subtask progress never needs a
+pull request.
 
 ## 2. Branching
 
@@ -55,11 +53,29 @@ and ends. Per-subtask progress never needs a pull request.
   and requires linear history.
 - **Never commit to `main`**, locally or on GitHub. A one-line fix gets a branch
   too. Local `main` only ever moves by fast-forwarding to `origin/main`.
+- **Every branch gets its own worktree,** with dependencies installed before
+  its first commit. The primary checkout stays on `main`, so parallel work
+  never collides. Where the worktree goes is the harness's choice.
 
 The orchestrator merges a pull request once CI and CodeQL are green, except
 one that changes AGENTS.md, bumps the pinned temple-bar, tags or publishes:
 those need the user's yes. Ask before local phase → feature squashes too.
 Agents push branches and open pull requests, never `main`.
+
+**Push once, when finished.** Every push to a pull request runs the full CI.
+Draft locally, and push only when the work is final: agreed with the user
+for anything that needs their yes (AGENTS.md, plan decisions, the README),
+finished by the agent otherwise. Never push on the fly while it's being
+discussed.
+
+Until `temple-bar merge` does these steps itself:
+
+- After opening a pull request, watch its checks until they finish, then act
+  on the result. Never end on "I'll merge when green" with nothing watching.
+- Check for open code-scanning alerts before merging and again on `main`
+  afterwards.
+- After merging, remove the worktree and the local branch, and confirm the
+  remote branch is gone: `gh` can silently leave it behind.
 
 **Commit messages**, and pull request titles and bodies, since a squash merge
 turns them into the commit on `main`:
@@ -125,9 +141,9 @@ Rerunning the checks is not a review.
 
 ## 5. Architecture
 
-- **File length** is capped in one config file (added in 1.2) and checked.
-  That file is the only place the number appears. Split along existing seams;
-  do not raise the cap.
+- **File length** is capped in one config file and checked. That file is the
+  only place the number appears. Split along existing seams; do not raise the
+  cap.
 - **Deep modules.** Simple interfaces over substantial implementations. Apply
   the deletion test: if deleting a module makes complexity vanish, it was a
   pass-through.
@@ -149,10 +165,9 @@ once, out loud:
 > Is one change spread across these files, or are these files doing the same
 > thing as each other?
 
-If the second: stop and fix the duplication instead of editing four copies. A
-decision that was right at prototype scale can quietly expire. Record the
-replacement as an ADR under `docs/adr/`, with the condition that ended the old
-choice.
+If the second: stop and fix the duplication instead of editing four copies.
+Record the replacement as an ADR under `docs/adr/`, with the condition that
+ended the old choice.
 
 ## 7. Sessions
 
@@ -162,8 +177,6 @@ open pull requests and the live tracker and handoff in `planning/` rather than
 asking the user to remember.
 
 ## 8. Incidents
-
-The record is built in two halves, because neither of you has all of it.
 
 **Agents propose.** When something goes wrong (rework, confusion, a rule that
 made things harder than needed, a rule broken), add one line to the plan's
@@ -178,29 +191,10 @@ proposals are waiting, say how many.
 
 ## 9. What is actually enforced
 
-Stated plainly so nothing here is mistaken for a control. This table describes
-the repo today, and changes as each phase lands.
+[docs/enforcement.md](docs/enforcement.md) lists which rules are blocked and
+which are prose only; update it with any change to a mechanism. A rule that
+drifts needs a mechanism, not stronger wording.
 
-| Rule                                      | Mechanism                                               | Strength              |
-| ----------------------------------------- | ------------------------------------------------------- | --------------------- |
-| `main` changes only through pull requests | GitHub ruleset on `main`                                | **Blocked** on GitHub |
-| No force-push or deletion of `main`       | GitHub ruleset on `main`                                | **Blocked** on GitHub |
-| CI passes before merge                    | required status checks (U6)                             | **Blocked** on GitHub |
-| CodeQL passes before merge                | required check, from M2                                 | **Blocked** from M2   |
-| No merge commits on `main`                | ruleset: squash or rebase only, linear history, from M2 | **Blocked** from M2   |
-| No commits to local `main`                | pinned temple-bar hooks, once installed                 | **Blocked** locally   |
-| Local `main` moves only to `origin/main`  | pinned `reference-transaction` hook                     | **Blocked** locally   |
-| File length                               | the pinned gate in CI                                   | **Blocked** via CI    |
-| Delegated file scopes                     | nothing until theme D                                   | **Prose only**        |
-| No weakened checks                        | nothing until theme B                                   | **Prose only**        |
-| Who merges without asking                 | nothing                                                 | **Prose only**        |
-| Commit-message format                     | nothing                                                 | **Prose only**        |
-| Comments in plain words, no plan IDs      | nothing                                                 | **Prose only**        |
-| Plan before code                          | nothing                                                 | **Prose only**        |
-| Tracker updated per subtask               | nothing                                                 | **Prose only**        |
-| Intake stays the user's                   | nothing                                                 | **Prose only**        |
-| Whether wide changes mean duplication     | nothing: judgement                                      | **Prose only**        |
-| Recording an incident at all              | nothing until theme F                                   | **Prose only**        |
-
-A rule that exists only as prose is a rule that will eventually be broken. If
-you find one drifting, the fix is a mechanism, not stronger wording.
+**Keep this file within 200 lines and 32 KiB.** Move reference material and
+reasons to docs, such as [docs/agents-rationale.md](docs/agents-rationale.md);
+don't cut rules to fit.
