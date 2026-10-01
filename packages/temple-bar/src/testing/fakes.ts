@@ -147,7 +147,11 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
       return Promise.resolve();
     },
     exists(path) {
-      return Promise.resolve(files.has(path));
+      // A folder exists, as on a real disk, when some file is inside it.
+      const folder = normalize(`${path}/`);
+      return Promise.resolve(
+        files.has(path) || [...files.keys()].some((f) => f.startsWith(folder)),
+      );
     },
     isRegularFile(path) {
       return Promise.resolve(files.has(path) && !symlinks.has(normalize(path)));
@@ -157,6 +161,18 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
     },
     chmod() {
       return Promise.resolve();
+    },
+    copyNew(from, to) {
+      const content = files.get(from);
+      if (content === undefined) {
+        return Promise.reject(new Error(`ENOENT: no such file, '${from}'`));
+      }
+      if (files.has(to)) {
+        return Promise.resolve(false);
+      }
+      files.set(to, content);
+      writes.push({ path: normalize(to), content });
+      return Promise.resolve(true);
     },
   };
 }

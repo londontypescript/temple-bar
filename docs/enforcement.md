@@ -29,7 +29,7 @@ same pull request as any change to a mechanism.
 | Tracker updated per subtask               | nothing                                              | **Prose only**        |
 | Intake stays the user's                   | nothing                                              | **Prose only**        |
 | Whether wide changes mean duplication     | nothing: judgement                                   | **Prose only**        |
-| Worktree per branch; merge steps (§2)     | `temple-bar merge` once pinned; worktree setup to do | **Prose only**        |
+| Worktree per branch; merge steps (§2)     | `temple-bar merge` and `post-checkout`, once pinned  | **Prose only**        |
 | Push once, when finished                  | nothing until `temple-bar ready`                     | **Prose only**        |
 | AGENTS.md within 200 lines and 32 KiB     | the gate from 0.0.5, once this repo pins it          | **Prose only**        |
 | Ruleset not deleted or loosened           | the gate from 0.0.5, once this repo pins it          | **Prose only**        |

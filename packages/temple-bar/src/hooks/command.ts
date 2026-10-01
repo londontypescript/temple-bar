@@ -8,12 +8,13 @@ import type { Context } from "../context.ts";
 import { formatUsageLine, type CommandEntry } from "../registry.ts";
 import { commitMsgCheck } from "./commit-msg.ts";
 import { installHooks } from "./install.ts";
+import { postCheckout } from "./post-checkout.ts";
 import { preCommitCheck } from "./pre-commit.ts";
 import { prePushCheck } from "./pre-push.ts";
 import { referenceTransactionCheck } from "./reference-transaction.ts";
 
 const ARGS =
-  "<pre-commit|commit-msg <file>|pre-push <remote> <url>|reference-transaction <state>|install>";
+  "<pre-commit|commit-msg <file>|pre-push <remote> <url>|reference-transaction <state>|post-checkout <previous> <new> <flag>|install>";
 const USAGE = `${formatUsageLine("hook", ARGS)}\n`;
 
 async function findRepoRoot(ctx: Context): Promise<string | undefined> {
@@ -37,8 +38,8 @@ async function runInstall(ctx: Context): Promise<number> {
 }
 
 /**
- * `readStdin` is only called for `pre-push` and `reference-transaction`, so `pre-commit`
- * and `install` never wait on it. router.ts passes the real reader; unit
+ * `readStdin` is only called for `pre-push` and `reference-transaction`, so
+ * the other subcommands never wait on it. router.ts passes the real reader; unit
  * tests pass their own.
  */
 export function createHookCommand(
@@ -76,6 +77,17 @@ export function createHookCommand(
             return 2;
           }
           return referenceTransactionCheck(state, await readStdin(), ctx);
+        }
+
+        case "post-checkout": {
+          // Only the previous HEAD decides anything; the new HEAD and the
+          // branch flag git also passes aren't needed.
+          const [previousHead] = rest;
+          if (previousHead === undefined) {
+            ctx.stderr.write(USAGE);
+            return 2;
+          }
+          return postCheckout(previousHead, ctx);
         }
 
         case "install":

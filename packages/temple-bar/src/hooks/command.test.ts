@@ -71,6 +71,9 @@ void test("hook: install reports each item and exits 1 when a conflict is report
     if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
       return { code: 0, stdout: "/repo\n", stderr: "" };
     }
+    if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+      return { code: 0, stdout: ".git\n", stderr: "" };
+    }
     // Every config read/write "fails" so installConfig reports conflicts.
     return { code: 1, stdout: "", stderr: "boom" };
   });
@@ -82,8 +85,8 @@ void test("hook: install reports each item and exits 1 when a conflict is report
 
   assert.equal(code, 1);
   const output = stdout.lines.join("");
-  assert.match(output, /written: \.githooks\/pre-commit/);
-  assert.match(output, /conflict: core\.hooksPath/);
+  assert.match(output, /written: \.git\/hooks\/pre-commit/);
+  assert.match(output, /conflict: pull\.ff/);
 });
 
 void test("hook: commit-msg with no file prints usage and exits 2", async () => {

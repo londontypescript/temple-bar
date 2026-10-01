@@ -64,12 +64,12 @@ export function noRulesetGhScript(args: readonly string[]): GhResult {
 }
 
 export const installedReport: InstallReport = {
-  items: [{ item: ".githooks/pre-commit", status: "written" }],
+  items: [{ item: ".git/hooks/pre-commit", status: "written" }],
   hasConflicts: false,
 };
 
 export const unchangedReport: InstallReport = {
-  items: [{ item: ".githooks/pre-commit", status: "unchanged" }],
+  items: [{ item: ".git/hooks/pre-commit", status: "unchanged" }],
   hasConflicts: false,
 };
 

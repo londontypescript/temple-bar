@@ -169,7 +169,7 @@ for (const pm of ["pnpm"] as const) {
       assert.equal(pkg.scripts?.gate, "temple-bar gate");
       assert.equal(pkg.scripts.prepare, "temple-bar hook install");
       assert.ok(existsSync(path.join(dir, "AGENTS.md")));
-      assert.ok(existsSync(path.join(dir, ".githooks", "pre-commit")));
+      assert.ok(existsSync(path.join(dir, ".git", "hooks", "pre-commit")));
 
       const onMain = await run(
         "git",
