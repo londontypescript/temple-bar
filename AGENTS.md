@@ -4,8 +4,8 @@ Binds every agent working here (Claude Code, Codex, Antigravity or any other)
 and humans. This is the only copy of these rules. Harness config may duplicate
 one to fail faster, never to replace it.
 
-The plan and progress tracker is `docs/plans/temple-bar.md`. Its §1 is the
-approved decisions list: check every brief and change against it.
+The plan is `docs/plans/temple-bar.md`. Its §1 is the approved decisions list:
+check every brief and change against it. Work is tracked in GitHub issues.
 
 ## 0. This repo
 
@@ -16,7 +16,7 @@ approved decisions list: check every brief and change against it.
   through a pull request.
 - Bumping the pinned temple-bar version is a deliberate change in its own pull
   request, never a side effect of other work.
-- The repo is public. Nothing committed here (code, plans, incident proposals,
+- The repo is public. Nothing committed or filed here (code, plans, issues,
   commit messages) carries project-private details: credentials, customer data,
   internal hostnames, or anything from another project beyond its name and a
   one-line incident summary.
@@ -36,11 +36,10 @@ approves. Summaries and briefs are checked against that list, not memory.
 The user writes the intake themselves: the grouped list of fixes and features.
 Do not reorder it by your own priorities, and do not offer to generate it.
 
-Update the live tracker **at every subtask**, not at phase end. The live tracker
-and the handoff live in the gitignored `planning/` folder, where every agent can
-read them. Git holds the record: decisions, phase definitions, incidents, and
-each phase's status when it starts and ends. Per-subtask progress never needs a
-pull request.
+GitHub issues are the live tracker: update the issue you work on **at every
+subtask**, not at phase end. The gitignored `planning/` folder holds local
+drafts only; there is no handoff file. Git holds the record: decisions, phase
+definitions, and each phase's status when it starts and ends.
 
 ## 2. Branching
 
@@ -171,23 +170,24 @@ ended the old choice.
 
 ## 7. Sessions
 
-Clear or compact only at a phase boundary, only after writing state down, and
-ask first. Usage limits cut work off mid-phase routinely; on resume, read git,
-open pull requests and the live tracker and handoff in `planning/` rather than
-asking the user to remember.
+Write state down in the issue whenever what the user says means work may stop:
+a compact, a pause, a break, a usage limit. You judge when, from what they say.
+Clear or compact only at a phase boundary, and ask first. On resume, read git,
+open pull requests and the current issue rather than asking the user to remember.
 
 ## 8. Incidents
 
 **Agents propose.** When something goes wrong (rework, confusion, a rule that
-made things harder than needed, a rule broken), add one line to the plan's
-§6 in the next pull request. There is no incident tool until theme F. Propose
-generously, with no project-private details.
+made things harder than needed, a rule broken), propose an incident, generously,
+and ask the user there and then. On a yes, search temple-bar's issues: comment
+on or update a similar one, or open one labelled `incident`. Never in another
+project's repo, never with private details. No incident tool until theme F.
 
-**The user curates.** Keeping, editing, dropping and grouping proposals is
+**The user curates.** Keeping, editing, closing and grouping incidents is
 theirs. Never rank or regroup them.
 
-**You remind them.** When you ask for a merge approval or report a merge, and
-proposals are waiting, say how many.
+**You remind them.** When you ask for a merge approval or report a merge, say
+how many `incident` issues are open.
 
 ## 9. What is actually enforced
 
