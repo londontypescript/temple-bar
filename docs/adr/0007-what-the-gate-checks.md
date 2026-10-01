@@ -39,11 +39,10 @@ temple-bar doesn't use it on itself. Not built yet (theme B).
 nothing, and a passing gate lists the checks that ran, so a pass shows what
 it actually covered.
 
-**Decision 36: AGENTS.md stays small.** The gate fails when AGENTS.md goes
-past 200 lines or 32 KiB, the limits AGENTS.md states about itself, because
-agents load it into every session. A repo with no AGENTS.md skips the check
-(reported as skipped) rather than failing: setup writes one, and a docs-only
-or mid-setup repo must still be able to pass.
+**AGENTS.md size (decision 36, recorded in
+[ADR 0009](0009-readme-and-agents-md.md)).** The gate enforces it. A repo with
+no AGENTS.md skips the check (reported as skipped) rather than failing: setup
+writes one, and a docs-only or mid-setup repo must still be able to pass.
 
 **Which copy of the checks judges a pull request.** The earlier hardening
 plan said `main`'s copy of the checks should judge every change, so a pull
