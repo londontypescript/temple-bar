@@ -43,9 +43,49 @@ void test("rulesetBody: the pull_request rule itself requires 0 approvals, and f
     "deletion",
     "non_fast_forward",
     "pull_request",
+    "required_linear_history",
+    "required_signatures",
   ]);
   const pullRequest = body.rules.find((rule) => rule.type === "pull_request");
   assert.equal(pullRequest?.parameters?.required_approving_review_count, 0);
+});
+
+void test("rulesetBody: squash is the only merge method", () => {
+  const body = rulesetBody() as {
+    rules: { type: string; parameters?: Record<string, unknown> }[];
+  };
+  const pullRequest = body.rules.find((rule) => rule.type === "pull_request");
+  assert.deepEqual(pullRequest?.parameters?.allowed_merge_methods, ["squash"]);
+});
+
+void test("offerRuleset: approved (--create-ruleset) creates with no prompt, even with no terminal", async () => {
+  const gh = ghWithNoRulesets();
+  let asked = false;
+  const ctx = createFakeContext({
+    gh,
+    prompt: {
+      isInteractive: () => false,
+      confirm: () => {
+        asked = true;
+        return Promise.resolve("no-terminal");
+      },
+    },
+  });
+
+  const outcome = await offerRuleset(ctx, "/repo", origin, true);
+
+  assert.equal(outcome.kind, "created");
+  assert.equal(asked, false);
+  assert.equal(createCalls(gh).length, 1);
+});
+
+void test("offerRuleset: no terminal names the flag an agent passes after asking the user", async () => {
+  const ctx = createFakeContext({
+    gh: ghWithNoRulesets(),
+    prompt: createFakePrompt({ interactive: false, answer: "no-terminal" }),
+  });
+  const outcome = await offerRuleset(ctx, "/repo", origin);
+  assert.match(outcome.message, /--create-ruleset/);
 });
 
 void test("offerRuleset: an existing branch ruleset is left alone, no prompt asked", async () => {

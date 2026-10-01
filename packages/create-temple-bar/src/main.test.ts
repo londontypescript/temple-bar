@@ -294,3 +294,24 @@ void test("main: a refused launch does not create package.json", async () => {
   await main(deps);
   assert.deepEqual(writes, []);
 });
+
+void test("main: the approval flags reach `temple-bar init`", async () => {
+  const { run, calls } = makeFakeRunner(() => ({ code: 0 }));
+  const code = await main({
+    cwd: "/app",
+    env: { npm_config_user_agent: userAgents.pnpm },
+    argv: ["--create-repo"],
+    stdout: makeFakeWriter(),
+    ownVersion: "0.3.0",
+    fs: makeFakeFs({ "/app/package.json": "{}" }),
+    run,
+    stderr: makeFakeWriter(),
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(calls[1]?.args, [
+    "exec",
+    "temple-bar",
+    "init",
+    "--create-repo",
+  ]);
+});

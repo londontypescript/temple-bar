@@ -1,24 +1,27 @@
-// Offers to create the `main` ruleset (decision 4, plan §3 1.7): pull
-// request required, 0 approvals, no force-push, no deletion, targets the
-// default branch, no bypass. Only an explicit yes creates it. With no
+// Offers to create the `main` ruleset: pull request required (squash merge
+// only), 0 approvals, linear history, signed commits, no force-push, no
+// deletion, targets the default branch, no bypass. Only an explicit yes (the prompt, or the --create-ruleset flag an
+// agent passes after the user said yes in chat) creates it. With no
 // terminal, or when creation fails, the manual steps are printed and `init`
 // ends non-zero, so an unprotected repo never looks set up.
 
 import type { Context } from "../context.ts";
-import type { GithubOrigin } from "./requirements.ts";
+import { RERUN_INIT, type GithubOrigin } from "./requirements.ts";
 
 export const MANUAL_RULESET_STEPS =
   "On GitHub, under Settings > Rules > Rulesets, add a ruleset targeting " +
   "the default branch that:\n" +
-  "  - requires a pull request before merging, with 0 required approvals\n" +
+  "  - requires a pull request before merging, with 0 required approvals,\n" +
+  "    and allows squash merges only\n" +
+  "  - requires linear history and signed commits\n" +
   "  - blocks force pushes\n" +
   "  - restricts deletions\n" +
   "  - has no bypass list";
 
 export function rulesetQuestion(): string {
   return (
-    "Create the `main` ruleset on GitHub now (pull request required, no " +
-    "force-push, no deletion, no bypass)?"
+    "Create the `main` ruleset on GitHub now (pull request required, " +
+    "squash merges only, linear history, signed commits, no force-push, no deletion, no bypass)?"
   );
 }
 
@@ -63,8 +66,16 @@ export function rulesetBody(): object {
           require_code_owner_review: false,
           require_last_push_approval: false,
           required_review_thread_resolution: false,
+          // GitHub signs its own squash merges, but not rebase merges, so
+          // squash is the only method that satisfies required_signatures.
+          allowed_merge_methods: ["squash"],
         },
       },
+      { type: "required_linear_history" },
+      { type: "required_signatures" },
+      // No "branches up to date" rule yet: GitHub's version only acts on
+      // named required checks, and setup can't know a repo's check names.
+      // It arrives with the judge workflow, whose check name setup knows.
     ],
   };
 }
@@ -81,6 +92,9 @@ export async function offerRuleset(
   ctx: Context,
   repoRoot: string,
   origin: GithubOrigin,
+  /** The user already said yes in chat and the agent passed
+   * --create-ruleset: answers this question, and only this one. */
+  approved = false,
 ): Promise<RulesetOutcome> {
   const path = `repos/${origin.owner}/${origin.repo}/rulesets`;
   const listed = await ctx.gh.run(["api", path], repoRoot);
@@ -100,7 +114,7 @@ export async function offerRuleset(
     }
   }
 
-  const answer = await ctx.prompt.confirm(rulesetQuestion());
+  const answer = approved ? "yes" : await ctx.prompt.confirm(rulesetQuestion());
   if (answer === "no") {
     return {
       kind: "declined",
@@ -110,7 +124,7 @@ export async function offerRuleset(
   if (answer === "no-terminal") {
     return {
       kind: "not-created",
-      message: `No terminal to ask in, so no ruleset was created. To add it yourself:\n${MANUAL_RULESET_STEPS}`,
+      message: `No terminal to ask in, so no ruleset was created. An agent: ask the user, and only if they say yes run ${RERUN_INIT} --create-ruleset. Or add it yourself:\n${MANUAL_RULESET_STEPS}`,
     };
   }
 

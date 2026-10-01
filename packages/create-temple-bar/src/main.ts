@@ -107,7 +107,7 @@ export async function main(deps: MainDeps): Promise<number> {
     return addResult.code ?? 1;
   }
 
-  const init = runInitCommand();
+  const init = runInitCommand(deps.argv);
   const initResult = await deps.run(init.command, init.args, options);
   return initResult.code ?? 1;
 }

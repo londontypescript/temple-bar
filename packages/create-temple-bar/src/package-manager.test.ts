@@ -50,3 +50,10 @@ void test("pnpmRequiredMessage says why, how to install pnpm and what to run nex
   assert.match(message, /https:\/\/pnpm\.io\/installation/);
   assert.match(message, /pnpm create @londontypescript\/temple-bar@latest\n$/);
 });
+
+void test("runInitCommand passes on only the two approval flags", () => {
+  assert.deepEqual(
+    runInitCommand(["--create-repo", "--evil", "--create-ruleset"]).args,
+    ["exec", "temple-bar", "init", "--create-repo", "--create-ruleset"],
+  );
+});

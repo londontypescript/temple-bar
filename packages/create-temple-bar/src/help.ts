@@ -12,7 +12,13 @@ as a dev dependency, pinned to this launcher's own version, then runs
 Run it from your project's root folder.
 
 Options:
-  -h, --help   Show this help and change nothing
+  --create-repo     The user already said yes to creating the GitHub
+                    repository (passed on to \`temple-bar init\`)
+  --create-ruleset  The user already said yes to creating the \`main\`
+                    ruleset (passed on to \`temple-bar init\`)
+  -h, --help        Show this help and change nothing
+
+An agent passes a flag only after the user said yes in chat.
 `;
 
 export function wantsHelp(argv: readonly string[]): boolean {

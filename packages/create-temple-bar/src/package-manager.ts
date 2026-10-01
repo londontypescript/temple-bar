@@ -41,9 +41,23 @@ export function addDevDependencyCommand(version: string): CommandLine {
   };
 }
 
-/** Runs `temple-bar init`, which isn't on PATH, from the project's copy. */
-export function runInitCommand(): CommandLine {
-  return { command: "pnpm", args: ["exec", "temple-bar", "init"] };
+/** The only flags passed on to init: each carries the user's yes to one
+ * question. Anything else is dropped, so the launcher never hands arbitrary
+ * arguments to `pnpm exec`. */
+const INIT_FLAGS: readonly string[] = ["--create-repo", "--create-ruleset"];
+
+/** Runs `temple-bar init`, which isn't on PATH, from the project's copy,
+ * passing on the answers an agent got from the user. */
+export function runInitCommand(argv: readonly string[] = []): CommandLine {
+  return {
+    command: "pnpm",
+    args: [
+      "exec",
+      "temple-bar",
+      "init",
+      ...INIT_FLAGS.filter((flag) => argv.includes(flag)),
+    ],
+  };
 }
 
 /**
