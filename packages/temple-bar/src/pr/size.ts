@@ -21,6 +21,9 @@ export interface PullRequestSizeOptions {
   readonly head: string;
   /** Pull request number for `gh`, when not reading CI's event payload. */
   readonly prNumber?: string;
+  /** True before a pull request exists (a push): there is no title or body to
+   * read, and asking `gh` would go to the network for nothing. */
+  readonly skipPullRequestText?: boolean;
 }
 
 export interface PullRequestSizeReport {
@@ -45,7 +48,10 @@ export async function checkPullRequestSize(
 ): Promise<PullRequestSizeReport> {
   const config = await readProjectConfig(ctx);
   const size = await measureDiff(ctx, options.base, options.head);
-  const text = await readPullRequestText(ctx, options.prNumber);
+  const text =
+    options.skipPullRequestText === true
+      ? undefined
+      : await readPullRequestText(ctx, options.prNumber);
   const closedIssues =
     text === undefined ? undefined : findClosingIssues([text.title, text.body]);
 

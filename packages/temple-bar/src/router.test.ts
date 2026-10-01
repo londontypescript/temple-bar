@@ -159,7 +159,7 @@ void test("--help after a hook subcommand still shows help instead of running th
     assert.equal(code, 0, args.join(" "));
     assert.match(
       stdout.lines.join(""),
-      /^Usage: temple-bar hook <pre-commit\|commit-msg <file>\|reference-transaction <state>\|install>\n/,
+      /^Usage: temple-bar hook <pre-commit\|commit-msg <file>\|pre-push <remote> <url>\|reference-transaction <state>\|install>\n/,
     );
     assert.deepEqual(touched, [], `${args.join(" ")} must not touch any seam`);
   }
