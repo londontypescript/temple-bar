@@ -50,9 +50,11 @@ default branch's active rules from GitHub and fails if a rule that setup
 creates is missing, or looser (for example merge commits allowed again).
 Extra rules a repo adds are fine. It supports public repos only: a private
 repo is skipped with a stated reason. It reads GitHub with Node's `fetch`,
-not `gh`, so it works in Actions with no secrets; a `GH_TOKEN` or
-`GITHUB_TOKEN` is used when present, to stay clear of the anonymous
-60-an-hour limit. Offline or unreachable GitHub is skipped on a laptop, with
+not `gh`. A `GH_TOKEN` or `GITHUB_TOKEN` is used when present. In GitHub
+Actions one is required (`GH_TOKEN: ${{ github.token }}` on the gate step,
+no extra secret): anonymous calls are limited to 60 an hour per IP, shared
+runners often use that up, and a check that fails at random teaches people to
+ignore it, so without a token it fails every time with that fix. Offline or unreachable GitHub is skipped on a laptop, with
 the reason shown, but fails in GitHub Actions, where a silent pass would hide a
 loosened ruleset.
 
