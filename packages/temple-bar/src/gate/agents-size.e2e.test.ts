@@ -17,6 +17,7 @@ import {
   createFakeClock,
   createFakePrompt,
   createFakeWriter,
+  createFakeHttp,
 } from "../testing/fakes.ts";
 import { initTestRepo } from "../testing/git-repo.ts";
 import { gateCommand } from "./command.ts";
@@ -31,6 +32,7 @@ async function runGateIn(dir: string) {
   const ctx: Context = {
     git: createGitSeam(),
     gh: createGhSeam(),
+    http: createFakeHttp(),
     fs: createFsSeam(),
     clock: createFakeClock(),
     prompt: createFakePrompt(),

@@ -32,6 +32,7 @@ same pull request as any change to a mechanism.
 | Worktree per branch; merge steps (§2)     | nothing until `temple-bar merge` and worktree setup  | **Prose only**        |
 | Push once, when finished                  | nothing until `temple-bar ready`                     | **Prose only**        |
 | AGENTS.md within 200 lines and 32 KiB     | the gate from 0.0.5, once this repo pins it          | **Prose only**        |
+| Ruleset not deleted or loosened           | the gate from 0.0.5, once this repo pins it          | **Prose only**        |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
 
 A rule that exists only as prose is a rule that will eventually be broken. If

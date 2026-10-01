@@ -7,6 +7,7 @@ import { createClockSeam, type ClockSeam } from "./seams/clock.ts";
 import { createFsSeam, type FsSeam } from "./seams/fs.ts";
 import { createGhSeam, type GhSeam } from "./seams/gh.ts";
 import { createGitSeam, type GitSeam } from "./seams/git.ts";
+import { createHttpSeam, type HttpSeam } from "./seams/http.ts";
 import {
   createStderrWriter,
   createStdoutWriter,
@@ -18,6 +19,7 @@ import { createPromptSeam, type PromptSeam } from "./seams/prompt.ts";
 export interface Context {
   readonly git: GitSeam;
   readonly gh: GhSeam;
+  readonly http: HttpSeam;
   readonly fs: FsSeam;
   readonly clock: ClockSeam;
   readonly prompt: PromptSeam;
@@ -32,6 +34,7 @@ export function createRealContext(): Context {
   return {
     git: createGitSeam(process.env),
     gh: createGhSeam(process.env),
+    http: createHttpSeam(),
     fs: createFsSeam(),
     clock: createClockSeam(),
     prompt: createPromptSeam(),
