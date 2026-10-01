@@ -47,6 +47,31 @@ void test("fs seam: mkdirp creates nested directories and is idempotent", async 
   }
 });
 
+void test("fs seam: isRegularFile is true only for an ordinary file, not a symlink, directory or missing path", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-fs-seam-"));
+  try {
+    const fs = createFsSeam();
+    const file = path.join(dir, "file.txt");
+    await fs.writeText(file, "x");
+    assert.equal(await fs.isRegularFile(file), true);
+    assert.equal(await fs.isRegularFile(dir), false);
+    assert.equal(await fs.isRegularFile(path.join(dir, "missing")), false);
+
+    // Creating symlinks needs a privilege on Windows.
+    if (process.platform !== "win32") {
+      const { symlinkSync } = await import("node:fs");
+      symlinkSync(file, path.join(dir, "to-file"));
+      symlinkSync(dir, path.join(dir, "to-dir"));
+      symlinkSync("nowhere", path.join(dir, "broken"));
+      assert.equal(await fs.isRegularFile(path.join(dir, "to-file")), false);
+      assert.equal(await fs.isRegularFile(path.join(dir, "to-dir")), false);
+      assert.equal(await fs.isRegularFile(path.join(dir, "broken")), false);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 void test("fs seam: chmod changes the file mode", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-fs-seam-"));
   try {

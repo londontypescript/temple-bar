@@ -102,7 +102,13 @@ export async function collectLineCounts(
     if (isSkippableLengthPath(relativePath)) {
       continue;
     }
-    const content = await ctx.fs.readText(path.join(ctx.cwd, relativePath));
+    const fullPath = path.join(ctx.cwd, relativePath);
+    // A symlink isn't a text file of the repo's own: reading it would either
+    // fail (a link to a directory) or count some other file's lines twice.
+    if (!(await ctx.fs.isRegularFile(fullPath))) {
+      continue;
+    }
+    const content = await ctx.fs.readText(fullPath);
     if (content === undefined) {
       // Listed by git (e.g. a staged rename) but no longer on disk.
       continue;

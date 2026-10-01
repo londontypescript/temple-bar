@@ -66,16 +66,36 @@ export function missingRequiredScripts(
   return REQUIRED_SCRIPTS.filter((name) => !(name in scripts));
 }
 
-/** "Code exists" (D2): any git-tracked-or-trackable file with a code
- * extension. Reuses listGitPaths from lengths.ts so both checks see the
- * same file set and nested worktrees are skipped the same way (P3.7). */
-export async function codeExists(ctx: Context): Promise<boolean> {
-  const paths = await listGitPaths(ctx);
-  return paths.some(
-    (relativePath) =>
-      !relativePath.endsWith("/") &&
-      CODE_EXTENSIONS.has(path.extname(relativePath)),
+/** Folders holding other people's code or generated output. Anything
+ * under one of these, at any depth, is not the project's own code, even when
+ * it was committed by mistake. */
+const NOT_OWN_CODE_FOLDERS = new Set([
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".turbo",
+]);
+
+function isOwnCode(relativePath: string): boolean {
+  if (relativePath.endsWith("/")) {
+    return false;
+  }
+  const folders = relativePath.split("/").slice(0, -1);
+  return (
+    !folders.some((folder) => NOT_OWN_CODE_FOLDERS.has(folder)) &&
+    CODE_EXTENSIONS.has(path.extname(relativePath))
   );
+}
+
+/** "Code exists": any git-tracked-or-trackable file with a code extension
+ * that is the project's own, meaning not under a dependency or build-output
+ * folder (see NOT_OWN_CODE_FOLDERS). Reuses listGitPaths from lengths.ts so
+ * both checks see the same file set and nested worktrees are skipped the
+ * same way. */
+export async function codeExists(ctx: Context): Promise<boolean> {
+  return (await listGitPaths(ctx)).some(isOwnCode);
 }
 
 /** pnpm if `packageManager` in package.json pins a pnpm version, or a

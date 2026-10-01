@@ -7,6 +7,10 @@ import { promises as fsp } from "node:fs";
 export interface FsSeam {
   /** Reads a file as UTF-8 text, or returns undefined if it doesn't exist. */
   readText(path: string): Promise<string | undefined>;
+  /** True only for an ordinary file. A symlink (to a file, a directory, or
+   * nothing), a directory and a missing path are all false: callers that read
+   * a repo's own text use this to skip what is not a text file of the repo. */
+  isRegularFile(path: string): Promise<boolean>;
   writeText(path: string, content: string): Promise<void>;
   exists(path: string): Promise<boolean>;
   /** Creates a directory and any missing parents; a no-op if it exists. */
@@ -37,6 +41,13 @@ export function createFsSeam(): FsSeam {
       try {
         await fsp.access(path);
         return true;
+      } catch {
+        return false;
+      }
+    },
+    async isRegularFile(path) {
+      try {
+        return (await fsp.lstat(path)).isFile();
       } catch {
         return false;
       }

@@ -11,6 +11,7 @@ import {
   mkdtempSync,
   mkdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -281,6 +282,43 @@ void test("gate e2e: a nested worktree inside the project leaves the gate passin
     } catch {
       // Best-effort: the outer rmSync below removes everything regardless.
     }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("gate e2e: a committed node_modules with symlinks is not code and never crashes the gate", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-vendored-"));
+  try {
+    initTestRepo(dir);
+    writeFileSync(path.join(dir, "README.md"), "# Sample\n");
+    const pkg = path.join(dir, "node_modules", "left-pad");
+    mkdirSync(pkg, { recursive: true });
+    writeFileSync(path.join(pkg, "index.js"), "module.exports = 1;\n");
+    // A directory symlink (like a workspace link), a file symlink and a
+    // broken one, all committed (git mode 120000).
+    mkdirSync(path.join(dir, "node_modules", "@scope"));
+    symlinkSync(pkg, path.join(dir, "node_modules", "@scope", "dir-link"));
+    symlinkSync(
+      path.join(pkg, "index.js"),
+      path.join(dir, "node_modules", "file-link.js"),
+    );
+    symlinkSync("nowhere", path.join(dir, "node_modules", "broken-link"));
+    stageAll(dir);
+    const modes = execFileSync("git", ["ls-files", "-s"], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+    assert.equal(modes.match(/^120000 /gm)?.length, 3);
+
+    const { ctx, stdout, stderr } = makeContext(dir);
+    const code = await gateCommand.run([], ctx);
+
+    assert.equal(code, 0, stderr.lines.join(""));
+    assert.doesNotMatch(stderr.lines.join(""), /EISDIR|missing script/);
+    const text = stdout.lines.join("");
+    assert.match(text, /^ {2}skipped {2}typecheck \(no code yet\)$/m);
+    assert.match(text, /^gate: passed$/m);
+  } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
