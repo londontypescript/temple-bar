@@ -4,10 +4,11 @@
 // else notices if the ruleset is deleted or loosened later.
 //
 // How it reads GitHub: Node's built-in fetch against the public API, not
-// `gh`. In Actions `gh` has no token unless the workflow passes one, while an
-// anonymous read of a public repo's rules needs none. A token from
-// GH_TOKEN/GITHUB_TOKEN is sent when present, because unauthenticated calls
-// are limited to 60 an hour per IP address.
+// `gh`. A token from GH_TOKEN/GITHUB_TOKEN is sent when present. Locally an
+// anonymous read is fine. In GitHub Actions a token is required: anonymous
+// calls are limited to 60 an hour per IP address, and shared runners often
+// use that up, so without one the check would fail at random. Failing every
+// time, with the one line that fixes it, is better than failing sometimes.
 //
 // Public repos only for now: on a private repo the rules need a permission
 // that Actions' default token can't have, so those are skipped, not failed.
@@ -30,6 +31,8 @@ type Read =
   | { readonly kind: "skipped"; readonly reason: string }
   /** GitHub couldn't be asked, or answered something unusable. */
   | { readonly kind: "unreadable"; readonly reason: string }
+  /** In GitHub Actions with no token to read with. */
+  | { readonly kind: "needs-token" }
   | { readonly kind: "read"; readonly problems: RulesetProblem[] };
 
 interface RepoInfo {
@@ -87,6 +90,9 @@ async function readRuleset(ctx: Context): Promise<Read> {
   }
 
   const token = tokenFrom(ctx);
+  if (token === undefined && ctx.env.GITHUB_ACTIONS === "true") {
+    return { kind: "needs-token" };
+  }
   const repoUrl = `${API}/repos/${origin.origin.owner}/${origin.origin.repo}`;
 
   // One call gives both facts needed: whether the repo is private, and which
@@ -156,8 +162,21 @@ export function formatRulesetFailure(
   return `${lines.join("\n")}\n`;
 }
 
+export const NEEDS_TOKEN_MESSAGE =
+  "gate: the branch ruleset check needs a token in GitHub Actions. Add this to the gate step:\n" +
+  "  env:\n" +
+  "    GH_TOKEN: ${{ github.token }}\n";
+
 export async function runRulesetCheck(ctx: Context): Promise<CheckOutcome> {
   const result = await readRuleset(ctx);
+  if (result.kind === "needs-token") {
+    ctx.stderr.write(NEEDS_TOKEN_MESSAGE);
+    return {
+      name: RULESET_CHECK,
+      status: "failed",
+      detail: "no GH_TOKEN in GitHub Actions",
+    };
+  }
   if (result.kind === "skipped") {
     return { name: RULESET_CHECK, status: "skipped", detail: result.reason };
   }

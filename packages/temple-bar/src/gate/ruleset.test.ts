@@ -251,7 +251,7 @@ void test("ruleset check: a private repo is skipped with a reason, whichever way
   ]) {
     const { ctx, http, stderr } = setup({
       repo,
-      env: { GITHUB_ACTIONS: "true" },
+      env: { GITHUB_ACTIONS: "true", GITHUB_TOKEN: "ci-token" },
     });
     const outcome = await runRulesetCheck(ctx);
     assert.equal(outcome.status, "skipped");
@@ -288,10 +288,19 @@ void test("ruleset check: an unreachable API is skipped locally, with the reason
   assert.match(outcome.detail ?? "", /ENOTFOUND/);
 });
 
+void test("ruleset check: in GitHub Actions without a token it fails every time, says the fix, and asks nothing", async () => {
+  const { ctx, http, stderr } = setup({ env: { GITHUB_ACTIONS: "true" } });
+  const outcome = await runRulesetCheck(ctx);
+  assert.match(stderr.lines.join(""), /needs a token in GitHub Actions/);
+  assert.match(stderr.lines.join(""), /GH_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.equal(outcome.status, "failed");
+  assert.equal(http.calls.length, 0);
+});
+
 void test("ruleset check: an unreachable API fails in GitHub Actions", async () => {
   const { ctx, stderr } = setup({
     repo: { kind: "network-error", message: "fetch failed" },
-    env: { GITHUB_ACTIONS: "true" },
+    env: { GITHUB_ACTIONS: "true", GITHUB_TOKEN: "ci-token" },
   });
   const outcome = await runRulesetCheck(ctx);
   assert.equal(outcome.status, "failed");
@@ -301,7 +310,7 @@ void test("ruleset check: an unreachable API fails in GitHub Actions", async () 
 void test("ruleset check: a failing rules request fails in Actions, with a rate-limit hint on 403", async () => {
   const { ctx } = setup({
     rules: json(403, { message: "rate limit exceeded" }),
-    env: { GITHUB_ACTIONS: "true" },
+    env: { GITHUB_ACTIONS: "true", GITHUB_TOKEN: "ci-token" },
   });
   const outcome = await runRulesetCheck(ctx);
   assert.equal(outcome.status, "failed");
@@ -313,7 +322,10 @@ void test("ruleset check: garbled replies are unreadable, never a pass", async (
     { repo: { kind: "response", status: 200, body: "<html>" } as const },
     { rules: { kind: "response", status: 200, body: "{}" } as const },
   ]) {
-    const { ctx } = setup({ ...setupOptions, env: { GITHUB_ACTIONS: "true" } });
+    const { ctx } = setup({
+      ...setupOptions,
+      env: { GITHUB_ACTIONS: "true", GITHUB_TOKEN: "ci-token" },
+    });
     assert.equal((await runRulesetCheck(ctx)).status, "failed");
   }
 });
