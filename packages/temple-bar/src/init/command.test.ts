@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { normalize } from "node:path";
 import test from "node:test";
 
-import { createInitCommand } from "./command.ts";
+import { isConventionalSubject } from "../conventional/subject.ts";
+import { createInitCommand, SETUP_COMMIT_MESSAGE } from "./command.ts";
 import { GATE_SCRIPT, GITIGNORE_LINES, PREPARE_SCRIPT } from "./files.ts";
 import {
   createFakeContext,
@@ -281,4 +282,8 @@ void test("init: records origin's default branch so the hooks protect it", async
     ),
     "init must record origin/HEAD",
   );
+});
+
+void test("init: the commit setup's next steps suggest passes the commit-msg hook setup installs", () => {
+  assert.equal(isConventionalSubject(SETUP_COMMIT_MESSAGE), true);
 });
