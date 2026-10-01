@@ -73,6 +73,9 @@ export interface RecordedWrite {
 export interface FakeFs extends FsSeam {
   readonly files: Map<string, string>;
   readonly writes: RecordedWrite[];
+  /** Paths that are symlinks. Reading one throws, like a symlink to a
+   * directory does on a real disk (EISDIR). */
+  readonly symlinks: Set<string>;
 }
 
 /** A Map whose keys are paths normalised the way the real filesystem
@@ -97,10 +100,17 @@ class PathMap extends Map<string, string> {
 export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
   const files = new PathMap(Object.entries(initial));
   const writes: RecordedWrite[] = [];
+  const symlinks = new Set<string>();
   return {
     files,
     writes,
+    symlinks,
     readText(path) {
+      if (symlinks.has(normalize(path))) {
+        return Promise.reject(
+          new Error(`EISDIR: illegal operation on a directory, read '${path}'`),
+        );
+      }
       return Promise.resolve(files.get(path));
     },
     writeText(path, content) {
@@ -110,6 +120,9 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
     },
     exists(path) {
       return Promise.resolve(files.has(path));
+    },
+    isRegularFile(path) {
+      return Promise.resolve(files.has(path) && !symlinks.has(normalize(path)));
     },
     mkdirp() {
       return Promise.resolve();

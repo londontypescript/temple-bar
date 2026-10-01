@@ -142,3 +142,18 @@ void test("checkFileLengths reports offenders over the configured cap", async ()
   assert.equal(result.totalChecked, 2);
   assert.deepEqual(result.offenders, [{ path: "big.ts", lines: 3 }]);
 });
+
+void test("collectLineCounts skips a symlink (to a directory) instead of crashing on it", async () => {
+  const fs = createFakeFs({ "/repo/real.txt": "1\n2\n" });
+  fs.symlinks.add("/repo/node_modules/@scope/pkg");
+  const git = createFakeGit(() => ({
+    code: 0,
+    stdout: "real.txt\nnode_modules/@scope/pkg\n",
+    stderr: "",
+  }));
+  const ctx = createFakeContext({ fs, git });
+
+  assert.deepEqual(await collectLineCounts(ctx), [
+    { path: "real.txt", lines: 2 },
+  ]);
+});

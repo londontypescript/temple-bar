@@ -149,3 +149,40 @@ void test("runRequiredScripts: runs every script in order, all with CI=true, eve
     assert.equal(call.env.PATH, "/usr/bin");
   }
 });
+
+void test("codeExists: vendored or built code committed by mistake doesn't count, at any depth", async () => {
+  const git = createFakeGit(() => ({
+    code: 0,
+    stdout: [
+      "README.md",
+      "node_modules/left-pad/index.js",
+      "packages/app/node_modules/dep/lib.ts",
+      "dist/index.js",
+      "packages/app/coverage/lcov-report/prettify.js",
+      "",
+    ].join("\n"),
+    stderr: "",
+  }));
+  const ctx = createFakeContext({ git });
+  assert.equal(await codeExists(ctx), false);
+});
+
+void test("codeExists: the project's own code still counts next to vendored files", async () => {
+  const git = createFakeGit(() => ({
+    code: 0,
+    stdout: "node_modules/left-pad/index.js\nsrc/index.ts\n",
+    stderr: "",
+  }));
+  const ctx = createFakeContext({ git });
+  assert.equal(await codeExists(ctx), true);
+});
+
+void test("codeExists: a file merely named like an ignored folder still counts", async () => {
+  const git = createFakeGit(() => ({
+    code: 0,
+    stdout: "src/dist.ts\nmy_node_modules/x.js\n",
+    stderr: "",
+  }));
+  const ctx = createFakeContext({ git });
+  assert.equal(await codeExists(ctx), true);
+});
