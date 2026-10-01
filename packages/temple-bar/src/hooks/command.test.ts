@@ -1,6 +1,6 @@
 // Unit tests for createHookCommand's routing, using the fakes (../testing/
 // fakes.ts) rather than real git, mirroring router.test.ts's style for the
-// F12/P8.2 "writes nothing" contract.
+// "an unknown command writes nothing" contract.
 
 import assert from "node:assert/strict";
 import test from "node:test";

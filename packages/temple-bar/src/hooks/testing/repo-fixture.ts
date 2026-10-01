@@ -3,9 +3,9 @@
 // exercise the real installed shims (shims.ts) and the real command
 // (command.ts) end to end, through real git, exactly like production.
 //
-// Not shipped: the build tsconfig must exclude "src/hooks/testing/**"
-// (orchestrator change, alongside the existing "src/testing/**" exclusion).
+// Not shipped: the build tsconfig excludes every `testing/` folder.
 
+import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   mkdtempSync,
@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { configureTestRepo, initTestRepo } from "../../testing/git-repo.ts";
+import { configureTestRepo } from "../../testing/git-repo.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** The real CLI entry point, run from source under type stripping. */
@@ -33,7 +33,7 @@ export interface CommandResult {
 /** Converts a filesystem path to the forward-slash form POSIX sh expects,
  * including under Git for Windows' MSYS sh (which git uses to run hooks on
  * every OS). A no-op on POSIX, where path.sep is already "/". */
-function toShPath(p: string): string {
+export function toShPath(p: string): string {
   return p.split(path.sep).join("/");
 }
 
@@ -67,34 +67,57 @@ export function runSh(
 }
 
 export interface HookFixture {
+  /** The temp directory holding repoDir, originDir and any extra clones. */
+  readonly root: string;
   readonly repoDir: string;
   readonly originDir: string;
   readonly binPath: string;
+  /** The branch both repos start on, and origin's default branch. */
+  readonly branch: string;
   /** Runs `sh <fake-bin> hook <...args>` in repoDir. */
   hook(args: readonly string[], input?: string): CommandResult;
   /** Overwrites the fake bin with one that only records that it ran, to
    * prove the reference-transaction shim's fast path never starts it. */
   installMarkerBin(markerPath: string): void;
-  /** Restores the real fake bin after installMarkerBin. */
+  /** Restores the real fake bin after installMarkerBin or removeBin. */
   installRealBin(): void;
+  /** Deletes the fake bin, as in a checkout where the hooks are configured
+   * but temple-bar hasn't been installed yet. */
+  removeBin(): void;
   cleanup(): void;
 }
 
+export interface HookFixtureOptions {
+  /** The branch to start on and make origin's default. Defaults to `main`. */
+  readonly branch?: string;
+}
+
 /**
- * Sets up repoDir (a normal repo on `main`) with a bare originDir remote,
- * a fake node_modules/.bin/temple-bar that runs the real CLI from source
- * (src/cli.ts, through the router), and installs the
+ * Sets up repoDir (a normal repo on `options.branch`, default `main`) with a
+ * bare originDir remote whose default branch is the same, a fake
+ * node_modules/.bin/temple-bar that runs the real CLI from source
+ * (src/cli.ts, through the router). `installRealHooks` then installs the
  * real shims into repoDir via `hook install`.
  */
-export function createHookFixture(): HookFixture {
+export function createHookFixture(
+  options: HookFixtureOptions = {},
+): HookFixture {
+  const branch = options.branch ?? "main";
   const root = mkdtempSync(path.join(tmpdir(), "temple-bar-hooks-"));
   const repoDir = path.join(root, "repo");
   const originDir = path.join(root, "origin.git");
 
   mkdirSync(repoDir, { recursive: true });
-  runGit(root, ["init", "-q", "--bare", "--initial-branch=main", originDir]);
+  runGit(root, [
+    "init",
+    "-q",
+    "--bare",
+    `--initial-branch=${branch}`,
+    originDir,
+  ]);
 
-  initTestRepo(repoDir);
+  runGit(repoDir, ["init", "-q", `--initial-branch=${branch}`]);
+  configureTestRepo(repoDir);
   runGit(repoDir, ["remote", "add", "origin", toShPath(originDir)]);
 
   const binDir = path.join(repoDir, "node_modules", ".bin");
@@ -118,44 +141,94 @@ export function createHookFixture(): HookFixture {
     chmodSync(binPath, 0o755);
   }
 
+  function removeBin(): void {
+    rmSync(binPath, { force: true });
+  }
+
   function cleanup(): void {
     rmSync(root, { recursive: true, force: true });
   }
 
   return {
+    root,
     repoDir,
     originDir,
     binPath,
+    branch,
     hook,
     installMarkerBin,
     installRealBin,
+    removeBin,
     cleanup,
   };
 }
 
 /** Installs the real shims (via the fake bin's `hook install`) and points
- * repoDir's hooksPath at them, exactly as production `init` (1.7) would. */
+ * repoDir's hooksPath at them, exactly as production `init` would. */
 export function installRealHooks(fixture: HookFixture): CommandResult {
   return fixture.hook(["install"]);
 }
 
-/** Clones originDir to a second working copy, commits a file on `main` and
- * pushes it, simulating a merge that happened "on GitHub". Returns the new
- * commit's SHA. */
+/** Clones originDir to a second working copy, commits a file on `branch`
+ * (default `main`) and pushes it, simulating a merge that happened "on
+ * GitHub". Returns the new commit's SHA. */
 export function pushToOriginMain(
   root: string,
   originDir: string,
   fileName: string,
   content: string,
+  branch = "main",
 ): string {
   const cloneDir = path.join(root, "clone");
   runGit(root, ["clone", "-q", toShPath(originDir), cloneDir]);
   configureTestRepo(cloneDir);
+  // Continue `branch` if origin has it, else start it from origin's default
+  // branch, or as the first commit when origin is still empty.
+  const remoteBranch = `refs/remotes/origin/${branch}`;
+  if (
+    runGit(cloneDir, ["rev-parse", "--verify", "-q", remoteBranch]).code === 0
+  ) {
+    runGit(cloneDir, ["checkout", "-q", "-B", branch, remoteBranch]);
+  } else if (
+    runGit(cloneDir, ["rev-parse", "--verify", "-q", "HEAD"]).code === 0
+  ) {
+    runGit(cloneDir, ["checkout", "-q", "-b", branch]);
+  } else {
+    runGit(cloneDir, ["symbolic-ref", "HEAD", `refs/heads/${branch}`]);
+  }
   writeFileSync(path.join(cloneDir, fileName), content, "utf8");
   runGit(cloneDir, ["add", fileName]);
   runGit(cloneDir, ["commit", "-q", "-m", `via clone: ${fileName}`]);
-  runGit(cloneDir, ["push", "-q", "origin", "HEAD:main"]);
+  runGit(cloneDir, ["push", "-q", "origin", `HEAD:${branch}`]);
   const sha = runGit(cloneDir, ["rev-parse", "HEAD"]).stdout.trim();
   rmSync(cloneDir, { recursive: true, force: true });
+  return sha;
+}
+
+/** Seeds origin with one commit on the fixture's branch, fetches it, records
+ * origin's default branch as `refs/remotes/origin/HEAD` (as `git clone`
+ * does), and checks the local branch out at that same commit, so both start
+ * aligned: the normal state of a real clone. Returns that commit's SHA.
+ *
+ * origin/HEAD is set explicitly because only newer git versions create it on
+ * fetch, and the tests must not depend on which git runs them. */
+export function alignWithOrigin(fixture: HookFixture): string {
+  const { repoDir, branch } = fixture;
+  const sha = pushToOriginMain(
+    fixture.root,
+    fixture.originDir,
+    "seed.txt",
+    "seed\n",
+    branch,
+  );
+  assert.equal(runGit(repoDir, ["fetch", "-q", "origin"]).code, 0);
+  assert.equal(
+    runGit(repoDir, ["remote", "set-head", "origin", branch]).code,
+    0,
+  );
+  assert.equal(
+    runGit(repoDir, ["checkout", "-q", "-B", branch, `origin/${branch}`]).code,
+    0,
+  );
   return sha;
 }

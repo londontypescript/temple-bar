@@ -1,14 +1,21 @@
-// Logic behind `temple-bar hook reference-transaction <state>`. Local `main`
-// may only move to `refs/remotes/origin/main` or one of its ancestors
-// (decision 4 / decision 16's P3.4 check). Deleting `main` is refused, and
-// so is every update to `main` when `refs/remotes/origin/main` doesn't exist
-// at all, since there is then nothing safe to compare against.
+// Logic behind `temple-bar hook reference-transaction <state>`. The local
+// default branch (protected-branch.ts: `main`, `master` or whatever GitHub
+// reports) may only move to a commit that is already on GitHub's copy of it,
+// so it changes only through merged pull requests. Deleting it is refused,
+// and so is every update to it when nothing is known about GitHub's copy,
+// since there is then nothing safe to compare against.
+//
+// git runs this hook for every ref change, including `commit --no-verify`,
+// `reset`, `merge` and `fetch`, which is why it, not pre-commit, is the
+// guarantee.
 //
 // Only the "prepared" state does anything; the shim (shims.ts) already
 // filters this before starting Node, but the command re-checks it so calling
-// this directly (as the test entry point does) behaves the same way.
+// this directly behaves the same way.
 
 import type { Context } from "../context.ts";
+import { fetchedFromOrigin } from "./fetch-head.ts";
+import { findProtectedBranch, upstreamRefFor } from "./protected-branch.ts";
 
 interface RefUpdate {
   readonly oldValue: string;
@@ -16,8 +23,6 @@ interface RefUpdate {
   readonly ref: string;
 }
 
-const MAIN_REF = "refs/heads/main";
-const UPSTREAM_REF = "refs/remotes/origin/main";
 const ZERO_OID_PATTERN = /^0+$/;
 
 /**
@@ -48,33 +53,68 @@ async function findRepoRoot(ctx: Context): Promise<string | undefined> {
   return result.code === 0 ? result.stdout.trim() : undefined;
 }
 
-async function upstreamMainExists(
+/**
+ * Every commit known to be GitHub's copy of `branch` right now: the
+ * remote-tracking ref as it stands, the value this same transaction is
+ * writing to it (`git fetch --atomic origin main:main` updates both refs at
+ * once), and what a running fetch just received for it (a plain
+ * `git fetch origin main:main` moves local `main` before the remote-tracking
+ * ref; see fetch-head.ts).
+ */
+async function gitHubCommits(
   ctx: Context,
   repoRoot: string,
-): Promise<boolean> {
-  const result = await ctx.git.run(
-    ["rev-parse", "--verify", "--quiet", UPSTREAM_REF],
+  branch: string,
+  updates: readonly RefUpdate[],
+): Promise<string[]> {
+  const upstreamRef = upstreamRefFor(branch);
+  const commits: string[] = [];
+
+  const current = await ctx.git.run(
+    ["rev-parse", "--verify", "--quiet", upstreamRef],
     repoRoot,
   );
-  return result.code === 0;
+  if (current.code === 0) {
+    commits.push(current.stdout.trim());
+  }
+
+  for (const update of updates) {
+    if (update.ref === upstreamRef && !ZERO_OID_PATTERN.test(update.newValue)) {
+      commits.push(update.newValue);
+    }
+  }
+
+  const fetched = await fetchedFromOrigin(ctx, repoRoot, branch);
+  if (fetched !== undefined) {
+    commits.push(fetched);
+  }
+
+  return [...new Set(commits)];
 }
 
-async function isAncestorOfUpstream(
+async function isAncestorOfAny(
   ctx: Context,
   repoRoot: string,
   sha: string,
+  commits: readonly string[],
 ): Promise<boolean> {
-  const result = await ctx.git.run(
-    ["merge-base", "--is-ancestor", sha, UPSTREAM_REF],
-    repoRoot,
-  );
-  return result.code === 0;
+  for (const commit of commits) {
+    const result = await ctx.git.run(
+      ["merge-base", "--is-ancestor", sha, commit],
+      repoRoot,
+    );
+    if (result.code === 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
  * `temple-bar hook reference-transaction <state>`, fed the hook's stdin.
- * Refuses (exit 1) any update to `refs/heads/main` whose new value isn't
- * `refs/remotes/origin/main` or an ancestor of it; allows everything else.
+ * Refuses (exit 1) any update to the protected branch whose new value isn't
+ * one of GitHub's commits for it or an ancestor of one; allows everything
+ * else.
  */
 export async function referenceTransactionCheck(
   state: string,
@@ -85,10 +125,8 @@ export async function referenceTransactionCheck(
     return 0;
   }
 
-  const mainUpdates = parseRefUpdates(stdin).filter(
-    (update) => update.ref === MAIN_REF,
-  );
-  if (mainUpdates.length === 0) {
+  const updates = parseRefUpdates(stdin);
+  if (!updates.some((update) => update.ref.startsWith("refs/heads/"))) {
     return 0;
   }
 
@@ -98,24 +136,32 @@ export async function referenceTransactionCheck(
     return 1;
   }
 
-  const upstreamExists = await upstreamMainExists(ctx, repoRoot);
+  const branch = await findProtectedBranch(ctx, repoRoot);
+  const protectedRef = `refs/heads/${branch}`;
+  const moves = updates.filter((update) => update.ref === protectedRef);
+  if (moves.length === 0) {
+    return 0;
+  }
 
-  for (const update of mainUpdates) {
+  const upstreamRef = upstreamRefFor(branch);
+  const onGitHub = await gitHubCommits(ctx, repoRoot, branch, updates);
+
+  for (const update of moves) {
     if (ZERO_OID_PATTERN.test(update.newValue)) {
-      ctx.stderr.write("temple-bar: refusing to delete local main\n");
+      ctx.stderr.write(`temple-bar: refusing to delete local ${branch}\n`);
       return 1;
     }
 
-    if (!upstreamExists) {
+    if (onGitHub.length === 0) {
       ctx.stderr.write(
-        `temple-bar: refusing to move local main: ${UPSTREAM_REF} does not exist (fetch first)\n`,
+        `temple-bar: refusing to move local ${branch}: ${upstreamRef} does not exist (fetch first)\n`,
       );
       return 1;
     }
 
-    if (!(await isAncestorOfUpstream(ctx, repoRoot, update.newValue))) {
+    if (!(await isAncestorOfAny(ctx, repoRoot, update.newValue, onGitHub))) {
       ctx.stderr.write(
-        `temple-bar: refusing to move local main to a commit not on ${UPSTREAM_REF} (${update.newValue})\n` +
+        `temple-bar: refusing to move local ${branch} to a commit not on ${upstreamRef} (${update.newValue})\n` +
           "If git left the refused changes in your working tree, keep them " +
           "on a new branch with `git switch -c <name>`, or drop them with " +
           "`git reset --hard`.\n",
