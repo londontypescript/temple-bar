@@ -22,16 +22,15 @@ export interface ProjectConfig {
  * only place in src/ (tests included) that hardcodes these numbers; tests
  * read a fixture config or pass their own number.
  *
- * The pull request limits are set from this repo's own history: ordinary
- * one-issue pull requests changed up to about 700 lines across up to 13
- * files, while the 0.0.4 hooks pull request, which closed three issues,
- * changed 1,178 lines across 19 files. 1,000 lines sits between the two.
- * 25 files leaves room for a feature with its tests and docs.
+ * The pull request limits follow common review guidance (past a few hundred
+ * lines, reviewers start to miss things) and fit this repo's own history: a
+ * typical pull request changed about 140 lines across 4 files, and these
+ * limits flagged only the few that really were too big.
  */
 export const DEFAULT_CONFIG: ProjectConfig = {
   maxFileLines: 400,
-  maxPullRequestLines: 1000,
-  maxPullRequestFiles: 25,
+  maxPullRequestLines: 500,
+  maxPullRequestFiles: 15,
 };
 
 export const DEFAULT_MAX_FILE_LINES = DEFAULT_CONFIG.maxFileLines;

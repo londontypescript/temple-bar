@@ -111,7 +111,7 @@ void test("pr-size exits 2 with a message when called wrongly", async () => {
   }
 });
 
-void test("a measuring failure is reported but never fails the command", async () => {
+void test("a measuring failure is reported and fails the command, so a broken check is never silent", async () => {
   const stderr = createFakeWriter();
   const ctx = createFakeContext({
     stderr,
@@ -121,6 +121,7 @@ void test("a measuring failure is reported but never fails the command", async (
       stderr: "fatal: bad revision",
     })),
   });
-  assert.equal(await prSizeCommandEntry.run(["--base", "origin/zzz"], ctx), 0);
+  const code = await prSizeCommandEntry.run(["--base", "origin/zzz"], ctx);
   assert.match(stderr.lines.join(""), /could not measure.*bad revision/);
+  assert.equal(code, 1);
 });

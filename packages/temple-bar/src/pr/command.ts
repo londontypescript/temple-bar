@@ -1,7 +1,9 @@
 // `temple-bar pr-size`: warns when a pull request is too big or mixes
-// concerns. Always exits 0, because a warning must never block a merge, and
-// 2 only for a usage mistake (a flag it doesn't know, or no base to compare
-// against).
+// concerns. A size warning exits 0, because it must never block a merge.
+// Failing to measure exits 1: that means the check itself isn't working (for
+// example a CI checkout without the base branch), and a check that quietly
+// does nothing is worse than a red one. 2 is a usage mistake (a flag it
+// doesn't know, or no base to compare against).
 
 import type { Context } from "../context.ts";
 import type { CommandEntry } from "../registry.ts";
@@ -63,12 +65,11 @@ export async function prSizeCommand(
       ...(parsed.pr === undefined ? {} : { prNumber: parsed.pr }),
     });
   } catch (error) {
-    // Still exit 0: failing to measure must not block a merge, but it must
-    // not pass silently either.
     const message = error instanceof Error ? error.message : String(error);
     ctx.stderr.write(
       `pr-size: could not measure this pull request: ${message}\n`,
     );
+    return 1;
   }
   return 0;
 }
@@ -90,7 +91,8 @@ export const prSizeCommandEntry: CommandEntry = {
     "temple-bar.config.json. In GitHub Actions the warning is also an",
     "annotation on the pull request.",
     "",
-    "Always exits 0, except 2 when called wrongly.",
+    "Exits 0 whether or not it warns, 1 when it can't measure the pull",
+    "request (in CI, check out with fetch-depth: 0), 2 when called wrongly.",
   ].join("\n"),
   run: prSizeCommand,
 };
