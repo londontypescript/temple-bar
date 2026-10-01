@@ -11,9 +11,9 @@ check every brief and change against it. Work is tracked in GitHub issues.
 
 - This repo is gated by the last published temple-bar. Its own source never
   runs as its tooling, and no feature exists to make it do so.
-- Since 1.10, the pinned temple-bar's hooks refuse commits to local `main` and
-  any move of `main` that doesn't come from `origin/main`. Every change goes
-  through a pull request.
+- The pinned temple-bar's hooks refuse commits to local `main` and any move of
+  `main` that doesn't come from `origin/main`. Every change goes through a pull
+  request.
 - Bumping the pinned temple-bar version is a deliberate change in its own pull
   request, never a side effect of other work.
 - The repo is public. Nothing committed or filed here (code, plans, issues,
