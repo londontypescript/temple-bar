@@ -13,6 +13,7 @@ import test from "node:test";
 import { createFsSeam } from "../seams/fs.ts";
 import { createGitSeam } from "../seams/git.ts";
 import { initTestRepo } from "../testing/git-repo.ts";
+import { createFakeHttp } from "../testing/fakes.ts";
 import type { Context } from "../context.ts";
 import { checkFileLengths, DEFAULT_MAX_FILE_LINES } from "./lengths.ts";
 
@@ -27,6 +28,7 @@ function minimalContext(cwd: string): Context {
       run: () =>
         Promise.resolve({ code: 0, stdout: "", stderr: "", notFound: false }),
     },
+    http: createFakeHttp(),
     fs: createFsSeam(),
     clock: { now: () => new Date() },
     prompt: {

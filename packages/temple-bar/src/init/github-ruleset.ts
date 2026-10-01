@@ -48,7 +48,21 @@ function hasBranchRuleset(rulesets: unknown): boolean {
  * were tried first and can't express this: they attached the pull_request
  * parameters to the wrong rule and sent `exclude` as `[""]`.
  */
-export function rulesetBody(): object {
+export interface RulesetRule {
+  readonly type: string;
+  readonly parameters?: Record<string, unknown>;
+}
+
+export interface RulesetBody {
+  readonly name: string;
+  readonly target: string;
+  readonly enforcement: string;
+  readonly bypass_actors: unknown[];
+  readonly conditions: object;
+  readonly rules: RulesetRule[];
+}
+
+export function rulesetBody(): RulesetBody {
   return {
     name: "main: pull requests only",
     target: "branch",

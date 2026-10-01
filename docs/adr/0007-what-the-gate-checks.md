@@ -1,6 +1,6 @@
 # ADR 0007: What the gate checks
 
-Date: 2026-10-01. Status: accepted (decisions 10, 15, 20, 23 and 36; 10 and 15
+Date: 2026-10-01. Status: accepted (decisions 10, 15, 20, 23, 36 and 43; 10 and 15
 are decided but not built yet).
 
 ## Context
@@ -43,6 +43,18 @@ it actually covered.
 [ADR 0009](0009-readme-and-agents-md.md)).** The gate enforces it. A repo with
 no AGENTS.md skips the check (reported as skipped) rather than failing: setup
 writes one, and a docs-only or mid-setup repo must still be able to pass.
+
+**Ruleset (decision 43, recorded in
+[ADR 0004](0004-github-settings-temple-bar-applies.md)).** The gate reads the
+default branch's active rules from GitHub and fails if a rule that setup
+creates is missing, or looser (for example merge commits allowed again).
+Extra rules a repo adds are fine. It supports public repos only: a private
+repo is skipped with a stated reason. It reads GitHub with Node's `fetch`,
+not `gh`, so it works in Actions with no secrets; a `GH_TOKEN` or
+`GITHUB_TOKEN` is used when present, to stay clear of the anonymous
+60-an-hour limit. Offline or unreachable GitHub is skipped on a laptop, with
+the reason shown, but fails in GitHub Actions, where a silent pass would hide a
+loosened ruleset.
 
 **Which copy of the checks judges a pull request.** The earlier hardening
 plan said `main`'s copy of the checks should judge every change, so a pull

@@ -22,7 +22,11 @@ import { createGitSeam } from "../seams/git.ts";
 import { createGhSeam } from "../seams/gh.ts";
 import { createFsSeam } from "../seams/fs.ts";
 import { createProcSeam } from "../seams/proc.ts";
-import { createFakeClock, createFakePrompt } from "../testing/fakes.ts";
+import {
+  createFakeClock,
+  createFakePrompt,
+  createFakeHttp,
+} from "../testing/fakes.ts";
 import { initTestRepo } from "../testing/git-repo.ts";
 import type { Context } from "../context.ts";
 import { gateCommand } from "./command.ts";
@@ -61,6 +65,7 @@ function makeContext(cwd: string): {
   const ctx: Context = {
     git: createGitSeam(),
     gh: createGhSeam(),
+    http: createFakeHttp(),
     fs: createFsSeam(),
     clock: createFakeClock(),
     prompt: createFakePrompt(),
