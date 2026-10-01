@@ -9,35 +9,17 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  alignWithOrigin,
   createHookFixture,
   installRealHooks,
   pushToOriginMain,
   runGit,
-  type HookFixture,
 } from "./testing/repo-fixture.ts";
-
-/** Seeds originDir with one commit on main, fetches it into repoDir, and
- * checks repoDir's local main out at that same commit, so both refs start
- * aligned (the normal state of a real clone). Returns that commit's SHA. */
-function alignMainWithOrigin(fixture: HookFixture, root: string): string {
-  const sha = pushToOriginMain(root, fixture.originDir, "seed.txt", "seed\n");
-  assert.equal(runGit(fixture.repoDir, ["fetch", "-q", "origin"]).code, 0);
-  assert.equal(
-    runGit(fixture.repoDir, ["checkout", "-q", "-B", "main", "origin/main"])
-      .code,
-    0,
-  );
-  return sha;
-}
-
-function rootOf(fixture: HookFixture): string {
-  return path.dirname(fixture.repoDir);
-}
 
 void test("reference-transaction: --no-verify on main is still refused (git does not skip this hook)", () => {
   const fixture = createHookFixture();
   try {
-    const origin = alignMainWithOrigin(fixture, rootOf(fixture));
+    const origin = alignWithOrigin(fixture);
     assert.equal(installRealHooks(fixture).code, 0);
 
     writeFileSync(path.join(fixture.repoDir, "local.txt"), "x\n", "utf8");
@@ -84,7 +66,7 @@ void test("reference-transaction: refuses when refs/remotes/origin/main does not
 void test("reference-transaction: a local squash merge onto main is refused", () => {
   const fixture = createHookFixture();
   try {
-    const origin = alignMainWithOrigin(fixture, rootOf(fixture));
+    const origin = alignWithOrigin(fixture);
     runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
     writeFileSync(path.join(fixture.repoDir, "feat.txt"), "f\n", "utf8");
     runGit(fixture.repoDir, ["add", "feat.txt"]);
@@ -116,7 +98,7 @@ void test("reference-transaction: a local squash merge onto main is refused", ()
 void test("reference-transaction: a local merge onto main is refused", () => {
   const fixture = createHookFixture();
   try {
-    const origin = alignMainWithOrigin(fixture, rootOf(fixture));
+    const origin = alignWithOrigin(fixture);
     runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
     writeFileSync(path.join(fixture.repoDir, "feat.txt"), "f\n", "utf8");
     runGit(fixture.repoDir, ["add", "feat.txt"]);
@@ -151,7 +133,7 @@ void test("reference-transaction: a local merge onto main is refused", () => {
 void test("reference-transaction: a cherry-pick onto main is refused", () => {
   const fixture = createHookFixture();
   try {
-    const origin = alignMainWithOrigin(fixture, rootOf(fixture));
+    const origin = alignWithOrigin(fixture);
     runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
     writeFileSync(path.join(fixture.repoDir, "feat.txt"), "f\n", "utf8");
     runGit(fixture.repoDir, ["add", "feat.txt"]);
@@ -183,7 +165,7 @@ void test("reference-transaction: a cherry-pick onto main is refused", () => {
 void test("reference-transaction: git reset --hard onto a commit not on origin/main is refused", () => {
   const fixture = createHookFixture();
   try {
-    const origin = alignMainWithOrigin(fixture, rootOf(fixture));
+    const origin = alignWithOrigin(fixture);
     runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
     writeFileSync(path.join(fixture.repoDir, "feat.txt"), "f\n", "utf8");
     runGit(fixture.repoDir, ["add", "feat.txt"]);
@@ -215,7 +197,7 @@ void test("reference-transaction: git reset --hard onto a commit not on origin/m
 void test("reference-transaction: deleting local main is refused", () => {
   const fixture = createHookFixture();
   try {
-    alignMainWithOrigin(fixture, rootOf(fixture));
+    alignWithOrigin(fixture);
     runGit(fixture.repoDir, ["checkout", "-q", "-b", "other"]);
 
     assert.equal(installRealHooks(fixture).code, 0);
@@ -243,13 +225,13 @@ void test("reference-transaction: deleting local main is refused", () => {
 void test("reference-transaction: git pull --ff-only is allowed after a merge on GitHub, and main moves", () => {
   const fixture = createHookFixture();
   try {
-    const first = alignMainWithOrigin(fixture, rootOf(fixture));
+    const first = alignWithOrigin(fixture);
     assert.equal(installRealHooks(fixture).code, 0);
 
     // Simulate a merge that happened on GitHub: a second clone pushes
     // straight to origin's main.
     const second = pushToOriginMain(
-      rootOf(fixture),
+      fixture.root,
       fixture.originDir,
       "merged-on-github.txt",
       "y\n",
@@ -277,15 +259,15 @@ void test("reference-transaction: git pull --ff-only is allowed after a merge on
 void test("reference-transaction: a fetch touching only refs/remotes/origin/main never starts Node", () => {
   const fixture = createHookFixture();
   try {
-    alignMainWithOrigin(fixture, rootOf(fixture));
+    alignWithOrigin(fixture);
     assert.equal(installRealHooks(fixture).code, 0);
 
-    const markerPath = path.join(rootOf(fixture), "node-was-started.marker");
+    const markerPath = path.join(fixture.root, "node-was-started.marker");
     fixture.installMarkerBin(markerPath);
 
     // A second commit on origin's main, purely a fetch target: this only
     // updates refs/remotes/origin/main locally, never refs/heads/main.
-    pushToOriginMain(rootOf(fixture), fixture.originDir, "more.txt", "m\n");
+    pushToOriginMain(fixture.root, fixture.originDir, "more.txt", "m\n");
     const fetch = runGit(fixture.repoDir, ["fetch", "-q", "origin"]);
 
     assert.equal(fetch.code, 0);

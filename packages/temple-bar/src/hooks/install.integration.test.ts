@@ -12,6 +12,11 @@ import {
   installRealHooks,
   runGit,
 } from "./testing/repo-fixture.ts";
+import {
+  PRE_COMMIT_SHIM_0_0_3,
+  REFERENCE_TRANSACTION_SHIM_0_0_3,
+} from "./testing/earlier-shims.ts";
+import { PRE_COMMIT_SHIM, REFERENCE_TRANSACTION_SHIM } from "./shims.ts";
 
 void test("install: writes both shims and both config values", () => {
   const fixture = createHookFixture();
@@ -95,6 +100,37 @@ void test("install: an existing different .githooks/pre-commit is reported as a 
       stillCustom,
       customContent,
       "the existing file must be untouched",
+    );
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+void test("install: shims exactly as an earlier release wrote them are replaced, so upgrading doesn't fail", () => {
+  const fixture = createHookFixture();
+  try {
+    const hooksDir = path.join(fixture.repoDir, ".githooks");
+    mkdirSync(hooksDir, { recursive: true });
+    writeFileSync(path.join(hooksDir, "pre-commit"), PRE_COMMIT_SHIM_0_0_3);
+    writeFileSync(
+      path.join(hooksDir, "reference-transaction"),
+      REFERENCE_TRANSACTION_SHIM_0_0_3,
+    );
+
+    const result = installRealHooks(fixture);
+
+    assert.equal(result.code, 0, result.stdout);
+    assert.match(
+      result.stdout,
+      /written: \.githooks\/pre-commit \(replaced an earlier temple-bar version\)/,
+    );
+    assert.equal(
+      readFileSync(path.join(hooksDir, "pre-commit"), "utf8"),
+      PRE_COMMIT_SHIM,
+    );
+    assert.equal(
+      readFileSync(path.join(hooksDir, "reference-transaction"), "utf8"),
+      REFERENCE_TRANSACTION_SHIM,
     );
   } finally {
     fixture.cleanup();

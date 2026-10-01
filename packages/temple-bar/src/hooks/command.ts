@@ -1,8 +1,8 @@
 // `temple-bar hook <subcommand>`: the git hook entry points, plus the
-// `install` subcommand that writes them. router.ts (1.4, owned by the
-// orchestrator) registers this with `registry.register(createHookCommand(...))`.
-// An unknown or missing subcommand prints usage to stderr, exits 2, and has
-// no other effect (same contract as an unknown top-level command, F12/P8.2).
+// `install` subcommand that writes them. router.ts registers this with
+// `registry.register(createHookCommand(...))`. An unknown or missing
+// subcommand prints usage to stderr, exits 2, and has no other effect (the
+// same contract as an unknown top-level command).
 
 import type { Context } from "../context.ts";
 import { formatUsageLine, type CommandEntry } from "../registry.ts";
