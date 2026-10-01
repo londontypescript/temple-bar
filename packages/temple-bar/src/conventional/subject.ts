@@ -1,6 +1,6 @@
 // The one definition of a conventional subject line, shared by the
 // `commit-msg` hook (hooks/commit-msg.ts) and the pull request title check
-// (pr-title/command.ts). A squash merge turns the pull request title into the
+// (pr/title-command.ts). A squash merge turns the pull request title into the
 // commit on `main`, so both must accept exactly the same thing; keeping the
 // rule here means they cannot drift apart.
 

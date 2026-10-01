@@ -6,7 +6,7 @@ import {
   createFakeFs,
   createFakeWriter,
 } from "../testing/fakes.ts";
-import { prTitleCommand } from "./command.ts";
+import { prTitleCommand } from "./title-command.ts";
 
 const EVENT = "/event.json";
 
