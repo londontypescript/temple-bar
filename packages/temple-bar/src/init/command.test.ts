@@ -169,7 +169,7 @@ void test("init: hook install conflicts make the final exit code non-zero", asyn
       Promise.resolve({
         items: [
           {
-            item: ".githooks/pre-commit",
+            item: ".git/hooks/pre-commit",
             status: "conflict",
             detail: "an existing file's content differs",
           },
@@ -180,7 +180,7 @@ void test("init: hook install conflicts make the final exit code non-zero", asyn
   const fixture = makeFixture();
   const code = await command.run([], fixture.ctx);
   assert.equal(code, 1);
-  assert.match(fixture.stderr.lines.join(""), /\.githooks\/pre-commit/);
+  assert.match(fixture.stderr.lines.join(""), /\.git\/hooks\/pre-commit/);
 });
 
 function emptyRepoGit(calls: string[], commitFails: boolean) {

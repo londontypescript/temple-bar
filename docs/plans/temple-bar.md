@@ -25,7 +25,7 @@ Settled before this session:
 - Models: phases rated routine / involved / delicate; the maintainer picks models, temple-bar never does: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 - What became of the earlier hardening plan's D2, D3, D4 and D7: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 
-Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), and in 0.0.5 planning on 2026-10-01 (41–44):
+Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), and while building 0.0.5 on 2026-10-01 and 2 (41–45):
 
 | #   | Decision                                                                          | ADR                                                       |
 | --- | --------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -73,6 +73,7 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 42  | The maintainer bypass-merges check changes; `temple-bar merge` never bypasses     | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
 | 43  | The gate's ruleset check supports public repos only for now                       | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
 | 44  | A repo without AGENTS.md skips the size check rather than failing                 | [0007](../adr/0007-what-the-gate-checks.md)               |
+| 45  | Hooks live in git's shared hooks folder, so every worktree has them               | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 
 ---
 

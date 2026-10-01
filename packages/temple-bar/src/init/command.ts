@@ -234,7 +234,7 @@ export const NEXT_STEPS =
   "Next: main now refuses direct commits, so land this setup through a " +
   "pull request:\n" +
   "  git switch -c temple-bar-setup\n" +
-  "  git add AGENTS.md package.json .gitignore .githooks  (plus your lockfile)\n" +
+  "  git add AGENTS.md package.json .gitignore  (plus your lockfile)\n" +
   '  git commit -m "Set up temple-bar"\n' +
   "  git push -u origin temple-bar-setup\n" +
   "  gh pr create --fill\n";

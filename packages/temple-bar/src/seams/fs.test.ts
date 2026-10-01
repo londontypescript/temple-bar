@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -87,6 +93,28 @@ void test("fs seam: chmod changes the file mode", async () => {
       const mode = statSync(file).mode & 0o777;
       assert.equal(mode, 0o755);
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("fs seam: copyNew copies with the file's permissions, and never over an existing file", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-fs-seam-"));
+  try {
+    const fs = createFsSeam();
+    const from = path.join(dir, "from");
+    const to = path.join(dir, "to");
+    writeFileSync(from, "secret", { mode: 0o600 });
+
+    assert.equal(await fs.copyNew(from, to), true);
+    assert.equal(readFileSync(to, "utf8"), "secret");
+    if (process.platform !== "win32") {
+      assert.equal(statSync(to).mode & 0o777, 0o600);
+    }
+
+    writeFileSync(to, "mine");
+    assert.equal(await fs.copyNew(from, to), false);
+    assert.equal(readFileSync(to, "utf8"), "mine");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

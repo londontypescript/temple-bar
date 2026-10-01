@@ -116,6 +116,7 @@ Every rule in temple-bar exists because something went wrong in a real project, 
 - Installs the git hooks, and adds a `prepare` script so they come back on every install. Installing also sets `pull.ff=only` in the repo's git config, so a pull never creates a merge commit on your default branch.
 - Adds a `gate` script: `pnpm gate` is the merge check. It needs `typecheck`, `lint`, `format:check` and `test` scripts, and lists each check with its result.
 - Guards your default branch (`main`, `master` or whatever GitHub says): locally it can only move to commits that are already on GitHub.
+- Sets up every new worktree, whichever tool runs `git worktree add`: copies your `.env` files in from the main checkout (never over one that's there), names any keys their `.example` templates list that are missing (never printing a value), and runs `pnpm install --frozen-lockfile`.
 - **Never** deletes files or rewrites history, and never creates or pushes anything on GitHub without asking. Running it twice changes nothing.
 
 temple-bar has no install scripts: installing it never changes your repo by itself.

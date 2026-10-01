@@ -98,9 +98,13 @@ void test("integration: init sets up a real repo (AGENTS.md, scripts, real hooks
     ) as { scripts: Record<string, string> };
     assert.equal(pkg.scripts.prepare, "temple-bar hook install");
     assert.equal(pkg.scripts.gate, "temple-bar gate");
-    assert.ok(existsSync(path.join(dir, ".githooks", "pre-commit")));
-    assert.ok(existsSync(path.join(dir, ".githooks", "reference-transaction")));
-    assert.equal(gitConfig(dir, "core.hooksPath"), ".githooks");
+    assert.ok(existsSync(path.join(dir, ".git", "hooks", "pre-commit")));
+    assert.ok(
+      existsSync(path.join(dir, ".git", "hooks", "reference-transaction")),
+    );
+    assert.ok(existsSync(path.join(dir, ".git", "hooks", "post-checkout")));
+    // Unset, so git runs the hooks from the folder every worktree shares.
+    assert.throws(() => gitConfig(dir, "core.hooksPath"));
     assert.equal(gitConfig(dir, "pull.ff"), "only");
 
     const secondStdout = createFakeWriter();
@@ -134,7 +138,10 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
       gh: createFakeGh((args) => {
         if (args[0] === "repo") {
           ghCalls.push(args.join(" "));
-          assert.equal(existsSync(path.join(dir, ".githooks")), false);
+          assert.equal(
+            existsSync(path.join(dir, ".git", "hooks", "pre-commit")),
+            false,
+          );
           execFileSync(
             "git",
             ["remote", "add", "origin", "git@github.com:acme/widgets.git"],
@@ -168,7 +175,7 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
       "keep.txt",
       "package.json",
     ]);
-    assert.ok(existsSync(path.join(dir, ".githooks", "pre-commit")));
+    assert.ok(existsSync(path.join(dir, ".git", "hooks", "pre-commit")));
 
     // Second run: origin exists now, so nothing is offered or written.
     const before = readFileSync(path.join(dir, ".gitignore"), "utf8");

@@ -120,16 +120,11 @@ export function createHookFixture(
   configureTestRepo(repoDir);
   runGit(repoDir, ["remote", "add", "origin", toShPath(originDir)]);
 
-  const binDir = path.join(repoDir, "node_modules", ".bin");
-  mkdirSync(binDir, { recursive: true });
-  const binPath = path.join(binDir, "temple-bar");
+  const binPath = writeFakeBin(repoDir);
 
   function installRealBin(): void {
-    const script = `#!/bin/sh\nexec "${toShPath(process.execPath)}" "${toShPath(CLI_PATH)}" "$@"\n`;
-    writeFileSync(binPath, script, "utf8");
-    chmodSync(binPath, 0o755);
+    writeFakeBin(repoDir);
   }
-  installRealBin();
 
   function hook(args: readonly string[], input?: string): CommandResult {
     return runSh(binPath, ["hook", ...args], repoDir, input);
@@ -163,8 +158,21 @@ export function createHookFixture(
   };
 }
 
-/** Installs the real shims (via the fake bin's `hook install`) and points
- * repoDir's hooksPath at them, exactly as production `init` would. */
+/** Writes `<checkout>/node_modules/.bin/temple-bar` as a launcher for the
+ * real CLI from source, the way an install of temple-bar would, and returns
+ * its path. */
+export function writeFakeBin(checkout: string): string {
+  const binDir = path.join(checkout, "node_modules", ".bin");
+  mkdirSync(binDir, { recursive: true });
+  const binPath = path.join(binDir, "temple-bar");
+  const script = `#!/bin/sh\nexec "${toShPath(process.execPath)}" "${toShPath(CLI_PATH)}" "$@"\n`;
+  writeFileSync(binPath, script, "utf8");
+  chmodSync(binPath, 0o755);
+  return binPath;
+}
+
+/** Installs the real shims (via the fake bin's `hook install`) into the git
+ * folder every worktree shares, exactly as production `init` would. */
 export function installRealHooks(fixture: HookFixture): CommandResult {
   return fixture.hook(["install"]);
 }

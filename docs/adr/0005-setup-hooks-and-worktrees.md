@@ -1,7 +1,8 @@
 # ADR 0005: Setup, hooks and worktrees
 
-Date: 2026-10-01. Status: accepted (decisions 5, 16, 21, 22, 30 and 32; 16,
-30 and 32 are decided but not built yet).
+Date: 2026-10-01, updated 2026-10-02. Status: accepted (decisions 5, 16, 21,
+22, 30 and 32; 32 is built, while 16's checks and 30 are decided but not
+built yet).
 
 ## Context
 
@@ -70,6 +71,62 @@ was set in the config every worktree shares, so a fast-forward in the main
 checkout ran a hook before temple-bar was installed there, and the hook failed
 closed. Worktrees on branches from before the setup had no hooks at all,
 silently.
+
+The cause was where the hooks lived. `core.hooksPath` was the relative path
+`.githooks`, in config every worktree shares, while the hook files were
+tracked in the repo. git resolves a relative hooks path against each
+worktree's own files, so which hooks ran depended on the branch each worktree
+had checked out: none on a branch from before setup, and a fast-forward that
+brought `.githooks/` in wrote the files before it moved the ref, so the hooks
+appeared half-way through, in a checkout with no `node_modules`. So:
+
+- **The hooks live in git's own hooks folder in the shared git directory**
+  (`<git-common-dir>/hooks/`), with `core.hooksPath` unset. The same hooks
+  run in every worktree, whatever its branch. `hook install` removes
+  `core.hooksPath` when it is `.githooks`, as earlier releases set it, and
+  reports any other value as a conflict. The tracked `.githooks/` folder is
+  no longer used; setup never deletes, so removing it is the user's step.
+  Per-worktree config (`extensions.worktreeConfig`) was rejected: it changes
+  how other git tools must read the repo, and a new worktree would start with
+  no hooks.
+- **A hook runs the temple-bar that wrote the shims, else this worktree's,
+  else another worktree's.** Each install that puts its own shims in place
+  records its checkout beside them. An older temple-bar, pinned by an older
+  branch, may not know every hook the shims call, so the writer goes first.
+  A new worktree, or one whose branch predates setup, has no `node_modules`
+  yet and is still checked. The checks then come from that copy's version,
+  which may differ from the one this branch pins; that is accepted, since
+  the hooks guard rules that hold across the repo.
+- **Failing closed (decision 22) now means: no checkout has temple-bar.**
+  That keeps the protection where nothing is installed anywhere, without
+  refusing work in a checkout merely because its own install hasn't happened
+  yet. It still refuses in a fresh clone before its first install.
+- **A shim another temple-bar version wrote is kept, not a conflict.** Every
+  worktree's `pnpm install` writes into the one shared folder, and a worktree
+  on an older branch installs an older temple-bar. Its install must neither
+  fail nor take the shims back to its own version; a newer release replaces
+  the shims it knows from earlier releases.
+
+The `post-checkout` hook acts only when git passes a previous HEAD of all
+zeros and the checkout is a linked worktree, which is what `git worktree add`
+produces (a fresh clone also passes zeros, but is the main worktree). Any
+other checkout returns at once, without starting Node. In the new worktree it:
+
+1. Copies env files from the main worktree: every git-ignored file whose name
+   starts with `.env` and doesn't end in `.example`, at the root and in any
+   folder git doesn't ignore, so a monorepo package's own `.env` comes too. A
+   file goes in only if its folder exists on the new branch, never over a
+   file already there, and keeps its permissions.
+2. Checks every committed `<name>.example` env template against `<name>`,
+   naming the keys the template lists and the file lacks, or that the file
+   is missing. Only file and key names are printed, never a value.
+3. Runs `pnpm install --frozen-lockfile` when the worktree has a
+   `pnpm-lock.yaml`. If that fails, the hook exits non-zero and says the
+   worktree exists and which command finishes the setup: a hook can't undo
+   a checkout.
+
+Env files come before the install, so they are in place even when the
+install fails.
 
 ## What would end it
 
