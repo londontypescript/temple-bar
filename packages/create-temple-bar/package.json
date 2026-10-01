@@ -1,7 +1,18 @@
 {
   "name": "@londontypescript/create-temple-bar",
   "version": "0.0.4",
-  "description": "Set up temple-bar, rules for AI coding agents that git actually enforces.",
+  "description": "Sets up temple-bar, which enforces the London TypeScript workflow for AI coding agents: git hooks, a quality gate and GitHub rules.",
+  "keywords": [
+    "typescript",
+    "ai-agents",
+    "coding-agents",
+    "git-hooks",
+    "pnpm",
+    "github",
+    "developer-workflow",
+    "london-typescript",
+    "create"
+  ],
   "type": "module",
   "license": "MIT",
   "engines": {
