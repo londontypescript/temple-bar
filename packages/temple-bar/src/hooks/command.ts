@@ -6,11 +6,13 @@
 
 import type { Context } from "../context.ts";
 import { formatUsageLine, type CommandEntry } from "../registry.ts";
+import { commitMsgCheck } from "./commit-msg.ts";
 import { installHooks } from "./install.ts";
 import { preCommitCheck } from "./pre-commit.ts";
 import { referenceTransactionCheck } from "./reference-transaction.ts";
 
-const ARGS = "<pre-commit|reference-transaction <state>|install>";
+const ARGS =
+  "<pre-commit|commit-msg <file>|reference-transaction <state>|install>";
 const USAGE = `${formatUsageLine("hook", ARGS)}\n`;
 
 async function findRepoRoot(ctx: Context): Promise<string | undefined> {
@@ -51,6 +53,15 @@ export function createHookCommand(
       switch (sub) {
         case "pre-commit":
           return preCommitCheck(ctx);
+
+        case "commit-msg": {
+          const [file] = rest;
+          if (file === undefined) {
+            ctx.stderr.write(USAGE);
+            return 2;
+          }
+          return commitMsgCheck(file, ctx);
+        }
 
         case "reference-transaction": {
           const [state] = rest;

@@ -1,4 +1,4 @@
-// The two POSIX-sh shim scripts installed into <repoRoot>/.githooks/ by
+// The POSIX-sh shim scripts installed into <repoRoot>/.githooks/ by
 // install.ts. Git always runs hooks with `sh`, on every OS including Git for
 // Windows, so these are plain POSIX sh, not Node. Each locates the real CLI
 // at node_modules/.bin/temple-bar (the sh launcher npm and pnpm generate on
@@ -32,6 +32,19 @@ if [ ! -x "$bin" ]; then
   exit 1
 fi
 exec "$bin" hook pre-commit
+`;
+
+// git passes the message file's path as $1; it is handed to temple-bar as is.
+export const COMMIT_MSG_SHIM = `#!/bin/sh
+# Installed by \`temple-bar hook install\`. Do not edit by hand: a second
+# install run only reports a conflict if this content has changed.
+root=$(git rev-parse --show-toplevel) || exit 1
+bin="$root/node_modules/.bin/temple-bar"
+if [ ! -x "$bin" ]; then
+  echo '${NOT_INSTALLED_MESSAGE}' >&2
+  exit 1
+fi
+exec "$bin" hook commit-msg "$1"
 `;
 
 export const REFERENCE_TRANSACTION_SHIM = `#!/bin/sh

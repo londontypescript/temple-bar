@@ -182,7 +182,7 @@ for (const pm of ["pnpm"] as const) {
       await run("git", ["switch", "-q", "-c", "feature"], inDir);
       const onBranch = await run(
         "git",
-        ["commit", "--allow-empty", "-m", "work"],
+        ["commit", "--allow-empty", "-m", "chore: work"],
         inDir,
       );
       assert.equal(onBranch.code, 0, describe(onBranch));

@@ -21,7 +21,7 @@ void test("pre-commit: a direct commit on an unborn main is refused, and nothing
 
     writeFileSync(path.join(fixture.repoDir, "file.txt"), "hello\n", "utf8");
     runGit(fixture.repoDir, ["add", "file.txt"]);
-    const commit = runGit(fixture.repoDir, ["commit", "-m", "first"]);
+    const commit = runGit(fixture.repoDir, ["commit", "-m", "chore: first"]);
 
     assert.notEqual(commit.code, 0);
     assert.match(
@@ -42,14 +42,14 @@ void test("pre-commit: a direct commit on an existing main is refused", () => {
     // Commit once before installing, to get main past "unborn".
     writeFileSync(path.join(fixture.repoDir, "a.txt"), "a\n", "utf8");
     runGit(fixture.repoDir, ["add", "a.txt"]);
-    assert.equal(runGit(fixture.repoDir, ["commit", "-m", "a"]).code, 0);
+    assert.equal(runGit(fixture.repoDir, ["commit", "-m", "chore: a"]).code, 0);
     const before = runGit(fixture.repoDir, ["rev-parse", "HEAD"]).stdout.trim();
 
     assert.equal(installRealHooks(fixture).code, 0);
 
     writeFileSync(path.join(fixture.repoDir, "b.txt"), "b\n", "utf8");
     runGit(fixture.repoDir, ["add", "b.txt"]);
-    const commit = runGit(fixture.repoDir, ["commit", "-m", "b"]);
+    const commit = runGit(fixture.repoDir, ["commit", "-m", "chore: b"]);
 
     assert.notEqual(commit.code, 0);
     assert.match(
@@ -68,14 +68,14 @@ void test("pre-commit: a commit on a feature branch is allowed", () => {
   try {
     writeFileSync(path.join(fixture.repoDir, "a.txt"), "a\n", "utf8");
     runGit(fixture.repoDir, ["add", "a.txt"]);
-    assert.equal(runGit(fixture.repoDir, ["commit", "-m", "a"]).code, 0);
+    assert.equal(runGit(fixture.repoDir, ["commit", "-m", "chore: a"]).code, 0);
 
     assert.equal(installRealHooks(fixture).code, 0);
 
     runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
     writeFileSync(path.join(fixture.repoDir, "c.txt"), "c\n", "utf8");
     runGit(fixture.repoDir, ["add", "c.txt"]);
-    const commit = runGit(fixture.repoDir, ["commit", "-m", "c"]);
+    const commit = runGit(fixture.repoDir, ["commit", "-m", "chore: c"]);
 
     assert.equal(commit.code, 0);
   } finally {

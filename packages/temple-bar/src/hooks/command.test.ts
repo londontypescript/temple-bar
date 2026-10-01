@@ -85,3 +85,14 @@ void test("hook: install reports each item and exits 1 when a conflict is report
   assert.match(output, /written: \.githooks\/pre-commit/);
   assert.match(output, /conflict: core\.hooksPath/);
 });
+
+void test("hook: commit-msg with no file prints usage and exits 2", async () => {
+  const stderr = createFakeWriter();
+  const ctx = createFakeContext({ stderr });
+  const command = createHookCommand(neverCalledStdin);
+
+  const code = await command.run(["commit-msg"], ctx);
+
+  assert.equal(code, 2);
+  assert.match(stderr.lines.join(""), /^Usage: temple-bar hook/);
+});
