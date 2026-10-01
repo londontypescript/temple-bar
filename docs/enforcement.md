@@ -12,8 +12,8 @@ same pull request as any change to a mechanism.
 | CI passes before merge                    | required status checks (U6)                             | **Blocked** on GitHub |
 | CodeQL passes before merge                | required check, from M2                                 | **Blocked** from M2   |
 | No merge commits on `main`                | ruleset: squash or rebase only, linear history, from M2 | **Blocked** from M2   |
-| No commits to local `main`                | pinned temple-bar hooks, once installed                 | **Blocked** locally   |
-| Local `main` moves only to `origin/main`  | pinned `reference-transaction` hook                     | **Blocked** locally   |
+| No commits to the local default branch    | pinned temple-bar hooks, once installed                 | **Blocked** locally   |
+| Local default branch moves only to GitHub | pinned `reference-transaction` hook                     | **Blocked** locally   |
 | File length                               | the pinned gate in CI                                   | **Blocked** via CI    |
 | Delegated file scopes                     | nothing until theme D                                   | **Prose only**        |
 | No weakened checks                        | nothing until theme B                                   | **Prose only**        |

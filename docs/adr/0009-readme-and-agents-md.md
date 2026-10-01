@@ -32,11 +32,16 @@ restricts product use; this was judged low risk. The decision also placed a
 disclaimer on the London TypeScript org profile; that half is organisation
 work, out of temple-bar's scope since 2026-09-30.
 
-**Decision 19: the maintainer writes the README.** The rewrite after the
-0.0.3 release was the maintainer's to lead. Agents supply facts, and show any README
-change as a draft first. The reason was an incident: an agent folded "rewrite
-the README" into its own plan, because the decision said when but not who. A
-decision with no owner invites the agent to assume it is the owner.
+**Decision 19: the maintainer owns the README's shape; agents keep it
+accurate.** Agents update the README themselves when a change is minor:
+keeping it in step with what the code does, such as a new setup step or a
+renamed command. A rewrite, a new structure or a change to what the intro
+says temple-bar is stays the maintainer's to lead, shown as a draft first.
+The decision began as "the maintainer writes the README" after an incident:
+an agent folded "rewrite the README" into its own plan, because the decision
+said when but not who. On 2026-10-01 it was relaxed for minor changes, once
+the README had its plain structure and drafts for small edits had become
+pure overhead.
 
 **Decision 36: AGENTS.md stays within 200 lines and 32 KiB.** Every agent
 loads the whole file in every session. Anthropic's guidance is under 200

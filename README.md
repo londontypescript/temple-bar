@@ -10,7 +10,8 @@ It exists because agents drift: after a long session or a context reset, the age
 
 - a **GitHub** repository (other hosts aren't supported)
 - the **GitHub CLI** (`gh`), installed and signed in (`gh auth login`). Your agent can't install this for you.
-- **Node.js** 24 or newer, **pnpm** and **git**
+- **Node.js** 24 or newer, and **git**
+- **pnpm**, the only supported package manager (npm, yarn and bun aren't supported). Don't have it? See [pnpm's install guide](https://pnpm.io/installation): it's one command.
 
 Setup stops and tells you what's missing if any of these aren't in place.
 
@@ -108,11 +109,13 @@ Every rule in temple-bar exists because something went wrong in a real project, 
 
 - Checks the requirements: a git repo, `gh` signed in, and `origin` pointing at GitHub. If one is missing, it stops with the exact fix, or offers `gh repo create` and waits for your yes.
 - Offers to switch on `main`'s protection rules on GitHub: pull request required, no force-pushes, and `main` can't be deleted. If it can't (for example, you're not an admin of the repo), it prints the settings to switch on by hand. Requiring CI checks isn't part of it yet.
-- Adds `@londontypescript/temple-bar` as a dev dependency, creating `package.json` if there isn't one.
+- In a folder with no commits yet, makes the first commit and creates the GitHub repository, once you say yes.
+- Adds `@londontypescript/temple-bar` as a dev dependency, creating `package.json` if there isn't one, and keeps your `package.json` formatting when it adds scripts.
+- Writes a sensible `.gitignore` for a TypeScript project (dependencies, build output, logs, `.env` files but not their `.example` templates, OS files, personal harness settings, and `.temple-bar/`, the local working folder), adding only lines you don't already have.
 - Writes `AGENTS.md` (the rules) if there isn't one already.
-- Installs the git hooks, and adds a `prepare` script so they come back on every install.
+- Installs the git hooks, and adds a `prepare` script so they come back on every install. Installing also sets `pull.ff=only` in the repo's git config, so a pull never creates a merge commit on your default branch.
 - Adds a `gate` script: `pnpm gate` is the merge check. It needs `typecheck`, `lint`, `format:check` and `test` scripts, and lists each check with its result.
-- Guards local `main`: it can only move to commits that are already on GitHub's `main`.
+- Guards your default branch (`main`, `master` or whatever GitHub says): locally it can only move to commits that are already on GitHub.
 - **Never** deletes files or rewrites history, and never creates or pushes anything on GitHub without asking. Running it twice changes nothing.
 
 temple-bar has no install scripts: installing it never changes your repo by itself.
@@ -126,6 +129,10 @@ temple-bar is the foundation every repository in the [London TypeScript](https:/
 Our repositories are named after pieces of London infrastructure whose physical job mirrors what the software does.
 
 Temple Bar is the ceremonial gateway into the City of London. By tradition, even the monarch stops there and asks permission to enter. It stands beside the Inns of Court and the Royal Courts of Justice, and "the Bar" is also the name of the barristers' profession. So: a gate that nothing passes without permission, written rules that are actually enforced, and "passing the bar" as meeting the standard. (The name itself comes from the Knights Templar's land and a road barrier. The legal connection is by location.)
+
+## Contributing
+
+Contributions are welcome, from London TypeScript members and anyone else. Like every London TypeScript repo, temple-bar is developed with pnpm only: `pnpm install`, then `pnpm check` runs the same gate CI runs. Changes reach `main` through pull requests, and [AGENTS.md](AGENTS.md) holds the rules for people and agents alike.
 
 ## Licence
 
