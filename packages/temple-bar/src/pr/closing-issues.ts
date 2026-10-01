@@ -4,21 +4,20 @@
 
 import type { Context } from "../context.ts";
 
-const CLOSING_KEYWORD =
-  /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+((?:[\w.-]+\/[\w.-]+)?#\d+)/gi;
-
-/** HTML comments and fenced code are not read by GitHub as closing
- * references, and a pull request template often carries an example there. */
-function stripNonProse(text: string): string {
-  return text.replace(/<!--[\s\S]*?-->/g, "").replace(/```[\s\S]*?```/g, "");
-}
+/** One pass over the text. HTML comments and fenced code are matched first
+ * so they're skipped as a whole: GitHub doesn't read closing references
+ * inside them, and a pull request template often carries an example there.
+ * Skipping them in the same scan, rather than deleting them first, means
+ * nothing is rebuilt from the leftovers. */
+const SCAN =
+  /<!--[\s\S]*?(?:-->|$)|```[\s\S]*?(?:```|$)|\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+((?:[\w.-]+\/[\w.-]+)?#\d+)/gi;
 
 /** The distinct issues named after a closing keyword in `texts`, in the
  * order first seen, as written ("#12" or "owner/repo#12"). */
 export function findClosingIssues(texts: readonly string[]): string[] {
   const found = new Set<string>();
   for (const text of texts) {
-    for (const match of stripNonProse(text).matchAll(CLOSING_KEYWORD)) {
+    for (const match of text.matchAll(SCAN)) {
       const reference = match[1];
       if (reference !== undefined) {
         found.add(reference.toLowerCase());

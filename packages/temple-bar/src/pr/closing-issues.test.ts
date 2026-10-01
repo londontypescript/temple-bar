@@ -35,6 +35,15 @@ void test("findClosingIssues ignores bare mentions, parenthesised numbers, comme
   );
 });
 
+void test("findClosingIssues reads around comments, and an unclosed comment hides the rest", () => {
+  assert.deepEqual(
+    findClosingIssues([
+      "Closes #1 <!-- Closes #2 --> Closes #3\n<!-- Closes #4",
+    ]),
+    ["#1", "#3"],
+  );
+});
+
 void test("readPullRequestText prefers the Actions event payload and needs no gh", async () => {
   const gh = createFakeGh();
   const ctx = createFakeContext({
