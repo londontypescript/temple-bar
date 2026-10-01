@@ -17,6 +17,13 @@
 
 import type { CommandEntry } from "../registry.ts";
 import type { Context } from "../context.ts";
+import {
+  checkAgentsSize,
+  formatAgentsSizeFailure,
+  AGENTS_FILE,
+  AGENTS_MAX_BYTES,
+  AGENTS_MAX_LINES,
+} from "./agents-size.ts";
 import { checkFileLengths, formatLengthFailure } from "./lengths.ts";
 import { writeReport, type CheckOutcome } from "./report.ts";
 import {
@@ -29,6 +36,7 @@ import {
 } from "./stack.ts";
 
 const LENGTH_CHECK = "file-length cap";
+const AGENTS_SIZE_CHECK = "AGENTS.md size";
 
 function formatMissingScripts(missing: readonly string[]): string {
   const lines = [
@@ -109,9 +117,39 @@ async function runLengthCheck(ctx: Context): Promise<CheckOutcome> {
   };
 }
 
+async function runAgentsSizeCheck(ctx: Context): Promise<CheckOutcome> {
+  const result = await checkAgentsSize(ctx);
+  if (!result.found) {
+    // Setup writes AGENTS.md, but a docs-only or mid-setup repo may not have
+    // one yet; absence is not an oversized file.
+    return {
+      name: AGENTS_SIZE_CHECK,
+      status: "skipped",
+      detail: `no ${AGENTS_FILE}`,
+    };
+  }
+  if (result.overLines || result.overBytes) {
+    ctx.stderr.write(formatAgentsSizeFailure(result));
+    return {
+      name: AGENTS_SIZE_CHECK,
+      status: "failed",
+      detail: `${String(result.lines)} lines, ${String(result.bytes)} bytes`,
+    };
+  }
+  return {
+    name: AGENTS_SIZE_CHECK,
+    status: "passed",
+    detail: `${String(result.lines)}/${String(AGENTS_MAX_LINES)} lines, ${String(result.bytes)}/${String(AGENTS_MAX_BYTES)} bytes`,
+  };
+}
+
 async function runGate(ctx: Context): Promise<number> {
   const stack = await runStackChecks(ctx);
-  const outcomes = [...stack.outcomes, await runLengthCheck(ctx)];
+  const outcomes = [
+    ...stack.outcomes,
+    await runLengthCheck(ctx),
+    await runAgentsSizeCheck(ctx),
+  ];
   writeReport(ctx, outcomes);
 
   if (stack.missingScripts) {
@@ -134,12 +172,14 @@ async function runGateSafely(ctx: Context): Promise<number> {
 
 export const gateCommand: CommandEntry = {
   name: "gate",
-  summary: "Run the merge gate: stack checks and the file-length cap.",
+  summary:
+    "Run the merge gate: stack checks, the file-length cap and the AGENTS.md size limit.",
   details: [
     "Once the project has code, runs these package.json scripts in order:",
     `${REQUIRED_SCRIPTS.join(", ")}. Then checks every tracked text file`,
     "against the file-length cap (maxFileLines in temple-bar.config.json).",
-    "Ends by listing each check and its outcome.",
+    "Also checks AGENTS.md stays within 200 lines and 32 KiB (skipped when",
+    "there is no AGENTS.md). Ends by listing each check and its outcome.",
     "",
     "Exit codes: 0 every check passed, 1 a check failed,",
     "2 code exists but a required script is missing from package.json.",

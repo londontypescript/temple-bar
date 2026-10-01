@@ -16,6 +16,7 @@ same pull request as any change to a mechanism.
 | No commits to the local default branch    | pinned temple-bar hooks, once installed              | **Blocked** locally   |
 | Local default branch moves only to GitHub | pinned `reference-transaction` hook                  | **Blocked** locally   |
 | File length                               | the pinned gate in CI                                | **Blocked** via CI    |
+| AGENTS.md within 200 lines and 32 KiB     | the pinned gate in CI, once it includes the check    | **Blocked** via CI    |
 | Delegated file scopes                     | nothing until theme D                                | **Prose only**        |
 | No weakened checks                        | nothing until theme B                                | **Prose only**        |
 | Who merges without asking                 | nothing                                              | **Prose only**        |
@@ -27,7 +28,6 @@ same pull request as any change to a mechanism.
 | Whether wide changes mean duplication     | nothing: judgement                                   | **Prose only**        |
 | Worktree per branch; merge steps (§2)     | nothing until `temple-bar merge` and worktree setup  | **Prose only**        |
 | Push once, when finished                  | nothing until `temple-bar ready`                     | **Prose only**        |
-| AGENTS.md within 200 lines and 32 KiB     | nothing until the gate checks it                     | **Prose only**        |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
 
 A rule that exists only as prose is a rule that will eventually be broken. If

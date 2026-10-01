@@ -116,9 +116,9 @@ void test("gate e2e: a passing project (every required script passes) exits 0, l
     }
     const text = stdout.lines.join("");
     for (const check of ["typecheck", "lint", "format:check", "test"]) {
-      assert.match(text, new RegExp(`^ {2}passed {2}${check}$`, "m"));
+      assert.match(text, new RegExp(`^ {2}passed {3}${check}$`, "m"));
     }
-    assert.match(text, /^ {2}passed {2}file-length cap \(all \d+ /m);
+    assert.match(text, /^ {2}passed {3}file-length cap \(all \d+ /m);
     assert.match(text, /^gate: passed$/m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -149,7 +149,7 @@ void test("gate e2e: a failing test script exits 1, but the other scripts still 
         `${name} should have run`,
       );
     }
-    assert.match(stderr.lines.join(""), /^ {2}failed {2}test \(exit 1\)$/m);
+    assert.match(stderr.lines.join(""), /^ {2}failed {3}test \(exit 1\)$/m);
     assert.match(stderr.lines.join(""), /^gate: failed: test$/m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
