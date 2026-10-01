@@ -153,11 +153,12 @@ void test("gate: a pass lists every check that ran, each passed, on stdout", asy
     stdout.lines.join(""),
     [
       "gate: checks:",
-      "  passed  typecheck",
-      "  passed  lint",
-      "  passed  format:check",
-      "  passed  test",
-      `  passed  file-length cap (all 2 tracked text file(s) are within the ${String(DEFAULT_MAX_FILE_LINES)}-line cap)`,
+      "  passed   typecheck",
+      "  passed   lint",
+      "  passed   format:check",
+      "  passed   test",
+      `  passed   file-length cap (all 2 tracked text file(s) are within the ${String(DEFAULT_MAX_FILE_LINES)}-line cap)`,
+      "  skipped  AGENTS.md size (no AGENTS.md)",
       "gate: passed",
       "",
     ].join("\n"),
@@ -174,11 +175,11 @@ void test("gate: a failure lists every check the same way, on stderr, and names 
   assert.equal(code, 1);
   assert.equal(stdout.lines.join(""), "");
   const text = stderr.lines.join("");
-  assert.match(text, /^ {2}passed {2}typecheck$/m);
-  assert.match(text, /^ {2}failed {2}lint \(exit 1\)$/m);
-  assert.match(text, /^ {2}passed {2}format:check$/m);
-  assert.match(text, /^ {2}failed {2}test \(exit 1\)$/m);
-  assert.match(text, /^ {2}passed {2}file-length cap /m);
+  assert.match(text, /^ {2}passed {3}typecheck$/m);
+  assert.match(text, /^ {2}failed {3}lint \(exit 1\)$/m);
+  assert.match(text, /^ {2}passed {3}format:check$/m);
+  assert.match(text, /^ {2}failed {3}test \(exit 1\)$/m);
+  assert.match(text, /^ {2}passed {3}file-length cap /m);
   assert.match(text, /^gate: failed: lint, test$/m);
 });
 

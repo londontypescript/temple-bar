@@ -1,6 +1,6 @@
 # ADR 0007: What the gate checks
 
-Date: 2026-10-01. Status: accepted (decisions 10, 15, 20 and 23; 10 and 15
+Date: 2026-10-01. Status: accepted (decisions 10, 15, 20, 23 and 36; 10 and 15
 are decided but not built yet).
 
 ## Context
@@ -38,6 +38,11 @@ temple-bar doesn't use it on itself. Not built yet (theme B).
 **Decision 20: gate behaviour.** `--help` on any command shows help and runs
 nothing, and a passing gate lists the checks that ran, so a pass shows what
 it actually covered.
+
+**AGENTS.md size (decision 36, recorded in
+[ADR 0009](0009-readme-and-agents-md.md)).** The gate enforces it. A repo with
+no AGENTS.md skips the check (reported as skipped) rather than failing: setup
+writes one, and a docs-only or mid-setup repo must still be able to pass.
 
 **Which copy of the checks judges a pull request.** The earlier hardening
 plan said `main`'s copy of the checks should judge every change, so a pull

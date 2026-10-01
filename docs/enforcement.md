@@ -27,7 +27,7 @@ same pull request as any change to a mechanism.
 | Whether wide changes mean duplication     | nothing: judgement                                   | **Prose only**        |
 | Worktree per branch; merge steps (§2)     | nothing until `temple-bar merge` and worktree setup  | **Prose only**        |
 | Push once, when finished                  | nothing until `temple-bar ready`                     | **Prose only**        |
-| AGENTS.md within 200 lines and 32 KiB     | nothing until the gate checks it                     | **Prose only**        |
+| AGENTS.md within 200 lines and 32 KiB     | the gate from 0.0.5, once this repo pins it          | **Prose only**        |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
 
 A rule that exists only as prose is a rule that will eventually be broken. If

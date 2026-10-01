@@ -12,7 +12,7 @@ pnpm create @londontypescript/temple-bar@latest
 
 temple-bar works with pnpm only: [install it](https://pnpm.io/installation) first. Installing this package on its own doesn't set anything up; if you already have, finish with `pnpm exec temple-bar init`.
 
-Once the project has code, `temple-bar gate` needs `typecheck`, `lint`, `format:check` and `test` scripts in `package.json`. It runs them, then the file-length cap, and lists each check with its result. Every command takes `--help`.
+Once the project has code, `temple-bar gate` needs `typecheck`, `lint`, `format:check` and `test` scripts in `package.json`. It runs them, then the file-length cap and the AGENTS.md size limit (200 lines, 32 KiB), and lists each check with its result. Every command takes `--help`.
 
 What setup does, and how to use it with an AI agent: [the full README](https://github.com/londontypescript/temple-bar#readme).
 
