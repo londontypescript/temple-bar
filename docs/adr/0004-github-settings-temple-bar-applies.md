@@ -20,10 +20,10 @@ request can't merge while code scanning fails, the same as CI.
 including signed commits.** Setup applies them, and the gate checks they are
 still in place, so a ruleset loosened by hand is noticed. This was tested on real
 GitHub on 2026-10-01: a squash merge made by GitHub is signed, but a rebase
-merge made by GitHub is not, so a signature rule would refuse rebase merges
-(decision 17). That conflict is settled in
-[#121](https://github.com/londontypescript/temple-bar/issues/121) before the
-rulesets ship. Not built yet:
+merge made by GitHub is not. So every repo merges by squash only (decision 17,
+settled in [#121](https://github.com/londontypescript/temple-bar/issues/121)),
+and the rulesets require signed commits. This repo's ruleset has done so since
+2026-10-01. Setup applying it to other repos is not built yet:
 [#45](https://github.com/londontypescript/temple-bar/issues/45).
 
 **Decision 40: temple-bar enforces the workflow; it isn't a general GitHub

@@ -20,8 +20,8 @@ and get their approval before writing any code.
 ## Branching
 
 The default branch (usually \`main\`) changes only through
-pull requests the user merges. Agents push branches and open pull requests,
-never the default branch.
+pull requests the user merges, each squashed into one commit. Agents push
+branches and open pull requests, never the default branch.
 
 ## Drafts
 

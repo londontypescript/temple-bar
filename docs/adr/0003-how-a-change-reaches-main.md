@@ -17,9 +17,8 @@ a branch, a pull request, a merge on GitHub, and nothing else.
 flow). The `main` ruleset on GitHub refuses anything else. Locally, a
 `pre-commit` hook refuses commits while `main` is checked out, and a
 `reference-transaction` hook lets local `main` move only to commits already on
-`origin/main`, which `git commit --no-verify` does not skip. Squashing a phase
-branch into its feature branch stays local. Agents push branches and open pull
-requests, never `main`.
+`origin/main`, which `git commit --no-verify` does not skip. Agents push
+branches and open pull requests, never `main`.
 
 This largely replaces the earlier brief's items on `main`'s history and its
 pre-merge-commit guard. Whether that guard and the brief's bypass ledger still
@@ -45,13 +44,26 @@ titles and bodies, because a squash merge turns them into the commit on
 `main`. A squash merge gets a written message, never GitHub's default, which
 concatenates every commit on the branch.
 
-**Decision 17: merge method.** A quick change squashes to one commit; a
-multi-phase feature rebases, one commit per phase. The `main` ruleset allows
-only squash and rebase merges and requires linear history. The earlier version
-had this rule, but only as the words "squash" and "fast-forward" inside its
+**Decision 17: squash merges only.** Every pull request lands on `main` as one
+squash commit, which GitHub creates and signs, with the pull request's title
+and number as its subject. A multi-phase plan gets one pull request per phase,
+merged in order, and a release is a milestone and a tag. The `main` ruleset
+allows only squash merges and requires linear history and signed commits; the
+repo's settings switch off merge commits and rebase merges too.
+
+Until 2026-10-01 a multi-phase feature was rebase-merged so each phase stayed
+its own commit, as both earlier templates kept phase commits on `main`. But
+GitHub doesn't sign the commits a rebase merge rewrites, so requiring signed
+commits (decision 34) would have refused them (#121). Squash only keeps one
+commit per phase by giving each phase its own pull request, matching
+TypeScript, Vite, React and most large TypeScript projects. The cost is a few
+more CI runs per release, because each pull request must be up to date with
+`main` before it merges.
+
+The very first version had a merge-method rule only as words inside its
 local-merge steps, so decision 4 removed it along with that mechanism, and the
 first two pull requests here landed as merge commits. The ruleset now refuses
-a merge commit outright.
+them outright.
 
 **Decision 18: who merges.** The orchestrator (the agent running the work)
 merges a pull request once CI and CodeQL are green. A pull request that
