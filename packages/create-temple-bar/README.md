@@ -5,11 +5,11 @@ The setup launcher for [temple-bar](https://github.com/londontypescript/temple-b
 > **Pre-release** (`0.0.x`). Expect changes.
 
 ```bash
-npm create @londontypescript/temple-bar@latest
+pnpm create @londontypescript/temple-bar@latest
 ```
 
-(`pnpm create`, `yarn create` and `bun create` work too.) It adds `@londontypescript/temple-bar` as a dev dependency, pinned to its own version, then runs `temple-bar init`.
+temple-bar works with pnpm only: [install it](https://pnpm.io/installation) first. It adds `@londontypescript/temple-bar` as a dev dependency, pinned to its own version, then runs `temple-bar init`.
 
-Run `npm create @londontypescript/temple-bar@latest -- --help` to see the usage. It changes nothing.
+Run `pnpm create @londontypescript/temple-bar@latest -- --help` to see the usage. It changes nothing.
 
 MIT licence.

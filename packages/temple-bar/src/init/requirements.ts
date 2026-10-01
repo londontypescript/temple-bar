@@ -19,10 +19,10 @@ export type RequirementResult<T = undefined> =
   RequirementOk<T> | RequirementFailure;
 
 /** How a user reruns init. `temple-bar` is installed in the project, not on
- * PATH, so a bare `temple-bar init` isn't found; npx finds the project's
- * copy whichever package manager installed it. Every "then run init again"
- * message uses this. */
-export const RERUN_INIT = "`npx temple-bar init`";
+ * PATH, so a bare `temple-bar init` isn't found; `pnpm exec` finds the
+ * project's copy. temple-bar supports pnpm only, so no message prints npx.
+ * Every "then run init again" message uses this. */
+export const RERUN_INIT = "`pnpm exec temple-bar init`";
 
 function fail(message: string): RequirementFailure {
   return { ok: false, message };

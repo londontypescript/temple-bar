@@ -7,10 +7,10 @@
 Set it up in a project with the launcher:
 
 ```bash
-npm create @londontypescript/temple-bar@latest
+pnpm create @londontypescript/temple-bar@latest
 ```
 
-(`pnpm create`, `yarn create` and `bun create` work too.) Installing this package on its own doesn't set anything up; if you already have, finish with `npx temple-bar init`.
+temple-bar works with pnpm only: [install it](https://pnpm.io/installation) first. Installing this package on its own doesn't set anything up; if you already have, finish with `pnpm exec temple-bar init`.
 
 Once the project has code, `temple-bar gate` needs `typecheck`, `lint`, `format:check` and `test` scripts in `package.json`. It runs them, then the file-length cap, and lists each check with its result. Every command takes `--help`.
 
