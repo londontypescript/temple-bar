@@ -159,6 +159,7 @@ void test("gate: a pass lists every check that ran, each passed, on stdout", asy
       "  passed   test",
       `  passed   file-length cap (all 2 tracked text file(s) are within the ${String(DEFAULT_MAX_FILE_LINES)}-line cap)`,
       "  skipped  AGENTS.md size (no AGENTS.md)",
+      "  skipped  branch ruleset (origin is not on GitHub)",
       "gate: passed",
       "",
     ].join("\n"),

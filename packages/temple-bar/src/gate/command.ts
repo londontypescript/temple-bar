@@ -25,6 +25,7 @@ import {
   AGENTS_MAX_LINES,
 } from "./agents-size.ts";
 import { checkFileLengths, formatLengthFailure } from "./lengths.ts";
+import { runRulesetCheck } from "./ruleset.ts";
 import { writeReport, type CheckOutcome } from "./report.ts";
 import {
   codeExists,
@@ -149,6 +150,7 @@ async function runGate(ctx: Context): Promise<number> {
     ...stack.outcomes,
     await runLengthCheck(ctx),
     await runAgentsSizeCheck(ctx),
+    await runRulesetCheck(ctx),
   ];
   writeReport(ctx, outcomes);
 
@@ -173,13 +175,18 @@ async function runGateSafely(ctx: Context): Promise<number> {
 export const gateCommand: CommandEntry = {
   name: "gate",
   summary:
-    "Run the merge gate: stack checks, the file-length cap and the AGENTS.md size limit.",
+    "Run the merge gate: stack checks, the file-length cap, the AGENTS.md size limit and the branch ruleset.",
   details: [
     "Once the project has code, runs these package.json scripts in order:",
     `${REQUIRED_SCRIPTS.join(", ")}. Then checks every tracked text file`,
     "against the file-length cap (maxFileLines in temple-bar.config.json).",
     "Also checks AGENTS.md stays within 200 lines and 32 KiB (skipped when",
-    "there is no AGENTS.md). Ends by listing each check and its outcome.",
+    "there is no AGENTS.md). Reads GitHub's rules for the default branch and",
+    "fails if setup's rules are missing or weakened (public repos only; a",
+    "private repo, no GitHub origin or no network is skipped, except in",
+    "GitHub Actions, where an unreachable API fails). Set GH_TOKEN to avoid",
+    "the 60-an-hour anonymous limit. Ends by listing each check and its",
+    "outcome.",
     "",
     "Exit codes: 0 every check passed, 1 a check failed,",
     "2 code exists but a required script is missing from package.json.",

@@ -12,7 +12,7 @@ import test from "node:test";
 import type { Context } from "../context.ts";
 import { createFsSeam } from "../seams/fs.ts";
 import { createGitSeam } from "../seams/git.ts";
-import { createFakeWriter } from "../testing/fakes.ts";
+import { createFakeWriter, createFakeHttp } from "../testing/fakes.ts";
 import { initTestRepo } from "../testing/git-repo.ts";
 import { prSizeCommandEntry } from "./command.ts";
 
@@ -62,6 +62,7 @@ async function run(
       run: () =>
         Promise.resolve({ code: 1, stdout: "", stderr: "", notFound: true }),
     },
+    http: createFakeHttp(),
     fs: createFsSeam(),
     clock: { now: () => new Date() },
     prompt: {

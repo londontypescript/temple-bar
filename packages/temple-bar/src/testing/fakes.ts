@@ -8,6 +8,7 @@ import type { ClockSeam } from "../seams/clock.ts";
 import type { FsSeam } from "../seams/fs.ts";
 import type { GhResult, GhSeam } from "../seams/gh.ts";
 import type { GitResult, GitSeam } from "../seams/git.ts";
+import type { HttpResult, HttpSeam } from "../seams/http.ts";
 import type { Writer } from "../seams/io.ts";
 import type { ProcRunOptions, ProcSeam } from "../seams/proc.ts";
 import type { ConfirmResult, PromptSeam } from "../seams/prompt.ts";
@@ -60,6 +61,33 @@ export function createFakeGh(
     run(args, cwd, input) {
       calls.push(input === undefined ? { args, cwd } : { args, cwd, input });
       return Promise.resolve(script(args, cwd));
+    },
+  };
+}
+
+export interface RecordedHttpCall {
+  readonly url: string;
+  readonly token: string | undefined;
+}
+
+export interface FakeHttp extends HttpSeam {
+  readonly calls: RecordedHttpCall[];
+}
+
+/** By default every request is a network failure, so a test that reaches
+ * the network without meaning to fails loudly instead of passing. */
+export function createFakeHttp(
+  script: (url: string, token: string | undefined) => HttpResult = () => ({
+    kind: "network-error",
+    message: "no network in tests",
+  }),
+): FakeHttp {
+  const calls: RecordedHttpCall[] = [];
+  return {
+    calls,
+    get(url, token) {
+      calls.push({ url, token });
+      return Promise.resolve(script(url, token));
     },
   };
 }
@@ -203,6 +231,7 @@ export function createFakeContext(overrides: Partial<Context> = {}): Context {
   return {
     git: createFakeGit(),
     gh: createFakeGh(),
+    http: createFakeHttp(),
     fs: createFakeFs(),
     clock: createFakeClock(),
     prompt: createFakePrompt(),

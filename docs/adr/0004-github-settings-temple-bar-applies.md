@@ -31,9 +31,9 @@ rule only acts on named required checks, and setup can't know a repo's check
 names until it installs the judge's
 ([#148](https://github.com/londontypescript/temple-bar/issues/148)). The definition lives in one place,
 `rulesetBody()` in `github-ruleset.ts`. The gate's check that these rules are
-still in place is not built yet
-([#45](https://github.com/londontypescript/temple-bar/issues/45)). When it is,
-it supports public repos only: on a private repo CI's default token can't read
+still in place compares GitHub's active rules with that definition
+([#45](https://github.com/londontypescript/temple-bar/issues/45), see
+[ADR 0007](0007-what-the-gate-checks.md)). It supports public repos only: on a private repo CI's default token can't read
 rulesets (that needs the Administration read permission), so that case is
 decided when the first private London TypeScript repo comes along.
 
