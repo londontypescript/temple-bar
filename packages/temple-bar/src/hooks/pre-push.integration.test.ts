@@ -1,0 +1,196 @@
+// End to end for the pre-push hook: a real repo with the real shim installed
+// and a bare "origin", pushing through git itself.
+//
+// A rewrite is pushed with `--force`, which git's own check would allow, so
+// a refusal in these tests can only be the hook's.
+
+import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
+import path from "node:path";
+import test from "node:test";
+
+import {
+  alignWithOrigin,
+  createHookFixture,
+  installRealHooks,
+  pushToOriginMain,
+  runGit,
+  type HookFixture,
+} from "./testing/repo-fixture.ts";
+
+function commitFile(fixture: HookFixture, name: string, lines = 1): void {
+  const content = Array.from(
+    { length: lines },
+    (_, i) => `line ${String(i)}\n`,
+  ).join("");
+  writeFileSync(path.join(fixture.repoDir, name), content, "utf8");
+  assert.equal(runGit(fixture.repoDir, ["add", name]).code, 0);
+  const commit = runGit(fixture.repoDir, [
+    "commit",
+    "-q",
+    "-m",
+    `feat: add ${name}`,
+  ]);
+  assert.equal(commit.code, 0, commit.stderr);
+}
+
+/** A clone aligned with origin, hooks installed, on a new feature branch. */
+function setUp(): HookFixture {
+  const fixture = createHookFixture();
+  alignWithOrigin(fixture);
+  assert.equal(installRealHooks(fixture).code, 0);
+  runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
+  return fixture;
+}
+
+void test("pre-push: a first push of a new branch is allowed", () => {
+  const fixture = setUp();
+  try {
+    commitFile(fixture, "a.txt");
+    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+    assert.equal(push.code, 0, push.stderr);
+    assert.doesNotMatch(push.stderr, /temple-bar:/);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+void test("pre-push: a normal push that adds a commit is allowed", () => {
+  const fixture = setUp();
+  try {
+    commitFile(fixture, "a.txt");
+    assert.equal(
+      runGit(fixture.repoDir, ["push", "origin", "feature"]).code,
+      0,
+    );
+    commitFile(fixture, "b.txt");
+    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+    assert.equal(push.code, 0, push.stderr);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+void test("pre-push: a force push after amending a pushed commit is refused by the hook, and GitHub's copy is untouched", () => {
+  const fixture = setUp();
+  try {
+    commitFile(fixture, "a.txt");
+    assert.equal(
+      runGit(fixture.repoDir, ["push", "origin", "feature"]).code,
+      0,
+    );
+    const pushed = runGit(fixture.repoDir, ["rev-parse", "HEAD"]).stdout.trim();
+    assert.equal(
+      runGit(fixture.repoDir, [
+        "commit",
+        "-q",
+        "--amend",
+        "-m",
+        "feat: add a.txt, reworded",
+      ]).code,
+      0,
+    );
+
+    const push = runGit(fixture.repoDir, [
+      "push",
+      "--force",
+      "origin",
+      "feature",
+    ]);
+
+    // The hook's own words come first, so a break shows them missing and not
+    // only a push that happened to succeed.
+    assert.match(push.stderr, /refusing to push feature: .*\(a force push\)/);
+    assert.match(
+      push.stderr,
+      /merging main into it; never rewrite a pushed branch/,
+    );
+    assert.notEqual(push.code, 0);
+    const onOrigin = runGit(fixture.originDir, [
+      "rev-parse",
+      "refs/heads/feature",
+    ]).stdout.trim();
+    assert.equal(onOrigin, pushed);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+void test("pre-push: deleting a pushed branch is allowed", () => {
+  const fixture = setUp();
+  try {
+    commitFile(fixture, "a.txt");
+    assert.equal(
+      runGit(fixture.repoDir, ["push", "origin", "feature"]).code,
+      0,
+    );
+    const del = runGit(fixture.repoDir, [
+      "push",
+      "origin",
+      "--delete",
+      "feature",
+    ]);
+    assert.equal(del.code, 0, del.stderr);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+void test("pre-push: an oversized branch prints the size warning and still pushes", () => {
+  const fixture = setUp();
+  try {
+    commitFile(fixture, "big.txt", 600);
+
+    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+
+    assert.match(push.stderr, /warning: this pull request may be too big/);
+    assert.match(push.stderr, /600 lines/);
+    assert.equal(push.code, 0, push.stderr);
+    assert.equal(
+      runGit(fixture.originDir, ["rev-parse", "--verify", "refs/heads/feature"])
+        .code,
+      0,
+    );
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+void test("pre-push: a normal-sized branch prints nothing extra", () => {
+  const fixture = setUp();
+  try {
+    commitFile(fixture, "a.txt", 3);
+    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+    assert.equal(push.code, 0, push.stderr);
+    assert.doesNotMatch(push.stderr, /warning|temple-bar:|pr-size/);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+void test("pre-push: bringing a pushed branch up to date by merging main into it is allowed", () => {
+  const fixture = setUp();
+  try {
+    commitFile(fixture, "a.txt");
+    assert.equal(
+      runGit(fixture.repoDir, ["push", "origin", "feature"]).code,
+      0,
+    );
+    pushToOriginMain(fixture.root, fixture.originDir, "later.txt", "x\n");
+    assert.equal(runGit(fixture.repoDir, ["fetch", "-q", "origin"]).code, 0);
+    const merge = runGit(fixture.repoDir, [
+      "merge",
+      "--no-ff",
+      "-m",
+      "chore: merge main into feature",
+      "origin/main",
+    ]);
+    assert.equal(merge.code, 0, merge.stderr + merge.stdout);
+
+    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+
+    assert.equal(push.code, 0, push.stderr);
+  } finally {
+    fixture.cleanup();
+  }
+});

@@ -22,6 +22,8 @@ same pull request as any change to a mechanism.
 | Who merges without asking                 | nothing                                              | **Prose only**        |
 | Commit-message format                     | `commit-msg` hook, once this repo pins it            | **Prose only**        |
 | Pull request title format                 | `temple-bar pr-title` in CI, once this repo pins it  | **Prose only**        |
+| No force-push of a feature branch         | `pre-push` hook, once this repo pins it              | **Prose only**        |
+| Size warned before a push                 | `pre-push` hook, once this repo pins it              | **Prose only**        |
 | Comments in plain words, no plan IDs      | nothing                                              | **Prose only**        |
 | Plan before code                          | nothing                                              | **Prose only**        |
 | Tracker updated per subtask               | nothing                                              | **Prose only**        |
