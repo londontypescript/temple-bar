@@ -49,13 +49,12 @@ function makeFakeWriter(): WriterLike & { lines: string[] } {
   return { lines, write: (text) => lines.push(text) };
 }
 
-const userAgents: Record<"pnpm" | "yarn" | "bun" | "npm", string | undefined> =
-  {
-    pnpm: "pnpm/9.1.0 node/v24.0.0",
-    yarn: "yarn/4.1.0 node/v24.0.0",
-    bun: "bun/1.1.0",
-    npm: "npm/10.0.0 node/v24.0.0",
-  };
+const userAgents = {
+  pnpm: "pnpm/9.1.0 node/v24.0.0",
+  yarn: "yarn/4.1.0 node/v24.0.0",
+  bun: "bun/1.1.0",
+  npm: "npm/10.0.0 node/v24.0.0",
+};
 
 void test("main: pnpm runs `pnpm add -D` then `pnpm exec temple-bar init`", async () => {
   const { run, calls } = makeFakeRunner(() => ({ code: 0 }));
@@ -87,86 +86,12 @@ void test("main: pnpm runs `pnpm add -D` then `pnpm exec temple-bar init`", asyn
   });
 });
 
-void test("main: npm runs `npm install -D` then `npx --no-install temple-bar init`", async () => {
-  const { run, calls } = makeFakeRunner(() => ({ code: 0 }));
-  const fs = makeFakeFs({ "/app/package.json": "{}" });
-  const deps: MainDeps = {
-    cwd: "/app",
-    env: { npm_config_user_agent: userAgents.npm },
-    argv: [],
-    stdout: makeFakeWriter(),
-    ownVersion: "0.3.0",
-    fs,
-    run,
-    stderr: makeFakeWriter(),
-  };
-  await main(deps);
-  const [first, second] = calls;
-  assert.deepEqual(first?.args, [
-    "install",
-    "-D",
-    "--save-exact",
-    "@londontypescript/temple-bar@0.3.0",
-  ]);
-  assert.deepEqual(second?.args, ["--no-install", "temple-bar", "init"]);
-  assert.equal(second.command, "npx");
-});
-
-void test("main: yarn runs `yarn add -D` then `yarn exec temple-bar init`", async () => {
-  const { run, calls } = makeFakeRunner(() => ({ code: 0 }));
-  const fs = makeFakeFs({ "/app/package.json": "{}" });
-  const deps: MainDeps = {
-    cwd: "/app",
-    env: { npm_config_user_agent: userAgents.yarn },
-    argv: [],
-    stdout: makeFakeWriter(),
-    ownVersion: "0.3.0",
-    fs,
-    run,
-    stderr: makeFakeWriter(),
-  };
-  await main(deps);
-  assert.deepEqual(calls[0], {
-    command: "yarn",
-    args: ["add", "-D", "--exact", "@londontypescript/temple-bar@0.3.0"],
-    options: { cwd: "/app", env: deps.env },
-  });
-  assert.deepEqual(calls[1]?.args, ["exec", "temple-bar", "init"]);
-});
-
-void test("main: bun runs `bun add -d` then `bunx temple-bar init`", async () => {
-  const { run, calls } = makeFakeRunner(() => ({ code: 0 }));
-  const fs = makeFakeFs({ "/app/package.json": "{}" });
-  const deps: MainDeps = {
-    cwd: "/app",
-    env: { npm_config_user_agent: userAgents.bun },
-    argv: [],
-    stdout: makeFakeWriter(),
-    ownVersion: "0.3.0",
-    fs,
-    run,
-    stderr: makeFakeWriter(),
-  };
-  await main(deps);
-  assert.deepEqual(calls[0]?.args, [
-    "add",
-    "-d",
-    "--exact",
-    "@londontypescript/temple-bar@0.3.0",
-  ]);
-  assert.deepEqual(calls[1], {
-    command: "bunx",
-    args: ["temple-bar", "init"],
-    options: { cwd: "/app", env: deps.env },
-  });
-});
-
 void test("main: creates package.json when none exists", async () => {
   const { run } = makeFakeRunner(() => ({ code: 0 }));
   const fs = makeFakeFs();
   const deps: MainDeps = {
     cwd: "/my-app",
-    env: {},
+    env: { npm_config_user_agent: userAgents.pnpm },
     argv: [],
     stdout: makeFakeWriter(),
     ownVersion: "0.3.0",
@@ -188,7 +113,7 @@ void test("main: leaves an existing package.json alone", async () => {
   const fs = makeFakeFs({ "/app/package.json": '{"name":"already-here"}' });
   const deps: MainDeps = {
     cwd: "/app",
-    env: {},
+    env: { npm_config_user_agent: userAgents.pnpm },
     argv: [],
     stdout: makeFakeWriter(),
     ownVersion: "0.3.0",
@@ -228,7 +153,7 @@ void test("main: the launcher's own commands don't inherit npm exec's --package"
   const deps: MainDeps = {
     cwd: "/app",
     env: {
-      npm_config_user_agent: userAgents.npm,
+      npm_config_user_agent: userAgents.pnpm,
       npm_config_package: "@londontypescript/create-temple-bar",
       KEEP: "me",
     },
@@ -280,7 +205,7 @@ for (const flag of ["--help", "-h"]) {
     assert.ok(
       stdout.lines
         .join("")
-        .startsWith("Usage: npm create @londontypescript/temple-bar@latest"),
+        .startsWith("Usage: pnpm create @londontypescript/temple-bar@latest"),
     );
     assert.deepEqual(stderr.lines, []);
     assert.deepEqual(reads, []);
@@ -288,3 +213,84 @@ for (const flag of ["--help", "-h"]) {
     assert.equal(runner.calls.length, 0);
   });
 }
+
+function refusalFixture(
+  userAgent: string | undefined,
+  files: Record<string, string> = { "/app/package.json": "{}" },
+) {
+  const fs = makeFakeFs(files);
+  const writes: string[] = [];
+  const guarded: FsLike = {
+    readText: (filePath) => fs.readText(filePath),
+    writeText: (filePath, content) => {
+      writes.push(filePath);
+      return fs.writeText(filePath, content);
+    },
+  };
+  const runner = makeFakeRunner(() => ({ code: 0 }));
+  const stdout = makeFakeWriter();
+  const stderr = makeFakeWriter();
+  const deps: MainDeps = {
+    argv: [],
+    cwd: "/app",
+    env: userAgent === undefined ? {} : { npm_config_user_agent: userAgent },
+    ownVersion: "0.3.0",
+    fs: guarded,
+    run: runner.run,
+    stdout,
+    stderr,
+  };
+  return { deps, runner, writes, stdout, stderr };
+}
+
+for (const manager of ["npm", "yarn", "bun"] as const) {
+  void test(`main: \`${manager} create\` is refused with a helpful message and changes nothing`, async () => {
+    const { deps, runner, writes, stderr } = refusalFixture(
+      userAgents[manager],
+    );
+    const code = await main(deps);
+    assert.equal(code, 1);
+    assert.equal(runner.calls.length, 0, "nothing may be spawned");
+    assert.deepEqual(writes, [], "nothing may be written");
+    const text = stderr.lines.join("");
+    assert.match(text, /temple-bar needs pnpm/);
+    assert.match(text, /npm install -g pnpm/);
+    assert.match(text, /https:\/\/pnpm\.io\/installation/);
+    assert.match(text, /pnpm create @londontypescript\/temple-bar@latest/);
+  });
+}
+
+void test("main: a launch with no package manager at all is refused", async () => {
+  const { deps, runner, writes } = refusalFixture(undefined);
+  assert.equal(await main(deps), 1);
+  assert.equal(runner.calls.length, 0);
+  assert.deepEqual(writes, []);
+});
+
+for (const lockfile of [
+  "package-lock.json",
+  "yarn.lock",
+  "bun.lockb",
+  "bun.lock",
+]) {
+  void test(`main: a ${lockfile} in the repo is refused even under pnpm, changing nothing`, async () => {
+    const { deps, runner, writes, stderr } = refusalFixture(userAgents.pnpm, {
+      "/app/package.json": "{}",
+      [`/app/${lockfile}`]: "",
+    });
+    const code = await main(deps);
+    assert.equal(code, 1);
+    assert.equal(runner.calls.length, 0);
+    assert.deepEqual(writes, []);
+    const text = stderr.lines.join("");
+    assert.ok(text.includes(lockfile), "names the lockfile it found");
+    assert.match(text, /https:\/\/pnpm\.io\/installation/);
+    assert.match(text, /pnpm create @londontypescript\/temple-bar@latest/);
+  });
+}
+
+void test("main: a refused launch does not create package.json", async () => {
+  const { deps, writes } = refusalFixture(userAgents.npm, {});
+  await main(deps);
+  assert.deepEqual(writes, []);
+});

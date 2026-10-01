@@ -1,7 +1,8 @@
 // The test that proves the published packages work from node_modules
 // (subtask 1.8, P9.1a, the G5 class of bug). Both packages are built and
-// packed as a release would pack them. Then, in a fresh repo, once with npm
-// and once with pnpm, the launcher runs from its tarball: it adds
+// packed as a release would pack them. Then, in a fresh repo, with pnpm
+// (the only supported package manager; npm and foreign lockfiles are
+// refused), the launcher runs from its tarball: it adds
 // temple-bar (served from a local registry, from its tarball) and runs
 // `temple-bar init`, with a fake `gh` standing in for GitHub. The result
 // must refuse a commit to main, allow one on a branch, and run the gate.
@@ -23,7 +24,7 @@ import { initTestRepo } from "../packages/temple-bar/src/testing/git-repo.ts";
 import { createFakeGh } from "./support/fake-gh.ts";
 import { packBoth, type Tarballs } from "./support/pack.ts";
 import { serveTarball, type LocalRegistry } from "./support/registry.ts";
-import { describe, run } from "./support/run.ts";
+import { describe, run, type RunResult } from "./support/run.ts";
 
 const PACKAGE_NAME = "@londontypescript/temple-bar";
 
@@ -98,7 +99,50 @@ const launchers: Record<"npm" | "pnpm", (tarball: string) => CommandLine> = {
   }),
 };
 
-for (const pm of ["npm", "pnpm"] as const) {
+/** The refusal must leave the repo exactly as it was. */
+function assertRefusedWithHelp(launch: RunResult, dir: string): void {
+  assert.notEqual(launch.code, 0, describe(launch));
+  assert.match(launch.stderr, /temple-bar needs pnpm/);
+  assert.match(launch.stderr, /https:\/\/pnpm\.io\/installation/);
+  assert.match(
+    launch.stderr,
+    /pnpm create @londontypescript\/temple-bar@latest/,
+  );
+  assert.ok(!existsSync(path.join(dir, "package.json")), "no package.json");
+  assert.ok(!existsSync(path.join(dir, "AGENTS.md")), "no AGENTS.md");
+  assert.ok(!existsSync(path.join(dir, "node_modules")), "no install");
+}
+
+void test(
+  "npm: the packed launcher refuses with a helpful message and changes nothing",
+  { timeout: 300_000 },
+  async () => {
+    const dir = await makeProject("npm-refused");
+    const launcher = launchers.npm(tarballs.createTempleBar);
+    const launch = await run(launcher.command, launcher.args, {
+      cwd: dir,
+      env: baseEnv,
+    });
+    assertRefusedWithHelp(launch, dir);
+  },
+);
+
+void test(
+  "pnpm: the packed launcher refuses a repo with another package manager's lockfile",
+  { timeout: 300_000 },
+  async () => {
+    const dir = await makeProject("lockfile-refused");
+    writeFileSync(path.join(dir, "yarn.lock"), "");
+    const launcher = launchers.pnpm(tarballs.createTempleBar);
+    const launch = await run(launcher.command, launcher.args, {
+      cwd: dir,
+      env: baseEnv,
+    });
+    assertRefusedWithHelp(launch, dir);
+  },
+);
+
+for (const pm of ["pnpm"] as const) {
   void test(
     `${pm}: the packed launcher sets up a repo that refuses commits to main and runs the gate`,
     { timeout: 300_000 },

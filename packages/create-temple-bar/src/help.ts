@@ -1,8 +1,9 @@
 // Help text for the launcher. Shown for --help / -h, before anything else
 // happens, so asking for help never changes the project.
 
-export const HELP_TEXT = `Usage: npm create @londontypescript/temple-bar@latest
-       (pnpm create, yarn create and bun create work too)
+export const HELP_TEXT = `Usage: pnpm create @londontypescript/temple-bar@latest
+
+temple-bar needs pnpm: https://pnpm.io/installation
 
 Sets up temple-bar in the current project: adds @londontypescript/temple-bar
 as a dev dependency, pinned to this launcher's own version, then runs

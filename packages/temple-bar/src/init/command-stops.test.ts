@@ -40,8 +40,11 @@ void test("init: not a git repo stops with the exact fix, writing nothing", asyn
   assert.equal(code, 1);
   assert.equal(fs.writes.length, 0);
   assert.match(fixture.stderr.lines.join(""), /git init/);
-  // temple-bar isn't on PATH, so the rerun command must say npx.
-  assert.match(fixture.stderr.lines.join(""), /`npx temple-bar init` again/);
+  // temple-bar isn't on PATH, so the rerun command must say pnpm exec.
+  assert.match(
+    fixture.stderr.lines.join(""),
+    /`pnpm exec temple-bar init` again/,
+  );
 });
 
 void test("init: gh not installed stops with the exact fix, writing nothing", async () => {

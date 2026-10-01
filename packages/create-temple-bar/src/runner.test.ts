@@ -13,7 +13,7 @@ void test("createProcessRunner refuses a command outside the fixed allowlist", (
 void test("createProcessRunner refuses an argument a shell would interpret", () => {
   const run = createProcessRunner();
   assert.throws(() => {
-    void run("npm", ["install", "x & calc"], {
+    void run("pnpm", ["add", "x & calc"], {
       cwd: process.cwd(),
       env: process.env,
     });
@@ -22,7 +22,7 @@ void test("createProcessRunner refuses an argument a shell would interpret", () 
 
 void test("createProcessRunner runs an allowed command for real and reports its exit code", async () => {
   const run = createProcessRunner();
-  const result = await run("npm", ["--version"], {
+  const result = await run("pnpm", ["--version"], {
     cwd: process.cwd(),
     env: process.env,
   });
@@ -31,7 +31,7 @@ void test("createProcessRunner runs an allowed command for real and reports its 
 
 void test("createProcessRunner reports a non-zero exit code without throwing", async () => {
   const run = createProcessRunner();
-  const result = await run("npm", ["this-is-not-a-real-npm-command"], {
+  const result = await run("pnpm", ["this-is-not-a-real-pnpm-command"], {
     cwd: process.cwd(),
     env: process.env,
   });

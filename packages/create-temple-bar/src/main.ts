@@ -1,16 +1,17 @@
-// The launcher's whole job: detect the package manager, create package.json
-// if there isn't one, add @londontypescript/temple-bar as a pinned dev
-// dependency, then run `temple-bar init` through the same package manager
-// and exit with its code. Everything that touches the outside world (fs,
-// process spawning) is injected, so this orchestration is testable with a
-// fake of each.
+// The launcher's whole job: make sure this is pnpm, create package.json if
+// there isn't one, add @londontypescript/temple-bar as a pinned dev
+// dependency, then run `temple-bar init` through pnpm and exit with its code.
+// Everything that touches the outside world (fs, process spawning) is
+// injected, so this orchestration is testable with a fake of each.
 
 import path from "node:path";
 
 import { HELP_TEXT, wantsHelp } from "./help.ts";
 import {
   addDevDependencyCommand,
-  detectPackageManager,
+  FOREIGN_LOCKFILES,
+  isLaunchedByPnpm,
+  pnpmRequiredMessage,
   runInitCommand,
 } from "./package-manager.ts";
 import type { ProcessRunner, RunOptions } from "./runner.ts";
@@ -36,10 +37,9 @@ export interface MainDeps {
 }
 
 /**
- * `npm create temple-bar` runs this launcher through
- * `npm exec --package=@londontypescript/create-temple-bar`, and npm passes
- * that `--package` down to every child as `npm_config_package`. Left in, it
- * makes the `npx temple-bar init` step below look for `temple-bar` inside
+ * A `create` command runs this launcher through an exec step that can pass
+ * its `--package` down to every child as `npm_config_package`. Left in, it
+ * would make the `temple-bar init` step below look for `temple-bar` inside
  * the launcher package instead of the project. So the launcher's own
  * commands run without it.
  */
@@ -68,17 +68,36 @@ async function ensurePackageJson(deps: MainDeps): Promise<void> {
   );
 }
 
+/** Why setup can't go ahead, or undefined when it's running under pnpm in a
+ * repo with no other package manager's lockfile. Reads only. */
+async function notPnpmReason(deps: MainDeps): Promise<string | undefined> {
+  if (!isLaunchedByPnpm(deps.env.npm_config_user_agent)) {
+    return "this wasn't started with pnpm";
+  }
+  for (const name of FOREIGN_LOCKFILES) {
+    const found = await deps.fs.readText(path.join(deps.cwd, name));
+    if (found !== undefined) {
+      return `this folder has a ${name}, which another package manager wrote`;
+    }
+  }
+  return undefined;
+}
+
 export async function main(deps: MainDeps): Promise<number> {
   if (wantsHelp(deps.argv)) {
     deps.stdout.write(HELP_TEXT);
     return 0;
   }
-  const pm = detectPackageManager(deps.env.npm_config_user_agent);
+  const refusal = await notPnpmReason(deps);
+  if (refusal !== undefined) {
+    deps.stderr.write(pnpmRequiredMessage(refusal));
+    return 1;
+  }
   await ensurePackageJson(deps);
 
   const options: RunOptions = { cwd: deps.cwd, env: childEnv(deps.env) };
 
-  const addDep = addDevDependencyCommand(pm, deps.ownVersion);
+  const addDep = addDevDependencyCommand(deps.ownVersion);
   const addResult = await deps.run(addDep.command, addDep.args, options);
   if (addResult.code !== 0) {
     deps.stderr.write(
@@ -88,7 +107,7 @@ export async function main(deps: MainDeps): Promise<number> {
     return addResult.code ?? 1;
   }
 
-  const init = runInitCommand(pm);
+  const init = runInitCommand();
   const initResult = await deps.run(init.command, init.args, options);
   return initResult.code ?? 1;
 }

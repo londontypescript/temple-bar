@@ -1,8 +1,7 @@
 // The one place this package spawns a child process, so tests can inject a
-// fake instead. Real commands (`pnpm`, `npm`, `yarn`, `bun`, `npx`, `bunx`)
-// inherit stdio: `temple-bar init` prompts interactively (gh sign-in, repo
-// creation, the ruleset), and that only works if it can see the real
-// terminal.
+// fake instead. The real command, `pnpm`, inherits stdio: `temple-bar init`
+// prompts interactively (gh sign-in, repo creation, the ruleset), and that
+// only works if it can see the real terminal.
 
 import { spawn } from "node:child_process";
 
@@ -22,10 +21,10 @@ export type ProcessRunner = (
 ) => Promise<RunResult>;
 
 // The only commands this package ever spawns. `command` always comes from
-// package-manager.ts's own switch statements, never from user input, but
+// package-manager.ts's fixed command lines, never from user input, but
 // this allowlist is a second, load-bearing check: it's what makes `shell:
 // true` on Windows safe below.
-const ALLOWED_COMMANDS = new Set(["pnpm", "npm", "yarn", "bun", "npx", "bunx"]);
+const ALLOWED_COMMANDS = new Set(["pnpm"]);
 
 // What every argument must look like before it can reach a Windows shell:
 // flags, subcommands and a package spec such as
@@ -50,7 +49,7 @@ export function createProcessRunner(): ProcessRunner {
         env: options.env,
         stdio: "inherit",
         windowsHide: true,
-        // On Windows, npm/pnpm/yarn/bun/npx/bunx are .cmd shims, which
+        // On Windows, pnpm is a .cmd shim, which
         // node:child_process can only launch through a shell. This is safe
         // here specifically because `command` is checked against
         // ALLOWED_COMMANDS above and every argument against SAFE_ARG (they

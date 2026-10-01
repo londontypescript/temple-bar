@@ -7,6 +7,7 @@ import {
   checkGitRepo,
   checkOrigin,
   parseGithubOrigin,
+  RERUN_INIT,
   wrongHostMessage,
 } from "./requirements.ts";
 import {
@@ -126,4 +127,14 @@ void test("checkOrigin reports ok with the parsed owner/repo", async () => {
     state: "ok",
     origin: { owner: "acme", repo: "widgets" },
   });
+});
+
+void test("every rerun hint is a pnpm command, never npx", async () => {
+  assert.equal(RERUN_INIT, "`pnpm exec temple-bar init`");
+  const git = createFakeGit(() => ({ code: 128, stdout: "", stderr: "" }));
+  const notRepo = await checkGitRepo(createFakeContext({ git }), "/app");
+  assert.ok(!notRepo.ok);
+  assert.match(notRepo.message, /`pnpm exec temple-bar init` again/);
+  assert.doesNotMatch(notRepo.message, /npx/);
+  assert.doesNotMatch(wrongHostMessage("https://example.com/x"), /npx/);
 });
