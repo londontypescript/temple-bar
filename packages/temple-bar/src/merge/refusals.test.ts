@@ -147,10 +147,10 @@ void test("refuses after a bounded wait when checks don't finish", async () => {
   }, /timed out after 0 minutes waiting for checks on a+: gate\. Run merge again once they finish/);
 });
 
-void test("refuses when no check ever starts", async () => {
+void test("refuses soon when no check ever appears, since the repo may have no CI", async () => {
   await refusal((w) => {
     w.checkRuns = [[]];
-  }, /no checks started on a+ within 0 minutes/);
+  }, /no checks reported on a+ after 0 minutes, and the ruleset requires none\. temple-bar merge only merges a pull request that CI has checked/);
 });
 
 void test("waits for a required check that hasn't started, then refuses naming it", async () => {

@@ -184,5 +184,10 @@ export function context(cwd: string, gh: Context["gh"]) {
 
 export const deps: MergeDeps = {
   sleep: () => Promise.resolve(),
-  timing: { pollMs: 1, headAttempts: 2, checksTimeoutMs: 1_000 },
+  timing: {
+    pollMs: 1,
+    headAttempts: 2,
+    checksTimeoutMs: 1_000,
+    noChecksMs: 500,
+  },
 };

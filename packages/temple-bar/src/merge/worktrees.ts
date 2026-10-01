@@ -74,6 +74,13 @@ export async function listWorktrees(
 
 /** True when `git status` shows anything: staged, unstaged or untracked. */
 export async function isDirty(ctx: Context, cwd: string): Promise<boolean> {
-  const result = await ctx.git.run(["status", "--porcelain"], cwd);
+  // Untracked files don't count: a merge or fast-forward never touches them
+  // unless they'd be overwritten, and git refuses that case itself. Counting
+  // them stopped main updating after a setup pull request, whose .gitignore
+  // hadn't reached main yet, so node_modules showed as untracked there.
+  const result = await ctx.git.run(
+    ["status", "--porcelain", "--untracked-files=no"],
+    cwd,
+  );
   return result.code !== 0 || result.stdout.trim() !== "";
 }

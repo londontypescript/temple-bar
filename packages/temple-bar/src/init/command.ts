@@ -227,6 +227,10 @@ async function runInit(
   return exitCode;
 }
 
+/** The commit message setup's next steps suggest. It must pass the
+ * commit-msg hook setup has just installed, so it has a conventional prefix. */
+export const SETUP_COMMIT_MESSAGE = "chore: set up temple-bar";
+
 /** The setup is uncommitted, and main now refuses direct commits: say how
  * to land it. Files are named, not `git add -A`, so unrelated work stays
  * out of the setup commit. */
@@ -235,7 +239,7 @@ export const NEXT_STEPS =
   "pull request:\n" +
   "  git switch -c temple-bar-setup\n" +
   "  git add AGENTS.md package.json .gitignore  (plus your lockfile)\n" +
-  '  git commit -m "Set up temple-bar"\n' +
+  `  git commit -m "${SETUP_COMMIT_MESSAGE}"\n` +
   "  git push -u origin temple-bar-setup\n" +
   "  gh pr create --fill\n";
 

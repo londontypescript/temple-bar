@@ -20,12 +20,16 @@ export interface Timing {
   readonly headAttempts: number;
   /** How long to wait for the checks before giving up. */
   readonly checksTimeoutMs: number;
+  /** How long to wait for any check at all to appear, when the ruleset
+   * requires none by name, before deciding the repository has no CI. */
+  readonly noChecksMs: number;
 }
 
 export const DEFAULT_TIMING: Timing = {
   pollMs: 15_000,
   headAttempts: 8,
   checksTimeoutMs: 45 * 60_000,
+  noChecksMs: 3 * 60_000,
 };
 
 export type Sleep = (ms: number) => Promise<void>;
@@ -80,7 +84,8 @@ export async function waitForChecks(
   },
   cwd: string,
 ): Promise<Check[]> {
-  const deadline = ctx.clock.now().getTime() + timing.checksTimeoutMs;
+  const started = ctx.clock.now().getTime();
+  const deadline = started + timing.checksTimeoutMs;
   let lastProgress = "";
   for (;;) {
     const checks = await readChecks(ctx, target.repository, target.sha, cwd);
@@ -95,6 +100,20 @@ export async function waitForChecks(
       return checks;
     }
 
+    // A repository with no CI reports no checks at all, ever. Waiting the full
+    // timeout for that would hang a merge for most of an hour.
+    if (
+      checks.length === 0 &&
+      target.required.length === 0 &&
+      ctx.clock.now().getTime() - started >= timing.noChecksMs
+    ) {
+      const minutes = Math.round(timing.noChecksMs / 60_000);
+      refuse(
+        `no checks reported on ${target.sha} after ${String(minutes)} minutes, and the ruleset requires none. ` +
+          "temple-bar merge only merges a pull request that CI has checked: add a CI workflow, or check that it ran.",
+      );
+    }
+
     const waitingOn = [
       ...pending.map((check) => check.name),
       ...missing.map((name) => `${name} (not started)`),
@@ -102,9 +121,7 @@ export async function waitForChecks(
     if (ctx.clock.now().getTime() >= deadline) {
       const minutes = Math.round(timing.checksTimeoutMs / 60_000);
       refuse(
-        waitingOn.length === 0
-          ? `no checks started on ${target.sha} within ${String(minutes)} minutes. Check the workflows ran, then run merge again.`
-          : `timed out after ${String(minutes)} minutes waiting for checks on ${target.sha}: ${waitingOn.join(", ")}. Run merge again once they finish.`,
+        `timed out after ${String(minutes)} minutes waiting for checks on ${target.sha}: ${waitingOn.join(", ") || "none started"}. Run merge again once they finish.`,
       );
     }
     const progress =
