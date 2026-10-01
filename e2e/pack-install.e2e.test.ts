@@ -187,9 +187,28 @@ for (const pm of ["pnpm"] as const) {
       );
       assert.equal(onBranch.code, 0, describe(onBranch));
 
+      // The gate's ruleset check reads GitHub's API for a GitHub origin.
+      // acme/widgets is made up, and an anonymous call from a shared CI
+      // runner can be rate-limited, which fails the gate in CI. Pointing
+      // origin off GitHub keeps this project's promise that GitHub is never
+      // contacted; the ruleset check has its own tests with a fake network.
+      await run(
+        "git",
+        [
+          "remote",
+          "set-url",
+          "origin",
+          "https://git.example.invalid/acme/widgets.git",
+        ],
+        inDir,
+      );
       const gate = await run(pm, ["run", "gate"], inDir);
       assert.equal(gate.code, 0, describe(gate));
       assert.match(gate.stdout, /within the \d+-line cap/);
+      assert.match(
+        gate.stdout,
+        /skipped +branch ruleset \(origin is not on GitHub\)/,
+      );
 
       writeFileSync(path.join(dir, "index.js"), "export {};\n");
       const gateWithCode = await run(pm, ["run", "gate"], inDir);
