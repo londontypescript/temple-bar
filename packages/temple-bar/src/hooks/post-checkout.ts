@@ -22,6 +22,13 @@ const NO_PREVIOUS_HEAD = /^0+$/;
 const INSTALL_ARGS = ["install", "--frozen-lockfile"] as const;
 const INSTALL_COMMAND = `pnpm ${INSTALL_ARGS.join(" ")}`;
 
+/** git prints some paths relative to `cwd`. Joined rather than resolved:
+ * path.resolve would put the current drive in front of an already absolute
+ * path on Windows. */
+function absolute(cwd: string, p: string): string {
+  return path.isAbsolute(p) ? p : path.join(cwd, p);
+}
+
 async function gitPath(
   ctx: Context,
   cwd: string,
@@ -31,7 +38,7 @@ async function gitPath(
   if (result.code !== 0) {
     return undefined;
   }
-  return path.resolve(cwd, result.stdout.trim());
+  return absolute(cwd, result.stdout.trim());
 }
 
 /** The checkout to copy env files from: the main worktree, which `git
@@ -50,7 +57,7 @@ async function findPrimaryCheckout(ctx: Context): Promise<string | undefined> {
   if (worktreeLine === undefined || lines.includes("bare")) {
     return undefined;
   }
-  return path.resolve(worktreeLine.slice("worktree ".length));
+  return worktreeLine.slice("worktree ".length);
 }
 
 function say(ctx: Context, line: string): void {
@@ -129,7 +136,7 @@ export async function postCheckout(
     gitDir === undefined ||
     commonDir === undefined ||
     worktree === undefined ||
-    gitDir === commonDir
+    path.normalize(gitDir) === path.normalize(commonDir)
   ) {
     return 0;
   }

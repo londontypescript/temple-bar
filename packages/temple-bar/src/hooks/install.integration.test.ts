@@ -47,8 +47,10 @@ void test("install: writes every shim into the shared git folder, sets pull.ff a
     );
     assert.ok(existsSync(record), "records which checkout wrote the shims");
     assert.equal(
-      realpathSync(readFileSync(record, "utf8").trim()),
-      realpathSync(fixture.repoDir),
+      // .native: on Windows the temp folder can be an 8.3 short name
+      // (RUNNER~1) while git reports the long one.
+      realpathSync.native(readFileSync(record, "utf8").trim()),
+      realpathSync.native(fixture.repoDir),
       "names the checkout whose temple-bar wrote the shims",
     );
 

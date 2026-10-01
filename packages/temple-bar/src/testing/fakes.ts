@@ -125,16 +125,30 @@ class PathMap extends Map<string, string> {
   }
 }
 
+/** A Set of paths normalised like PathMap's keys, so a test's "/repo/x"
+ * matches the code's path.join(...) on Windows too. */
+class PathSet extends Set<string> {
+  override add(value: string): this {
+    return super.add(normalize(value));
+  }
+  override has(value: string): boolean {
+    return super.has(normalize(value));
+  }
+  override delete(value: string): boolean {
+    return super.delete(normalize(value));
+  }
+}
+
 export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
   const files = new PathMap(Object.entries(initial));
   const writes: RecordedWrite[] = [];
-  const symlinks = new Set<string>();
+  const symlinks = new PathSet();
   return {
     files,
     writes,
     symlinks,
     readText(path) {
-      if (symlinks.has(normalize(path))) {
+      if (symlinks.has(path)) {
         return Promise.reject(
           new Error(`EISDIR: illegal operation on a directory, read '${path}'`),
         );
@@ -154,7 +168,7 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
       );
     },
     isRegularFile(path) {
-      return Promise.resolve(files.has(path) && !symlinks.has(normalize(path)));
+      return Promise.resolve(files.has(path) && !symlinks.has(path));
     },
     mkdirp() {
       return Promise.resolve();

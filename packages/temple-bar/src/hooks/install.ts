@@ -121,8 +121,11 @@ async function findCommonGitDir(
   if (result.code !== 0) {
     return undefined;
   }
-  // Relative to repoRoot when it is the main worktree (".git").
-  return path.resolve(repoRoot, result.stdout.trim());
+  // Relative to repoRoot when it is the main worktree (".git"). Joined, not
+  // resolved: path.resolve would put the current drive in front of an
+  // already absolute path on Windows.
+  const dir = result.stdout.trim();
+  return path.isAbsolute(dir) ? dir : path.join(repoRoot, dir);
 }
 
 async function installShim(
