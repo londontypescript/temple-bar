@@ -20,7 +20,12 @@ export async function commitMsgCheck(
   file: string,
   ctx: Context,
 ): Promise<number> {
-  const message = await ctx.fs.readText(path.resolve(ctx.cwd, file));
+  // Git passes a path relative to the repo root, where the hook runs. Join
+  // rather than resolve, like every other seam call, so the path doesn't
+  // pick up a drive letter on Windows.
+  const message = await ctx.fs.readText(
+    path.isAbsolute(file) ? file : path.join(ctx.cwd, file),
+  );
   if (message === undefined) {
     ctx.stderr.write(`temple-bar: cannot read the commit message: ${file}\n`);
     return 1;
