@@ -45,7 +45,7 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 14  | Status is a published, versioned contract with a live log per worktree            | [0008](../adr/0008-status-without-doctor.md)              |
 | 15  | Each project declares delivery paths with end-to-end checks the gate runs         | [0007](../adr/0007-what-the-gate-checks.md)               |
 | 16  | Worktrees go where the harness puts them; temple-bar checks the harms             | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
-| 17  | Quick changes squash, multi-phase features rebase; linear history on `main`       | [0003](../adr/0003-how-a-change-reaches-main.md)          |
+| 17  | Squash merges only; one pull request per phase; linear, signed history on `main`  | [0003](../adr/0003-how-a-change-reaches-main.md)          |
 | 18  | The orchestrator merges when green, except changes that need the maintainer's yes | [0003](../adr/0003-how-a-change-reaches-main.md)          |
 | 19  | Agents keep the README accurate; a rewrite or new structure is the maintainer's   | [0009](../adr/0009-readme-and-agents-md.md)               |
 | 20  | `--help` runs nothing; a passing gate lists the checks that ran                   | [0007](../adr/0007-what-the-gate-checks.md)               |

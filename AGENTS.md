@@ -43,13 +43,13 @@ decisions, phase definitions, and each phase's status when it starts and ends.
 
 ## 2. Branching
 
-`main` changes only through merged pull requests.
+`main` changes only through merged pull requests, and every merge is a squash.
 
-- **Multi-phase plan:** `phase/<name>-N` → squash locally → `feature/<name>` →
-  pull request, rebase-merged so each phase stays one commit → `main`
-- **Quick change:** one branch → pull request, squash-merged → `main`
-- **No merge commits.** The `main` ruleset allows only squash and rebase merges
-  and requires linear history.
+- **One branch, one pull request, one commit on `main`.** A multi-phase plan
+  gets one pull request per phase, merged in order; a release is a milestone
+  and a tag, never one big pull request.
+- **Squash merges only.** The `main` ruleset refuses any other merge and
+  requires linear history and signed commits (GitHub signs each squash).
 - **Never commit to `main`**, locally or on GitHub. A one-line fix gets a branch
   too. Local `main` only ever moves by fast-forwarding to `origin/main`.
 - **Every branch gets its own worktree,** with dependencies installed before
@@ -58,8 +58,8 @@ decisions, phase definitions, and each phase's status when it starts and ends.
 
 The orchestrator merges a pull request once CI and CodeQL are green, except
 one that changes AGENTS.md, bumps the pinned temple-bar, tags or publishes:
-those need the user's yes. Ask before local phase → feature squashes too.
-Agents push branches and open pull requests, never `main`.
+those need the user's yes. Agents push branches and open pull requests, never
+`main`.
 
 **Push once, when finished.** Every push to a pull request runs the full CI.
 Draft locally, and push only when the work is final: agreed with the user
