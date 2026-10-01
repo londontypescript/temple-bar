@@ -1,6 +1,6 @@
 # temple-bar
 
-> **Pre-release.** `0.0.x` is on npm and works, but only part of what this README describes is built: setup, the git hooks that guard `main`, and the `gate` command. Running the gate automatically on every pull request, the strength label on every rule, and the incident loop are still to come. Progress: [docs/plans/temple-bar.md](docs/plans/temple-bar.md).
+> **Pre-release.** `0.0.x` is on npm and works, but only part of what this README describes is built: setup, the git hooks that guard `main`, and the `gate` command. Running the gate automatically on every pull request, the strength label on every rule, and the incident loop are still to come. Progress: [GitHub issues](https://github.com/londontypescript/temple-bar/issues); plan and decisions: [docs/plans/temple-bar.md](docs/plans/temple-bar.md).
 
 ## Prose != Enforcement
 
