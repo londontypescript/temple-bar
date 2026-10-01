@@ -43,6 +43,43 @@ export async function writeAgentsMdIfMissing(
   return true;
 }
 
+/** Lines setup keeps in .gitignore: dependencies, secrets (but not the
+ * committed .env.example), and the two files that are personal to one
+ * machine. Without these, the first `git add -A` commits node_modules/. */
+export const GITIGNORE_LINES: readonly string[] = [
+  "node_modules/",
+  ".env",
+  ".env.*",
+  "!.env.example",
+  ".claude/settings.local.json",
+  "CLAUDE.local.md",
+];
+
+/**
+ * Creates .gitignore, or appends only the lines it lacks. Existing lines are
+ * never removed or reordered, so a second run writes nothing. Returns
+ * whether it wrote.
+ */
+export async function ensureGitignore(
+  ctx: Context,
+  repoRoot: string,
+): Promise<boolean> {
+  const filePath = path.join(repoRoot, ".gitignore");
+  const existing = await ctx.fs.readText(filePath);
+  const present = new Set((existing ?? "").split(/\r?\n/).map((l) => l.trim()));
+  const missing = GITIGNORE_LINES.filter((line) => !present.has(line));
+  if (missing.length === 0) {
+    return false;
+  }
+  const base = existing ?? "";
+  const separator = base === "" || base.endsWith("\n") ? "" : "\n";
+  await ctx.fs.writeText(
+    filePath,
+    `${base}${separator}${missing.join("\n")}\n`,
+  );
+  return true;
+}
+
 interface PackageJsonShape {
   name?: unknown;
   private?: unknown;
@@ -131,4 +168,22 @@ export async function ensurePackageJsonScripts(
   }
 
   return { wrote: wrote || scriptsChanged, conflicts };
+}
+
+export interface SetupFilesOutcome {
+  readonly wroteGitignore: boolean;
+  readonly wroteAgents: boolean;
+  readonly packageOutcome: PackageJsonOutcome;
+}
+
+/** Writes every file setup owns. .gitignore goes first so that anything
+ * committed afterwards already leaves node_modules/ out. */
+export async function writeSetupFiles(
+  ctx: Context,
+  repoRoot: string,
+): Promise<SetupFilesOutcome> {
+  const wroteGitignore = await ensureGitignore(ctx, repoRoot);
+  const wroteAgents = await writeAgentsMdIfMissing(ctx, repoRoot);
+  const packageOutcome = await ensurePackageJsonScripts(ctx, repoRoot);
+  return { wroteGitignore, wroteAgents, packageOutcome };
 }

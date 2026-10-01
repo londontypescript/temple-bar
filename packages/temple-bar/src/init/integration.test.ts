@@ -4,7 +4,14 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -110,15 +117,33 @@ void test("integration: init sets up a real repo (AGENTS.md, scripts, real hooks
   }
 });
 
-void test("integration: a repo with no commits and no origin stops before writing anything", async () => {
+void test("integration: an empty repo, yes: first commit has setup's files and no node_modules/, then GitHub, then hooks; a second run changes nothing", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-init-integration-"));
   try {
     initTestRepo(dir);
+    mkdirSync(path.join(dir, "node_modules", "dep"), { recursive: true });
+    writeFileSync(path.join(dir, "node_modules", "dep", "index.js"), "x");
+    writeFileSync(path.join(dir, "keep.txt"), "already here");
+    const ghCalls: string[] = [];
     const stderr = createFakeWriter();
     const ctx: Context = {
       ...createRealContext(),
       fs: createFsSeam(),
-      gh: createFakeGh(fakeGhScript),
+      // `gh repo create` is faked, but does what the real one does to the
+      // local repo: adds origin. The hooks must not exist yet at that point.
+      gh: createFakeGh((args) => {
+        if (args[0] === "repo") {
+          ghCalls.push(args.join(" "));
+          assert.equal(existsSync(path.join(dir, ".githooks")), false);
+          execFileSync(
+            "git",
+            ["remote", "add", "origin", "git@github.com:acme/widgets.git"],
+            { cwd: dir },
+          );
+          return { code: 0, stdout: "", stderr: "", notFound: false };
+        }
+        return fakeGhScript(args);
+      }),
       prompt: createFakePrompt({ interactive: true, answer: "yes" }),
       stdout: createFakeWriter(),
       stderr,
@@ -128,10 +153,29 @@ void test("integration: a repo with no commits and no origin stops before writin
 
     const code = await command.run([], ctx);
 
-    assert.equal(code, 1);
-    assert.match(stderr.lines.join(""), /no commits yet/);
-    assert.equal(existsSync(path.join(dir, "AGENTS.md")), false);
-    assert.equal(existsSync(path.join(dir, ".githooks")), false);
+    assert.equal(code, 0, stderr.lines.join(""));
+    assert.equal(ghCalls.length, 1);
+    assert.match(ghCalls[0] ?? "", /--push$/);
+    const tracked = execFileSync("git", ["ls-files"], {
+      cwd: dir,
+      encoding: "utf8",
+    })
+      .split("\n")
+      .filter(Boolean);
+    assert.deepEqual(tracked, [
+      ".gitignore",
+      "AGENTS.md",
+      "keep.txt",
+      "package.json",
+    ]);
+    assert.ok(existsSync(path.join(dir, ".githooks", "pre-commit")));
+
+    // Second run: origin exists now, so nothing is offered or written.
+    const before = readFileSync(path.join(dir, ".gitignore"), "utf8");
+    const secondCode = await command.run([], ctx);
+    assert.equal(secondCode, 0);
+    assert.equal(readFileSync(path.join(dir, ".gitignore"), "utf8"), before);
+    assert.equal(ghCalls.length, 1);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -7,27 +7,6 @@ import test from "node:test";
 import { createFakeFs, createFakeGh, createFakeGit } from "../testing/fakes.ts";
 import { makeFixture, runInitFor } from "./testing/command-fixture.ts";
 
-void test("init: a new empty repo with no commits stops safely, writing nothing", async () => {
-  const git = createFakeGit((args) => {
-    if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
-      return { code: 0, stdout: "/repo\n", stderr: "" };
-    }
-    if (args[0] === "remote") {
-      return { code: 1, stdout: "", stderr: "no such remote" };
-    }
-    if (args[0] === "rev-parse" && args[1] === "HEAD") {
-      return { code: 128, stdout: "", stderr: "unknown revision" };
-    }
-    return { code: 0, stdout: "", stderr: "" };
-  });
-  const fs = createFakeFs();
-  const fixture = makeFixture({ git, fs }, "yes");
-  const code = await runInitFor(fixture);
-  assert.equal(code, 1);
-  assert.equal(fs.writes.length, 0);
-  assert.equal(fixture.hookCalls.calls, 0);
-});
-
 void test("init: not a git repo stops with the exact fix, writing nothing", async () => {
   const git = createFakeGit(() => ({
     code: 128,

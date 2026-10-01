@@ -16,16 +16,19 @@ import {
 } from "./requirements.ts";
 import { offerRepoCreation } from "./github-repo.ts";
 import { offerRuleset } from "./github-ruleset.ts";
-import { ensurePackageJsonScripts, writeAgentsMdIfMissing } from "./files.ts";
+import { writeSetupFiles, type SetupFilesOutcome } from "./files.ts";
 import type { InitDeps } from "./types.ts";
 
 export type { InitDeps } from "./types.ts";
 
 /** Resolves origin: either it already exists, or offers to create it. Returns
- * undefined when the run should stop here (message already printed). */
+ * undefined when the run should stop here (message already printed).
+ * `writeFiles` writes setup's files; it runs here only if the first commit
+ * has to be made, so those files are in it. */
 async function resolveOrigin(
   ctx: Context,
   repoRoot: string,
+  writeFiles: () => Promise<unknown>,
 ): Promise<GithubOrigin | undefined> {
   const originCheck = await checkOrigin(ctx, repoRoot);
 
@@ -37,13 +40,16 @@ async function resolveOrigin(
     return undefined;
   }
 
-  const outcome = await offerRepoCreation(ctx, repoRoot);
+  const outcome = await offerRepoCreation(ctx, repoRoot, async () => {
+    await writeFiles();
+  });
   if (outcome.kind === "created") {
     ctx.stdout.write("Created the GitHub repository and pushed.\n");
     return outcome.origin;
   }
-  // declined, no-commits and failed all stop init with an explanatory
-  // message and no writes.
+  // declined, commit-needed and failed all stop init with an explanatory
+  // message. Only commit-needed has written anything: setup's files, staged
+  // for the commit the user is asked to make.
   ctx.stderr.write(`${outcome.message}\n`);
   return undefined;
 }
@@ -68,7 +74,13 @@ async function runInit(deps: InitDeps, ctx: Context): Promise<number> {
     return 1;
   }
 
-  const origin = await resolveOrigin(ctx, repoRoot);
+  // Written once, whether that happens before the first commit or after the
+  // GitHub steps.
+  let written: SetupFilesOutcome | undefined;
+  const writeFiles = async (): Promise<SetupFilesOutcome> =>
+    (written ??= await writeSetupFiles(ctx, repoRoot));
+
+  const origin = await resolveOrigin(ctx, repoRoot, writeFiles);
   if (!origin) {
     return 1;
   }
@@ -86,14 +98,18 @@ async function runInit(deps: InitDeps, ctx: Context): Promise<number> {
     ctx.stdout.write(`${rulesetOutcome.message}\n`);
   }
 
-  const wroteAgents = await writeAgentsMdIfMissing(ctx, repoRoot);
+  const { wroteGitignore, wroteAgents, packageOutcome } = await writeFiles();
+  ctx.stdout.write(
+    wroteGitignore
+      ? "Updated .gitignore.\n"
+      : ".gitignore already has the required lines; left it alone.\n",
+  );
   ctx.stdout.write(
     wroteAgents
       ? "Wrote AGENTS.md.\n"
       : "AGENTS.md already exists; left it alone.\n",
   );
 
-  const packageOutcome = await ensurePackageJsonScripts(ctx, repoRoot);
   if (packageOutcome.invalid !== undefined) {
     ctx.stderr.write(`${packageOutcome.invalid}\n`);
     exitCode = 1;
@@ -135,6 +151,7 @@ async function runInit(deps: InitDeps, ctx: Context): Promise<number> {
   if (exitCode === 0) {
     ctx.stdout.write("temple-bar is set up.\n");
     const changed =
+      wroteGitignore ||
       wroteAgents ||
       packageOutcome.wrote ||
       hooksReport.items.some((item) => item.status === "written");
@@ -152,7 +169,7 @@ export const NEXT_STEPS =
   "Next: main now refuses direct commits, so land this setup through a " +
   "pull request:\n" +
   "  git switch -c temple-bar-setup\n" +
-  "  git add AGENTS.md package.json .githooks   (plus your lockfile)\n" +
+  "  git add AGENTS.md package.json .gitignore .githooks  (plus your lockfile)\n" +
   '  git commit -m "Set up temple-bar"\n' +
   "  git push -u origin temple-bar-setup\n" +
   "  gh pr create --fill\n";
