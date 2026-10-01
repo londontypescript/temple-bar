@@ -9,7 +9,7 @@ Approval is in two layers, as agreed:
 
 Inputs, kept outside this public repo in the user's local v1 repo (`nnsee-agentic`) and only read, never copied in: the brief (P1–P9, §4), the incident intake beside it (IDs X = another project, G = grand-union, N = nnsee-agentic), and the frozen hardening plan (D1–D7). The agreed README draft became `README.md`.
 
-This file lives at `docs/plans/temple-bar.md` (P6.5). It is the record: decisions, phase definitions, and each phase's status when it starts and ends. Planned work, progress and incidents are GitHub issues; the gitignored `planning/` folder holds local drafts only (decision 37).
+This file lives at `docs/plans/temple-bar.md` (P6.5). It is the record: decisions, phase definitions, and each phase's status when it starts and ends. Planned work, progress and incidents are GitHub issues; the gitignored `.temple-bar/` folder holds local drafts only (decision 37).
 
 ---
 
@@ -47,7 +47,7 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 16  | Worktrees go where the harness puts them; temple-bar checks the harms             | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 17  | Quick changes squash, multi-phase features rebase; linear history on `main`       | [0003](../adr/0003-how-a-change-reaches-main.md)          |
 | 18  | The orchestrator merges when green, except changes that need the maintainer's yes | [0003](../adr/0003-how-a-change-reaches-main.md)          |
-| 19  | The maintainer writes the README; agents show README changes as drafts first      | [0009](../adr/0009-readme-and-agents-md.md)               |
+| 19  | Agents keep the README accurate; a rewrite or new structure is the maintainer's   | [0009](../adr/0009-readme-and-agents-md.md)               |
 | 20  | `--help` runs nothing; a passing gate lists the checks that ran                   | [0007](../adr/0007-what-the-gate-checks.md)               |
 | 21  | The README says hooks arrive with the install; nothing more for fresh clones      | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 22  | Hooks fail closed where temple-bar isn't installed yet                            | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |

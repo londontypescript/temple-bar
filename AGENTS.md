@@ -37,9 +37,9 @@ The user writes the intake themselves: the grouped list of fixes and features.
 Do not reorder it by your own priorities, and do not offer to generate it.
 
 GitHub issues are the live tracker: update the issue you work on **at every
-subtask**, not at phase end. The gitignored `planning/` folder holds local
-drafts only; there is no handoff file. Git holds the record: decisions, phase
-definitions, and each phase's status when it starts and ends.
+subtask**, not at phase end. Drafts go in `.temple-bar/`, this checkout's
+gitignored working folder; there is no handoff file. Git holds the record:
+decisions, phase definitions, and each phase's status when it starts and ends.
 
 ## 2. Branching
 
@@ -63,8 +63,8 @@ Agents push branches and open pull requests, never `main`.
 
 **Push once, when finished.** Every push to a pull request runs the full CI.
 Draft locally, and push only when the work is final: agreed with the user
-for anything that needs their yes (AGENTS.md, plan decisions, the README),
-finished by the agent otherwise. Never push on the fly while it's being
+for anything that needs their yes (AGENTS.md, plan decisions, a README
+rewrite), finished by the agent otherwise. Never push on the fly while it's being
 discussed.
 
 Until `temple-bar merge` does these steps itself:

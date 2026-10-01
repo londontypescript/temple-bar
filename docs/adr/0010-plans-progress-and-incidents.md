@@ -23,7 +23,10 @@ one agent's private memory.
 planned work is an issue, and the agent working on it keeps it current at
 every subtask. A new session resumes from the issue plus git; there is no
 handoff file. Git keeps the record: decisions, phase definitions and history,
-ADRs and AGENTS.md. `planning/` stays gitignored, for local drafts only.
+ADRs and AGENTS.md. Local drafts live in the gitignored `.temple-bar/` folder: this checkout's
+working folder for anything temple-bar or its agents keep locally. (It was
+`planning/` until 2026-10-01; a name that common could clash with a
+project's own folder.)
 
 **Decision 38: incidents improve temple-bar only.** When an agent doesn't do
 what it should, it proposes an incident and asks the maintainer there and

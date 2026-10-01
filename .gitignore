@@ -15,5 +15,14 @@ coverage/
 .DS_Store
 Thumbs.db
 
-# Local wall plans: thinking aids, never committed
-planning/
+# Logs and TypeScript build info
+*.log
+*.tsbuildinfo
+
+# Personal harness settings, never shared
+.claude/settings.local.json
+CLAUDE.local.md
+
+# This checkout's local working folder: drafts, and anything temple-bar or
+# its agents keep for this checkout only
+.temple-bar/
