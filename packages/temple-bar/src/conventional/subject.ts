@@ -16,8 +16,15 @@ const CONVENTIONAL = new RegExp(
 
 // Subjects git writes itself. Nobody typed them, so the rule can't ask them to
 // be rewritten. `fixup!`, `squash!` and `amend!` are temporary: an
-// autosquash rebase folds them into the commit they name.
-const GIT_GENERATED = [/^Merge /, /^Revert "/, /^(?:fixup|squash|amend)! /];
+// autosquash rebase folds them into the commit they name. "Initial commit",
+// exactly, is the near-universal first commit (GitHub writes it when it
+// creates a repo with a README, and setup uses it), so it's accepted too.
+const GIT_GENERATED = [
+  /^Merge /,
+  /^Revert "/,
+  /^(?:fixup|squash|amend)! /,
+  /^Initial commit$/,
+];
 
 /** True when `subject` is `<prefix>(<scope>): <text>` with an allowed prefix. */
 export function isConventionalSubject(subject: string): boolean {

@@ -46,8 +46,18 @@ void test("commit message: git's own merge, revert and rebase subjects are accep
   }
 });
 
+void test('commit message: exactly "Initial commit" is accepted as a first commit', () => {
+  assert.equal(isAcceptableCommitMessage("Initial commit\n"), true);
+});
+
 void test("commit message: the look-alikes of git's subjects are not exempt", () => {
-  for (const bad of ["Merged the thing", "Reverted it", "fixup the thing"]) {
+  for (const bad of [
+    "Merged the thing",
+    "Reverted it",
+    "fixup the thing",
+    "Initial commit of the gate",
+    "initial commit",
+  ]) {
     assert.equal(isAcceptableCommitMessage(`${bad}\n`), false, bad);
   }
 });
