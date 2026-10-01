@@ -10,6 +10,7 @@ same pull request as any change to a mechanism.
 | `main` changes only through pull requests | GitHub ruleset on `main`                             | **Blocked** on GitHub |
 | No force-push or deletion of `main`       | GitHub ruleset on `main`                             | **Blocked** on GitHub |
 | CI passes before merge                    | required status checks (U6)                          | **Blocked** on GitHub |
+| One concern per pull request              | `temple-bar pr-size` warns, once this repo pins it   | **Warned** only       |
 | CodeQL passes before merge                | required check, from M2                              | **Blocked** from M2   |
 | Squash merges only on `main`              | ruleset: squash only, linear history; repo settings  | **Blocked** on GitHub |
 | Signed commits on `main`                  | ruleset: required signatures (GitHub signs squashes) | **Blocked** on GitHub |

@@ -7,20 +7,12 @@
 // no new seam was needed for it (only `proc`, for running stack scripts).
 
 import path from "node:path";
+import { readProjectConfig } from "../config/project-config.ts";
 import type { Context } from "../context.ts";
 
-/**
- * The package's default file-length cap, used when a project has no
- * temple-bar.config.json or no "maxFileLines" key in it. This is the only
- * place in src/ (tests included) that hardcodes a max-file-lines number;
- * tests that need a cap read it from a fixture config or pass their own
- * number to findOverCapFiles directly.
- */
-export const DEFAULT_MAX_FILE_LINES = 400;
+export { DEFAULT_MAX_FILE_LINES } from "../config/project-config.ts";
 
-const CONFIG_FILE_NAME = "temple-bar.config.json";
-
-const LOCKFILE_NAMES = new Set([
+export const LOCKFILE_NAMES = new Set([
   "pnpm-lock.yaml",
   "package-lock.json",
   "yarn.lock",
@@ -121,36 +113,8 @@ export async function collectLineCounts(
   return results;
 }
 
-function readConfigCap(value: unknown): number | undefined {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`${CONFIG_FILE_NAME} must contain a JSON object`);
-  }
-  if (!("maxFileLines" in value)) {
-    return undefined;
-  }
-  const cap = value.maxFileLines;
-  if (typeof cap !== "number" || !Number.isInteger(cap) || cap < 1) {
-    throw new Error(
-      `${CONFIG_FILE_NAME}: "maxFileLines" must be a positive whole number`,
-    );
-  }
-  return cap;
-}
-
 export async function readMaxFileLines(ctx: Context): Promise<number> {
-  const raw = await ctx.fs.readText(path.join(ctx.cwd, CONFIG_FILE_NAME));
-  if (raw === undefined) {
-    return DEFAULT_MAX_FILE_LINES;
-  }
-  // A config that can't be read is an error, never a silent fallback: falling
-  // back could quietly loosen the cap the project set.
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error(`${CONFIG_FILE_NAME} is not valid JSON`);
-  }
-  return readConfigCap(parsed) ?? DEFAULT_MAX_FILE_LINES;
+  return (await readProjectConfig(ctx)).maxFileLines;
 }
 
 export interface LengthCheckResult {
