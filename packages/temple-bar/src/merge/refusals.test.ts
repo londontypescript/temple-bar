@@ -1,0 +1,195 @@
+// Every refusal `temple-bar merge` can give, each asserting its own message
+// and that nothing was merged. The world is a happy path except for the one
+// thing each test breaks.
+
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { createMergeCommand } from "./command.ts";
+import { defaultWorld, harness, HEAD, type World } from "./testing/world.ts";
+
+/** Runs merge in a world changed by `change`, and asserts the refusal's
+ * own message first, so a refusal that stops happening fails on its
+ * message; then that merge exited 1 and merged nothing. */
+async function refusal(
+  change: (world: World) => void,
+  message: RegExp,
+): Promise<void> {
+  const world = defaultWorld();
+  change(world);
+  const h = harness(world);
+  const code = await createMergeCommand(h.deps).run(["7"], h.ctx);
+  assert.match(h.err(), message);
+  assert.equal(code, 1);
+  assert.equal(h.ran("gh", "pr", "merge"), false, "nothing merged");
+}
+
+void test("refuses a draft pull request", async () => {
+  await refusal((w) => {
+    w.pr.isDraft = true;
+  }, /pull request #7 is a draft\. Mark it ready \(gh pr ready 7\)/);
+});
+
+void test("refuses a closed pull request", async () => {
+  await refusal((w) => {
+    w.pr.state = "CLOSED";
+  }, /pull request #7 is closed\. Reopen it first/);
+});
+
+void test("refuses an already merged pull request and points at leftovers", async () => {
+  await refusal((w) => {
+    w.pr.state = "MERGED";
+  }, /already merged\. `temple-bar leftovers` lists/);
+});
+
+void test("refuses a pull request that targets another branch", async () => {
+  await refusal((w) => {
+    w.pr.baseRefName = "release";
+  }, /targets release, not the default branch main/);
+});
+
+void test("refuses a pull request from a fork", async () => {
+  await refusal((w) => {
+    w.pr.isCrossRepository = true;
+  }, /comes from a fork/);
+});
+
+void test("refuses when there is no local branch", async () => {
+  await refusal((w) => {
+    w.localTip = undefined;
+  }, /there is no local branch feat\/x/);
+});
+
+void test("refuses to update a branch that is behind when no worktree has it", async () => {
+  await refusal((w) => {
+    w.behind = true;
+    w.worktrees = "";
+  }, /feat\/x is behind main, but no worktree has feat\/x checked out/);
+});
+
+void test("refuses to update a branch that is behind when its worktree is dirty", async () => {
+  await refusal((w) => {
+    w.behind = true;
+    w.dirty = true;
+  }, /feat\/x is behind main, but the worktree at \/wt\/x has uncommitted changes/);
+});
+
+void test("refuses to update a behind branch whose local tip isn't the pull request's head", async () => {
+  await refusal((w) => {
+    w.behind = true;
+    w.heads = ["d".repeat(40)];
+  }, /behind main, and the local branch \(a+\) doesn't match the pull request's head \(d+\)/);
+});
+
+void test("refuses when GitHub's head never matches the local tip", async () => {
+  const world = defaultWorld();
+  world.heads = ["e".repeat(40)];
+  const h = harness(world);
+  const code = await createMergeCommand(h.deps).run(["7"], h.ctx);
+  assert.match(
+    h.err(),
+    new RegExp(
+      `head on GitHub is e{40}, but the local branch feat/x is at ${HEAD}.*close and reopen it`,
+    ),
+  );
+  assert.equal(code, 1);
+  // Bounded: three reads with a pause between each, then it stops.
+  assert.deepEqual(h.sleeps, [1_000, 1_000]);
+  assert.equal(h.ran("gh", "pr", "merge"), false);
+});
+
+void test("refuses a change to AGENTS.md without the maintainer's yes", async () => {
+  await refusal((w) => {
+    w.changedFiles = ["AGENTS.md", "src/x.ts"];
+  }, /needs the maintainer's yes: it changes AGENTS\.md\. .*--maintainer-approved/);
+});
+
+void test("refuses a change to the pinned temple-bar without the maintainer's yes", async () => {
+  await refusal((w) => {
+    w.changedFiles = ["package.json"];
+    w.packageAfter =
+      '{"devDependencies":{"@londontypescript/temple-bar":"0.0.5"}}';
+  }, /needs the maintainer's yes: it changes the pinned @londontypescript\/temple-bar from 0\.0\.4 to 0\.0\.5/);
+});
+
+void test("refuses a description without top-level bullets", async () => {
+  await refusal((w) => {
+    w.pr.body = "Adds x.\n\n```\n- not a bullet\n```\n";
+  }, /description has no top-level "- " bullets: the squash commit's body is one bullet per distinct change/);
+});
+
+void test("refuses when a check fails, naming the failed checks", async () => {
+  await refusal(
+    (w) => {
+      w.checkRuns = [
+        [
+          { name: "gate", status: "completed", conclusion: "failure" },
+          { name: "CodeQL", status: "completed", conclusion: "success" },
+          { name: "lint", status: "completed", conclusion: "cancelled" },
+        ],
+      ];
+    },
+    new RegExp(
+      `checks failed on ${HEAD}: gate \\(failure\\), lint \\(cancelled\\)`,
+    ),
+  );
+});
+
+void test("refuses when a commit status fails", async () => {
+  await refusal((w) => {
+    w.statuses = [{ context: "ci/legacy", state: "error" }];
+  }, /checks failed on a+: ci\/legacy \(error\)/);
+});
+
+void test("refuses after a bounded wait when checks don't finish", async () => {
+  await refusal((w) => {
+    w.checkRuns = [[{ name: "gate", status: "in_progress", conclusion: null }]];
+  }, /timed out after 0 minutes waiting for checks on a+: gate\. Run merge again once they finish/);
+});
+
+void test("refuses when no check ever starts", async () => {
+  await refusal((w) => {
+    w.checkRuns = [[]];
+  }, /no checks started on a+ within 0 minutes/);
+});
+
+void test("waits for a required check that hasn't started, then refuses naming it", async () => {
+  await refusal((w) => {
+    w.required = ["gate", "CodeQL"];
+  }, /waiting for checks on a+: CodeQL \(not started\)/);
+});
+
+void test("refuses while the pull request has open code-scanning alerts", async () => {
+  await refusal((w) => {
+    w.alertsForPr = [
+      { number: 4, rule: "js/sql-injection", path: "src/db.ts" },
+    ];
+  }, /pull request #7 has open code-scanning alerts: #4 js\/sql-injection in src\/db\.ts/);
+});
+
+void test("refuses while the default branch has open code-scanning alerts", async () => {
+  await refusal((w) => {
+    w.alertsOnDefault = [{ number: 9, rule: "js/xss", path: "src/page.ts" }];
+  }, /main has open code-scanning alerts: #9 js\/xss in src\/page\.ts/);
+});
+
+void test("reports GitHub refusing the merge", async () => {
+  const world = defaultWorld();
+  world.mergeFails = true;
+  const h = harness(world);
+  const code = await createMergeCommand(h.deps).run(["7"], h.ctx);
+  assert.match(
+    h.err(),
+    /GitHub refused the merge: Repository rule violations found/,
+  );
+  assert.equal(code, 1);
+});
+
+void test("usage mistakes exit 2", async () => {
+  for (const args of [[], ["seven"], ["7", "--force"], ["7", "8"]]) {
+    const h = harness(defaultWorld());
+    const code = await createMergeCommand(h.deps).run(args, h.ctx);
+    assert.equal(code, 2, args.join(" "));
+    assert.equal(h.gh.calls.length, 0);
+  }
+});
