@@ -1,8 +1,8 @@
 # ADR 0011: Which copy of the checks judges a pull request
 
-Date: 2026-10-01. Status: proposed
-([#55](https://github.com/londontypescript/temple-bar/issues/55)). The
-maintainer decides the design; building it is a separate issue.
+Date: 2026-10-01. Status: accepted (decisions 41 and 42;
+[#55](https://github.com/londontypescript/temple-bar/issues/55)). Not built
+yet: building it is a separate issue.
 
 ## Context
 
@@ -52,13 +52,17 @@ use), and use Node built-ins only.
    touch the checks. Its job is a required check on the `main` ruleset.
 5. **Re-check after merging,** on the push to `main`. Catches it too late.
 
-## Decision (proposed)
+## Decision
 
-Option 4: a `temple-bar judge` job, set up in every repo.
+**Decision 41:** option 4, a `temple-bar judge` job, set up in every repo.
 
 **What it guards.** Any file under `.github/workflows/`, the temple-bar pin
 in `package.json`, and the scripts the gate requires. A pull request that
-leaves these alone, which is nearly every one, passes in seconds.
+leaves these alone, which is nearly every one, passes in seconds. Tool
+configs (ESLint, tsconfig, Prettier) are left out to start with: they change
+often, and guarding them would make bypass merges routine. Whether to add
+them is decided once the judge has a record
+([#144](https://github.com/londontypescript/temple-bar/issues/144)).
 
 **Why it is safe.** `pull_request_target` always runs `main`'s copy of the
 workflow, so a pull request that edits or deletes the judge doesn't change
@@ -67,7 +71,7 @@ pattern GitHub calls safe, and such workflows can't write to the shared cache
 ([securely using `pull_request_target`](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target)).
 The job's token is read-only, and the judge uses Node's built-in `fetch`.
 
-**When it fails.** The pull request changes the checks, which already needs
+**Decision 42: when it fails.** The pull request changes the checks, which already needs
 the maintainer's yes ([ADR 0003](0003-how-a-change-reaches-main.md)). The
 maintainer merges it through the ruleset's bypass, which GitHub records on
 the pull request. `temple-bar merge` never bypasses.
@@ -93,7 +97,9 @@ exactly this must be refused, as break-it evidence.
 - An honest limit: agents use the maintainer's account, so GitHub can't tell
   the maintainer's bypass from an agent's. The change can no longer pass
   silently, but the bypass itself stays a written rule until agents have
-  their own identity (then option 2 replaces it).
+  their own identity (then option 2 replaces it). Whether they get one is
+  decided once the judge exists
+  ([#145](https://github.com/londontypescript/temple-bar/issues/145)).
 - To prove on real GitHub before building on it: that a
   `pull_request_target` job's result counts as the pull request's required
   check, and what happens when a pull request adds a job with the judge's

@@ -25,7 +25,7 @@ Settled before this session:
 - Models: phases rated routine / involved / delicate; the maintainer picks models, temple-bar never does: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 - What became of the earlier hardening plan's D2, D3, D4 and D7: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 
-Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), and 2026-10-01 with the move to GitHub issues (37–40):
+Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), and in 0.0.5 planning on 2026-10-01 (41–44):
 
 | #   | Decision                                                                          | ADR                                                       |
 | --- | --------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -69,6 +69,10 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 38  | Incidents improve temple-bar only, filed as its issues with no private details    | [0010](../adr/0010-plans-progress-and-incidents.md)       |
 | 39  | No project board until grand-union, which then gets its own                       | [0010](../adr/0010-plans-progress-and-incidents.md)       |
 | 40  | temple-bar applies a short fixed list of GitHub settings, not all of them         | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
+| 41  | A judge run from `main` refuses changes to workflows, the pin or gate scripts     | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 42  | The maintainer bypass-merges check changes; `temple-bar merge` never bypasses     | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 43  | The gate's ruleset check supports public repos only for now                       | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
+| 44  | A repo without AGENTS.md skips the size check rather than failing                 | [0007](../adr/0007-what-the-gate-checks.md)               |
 
 ---
 
