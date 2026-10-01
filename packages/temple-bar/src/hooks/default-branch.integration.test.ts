@@ -26,7 +26,12 @@ function commitFile(
 ) {
   writeFileSync(path.join(fixture.repoDir, name), `${name}\n`, "utf8");
   runGit(fixture.repoDir, ["add", name]);
-  return runGit(fixture.repoDir, ["commit", ...extraArgs, "-m", name]);
+  return runGit(fixture.repoDir, [
+    "commit",
+    ...extraArgs,
+    "-m",
+    `chore: ${name}`,
+  ]);
 }
 
 function masterRepo(): HookFixture {
@@ -117,12 +122,13 @@ void test("default branch: commits and merges on a feature branch never start No
     assert.equal(runGit(fixture.repoDir, ["fetch", "-q", "origin"]).code, 0);
     fixture.installMarkerBin(markerPath);
 
-    // --no-verify skips pre-commit, which always starts the CLI; this is
-    // about reference-transaction alone.
+    // --no-verify skips pre-commit and commit-msg, which always start the
+    // CLI (merge accepts it too); this is about reference-transaction alone.
     const commit = commitFile(fixture, "a.txt", ["--no-verify"]);
     const merge = runGit(fixture.repoDir, [
       "merge",
       "-q",
+      "--no-verify",
       "--no-edit",
       "origin/master",
     ]);

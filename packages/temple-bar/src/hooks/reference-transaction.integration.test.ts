@@ -70,7 +70,7 @@ void test("reference-transaction: a local squash merge onto main is refused", ()
     runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
     writeFileSync(path.join(fixture.repoDir, "feat.txt"), "f\n", "utf8");
     runGit(fixture.repoDir, ["add", "feat.txt"]);
-    runGit(fixture.repoDir, ["commit", "-q", "-m", "feature work"]);
+    runGit(fixture.repoDir, ["commit", "-q", "-m", "feat: feature work"]);
     runGit(fixture.repoDir, ["checkout", "-q", "main"]);
 
     assert.equal(installRealHooks(fixture).code, 0);
@@ -102,7 +102,7 @@ void test("reference-transaction: a local merge onto main is refused", () => {
     runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
     writeFileSync(path.join(fixture.repoDir, "feat.txt"), "f\n", "utf8");
     runGit(fixture.repoDir, ["add", "feat.txt"]);
-    runGit(fixture.repoDir, ["commit", "-q", "-m", "feature work"]);
+    runGit(fixture.repoDir, ["commit", "-q", "-m", "feat: feature work"]);
     runGit(fixture.repoDir, ["checkout", "-q", "main"]);
 
     assert.equal(installRealHooks(fixture).code, 0);
@@ -111,7 +111,7 @@ void test("reference-transaction: a local merge onto main is refused", () => {
       "merge",
       "--no-ff",
       "-m",
-      "merge feature",
+      "chore: merge feature",
       "feature",
     ]);
 
@@ -137,7 +137,7 @@ void test("reference-transaction: a cherry-pick onto main is refused", () => {
     runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
     writeFileSync(path.join(fixture.repoDir, "feat.txt"), "f\n", "utf8");
     runGit(fixture.repoDir, ["add", "feat.txt"]);
-    runGit(fixture.repoDir, ["commit", "-q", "-m", "feature work"]);
+    runGit(fixture.repoDir, ["commit", "-q", "-m", "feat: feature work"]);
     const featureSha = runGit(fixture.repoDir, [
       "rev-parse",
       "HEAD",
@@ -169,7 +169,7 @@ void test("reference-transaction: git reset --hard onto a commit not on origin/m
     runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
     writeFileSync(path.join(fixture.repoDir, "feat.txt"), "f\n", "utf8");
     runGit(fixture.repoDir, ["add", "feat.txt"]);
-    runGit(fixture.repoDir, ["commit", "-q", "-m", "feature work"]);
+    runGit(fixture.repoDir, ["commit", "-q", "-m", "feat: feature work"]);
     const featureSha = runGit(fixture.repoDir, [
       "rev-parse",
       "HEAD",

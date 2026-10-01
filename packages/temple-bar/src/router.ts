@@ -12,6 +12,7 @@ import { installHooks } from "./hooks/install.ts";
 import { readRealStdin } from "./hooks/stdin.ts";
 import { createInitCommand } from "./init/command.ts";
 import { prSizeCommandEntry } from "./pr/command.ts";
+import { prTitleCommand } from "./pr/title-command.ts";
 import { buildCommandHelp, buildUsage, CommandRegistry } from "./registry.ts";
 
 // Flags that mean the same thing as a registered command name.
@@ -45,6 +46,7 @@ export function createRegistry(): CommandRegistry {
   registry.register(gateCommand);
   registry.register(createHookCommand(readRealStdin));
   registry.register(prSizeCommandEntry);
+  registry.register(prTitleCommand);
 
   return registry;
 }

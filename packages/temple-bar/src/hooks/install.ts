@@ -15,7 +15,11 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 
 import type { Context } from "../context.ts";
-import { PRE_COMMIT_SHIM, REFERENCE_TRANSACTION_SHIM } from "./shims.ts";
+import {
+  COMMIT_MSG_SHIM,
+  PRE_COMMIT_SHIM,
+  REFERENCE_TRANSACTION_SHIM,
+} from "./shims.ts";
 
 export type InstallItemStatus = "written" | "unchanged" | "conflict";
 
@@ -49,6 +53,11 @@ const SHIMS: readonly Shim[] = [
     earlierReleases: [
       "c8516a24ea300186603b86e8e5f1fe758774796a76248657fa5e5600346ae729",
     ],
+  },
+  {
+    name: "commit-msg",
+    content: COMMIT_MSG_SHIM,
+    earlierReleases: [],
   },
   {
     name: "reference-transaction",
