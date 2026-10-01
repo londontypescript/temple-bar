@@ -12,7 +12,7 @@ import type { Context } from "../../context.ts";
 import type { GhResult } from "../../seams/gh.ts";
 import { createFsSeam } from "../../seams/fs.ts";
 import { createGitSeam } from "../../seams/git.ts";
-import { createFakeWriter } from "../../testing/fakes.ts";
+import { createFakeHttp, createFakeWriter } from "../../testing/fakes.ts";
 import { configureTestRepo } from "../../testing/git-repo.ts";
 import type { MergeDeps } from "../run.ts";
 
@@ -173,6 +173,7 @@ export function context(cwd: string, gh: Context["gh"]) {
       confirm: () => Promise.resolve("no-terminal"),
     },
     proc: { run: () => Promise.resolve(0) },
+    http: createFakeHttp(),
     stdout,
     stderr,
     cwd,
