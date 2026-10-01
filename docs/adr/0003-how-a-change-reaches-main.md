@@ -1,7 +1,7 @@
 # ADR 0003: How a change reaches `main`
 
-Date: 2026-10-01. Status: accepted (decisions 4, 17, 18, 24, 33 and 35; 33 and
-35 are decided but not built yet).
+Date: 2026-10-01. Status: accepted (decisions 4, 17, 18, 24, 33 and 35; 35
+is decided but not built yet).
 
 ## Context
 
@@ -76,9 +76,14 @@ says "the orchestrator" today because harnesses stay neutral (decision 31).
 CodeQL, refuses while code-scanning alerts are open, merges with a written
 squash message, then removes the worktree and the local branch and confirms
 the remote branch is gone. It blocks until done, so it works under any
-harness, including one that can't be woken when checks finish. Not built yet:
-[#64](https://github.com/londontypescript/temple-bar/issues/64). Until it
-ships, AGENTS.md §2 states these steps as prose.
+harness, including one that can't be woken when checks finish. A branch
+that's behind the default branch is brought up to date by merging the
+default branch into it and pushing normally, never by rewriting it. A change
+to AGENTS.md or to the pinned temple-bar needs `--maintainer-approved`, which
+is passed only after the maintainer's yes in chat, and the command never
+bypasses the ruleset. Built in 0.0.5
+([#64](https://github.com/londontypescript/temple-bar/issues/64)); this repo
+uses it once it pins that release.
 
 ## What would end it
 
