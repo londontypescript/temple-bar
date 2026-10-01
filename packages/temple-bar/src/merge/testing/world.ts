@@ -255,7 +255,12 @@ export function harness(world: World): Harness {
       now += ms;
       return Promise.resolve();
     },
-    timing: { pollMs: 1_000, headAttempts: 3, checksTimeoutMs: 5_000 },
+    timing: {
+      pollMs: 1_000,
+      headAttempts: 3,
+      checksTimeoutMs: 5_000,
+      noChecksMs: 2_000,
+    },
   };
   const startsWith = (
     args: readonly string[],
