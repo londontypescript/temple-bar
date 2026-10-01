@@ -1,7 +1,9 @@
 // `init`'s hard stops: every missing requirement, and every declined or
-// impossible repo creation, ends the run before anything is written.
+// impossible repo creation, ends the run before anything is written except
+// .gitignore, which has to cover the node_modules/ already installed.
 
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 
 import { createFakeFs, createFakeGh, createFakeGit } from "../testing/fakes.ts";
@@ -56,7 +58,7 @@ void test("init: gh not signed in stops with the exact fix, writing nothing", as
   assert.match(fixture.stderr.lines.join(""), /gh auth login/);
 });
 
-void test("init: origin pointing at a non-GitHub host stops with the exact fix, writing nothing", async () => {
+void test("init: origin pointing at a non-GitHub host stops with the exact fix, writing only .gitignore", async () => {
   const git = createFakeGit((args) => {
     if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
       return { code: 0, stdout: "/repo\n", stderr: "" };
@@ -74,11 +76,16 @@ void test("init: origin pointing at a non-GitHub host stops with the exact fix, 
   const fixture = makeFixture({ git, fs });
   const code = await runInitFor(fixture);
   assert.equal(code, 1);
-  assert.equal(fs.writes.length, 0);
+  // Only .gitignore: node_modules/ is already there by now, so it must
+  // be ignored even when setup stops here.
+  assert.deepEqual(
+    fs.writes.map((w) => w.path),
+    [path.normalize("/repo/.gitignore")],
+  );
   assert.match(fixture.stderr.lines.join(""), /doesn't point at GitHub/);
 });
 
-void test("init: repo creation declined with 'no' stops, writing nothing", async () => {
+void test("init: repo creation declined with 'no' stops, writing only .gitignore", async () => {
   const git = createFakeGit((args) => {
     if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
       return { code: 0, stdout: "/repo\n", stderr: "" };
@@ -92,10 +99,15 @@ void test("init: repo creation declined with 'no' stops, writing nothing", async
   const fixture = makeFixture({ git, fs }, "no");
   const code = await runInitFor(fixture);
   assert.equal(code, 1);
-  assert.equal(fs.writes.length, 0);
+  // Only .gitignore: node_modules/ is already there by now, so it must
+  // be ignored even when setup stops here.
+  assert.deepEqual(
+    fs.writes.map((w) => w.path),
+    [path.normalize("/repo/.gitignore")],
+  );
 });
 
-void test("init: repo creation declined because there's no terminal stops, writing nothing", async () => {
+void test("init: repo creation declined because there's no terminal stops, writing only .gitignore", async () => {
   const git = createFakeGit((args) => {
     if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
       return { code: 0, stdout: "/repo\n", stderr: "" };
@@ -109,5 +121,10 @@ void test("init: repo creation declined because there's no terminal stops, writi
   const fixture = makeFixture({ git, fs }, "no-terminal");
   const code = await runInitFor(fixture);
   assert.equal(code, 1);
-  assert.equal(fs.writes.length, 0);
+  // Only .gitignore: node_modules/ is already there by now, so it must
+  // be ignored even when setup stops here.
+  assert.deepEqual(
+    fs.writes.map((w) => w.path),
+    [path.normalize("/repo/.gitignore")],
+  );
 });

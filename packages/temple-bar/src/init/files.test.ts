@@ -113,8 +113,8 @@ void test("ensureGitignore: creates the file with every required line", async ()
   for (const line of GITIGNORE_LINES) {
     assert.ok(lines.includes(line), line);
   }
-  assert.ok(lines.includes("node_modules/"));
-  assert.ok(lines.includes("!.env.example"));
+  assert.ok(lines.includes("# Dependencies and build output"));
+  assert.ok(lines.includes(".temple-bar/"));
 });
 
 void test("ensureGitignore: appends only missing lines, keeps the rest in order, and a second run writes nothing", async () => {
@@ -123,7 +123,11 @@ void test("ensureGitignore: appends only missing lines, keeps the rest in order,
   const ctx = createFakeContext({ fs });
   assert.equal(await ensureGitignore(ctx, "/repo"), true);
   const after = fs.files.get("/repo/.gitignore") ?? "";
-  assert.ok(after.startsWith(`${original}\n.env.*\n`), after);
+  // dist/ and node_modules/ were already there, so they aren't repeated.
+  assert.ok(
+    after.startsWith(`${original}\n\n# Added by temple-bar\ncoverage/\n`),
+    after,
+  );
   assert.equal(
     after.split("\n").filter((l) => l === "node_modules/").length,
     1,
@@ -131,4 +135,20 @@ void test("ensureGitignore: appends only missing lines, keeps the rest in order,
   const writes = fs.writes.length;
   assert.equal(await ensureGitignore(ctx, "/repo"), false);
   assert.equal(fs.writes.length, writes);
+});
+
+void test("ensurePackageJsonScripts keeps the file's indent and final newline", async () => {
+  for (const [indent, newline] of [
+    ["\t", "\n"],
+    ["    ", "\n"],
+    ["  ", ""],
+  ] as const) {
+    const original = `${JSON.stringify({ name: "x" }, null, indent)}${newline}`;
+    const fs = createFakeFs({ "/repo/package.json": original });
+    const ctx = createFakeContext({ fs });
+    await ensurePackageJsonScripts(ctx, "/repo");
+    const after = fs.files.get("/repo/package.json") ?? "";
+    assert.ok(after.includes(`\n${indent}"scripts": {`), JSON.stringify(after));
+    assert.equal(after.endsWith("\n"), newline === "\n");
+  }
 });
