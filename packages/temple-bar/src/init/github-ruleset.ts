@@ -1,7 +1,6 @@
 // Offers to create the `main` ruleset: pull request required (squash merge
-// only), 0 approvals, linear history, signed commits, branches up to date
-// before merging, no force-push, no deletion, targets the default branch, no
-// bypass. Only an explicit yes (the prompt, or the --create-ruleset flag an
+// only), 0 approvals, linear history, signed commits, no force-push, no
+// deletion, targets the default branch, no bypass. Only an explicit yes (the prompt, or the --create-ruleset flag an
 // agent passes after the user said yes in chat) creates it. With no
 // terminal, or when creation fails, the manual steps are printed and `init`
 // ends non-zero, so an unprotected repo never looks set up.
@@ -15,8 +14,6 @@ export const MANUAL_RULESET_STEPS =
   "  - requires a pull request before merging, with 0 required approvals,\n" +
   "    and allows squash merges only\n" +
   "  - requires linear history and signed commits\n" +
-  "  - requires branches to be up to date before merging (add a required\n" +
-  '    status check, and tick "Require branches to be up to date")\n' +
   "  - blocks force pushes\n" +
   "  - restricts deletions\n" +
   "  - has no bypass list";
@@ -24,8 +21,7 @@ export const MANUAL_RULESET_STEPS =
 export function rulesetQuestion(): string {
   return (
     "Create the `main` ruleset on GitHub now (pull request required, " +
-    "squash merges only, linear history, signed commits, branches up to " +
-    "date, no force-push, no deletion, no bypass)?"
+    "squash merges only, linear history, signed commits, no force-push, no deletion, no bypass)?"
   );
 }
 
@@ -77,17 +73,9 @@ export function rulesetBody(): object {
       },
       { type: "required_linear_history" },
       { type: "required_signatures" },
-      {
-        // Without strict, a pull request that passed CI on an older main
-        // can merge untested against the current one. The list of checks
-        // is empty because setup can't know a repo's check names; the
-        // policy starts to bite once a check is added to it.
-        type: "required_status_checks",
-        parameters: {
-          strict_required_status_checks_policy: true,
-          required_status_checks: [],
-        },
-      },
+      // No "branches up to date" rule yet: GitHub's version only acts on
+      // named required checks, and setup can't know a repo's check names.
+      // It arrives with the judge workflow, whose check name setup knows.
     ],
   };
 }

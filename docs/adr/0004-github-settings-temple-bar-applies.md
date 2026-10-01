@@ -24,11 +24,12 @@ settled in [#121](https://github.com/londontypescript/temple-bar/issues/121)),
 and the rulesets require signed commits. This repo's ruleset has done so since
 2026-10-01. The ruleset setup creates on a new repo now contains: no deletion,
 no force push, a pull request required with 0 approvals and squash as the
-only merge method, linear history, signed commits, and branches up to date
-before merging (`strict_required_status_checks_policy`). It targets the
-default branch with no bypass. The list of required checks starts empty,
-because setup can't know a repo's check names, so the up-to-date rule only
-bites once a check is added to it. The definition lives in one place,
+only merge method, linear history and signed commits. It targets the
+default branch with no bypass. Requiring branches to be up to date waits for
+the judge ([ADR 0011](0011-which-checks-judge-a-pull-request.md)): GitHub's
+rule only acts on named required checks, and setup can't know a repo's check
+names until it installs the judge's
+([#148](https://github.com/londontypescript/temple-bar/issues/148)). The definition lives in one place,
 `rulesetBody()` in `github-ruleset.ts`. The gate's check that these rules are
 still in place is not built yet
 ([#45](https://github.com/londontypescript/temple-bar/issues/45)). When it is,

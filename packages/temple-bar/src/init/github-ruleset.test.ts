@@ -45,23 +45,17 @@ void test("rulesetBody: the pull_request rule itself requires 0 approvals, and f
     "pull_request",
     "required_linear_history",
     "required_signatures",
-    "required_status_checks",
   ]);
   const pullRequest = body.rules.find((rule) => rule.type === "pull_request");
   assert.equal(pullRequest?.parameters?.required_approving_review_count, 0);
 });
 
-void test("rulesetBody: squash is the only merge method, and branches must be up to date before merging", () => {
+void test("rulesetBody: squash is the only merge method", () => {
   const body = rulesetBody() as {
     rules: { type: string; parameters?: Record<string, unknown> }[];
   };
   const pullRequest = body.rules.find((rule) => rule.type === "pull_request");
   assert.deepEqual(pullRequest?.parameters?.allowed_merge_methods, ["squash"]);
-  const checks = body.rules.find(
-    (rule) => rule.type === "required_status_checks",
-  );
-  assert.equal(checks?.parameters?.strict_required_status_checks_policy, true);
-  assert.deepEqual(checks.parameters.required_status_checks, []);
 });
 
 void test("offerRuleset: approved (--create-ruleset) creates with no prompt, even with no terminal", async () => {
