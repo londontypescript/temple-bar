@@ -65,3 +65,12 @@ void test("co-authors are listed once each, compared without case, in first-seen
     "origin/main..HEAD",
   ]);
 });
+
+void test("topLevelBullets skips bullets inside comments and fenced code, and after an unclosed comment", () => {
+  assert.deepEqual(
+    topLevelBullets(
+      "- kept\n<!--\n- hidden\n-->\n```\n- example\n```\n- also kept\n<!-- unclosed\n- gone",
+    ),
+    ["kept", "also kept"],
+  );
+});

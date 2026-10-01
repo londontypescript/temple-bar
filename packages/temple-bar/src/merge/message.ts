@@ -8,9 +8,39 @@ import type { Context } from "../context.ts";
 import { refuse } from "./refusal.ts";
 
 /** HTML comments and fenced code hold template text and examples, never
- * the description's own bullets, so they are dropped before reading. */
+ * the description's own bullets, so they are stepped over while reading.
+ * An unclosed one hides the rest of the text, as it does when GitHub
+ * renders it. Scanning by position, rather than deleting matches, means no
+ * text is ever rebuilt from leftovers around a removed piece. */
 function withoutCommentsAndCode(body: string): string {
-  return body.replace(/<!--[\s\S]*?(?:-->|$)|```[\s\S]*?(?:```|$)/g, "");
+  const pairs = [
+    ["<!--", "-->"],
+    ["```", "```"],
+  ] as const;
+  let kept = "";
+  let from = 0;
+  for (;;) {
+    let start = -1;
+    let close = "";
+    let openLength = 0;
+    for (const [open, end] of pairs) {
+      const at = body.indexOf(open, from);
+      if (at !== -1 && (start === -1 || at < start)) {
+        start = at;
+        close = end;
+        openLength = open.length;
+      }
+    }
+    if (start === -1) {
+      return kept + body.slice(from);
+    }
+    kept += body.slice(from, start);
+    const end = body.indexOf(close, start + openLength);
+    if (end === -1) {
+      return kept;
+    }
+    from = end + close.length;
+  }
 }
 
 /** The description's top-level "- " bullets, each on one line. A bullet
