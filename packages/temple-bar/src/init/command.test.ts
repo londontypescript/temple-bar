@@ -244,7 +244,7 @@ void test("init: in an empty repo, a commit that can't be made stops before the 
   assert.match(fixture.stderr.lines.join(""), /git push -u origin HEAD/);
 });
 
-void test("init: in an empty repo, no changes nothing on GitHub or on disk", async () => {
+void test("init: in an empty repo, no changes nothing on GitHub and writes only .gitignore", async () => {
   const calls: string[] = [];
   const fs = createFakeFs();
   const gh = createFakeGh(defaultGhScript);
@@ -254,7 +254,31 @@ void test("init: in an empty repo, no changes nothing on GitHub or on disk", asy
   );
   const code = await runInitFor(fixture);
   assert.equal(code, 1);
-  assert.equal(fs.writes.length, 0);
+  // Only .gitignore: node_modules/ is already there by now, so it must
+  // be ignored even when setup stops here.
+  assert.deepEqual(
+    fs.writes.map((w) => w.path),
+    [normalize("/repo/.gitignore")],
+  );
   assert.ok(!gh.calls.some((c) => c.args[0] === "repo"));
   assert.ok(!calls.includes("git commit"));
+});
+
+void test("init: records origin's default branch so the hooks protect it", async () => {
+  const git = createFakeGit(defaultGitScript);
+  const ctx = createFakeContext({
+    git,
+    gh: createFakeGh(defaultGhScript),
+    prompt: createFakePrompt({ interactive: false, answer: "no-terminal" }),
+    fs: createFakeFs({}),
+  });
+  await createInitCommand({
+    installHooks: () => Promise.resolve(unchangedReport),
+  }).run([], ctx);
+  assert.ok(
+    git.calls.some(
+      (call) => call.args.join(" ") === "remote set-head origin --auto",
+    ),
+    "init must record origin/HEAD",
+  );
 });

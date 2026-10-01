@@ -19,8 +19,15 @@ and get their approval before writing any code.
 
 ## Branching
 
-\`main\` changes only through pull requests the user merges. Agents push
-branches and open pull requests, never \`main\`.
+The default branch (usually \`main\`) changes only through
+pull requests the user merges. Agents push branches and open pull requests,
+never the default branch.
+
+## Drafts
+
+Plans, drafts and anything else that's local to this checkout go in
+\`.temple-bar/\`, which is never committed. Draft there, agree it with the
+user, then push it once.
 
 ## Staying inside the rules
 
@@ -43,17 +50,48 @@ export async function writeAgentsMdIfMissing(
   return true;
 }
 
-/** Lines setup keeps in .gitignore: dependencies, secrets (but not the
- * committed .env.example), and the two files that are personal to one
- * machine. Without these, the first `git add -A` commits node_modules/. */
-export const GITIGNORE_LINES: readonly string[] = [
-  "node_modules/",
-  ".env",
-  ".env.*",
-  "!.env.example",
-  ".claude/settings.local.json",
-  "CLAUDE.local.md",
+/** What setup keeps in .gitignore, in commented groups: a sensible default
+ * for a TypeScript project on Node. Without it, the first `git add -A`
+ * commits node_modules/. Deliberately left out: `build/` (some projects keep
+ * source there), framework folders such as `.next/` (they belong to the
+ * stack), and editor folders such as `.vscode/` (teams often share them). */
+const GITIGNORE_SECTIONS: readonly {
+  readonly comment: string;
+  readonly lines: readonly string[];
+}[] = [
+  {
+    comment: "Dependencies and build output",
+    lines: ["node_modules/", "dist/", "coverage/", "*.tsbuildinfo", "*.tgz"],
+  },
+  { comment: "Logs", lines: ["*.log"] },
+  {
+    comment: "Env files hold secrets; their .example templates are committed",
+    lines: [".env", ".env.*", "!*.example"],
+  },
+  { comment: "OS files", lines: [".DS_Store", "Thumbs.db"] },
+  {
+    comment: "Personal harness settings, never shared",
+    lines: [".claude/settings.local.json", "CLAUDE.local.md"],
+  },
+  {
+    comment:
+      "This checkout's local working folder: drafts, and anything temple-bar\n" +
+      "# or its agents keep for this checkout only",
+    lines: [".temple-bar/"],
+  },
 ];
+
+/** Every line setup keeps in .gitignore, without the comments. */
+export const GITIGNORE_LINES: readonly string[] = GITIGNORE_SECTIONS.flatMap(
+  (section) => section.lines,
+);
+
+/** A new .gitignore: every group with its comment. */
+function freshGitignore(): string {
+  return `${GITIGNORE_SECTIONS.map(
+    (section) => `# ${section.comment}\n${section.lines.join("\n")}`,
+  ).join("\n\n")}\n`;
+}
 
 /**
  * Creates .gitignore, or appends only the lines it lacks. Existing lines are
@@ -71,11 +109,14 @@ export async function ensureGitignore(
   if (missing.length === 0) {
     return false;
   }
-  const base = existing ?? "";
-  const separator = base === "" || base.endsWith("\n") ? "" : "\n";
+  if (existing === undefined || existing.trim() === "") {
+    await ctx.fs.writeText(filePath, freshGitignore());
+    return true;
+  }
+  const separator = existing.endsWith("\n") ? "\n" : "\n\n";
   await ctx.fs.writeText(
     filePath,
-    `${base}${separator}${missing.join("\n")}\n`,
+    `${existing}${separator}# Added by temple-bar\n${missing.join("\n")}\n`,
   );
   return true;
 }
@@ -164,10 +205,23 @@ export async function ensurePackageJsonScripts(
 
   if (wrote || scriptsChanged) {
     pkg.scripts = scripts;
-    await ctx.fs.writeText(filePath, `${JSON.stringify(pkg, null, 2)}\n`);
+    await ctx.fs.writeText(filePath, formatLike(existing, pkg));
   }
 
   return { wrote: wrote || scriptsChanged, conflicts };
+}
+
+/** Serialises `value` the way `original` was laid out: the same indent (tabs
+ * or any number of spaces) and the same final newline, so adding scripts
+ * doesn't turn into a whole-file formatting diff. A new file gets two spaces
+ * and a final newline. */
+export function formatLike(
+  original: string | undefined,
+  value: unknown,
+): string {
+  const indent = /^([ \t]+)\S/m.exec(original ?? "")?.[1] ?? "  ";
+  const finalNewline = original === undefined || original.endsWith("\n");
+  return `${JSON.stringify(value, null, indent)}${finalNewline ? "\n" : ""}`;
 }
 
 export interface SetupFilesOutcome {

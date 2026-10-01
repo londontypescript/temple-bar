@@ -16,10 +16,35 @@ import {
 } from "./requirements.ts";
 import { offerRepoCreation } from "./github-repo.ts";
 import { offerRuleset } from "./github-ruleset.ts";
-import { writeSetupFiles, type SetupFilesOutcome } from "./files.ts";
+import {
+  ensureGitignore,
+  writeSetupFiles,
+  type SetupFilesOutcome,
+} from "./files.ts";
 import type { InitDeps } from "./types.ts";
 
 export type { InitDeps } from "./types.ts";
+
+/** The hooks protect origin's default branch, which they read from
+ * `refs/remotes/origin/HEAD`. A clone records it, but an origin added by
+ * hand or by `gh repo create` doesn't, and without it the hooks protect
+ * `main`: a repo whose default is `master` would be left unguarded. Asking
+ * GitHub once records it. Not fatal: the message says how to fix it later. */
+async function recordDefaultBranch(
+  ctx: Context,
+  repoRoot: string,
+): Promise<void> {
+  const result = await ctx.git.run(
+    ["remote", "set-head", "origin", "--auto"],
+    repoRoot,
+  );
+  if (result.code !== 0) {
+    ctx.stderr.write(
+      "Couldn't read the default branch from GitHub, so the hooks protect " +
+        "main until `git remote set-head origin --auto` succeeds.\n",
+    );
+  }
+}
 
 /** Resolves origin: either it already exists, or offers to create it. Returns
  * undefined when the run should stop here (message already printed).
@@ -74,6 +99,11 @@ async function runInit(deps: InitDeps, ctx: Context): Promise<number> {
     return 1;
   }
 
+  // By now the launcher has installed temple-bar into node_modules/, so
+  // .gitignore has to cover it even if the run stops at a GitHub question:
+  // otherwise the user's next `git add -A` commits node_modules/.
+  const gitignoreFirst = await ensureGitignore(ctx, repoRoot);
+
   // Written once, whether that happens before the first commit or after the
   // GitHub steps.
   let written: SetupFilesOutcome | undefined;
@@ -84,6 +114,7 @@ async function runInit(deps: InitDeps, ctx: Context): Promise<number> {
   if (!origin) {
     return 1;
   }
+  await recordDefaultBranch(ctx, repoRoot);
 
   let exitCode = 0;
 
@@ -100,7 +131,7 @@ async function runInit(deps: InitDeps, ctx: Context): Promise<number> {
 
   const { wroteGitignore, wroteAgents, packageOutcome } = await writeFiles();
   ctx.stdout.write(
-    wroteGitignore
+    gitignoreFirst || wroteGitignore
       ? "Updated .gitignore.\n"
       : ".gitignore already has the required lines; left it alone.\n",
   );
@@ -151,6 +182,7 @@ async function runInit(deps: InitDeps, ctx: Context): Promise<number> {
   if (exitCode === 0) {
     ctx.stdout.write("temple-bar is set up.\n");
     const changed =
+      gitignoreFirst ||
       wroteGitignore ||
       wroteAgents ||
       packageOutcome.wrote ||
