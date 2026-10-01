@@ -61,7 +61,7 @@ You've been asked to set up temple-bar. Follow these steps exactly.
 
 1. Run `pnpm create @londontypescript/temple-bar@latest` in the repo root. If the folder has no git repo yet, run `git init` first.
 2. If setup reports something missing (`gh` not installed or not signed in, no GitHub remote), **stop and tell the user** exactly what it said. Don't install tools globally and don't work around it.
-3. If setup asks to create a GitHub repository or change GitHub settings, **ask the user** and pass on their answer. Never answer yes on their behalf.
+3. If setup asks to create a GitHub repository or change GitHub settings, **ask the user**. Only if they say yes, run setup again with `--create-repo` or `--create-ruleset` (`pnpm create @londontypescript/temple-bar@latest --create-repo`). Never pass a flag on their behalf.
 4. Don't install the package on its own (`pnpm add -D …`). That leaves the repo unprotected.
 5. When setup finishes, `main` refuses direct commits, so land the setup through a pull request, as setup's output describes. Then read `AGENTS.md` and follow it. For a new project, start by asking the user what they want to build. Then write a plan, and don't scaffold a framework or write code before the user approves it.
 

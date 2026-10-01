@@ -181,3 +181,37 @@ void test("offerRepoCreation: yes with commits but a failing `gh repo create` re
   const outcome = await offerRepoCreation(ctx, "/repo");
   assert.equal(outcome.kind, "failed");
 });
+
+void test("offerRepoCreation: no terminal names the flag an agent passes after asking the user", async () => {
+  const ctx = createFakeContext({
+    prompt: createFakePrompt({ interactive: false, answer: "no-terminal" }),
+    gh: createFakeGh(),
+  });
+  const outcome = await offerRepoCreation(ctx, "/repo");
+  assert.equal(outcome.kind, "declined");
+  assert.match(outcome.message, /--create-repo/);
+});
+
+void test("offerRepoCreation: approved (--create-repo) creates with no prompt, even with no terminal", async () => {
+  let asked = false;
+  const gh = createFakeGh();
+  const ctx = createFakeContext({
+    git: createFakeGit((args) =>
+      args[0] === "remote"
+        ? { code: 0, stdout: "git@github.com:acme/widgets.git\n", stderr: "" }
+        : { code: 0, stdout: "abc\n", stderr: "" },
+    ),
+    prompt: {
+      isInteractive: () => false,
+      confirm: () => {
+        asked = true;
+        return Promise.resolve("no-terminal");
+      },
+    },
+    gh,
+  });
+  const outcome = await offerRepoCreation(ctx, "/repo", undefined, true);
+  assert.equal(outcome.kind, "created");
+  assert.equal(asked, false);
+  assert.equal(gh.calls[0]?.args[0], "repo");
+});

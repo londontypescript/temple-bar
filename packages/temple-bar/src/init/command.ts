@@ -25,6 +25,19 @@ import type { InitDeps } from "./types.ts";
 
 export type { InitDeps } from "./types.ts";
 
+/** Each flag means "the user already said yes in chat" for one question. */
+interface Approvals {
+  readonly createRepo: boolean;
+  readonly createRuleset: boolean;
+}
+
+function parseApprovals(args: readonly string[]): Approvals {
+  return {
+    createRepo: args.includes("--create-repo"),
+    createRuleset: args.includes("--create-ruleset"),
+  };
+}
+
 /** The hooks protect origin's default branch, which they read from
  * `refs/remotes/origin/HEAD`. A clone records it, but an origin added by
  * hand or by `gh repo create` doesn't, and without it the hooks protect
@@ -54,6 +67,7 @@ async function resolveOrigin(
   ctx: Context,
   repoRoot: string,
   writeFiles: () => Promise<unknown>,
+  approved: boolean,
 ): Promise<GithubOrigin | undefined> {
   const originCheck = await checkOrigin(ctx, repoRoot);
 
@@ -65,9 +79,14 @@ async function resolveOrigin(
     return undefined;
   }
 
-  const outcome = await offerRepoCreation(ctx, repoRoot, async () => {
-    await writeFiles();
-  });
+  const outcome = await offerRepoCreation(
+    ctx,
+    repoRoot,
+    async () => {
+      await writeFiles();
+    },
+    approved,
+  );
   if (outcome.kind === "created") {
     ctx.stdout.write("Created the GitHub repository and pushed.\n");
     return outcome.origin;
@@ -79,7 +98,11 @@ async function resolveOrigin(
   return undefined;
 }
 
-async function runInit(deps: InitDeps, ctx: Context): Promise<number> {
+async function runInit(
+  deps: InitDeps,
+  ctx: Context,
+  approvals: Approvals,
+): Promise<number> {
   const repoCheck = await checkGitRepo(ctx, ctx.cwd);
   if (!repoCheck.ok) {
     ctx.stderr.write(`${repoCheck.message}\n`);
@@ -110,7 +133,12 @@ async function runInit(deps: InitDeps, ctx: Context): Promise<number> {
   const writeFiles = async (): Promise<SetupFilesOutcome> =>
     (written ??= await writeSetupFiles(ctx, repoRoot));
 
-  const origin = await resolveOrigin(ctx, repoRoot, writeFiles);
+  const origin = await resolveOrigin(
+    ctx,
+    repoRoot,
+    writeFiles,
+    approvals.createRepo,
+  );
   if (!origin) {
     return 1;
   }
@@ -121,7 +149,12 @@ async function runInit(deps: InitDeps, ctx: Context): Promise<number> {
   // An unprotected main is not "set up": a ruleset that couldn't be created
   // (no terminal, or the API call failed) ends the run non-zero. The local
   // setup below still runs, so a second run only has the ruleset left to do.
-  const rulesetOutcome = await offerRuleset(ctx, repoRoot, origin);
+  const rulesetOutcome = await offerRuleset(
+    ctx,
+    repoRoot,
+    origin,
+    approvals.createRuleset,
+  );
   if (rulesetOutcome.kind === "not-created") {
     ctx.stderr.write(`${rulesetOutcome.message}\n`);
     exitCode = 1;
@@ -210,6 +243,17 @@ export function createInitCommand(deps: InitDeps): CommandEntry {
   return {
     name: "init",
     summary: "Set up temple-bar in this repository.",
-    run: (_args, ctx) => runInit(deps, ctx),
+    args: "[--create-repo] [--create-ruleset]",
+    details:
+      "Asks before creating a GitHub repository or the `main` ruleset. " +
+      "With no terminal to ask in (an agent's shell), nothing is created " +
+      "and setup says which flag to pass.\n\n" +
+      "Options:\n" +
+      "  --create-repo     The user already said yes to creating the GitHub\n" +
+      "                    repository. Answers only that question.\n" +
+      "  --create-ruleset  The user already said yes to creating the `main`\n" +
+      "                    ruleset. Answers only that question.\n\n" +
+      "An agent passes a flag only after the user said yes in chat.",
+    run: (args, ctx) => runInit(deps, ctx, parseApprovals(args)),
   };
 }

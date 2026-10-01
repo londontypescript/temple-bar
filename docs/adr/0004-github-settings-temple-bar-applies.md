@@ -1,7 +1,6 @@
 # ADR 0004: Which GitHub settings temple-bar applies
 
-Date: 2026-10-01. Status: accepted (decisions 25, 34 and 40; 34 is decided
-but not built yet).
+Date: 2026-10-01. Status: accepted (decisions 25, 34 and 40).
 
 ## Context
 
@@ -23,8 +22,24 @@ GitHub on 2026-10-01: a squash merge made by GitHub is signed, but a rebase
 merge made by GitHub is not. So every repo merges by squash only (decision 17,
 settled in [#121](https://github.com/londontypescript/temple-bar/issues/121)),
 and the rulesets require signed commits. This repo's ruleset has done so since
-2026-10-01. Setup applying it to other repos is not built yet:
-[#45](https://github.com/londontypescript/temple-bar/issues/45).
+2026-10-01. The ruleset setup creates on a new repo now contains: no deletion,
+no force push, a pull request required with 0 approvals and squash as the
+only merge method, linear history, signed commits, and branches up to date
+before merging (`strict_required_status_checks_policy`). It targets the
+default branch with no bypass. The list of required checks starts empty,
+because setup can't know a repo's check names, so the up-to-date rule only
+bites once a check is added to it. The definition lives in one place,
+`rulesetBody()` in `github-ruleset.ts`. The gate's check that these rules are
+still in place is not built yet
+([#45](https://github.com/londontypescript/temple-bar/issues/45)). When it is,
+it supports public repos only: on a private repo CI's default token can't read
+rulesets (that needs the Administration read permission), so that case is
+decided when the first private London TypeScript repo comes along.
+
+Creating the ruleset, like creating the repo, needs the user's yes. At a
+terminal setup asks. An agent without one asks the user in chat and reruns
+setup with `--create-ruleset` (or `--create-repo`), each flag answering only
+its own question.
 
 **Decision 40: temple-bar enforces the workflow; it isn't a general GitHub
 settings manager.** It applies and checks a short, fixed list of settings
