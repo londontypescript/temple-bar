@@ -32,22 +32,99 @@ void test("offerRepoCreation: an explicit no prints the command and doesn't touc
   assert.equal(gh.calls.length, 0);
 });
 
-void test("offerRepoCreation: yes but no commits yet stops safely without pushing", async () => {
-  const git = createFakeGit((args) =>
-    args[0] === "rev-parse" && args[1] === "HEAD"
-      ? { code: 128, stdout: "", stderr: "unknown revision" }
-      : { code: 0, stdout: "", stderr: "" },
+function noCommitGit(commitCode: number, calls: string[]) {
+  return createFakeGit((args) => {
+    calls.push(`git ${args.join(" ")}`);
+    if (args[0] === "rev-parse" && args[1] === "HEAD") {
+      return { code: 128, stdout: "", stderr: "unknown revision" };
+    }
+    if (args[0] === "commit") {
+      return commitCode === 0
+        ? { code: 0, stdout: "", stderr: "" }
+        : { code: 1, stdout: "", stderr: "error: gpg failed to sign\nmore" };
+    }
+    if (args[0] === "remote") {
+      return {
+        code: 0,
+        stdout: "git@github.com:acme/widgets.git\n",
+        stderr: "",
+      };
+    }
+    return { code: 0, stdout: "", stderr: "" };
+  });
+}
+
+void test("offerRepoCreation: yes with no commits writes the files, commits, then creates and pushes", async () => {
+  const calls: string[] = [];
+  const gh = createFakeGh((args) => {
+    calls.push(`gh ${args.join(" ")}`);
+    return { code: 0, stdout: "", stderr: "", notFound: false };
+  });
+  const ctx = createFakeContext({
+    prompt: createFakePrompt({ interactive: true, answer: "yes" }),
+    git: noCommitGit(0, calls),
+    gh,
+  });
+  const outcome = await offerRepoCreation(ctx, "/repo/widgets", () => {
+    calls.push("prepare");
+    return Promise.resolve();
+  });
+  assert.equal(outcome.kind, "created");
+  const order = calls.filter(
+    (c) => !c.startsWith("git rev-parse") && !c.startsWith("git remote"),
   );
-  const gh = createFakeGh();
+  assert.deepEqual(order.slice(0, 3), [
+    "prepare",
+    "git add -A",
+    "git commit -m Initial commit",
+  ]);
+  assert.match(order[3] ?? "", /^gh repo create widgets .* --push$/);
+});
+
+void test("offerRepoCreation: a first commit that can't be made still creates the repo, without pushing, and names the one command left", async () => {
+  const calls: string[] = [];
+  const gh = createFakeGh((args) => {
+    calls.push(`gh ${args.join(" ")}`);
+    return { code: 0, stdout: "", stderr: "", notFound: false };
+  });
+  const ctx = createFakeContext({
+    prompt: createFakePrompt({ interactive: true, answer: "yes" }),
+    git: noCommitGit(1, calls),
+    gh,
+  });
+  const outcome = await offerRepoCreation(ctx, "/repo/widgets");
+  assert.equal(outcome.kind, "commit-needed");
+  assert.ok(!calls.some((c) => c.endsWith("--push")), "nothing to push yet");
+  assert.match(outcome.message, /gpg failed to sign/);
+  assert.ok(
+    outcome.message.includes(
+      'git commit -m "Initial commit" && git push -u origin HEAD',
+    ),
+  );
+});
+
+void test("offerRepoCreation: with commits already there it commits nothing", async () => {
+  const calls: string[] = [];
+  const git = createFakeGit((args) => {
+    calls.push(args[0] ?? "");
+    return args[0] === "remote"
+      ? { code: 0, stdout: "git@github.com:acme/widgets.git\n", stderr: "" }
+      : { code: 0, stdout: "abc\n", stderr: "" };
+  });
   const ctx = createFakeContext({
     prompt: createFakePrompt({ interactive: true, answer: "yes" }),
     git,
-    gh,
+    gh: createFakeGh(() => ({
+      code: 0,
+      stdout: "",
+      stderr: "",
+      notFound: false,
+    })),
   });
-  const outcome = await offerRepoCreation(ctx, "/repo");
-  assert.equal(outcome.kind, "no-commits");
-  assert.ok(outcome.message.includes("no commits yet"));
-  assert.equal(gh.calls.length, 0, "must never push with no commits");
+  await offerRepoCreation(ctx, "/repo/widgets", () => {
+    throw new Error("must not prepare");
+  });
+  assert.ok(!calls.includes("add") && !calls.includes("commit"));
 });
 
 void test("offerRepoCreation: yes with commits creates and pushes, returning the parsed origin", async () => {

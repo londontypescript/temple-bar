@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  ensureGitignore,
+  GITIGNORE_LINES,
   ensurePackageJsonScripts,
   GATE_SCRIPT,
   PREPARE_SCRIPT,
@@ -101,4 +103,32 @@ void test("ensurePackageJsonScripts is a no-op the second time (idempotent)", as
   assert.equal(outcome.wrote, false);
   assert.deepEqual(outcome.conflicts, []);
   assert.equal(fs.writes.length, 0);
+});
+
+void test("ensureGitignore: creates the file with every required line", async () => {
+  const fs = createFakeFs();
+  const ctx = createFakeContext({ fs });
+  assert.equal(await ensureGitignore(ctx, "/repo"), true);
+  const lines = (fs.files.get("/repo/.gitignore") ?? "").split("\n");
+  for (const line of GITIGNORE_LINES) {
+    assert.ok(lines.includes(line), line);
+  }
+  assert.ok(lines.includes("node_modules/"));
+  assert.ok(lines.includes("!.env.example"));
+});
+
+void test("ensureGitignore: appends only missing lines, keeps the rest in order, and a second run writes nothing", async () => {
+  const original = "dist/\n# mine\nnode_modules/\n.env";
+  const fs = createFakeFs({ "/repo/.gitignore": original });
+  const ctx = createFakeContext({ fs });
+  assert.equal(await ensureGitignore(ctx, "/repo"), true);
+  const after = fs.files.get("/repo/.gitignore") ?? "";
+  assert.ok(after.startsWith(`${original}\n.env.*\n`), after);
+  assert.equal(
+    after.split("\n").filter((l) => l === "node_modules/").length,
+    1,
+  );
+  const writes = fs.writes.length;
+  assert.equal(await ensureGitignore(ctx, "/repo"), false);
+  assert.equal(fs.writes.length, writes);
 });

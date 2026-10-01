@@ -3,7 +3,7 @@ import { normalize } from "node:path";
 import test from "node:test";
 
 import { createInitCommand } from "./command.ts";
-import { GATE_SCRIPT, PREPARE_SCRIPT } from "./files.ts";
+import { GATE_SCRIPT, GITIGNORE_LINES, PREPARE_SCRIPT } from "./files.ts";
 import {
   createFakeContext,
   createFakeFs,
@@ -49,6 +49,7 @@ void test("init: an existing project with other scripts gets AGENTS.md and the t
 void test("init: a second run changes nothing", async () => {
   const fs = createFakeFs({
     "/repo/AGENTS.md": "# already set up\n",
+    "/repo/.gitignore": `${GITIGNORE_LINES.join("\n")}\n`,
     "/repo/package.json": JSON.stringify({
       name: "widgets",
       scripts: { prepare: PREPARE_SCRIPT, gate: GATE_SCRIPT },
@@ -180,4 +181,80 @@ void test("init: hook install conflicts make the final exit code non-zero", asyn
   const code = await command.run([], fixture.ctx);
   assert.equal(code, 1);
   assert.match(fixture.stderr.lines.join(""), /\.githooks\/pre-commit/);
+});
+
+function emptyRepoGit(calls: string[], commitFails: boolean) {
+  let remoteCalls = 0;
+  return createFakeGit((args) => {
+    calls.push(`git ${args[0] ?? ""}`);
+    if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
+      return { code: 0, stdout: "/repo\n", stderr: "" };
+    }
+    if (args[0] === "rev-parse" && args[1] === "HEAD") {
+      return { code: 128, stdout: "", stderr: "unknown revision" };
+    }
+    if (args[0] === "commit" && commitFails) {
+      return { code: 1, stdout: "", stderr: "gpg failed to sign" };
+    }
+    if (args[0] === "remote") {
+      remoteCalls += 1;
+      return remoteCalls === 1
+        ? { code: 1, stdout: "", stderr: "no such remote" }
+        : { code: 0, stdout: "git@github.com:acme/widgets.git\n", stderr: "" };
+    }
+    return { code: 0, stdout: "", stderr: "" };
+  });
+}
+
+void test("init: in an empty repo, yes puts .gitignore in the first commit and installs hooks only afterwards", async () => {
+  const calls: string[] = [];
+  const fs = createFakeFs();
+  const fixture = makeFixture({ git: emptyRepoGit(calls, false), fs }, "yes");
+  const commitSawGitignore: boolean[] = [];
+  const base = fixture.ctx.git;
+  const ctx = {
+    ...fixture.ctx,
+    git: {
+      run: (args: readonly string[], cwd: string) => {
+        if (args[0] === "commit") {
+          commitSawGitignore.push(
+            (fs.files.get("/repo/.gitignore") ?? "").includes("node_modules/"),
+          );
+          assert.equal(fixture.hookCalls.calls, 0, "hooks would refuse it");
+        }
+        return base.run(args, cwd);
+      },
+    },
+  };
+  const code = await runInitFor({ ...fixture, ctx });
+  assert.equal(code, 0);
+  assert.deepEqual(commitSawGitignore, [true]);
+  assert.equal(fixture.hookCalls.calls, 1);
+  assert.ok(calls.includes("git add") && calls.includes("git commit"));
+});
+
+void test("init: in an empty repo, a commit that can't be made stops before the hooks and names the command", async () => {
+  const fixture = makeFixture(
+    { git: emptyRepoGit([], true), fs: createFakeFs() },
+    "yes",
+  );
+  const code = await runInitFor(fixture);
+  assert.equal(code, 1);
+  assert.equal(fixture.hookCalls.calls, 0);
+  assert.match(fixture.stderr.lines.join(""), /git push -u origin HEAD/);
+});
+
+void test("init: in an empty repo, no changes nothing on GitHub or on disk", async () => {
+  const calls: string[] = [];
+  const fs = createFakeFs();
+  const gh = createFakeGh(defaultGhScript);
+  const fixture = makeFixture(
+    { git: emptyRepoGit(calls, false), fs, gh },
+    "no",
+  );
+  const code = await runInitFor(fixture);
+  assert.equal(code, 1);
+  assert.equal(fs.writes.length, 0);
+  assert.ok(!gh.calls.some((c) => c.args[0] === "repo"));
+  assert.ok(!calls.includes("git commit"));
 });
