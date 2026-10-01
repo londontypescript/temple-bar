@@ -26,6 +26,7 @@ void test("install: writes both shims and both config values", () => {
     assert.equal(result.code, 0);
     assert.match(result.stdout, /written: \.githooks\/pre-commit/);
     assert.match(result.stdout, /written: \.githooks\/commit-msg/);
+    assert.match(result.stdout, /written: \.githooks\/pre-push/);
     assert.match(result.stdout, /written: \.githooks\/reference-transaction/);
     assert.match(result.stdout, /written: core\.hooksPath/);
     assert.match(result.stdout, /written: pull\.ff/);
@@ -46,7 +47,12 @@ void test("install: writes both shims and both config values", () => {
     ]).stdout.trim();
     assert.equal(ff, "only");
 
-    for (const name of ["pre-commit", "commit-msg", "reference-transaction"]) {
+    for (const name of [
+      "pre-commit",
+      "commit-msg",
+      "pre-push",
+      "reference-transaction",
+    ]) {
       const p = path.join(fixture.repoDir, ".githooks", name);
       const content = readFileSync(p, "utf8");
       assert.match(content, /^#!\/bin\/sh/);

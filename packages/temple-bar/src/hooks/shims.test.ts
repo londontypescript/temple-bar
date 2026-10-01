@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   COMMIT_MSG_SHIM,
   PRE_COMMIT_SHIM,
+  PRE_PUSH_SHIM,
   REFERENCE_TRANSACTION_SHIM,
 } from "./shims.ts";
 
@@ -14,6 +15,7 @@ void test("shims: all parse as POSIX sh", () => {
   for (const shim of [
     COMMIT_MSG_SHIM,
     PRE_COMMIT_SHIM,
+    PRE_PUSH_SHIM,
     REFERENCE_TRANSACTION_SHIM,
   ]) {
     const result = spawnSync("sh", ["-n"], { input: shim, encoding: "utf8" });

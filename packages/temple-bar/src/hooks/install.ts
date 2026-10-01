@@ -18,6 +18,7 @@ import type { Context } from "../context.ts";
 import {
   COMMIT_MSG_SHIM,
   PRE_COMMIT_SHIM,
+  PRE_PUSH_SHIM,
   REFERENCE_TRANSACTION_SHIM,
 } from "./shims.ts";
 
@@ -57,6 +58,11 @@ const SHIMS: readonly Shim[] = [
   {
     name: "commit-msg",
     content: COMMIT_MSG_SHIM,
+    earlierReleases: [],
+  },
+  {
+    name: "pre-push",
+    content: PRE_PUSH_SHIM,
     earlierReleases: [],
   },
   {

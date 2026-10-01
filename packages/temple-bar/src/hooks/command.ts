@@ -9,10 +9,11 @@ import { formatUsageLine, type CommandEntry } from "../registry.ts";
 import { commitMsgCheck } from "./commit-msg.ts";
 import { installHooks } from "./install.ts";
 import { preCommitCheck } from "./pre-commit.ts";
+import { prePushCheck } from "./pre-push.ts";
 import { referenceTransactionCheck } from "./reference-transaction.ts";
 
 const ARGS =
-  "<pre-commit|commit-msg <file>|reference-transaction <state>|install>";
+  "<pre-commit|commit-msg <file>|pre-push <remote> <url>|reference-transaction <state>|install>";
 const USAGE = `${formatUsageLine("hook", ARGS)}\n`;
 
 async function findRepoRoot(ctx: Context): Promise<string | undefined> {
@@ -36,7 +37,7 @@ async function runInstall(ctx: Context): Promise<number> {
 }
 
 /**
- * `readStdin` is only called for `reference-transaction`, so `pre-commit`
+ * `readStdin` is only called for `pre-push` and `reference-transaction`, so `pre-commit`
  * and `install` never wait on it. router.ts passes the real reader; unit
  * tests pass their own.
  */
@@ -62,6 +63,11 @@ export function createHookCommand(
           }
           return commitMsgCheck(file, ctx);
         }
+
+        case "pre-push":
+          // The remote's name and URL (rest) aren't needed: what matters is
+          // the refs git lists on stdin.
+          return prePushCheck(await readStdin(), ctx);
 
         case "reference-transaction": {
           const [state] = rest;

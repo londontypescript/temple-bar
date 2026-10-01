@@ -47,6 +47,20 @@ fi
 exec "$bin" hook commit-msg "$1"
 `;
 
+// git passes the remote's name and URL as $1 and $2, and the refs being
+// pushed on stdin, which the hook inherits.
+export const PRE_PUSH_SHIM = `#!/bin/sh
+# Installed by \`temple-bar hook install\`. Do not edit by hand: a second
+# install run only reports a conflict if this content has changed.
+root=$(git rev-parse --show-toplevel) || exit 1
+bin="$root/node_modules/.bin/temple-bar"
+if [ ! -x "$bin" ]; then
+  echo '${NOT_INSTALLED_MESSAGE}' >&2
+  exit 1
+fi
+exec "$bin" hook pre-push "$1" "$2"
+`;
+
 export const REFERENCE_TRANSACTION_SHIM = `#!/bin/sh
 # Installed by \`temple-bar hook install\`. Do not edit by hand: a second
 # install run only reports a conflict if this content has changed.
