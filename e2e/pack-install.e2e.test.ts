@@ -170,6 +170,11 @@ for (const pm of ["pnpm"] as const) {
       assert.equal(pkg.scripts.prepare, "temple-bar hook install");
       assert.ok(existsSync(path.join(dir, "AGENTS.md")));
       assert.ok(existsSync(path.join(dir, ".git", "hooks", "pre-commit")));
+      assert.match(
+        readFileSync(path.join(dir, ".gitignore"), "utf8"),
+        /^\.claude\/worktrees\/$/m,
+        "Claude Code's worktree folder is ignored",
+      );
 
       const onMain = await run(
         "git",
