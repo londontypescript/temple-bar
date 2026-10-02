@@ -67,14 +67,14 @@ for anything that needs their yes (AGENTS.md, plan decisions, a README
 rewrite), finished by the agent otherwise. Never push on the fly while it's being
 discussed.
 
-Until `temple-bar merge` does these steps itself:
+**Merge with `temple-bar merge <N>`.** It brings a branch that's behind
+`main` up to date by merging `main` into it (never rewrite a pushed branch),
+waits for the checks, refuses on open alerts, writes the squash message and
+cleans up.
 
-- After opening a pull request, watch its checks until they finish, then act
-  on the result. Never end on "I'll merge when green" with nothing watching.
-- Check for open code-scanning alerts before merging and again on `main`
-  afterwards.
-- After merging, remove the worktree and the local branch, and confirm the
-  remote branch is gone: `gh` can silently leave it behind.
+**One concern per pull request,** settled when the work is planned. The
+`pre-push` size warning is the last check before the push: split the branch,
+or say in the pull request why it is one concern.
 
 **Commit messages**, and pull request titles and bodies, since a squash merge
 turns them into the commit on `main`:
@@ -125,7 +125,7 @@ kept as a familiar local alias.
   (`npm i -g`, `corepack enable`, `brew install`) and never route around a
   refusal through the user's terminal.
 - **Break-it evidence for every new check:** disable the fix, show the check
-  fail, restore it.
+  fail with its own message (not git's or another check's), then restore it.
 - **Diagnose before working around.** A workaround names its cause. "Flaky" is
   not a diagnosis: reproduce and name the cause, or report it as _needs a
   decision_.
