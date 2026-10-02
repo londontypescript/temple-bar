@@ -23,6 +23,10 @@ Thumbs.db
 .claude/settings.local.json
 CLAUDE.local.md
 
+# Worktrees Claude Code creates inside the repo: each is a whole checkout of
+# another branch, so git and every check skip it
+.claude/worktrees/
+
 # This checkout's local working folder: drafts, and anything temple-bar or
 # its agents keep for this checkout only
 .temple-bar/
