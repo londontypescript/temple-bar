@@ -1,8 +1,8 @@
 # ADR 0005: Setup, hooks and worktrees
 
 Date: 2026-10-01, updated 2026-10-02. Status: accepted (decisions 5, 16, 21,
-22, 30 and 32; 32 is built, while 16's checks and 30 are decided but not
-built yet).
+22, 30 and 32; 32 is built and 30's ignore line ships in 0.0.6, while 16's
+checks and 30's detection are decided but not built yet).
 
 ## Context
 
@@ -51,14 +51,23 @@ The same decision turns the brief's "branch only from a gated commit" into a
 `reference-transaction` check keyed on what a branch is, not its name, so
 renaming a branch can't get round it (theme D).
 
-**Decision 30: the location stays the harness's choice; temple-bar checks the
-harms, for every harness.** Each harness, and each person, puts worktrees
-where its own mechanism does. temple-bar never sets or
-assumes a location. It detects the harms of a worktree nested inside the repo
-(not git-ignored, reached by ESLint or other tools, running on the main
-checkout's `node_modules`) through git alone, so the checks are the same
-whichever tool made it. Its docs recommend keeping worktrees outside the
-repo, and explain why.
+**Decision 30: the location stays the harness's choice; a worktree inside
+the repo is made safe.** Each harness, and each person, puts worktrees where
+its own mechanism does: Claude Code inside the repo at `.claude/worktrees/`,
+Codex and Antigravity outside it by default. temple-bar never sets, assumes or
+recommends a location. Instead, setup git-ignores `.claude/worktrees/`, as
+Claude Code's own docs ask, and the README asks every project to make its own
+checks follow `.gitignore`, so a worktree inside the repo is never linted or
+tested as part of the main checkout. Detecting the harms that remain (a
+nested worktree that isn't git-ignored, is reached by ESLint or other tools,
+or runs on the main checkout's `node_modules`) is still planned, through git
+alone, so the checks are the same whichever tool made it.
+
+Until 2026-10-02 this decision also said the docs would recommend keeping
+worktrees outside the repo. Trying setup by hand showed the cost: Claude
+Code's default, and its docs, put worktrees inside the repo, so that advice
+had every Claude Code user working against their tool. Making the inside
+location safe works for every harness.
 
 **Decision 32: temple-bar sets up every new worktree.** A `post-checkout` hook
 runs when any tool calls `git worktree add`: it installs dependencies with
