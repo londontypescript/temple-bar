@@ -117,6 +117,21 @@ void test("ensureGitignore: creates the file with every required line", async ()
   assert.ok(lines.includes(".temple-bar/"));
 });
 
+void test("ensureGitignore: ignores the folder where Claude Code puts worktrees", async () => {
+  // Claude Code creates worktrees inside the repo. Unignored, each one shows
+  // up as untracked and tools that follow .gitignore would scan its copy.
+  const fs = createFakeFs();
+  const ctx = createFakeContext({ fs });
+  await ensureGitignore(ctx, "/repo");
+  const lines = (fs.files.get("/repo/.gitignore") ?? "").split("\n");
+  assert.ok(lines.includes(".claude/worktrees/"), "fresh .gitignore");
+
+  const existing = createFakeFs({ "/repo/.gitignore": "node_modules/\n" });
+  await ensureGitignore(createFakeContext({ fs: existing }), "/repo");
+  const appended = (existing.files.get("/repo/.gitignore") ?? "").split("\n");
+  assert.ok(appended.includes(".claude/worktrees/"), "existing .gitignore");
+});
+
 void test("ensureGitignore: appends only missing lines, keeps the rest in order, and a second run writes nothing", async () => {
   const original = "dist/\n# mine\nnode_modules/\n.env";
   const fs = createFakeFs({ "/repo/.gitignore": original });

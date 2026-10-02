@@ -75,6 +75,12 @@ const GITIGNORE_SECTIONS: readonly {
   },
   {
     comment:
+      "Worktrees Claude Code creates inside the repo: each is a whole checkout\n" +
+      "# of another branch, so git and every check skip it",
+    lines: [".claude/worktrees/"],
+  },
+  {
+    comment:
       "This checkout's local working folder: drafts, and anything temple-bar\n" +
       "# or its agents keep for this checkout only",
     lines: [".temple-bar/"],
