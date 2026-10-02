@@ -58,12 +58,15 @@ not a date.
 
 **Decision 28: a solid foundation first.** temple-bar and grand-union are the
 foundation of the London TypeScript GitHub org. grand-union starts once
-temple-bar 0.0.7 ships: a first run that works, an enforced merge path, rules
-that can't be quietly weakened, and everything the earlier template did. The
+temple-bar 0.0.8 ships: a first run that works, an enforced merge path,
+worktrees that work safely wherever a tool puts them, rules that can't be
+quietly weakened, and everything the earlier template did. The
 remaining themes continue alongside grand-union, so it starts on a foundation
 that holds rather than waiting for every theme. Until 2026-10-01 this decision
 said every theme (A to F) came first; it changed once the releases up to 0.0.7
-were planned and the rest proved to be later, separable work.
+were planned and the rest proved to be later, separable work. On 2026-10-02
+a small worktree release was inserted as 0.0.6, so the same scope now ends at
+0.0.8.
 
 **Decision 29: working, well-made code first; a showcase second.** The code
 must first work and follow sound standards, in both the code and the

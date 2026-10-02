@@ -56,9 +56,9 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 25  | CodeQL is a required check on the `main` ruleset                                  | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
 | 26  | The test suite runs shut off from the machine's git config                        | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
 | 27  | _Superseded by 37._ A gitignored `planning/` folder held progress and the handoff | [0010](../adr/0010-plans-progress-and-incidents.md)       |
-| 28  | grand-union starts once temple-bar 0.0.7 ships; other themes continue alongside   | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 28  | grand-union starts once temple-bar 0.0.8 ships; other themes continue alongside   | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 29  | Working, standards-following code first; a showcase for TypeScript devs second    | [0002](../adr/0002-what-temple-bar-is-for.md)             |
-| 30  | Worktree location stays each harness's choice; harms checked through git alone    | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 30  | Worktree location stays each harness's choice; one inside the repo is made safe   | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 31  | Built for every London TypeScript repo; GitHub, `gh` and pnpm required            | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 32  | A `post-checkout` hook sets up every new worktree                                 | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 33  | `temple-bar merge` does the whole merge, cleanup included                         | [0003](../adr/0003-how-a-change-reaches-main.md)          |
