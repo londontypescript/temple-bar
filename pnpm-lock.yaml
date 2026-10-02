@@ -12,8 +12,8 @@ importers:
         specifier: 10.0.1
         version: 10.0.1(eslint@10.11.0)
       '@londontypescript/temple-bar':
-        specifier: 0.0.4
-        version: 0.0.4
+        specifier: 0.0.5
+        version: 0.0.5
       '@types/node':
         specifier: 24.19.0
         version: 24.19.0
@@ -113,8 +113,8 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@londontypescript/temple-bar@0.0.4':
-    resolution: {integrity: sha512-5Eci2/g+WWt+IWRLQRN1onQ6kZd4BIwCfwvBY4SegdFnytxe9dapOB9hcmlApPMM7WlZsjWqjlrTAnfhfKiVRg==}
+  '@londontypescript/temple-bar@0.0.5':
+    resolution: {integrity: sha512-lFfSzBw8oWYXk9SN76X6xLSJN6n8o/48TTT30S9bzleRuNMW7CrBzuO3axrrIWfYbuMuCYxCdHUKJ7DW6RLzKQ==}
     engines: {node: '>=24'}
     hasBin: true
 
@@ -547,7 +547,7 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@londontypescript/temple-bar@0.0.4': {}
+  '@londontypescript/temple-bar@0.0.5': {}
 
   '@types/esrecurse@4.3.1': {}
 
