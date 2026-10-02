@@ -2,6 +2,8 @@ name: CI
 
 on:
   pull_request:
+    # edited: a changed title is checked again.
+    types: [opened, edited, synchronize, reopened]
   push:
     branches:
       - main
@@ -30,6 +32,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          # The pull request size check measures from the base branch.
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
@@ -45,6 +49,18 @@ jobs:
 
       - name: Gate (the pinned, published temple-bar)
         run: pnpm gate
+        env:
+          # The gate's ruleset check reads GitHub, and fails in Actions
+          # without a token rather than hit the anonymous rate limit.
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Pull request title
+        if: github.event_name == 'pull_request'
+        run: pnpm exec temple-bar pr-title
+
+      - name: Pull request size (a warning, never a failure)
+        if: github.event_name == 'pull_request'
+        run: pnpm exec temple-bar pr-size
 
       - name: Build
         run: pnpm build

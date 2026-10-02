@@ -10,7 +10,7 @@ same pull request as any change to a mechanism.
 | `main` changes only through pull requests | GitHub ruleset on `main`                             | **Blocked** on GitHub |
 | No force-push or deletion of `main`       | GitHub ruleset on `main`                             | **Blocked** on GitHub |
 | CI passes before merge                    | required status checks (U6)                          | **Blocked** on GitHub |
-| One concern per pull request              | `temple-bar pr-size` warns, once this repo pins it   | **Warned** only       |
+| One concern per pull request              | `temple-bar pr-size` in CI                           | **Warned** only       |
 | CodeQL passes before merge                | required check, from M2                              | **Blocked** from M2   |
 | Squash merges only on `main`              | ruleset: squash only, linear history; repo settings  | **Blocked** on GitHub |
 | Signed commits on `main`                  | ruleset: required signatures (GitHub signs squashes) | **Blocked** on GitHub |
@@ -20,19 +20,19 @@ same pull request as any change to a mechanism.
 | Delegated file scopes                     | nothing until theme D                                | **Prose only**        |
 | No weakened checks                        | nothing until theme B                                | **Prose only**        |
 | Who merges without asking                 | nothing                                              | **Prose only**        |
-| Commit-message format                     | `commit-msg` hook, once this repo pins it            | **Prose only**        |
-| Pull request title format                 | `temple-bar pr-title` in CI, once this repo pins it  | **Prose only**        |
-| No force-push of a feature branch         | `pre-push` hook, once this repo pins it              | **Prose only**        |
-| Size warned before a push                 | `pre-push` hook, once this repo pins it              | **Prose only**        |
+| Commit-message format                     | `commit-msg` hook; skipped by `--no-verify`          | **Blocked** locally   |
+| Pull request title format                 | `temple-bar pr-title` in CI                          | **Blocked** via CI    |
+| No force-push of a feature branch         | `pre-push` hook; skipped by `--no-verify`            | **Blocked** locally   |
+| Size warned before a push                 | `pre-push` hook                                      | **Warned** only       |
 | Comments in plain words, no plan IDs      | nothing                                              | **Prose only**        |
 | Plan before code                          | nothing                                              | **Prose only**        |
 | Tracker updated per subtask               | nothing                                              | **Prose only**        |
 | Intake stays the user's                   | nothing                                              | **Prose only**        |
 | Whether wide changes mean duplication     | nothing: judgement                                   | **Prose only**        |
-| Worktree per branch; merge steps (§2)     | `temple-bar merge` and `post-checkout`, once pinned  | **Prose only**        |
+| Worktree per branch; merge steps (§2)     | `temple-bar merge`; nothing forces its use           | **Prose only**        |
 | Push once, when finished                  | nothing until `temple-bar ready`                     | **Prose only**        |
-| AGENTS.md within 200 lines and 32 KiB     | the gate from 0.0.5, once this repo pins it          | **Prose only**        |
-| Ruleset not deleted or loosened           | the gate from 0.0.5, once this repo pins it          | **Prose only**        |
+| AGENTS.md within 200 lines and 32 KiB     | the pinned gate in CI                                | **Blocked** via CI    |
+| Ruleset not deleted or loosened           | the pinned gate in CI (public repos)                 | **Blocked** via CI    |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
 
 A rule that exists only as prose is a rule that will eventually be broken. If
