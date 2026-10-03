@@ -1,4 +1,4 @@
-// The npm tools the gate runs, such as markdownlint-cli2: the exact
+// The npm tools the gate runs, knip and markdownlint-cli2: the exact
 // versions temple-bar itself depends on (pinned by its lockfile), never a
 // copy the project happens to have installed. So every project on the same
 // temple-bar runs the same checks, and a project can't swap in an older or
@@ -8,9 +8,15 @@
 // behind seams, so unit tests hand the gate fakes instead of running the
 // real tools; the end-to-end tests run the real ones.
 
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import type { Context } from "../context.ts";
 
 export interface GateTools {
+  /** Runs knip in ctx.cwd. Resolves its exit code: 0 clean, 1 it found
+   * unused code, anything else it couldn't run. */
+  readonly knip: (ctx: Context, args: readonly string[]) => Promise<number>;
   /** Lints `files` (relative to ctx.cwd) with markdownlint-cli2, using the
    * project's own markdownlint config when it has one and `defaultConfig`
    * when it doesn't. Resolves 0 clean, 1 lint errors, 2 couldn't run. */
@@ -19,6 +25,14 @@ export interface GateTools {
     files: readonly string[],
     defaultConfig: Readonly<Record<string, unknown>>,
   ) => Promise<number>;
+}
+
+/** knip's command-line entry point, inside the copy temple-bar depends on.
+ * knip doesn't export its bin, so it is found from the package's main
+ * module, which lives in dist/ next to bin/. */
+export function knipBinPath(): string {
+  const main = fileURLToPath(import.meta.resolve("knip"));
+  return path.join(path.dirname(main), "..", "bin", "knip.js");
 }
 
 type MarkdownlintMain = (params: {
@@ -47,6 +61,17 @@ const MARKDOWNLINT_MODULE = "markdownlint-cli2";
 
 export function createRealGateTools(): GateTools {
   return {
+    knip(ctx, args) {
+      // knip runs in its own process, on the Node running the gate: it is a
+      // whole program with its own config loading, and its output streams
+      // through the context's writers like any other check's.
+      return ctx.proc.run(process.execPath, [knipBinPath(), ...args], {
+        cwd: ctx.cwd,
+        env: { ...ctx.env, CI: "true" },
+        stdout: ctx.stdout,
+        stderr: ctx.stderr,
+      });
+    },
     async markdownlint(ctx, files, defaultConfig) {
       // In process, so the file list never meets a command-line length
       // limit (Windows allows about 32,000 characters).

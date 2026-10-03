@@ -29,6 +29,7 @@
     "directory": "packages/temple-bar"
   },
   "dependencies": {
+    "knip": "6.39.0",
     "markdownlint-cli2": "0.23.3"
   }
 }

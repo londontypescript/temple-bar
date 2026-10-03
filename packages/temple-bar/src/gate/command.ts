@@ -34,6 +34,7 @@ import {
 } from "./lengths.ts";
 import { runLinkCheck, runMarkdownLint } from "./markdown.ts";
 import { runRulesetCheck } from "./ruleset.ts";
+import { runUnusedCheck } from "./unused.ts";
 import { createRealGateTools, type GateTools } from "./tools.ts";
 import { writeReport, type CheckOutcome } from "./report.ts";
 import {
@@ -212,6 +213,7 @@ async function runGate(ctx: Context, tools: GateTools): Promise<number> {
     await runAgentsSizeCheck(ctx),
     await runMarkdownLint(ctx, tools, listed),
     await runLinkCheck(ctx, listed),
+    await runUnusedCheck(ctx, tools),
     await runRulesetCheck(ctx),
   ];
   writeReport(ctx, outcomes);
@@ -239,7 +241,7 @@ export function createGateCommand(tools: GateTools): CommandEntry {
   return {
     name: "gate",
     summary:
-      "Run the merge gate: stack checks, setup's core, the file-length cap, the AGENTS.md size limit, markdown lint, local links and the branch ruleset.",
+      "Run the merge gate: stack checks, setup's core, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code and the branch ruleset.",
     details: [
       "Once the repo has files of its own (beyond package.json, the lockfile,",
       "AGENTS.md, .gitignore, README.md, LICENSE and temple-bar.config.json),",
@@ -255,7 +257,8 @@ export function createGateCommand(tools: GateTools): CommandEntry {
       "(the project's own config if it has one, else markdownlint's rules",
       "minus layout, which format:check owns), and checks that every local",
       "link and cited path in them names a file git lists; web links are",
-      "never fetched. Reads GitHub's rules for the default branch and",
+      "never fetched. Runs knip (unused files, exports and types) when there",
+      "is a package.json. Reads GitHub's rules for the default branch and",
       "fails if setup's rules are missing or weakened (public repos only; a",
       "private repo, no GitHub origin or no network is skipped, except in",
       "GitHub Actions, where an unreachable API fails). In GitHub Actions it",

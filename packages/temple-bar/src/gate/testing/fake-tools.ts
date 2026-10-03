@@ -9,16 +9,24 @@ import { createGateCommand } from "../command.ts";
 import type { GateTools } from "../tools.ts";
 
 export interface FakeTools extends GateTools {
+  /** The arguments knip was run with, one list per run. */
+  readonly knipRuns: (readonly string[])[];
   /** The file lists markdownlint was given, one per run. */
   readonly linted: (readonly string[])[];
 }
 
 export function createFakeTools(
-  exitCodes: { readonly markdownlint?: number } = {},
+  exitCodes: { readonly knip?: number; readonly markdownlint?: number } = {},
 ): FakeTools {
+  const knipRuns: (readonly string[])[] = [];
   const linted: (readonly string[])[] = [];
   return {
+    knipRuns,
     linted,
+    knip(_ctx, args) {
+      knipRuns.push(args);
+      return Promise.resolve(exitCodes.knip ?? 0);
+    },
     markdownlint(_ctx, files) {
       linted.push(files);
       return Promise.resolve(exitCodes.markdownlint ?? 0);
