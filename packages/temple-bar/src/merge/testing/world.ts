@@ -20,6 +20,16 @@ export const HEAD = "a".repeat(40);
 export const MERGED_IN = "b".repeat(40);
 export const BASE = "c".repeat(40);
 
+/** A check run as GitHub's API returns it. `id` and `started_at` tell
+ * which of several runs with one name is the newest. */
+export interface CheckRun {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  id?: number;
+  started_at?: string | null;
+}
+
 export interface World {
   pr: {
     number: number;
@@ -40,7 +50,7 @@ export interface World {
   /** Extra worktree entries after the primary one, in porcelain form. */
   worktrees: string;
   /** Check runs on each read; the last one repeats. */
-  checkRuns: { name: string; status: string; conclusion: string | null }[][];
+  checkRuns: CheckRun[][];
   statuses: { context: string; state: string }[];
   required: string[];
   alertsForPr: { number: number; rule: string; path: string }[] | "not-set-up";
