@@ -18,65 +18,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createGitSeam } from "../seams/git.ts";
-import { createGhSeam } from "../seams/gh.ts";
-import { createFsSeam } from "../seams/fs.ts";
-import { createProcSeam } from "../seams/proc.ts";
-import {
-  createFakeClock,
-  createFakePrompt,
-  createFakeHttp,
-} from "../testing/fakes.ts";
 import { initTestRepo } from "../testing/git-repo.ts";
-import type { Context } from "../context.ts";
-import { gateCommand } from "./command.ts";
+import { testGateCommand as gateCommand } from "./testing/fake-tools.ts";
 import { detectPackageManager } from "./stack.ts";
-
-function stageAll(dir: string): void {
-  // Untracked-but-not-ignored files are already picked up by
-  // `git ls-files --others --exclude-standard`, but staging keeps the
-  // fixtures closer to a real mid-development repo and exercises
-  // `--cached` too.
-  execFileSync("git", ["add", "-A"], { cwd: dir });
-}
-
-interface Recorded {
-  lines: string[];
-  write(text: string): void;
-}
-
-function recorder(): Recorded {
-  const lines: string[] = [];
-  return {
-    lines,
-    write(text: string) {
-      lines.push(text);
-    },
-  };
-}
-
-function makeContext(cwd: string): {
-  ctx: Context;
-  stdout: Recorded;
-  stderr: Recorded;
-} {
-  const stdout = recorder();
-  const stderr = recorder();
-  const ctx: Context = {
-    git: createGitSeam(),
-    gh: createGhSeam(),
-    http: createFakeHttp(),
-    fs: createFsSeam(),
-    clock: createFakeClock(),
-    prompt: createFakePrompt(),
-    proc: createProcSeam(),
-    stdout,
-    stderr,
-    cwd,
-    env: process.env,
-  };
-  return { ctx, stdout, stderr };
-}
+import { installCore } from "./testing/core-fixture.ts";
+import { realContext, stageAll } from "./testing/real-repo.ts";
 
 function writePackageJson(dir: string, scripts: Record<string, string>): void {
   writeFileSync(
@@ -106,9 +52,10 @@ void test("gate e2e: a passing project (every required script passes) exits 0, l
       test: markerScript("test"),
     });
     writeFileSync(path.join(dir, "index.js"), "module.exports = 1;\n");
+    await installCore(dir);
     stageAll(dir);
 
-    const { ctx, stdout } = makeContext(dir);
+    const { ctx, stdout } = realContext(dir);
     const code = await gateCommand.run([], ctx);
 
     assert.equal(code, 0);
@@ -141,9 +88,10 @@ void test("gate e2e: a failing test script exits 1, but the other scripts still 
       test: markerScript("test", "process.exit(1)"),
     });
     writeFileSync(path.join(dir, "index.js"), "module.exports = 1;\n");
+    await installCore(dir);
     stageAll(dir);
 
-    const { ctx, stderr } = makeContext(dir);
+    const { ctx, stderr } = realContext(dir);
     const code = await gateCommand.run([], ctx);
 
     assert.equal(code, 1);
@@ -167,9 +115,10 @@ void test("gate e2e: code but no scripts in package.json exits 2, naming every r
     initTestRepo(dir);
     writePackageJson(dir, {});
     writeFileSync(path.join(dir, "index.js"), "module.exports = 1;\n");
+    await installCore(dir);
     stageAll(dir);
 
-    const { ctx, stderr } = makeContext(dir);
+    const { ctx, stderr } = realContext(dir);
     const code = await gateCommand.run([], ctx);
 
     assert.equal(code, 2);
@@ -191,9 +140,10 @@ void test("gate e2e: a fresh Rust project with no scripts exits 2 instead of ski
     writeFileSync(path.join(dir, "Cargo.toml"), '[package]\nname = "x"\n');
     mkdirSync(path.join(dir, "src"));
     writeFileSync(path.join(dir, "src", "main.rs"), "fn main() {}\n");
+    await installCore(dir);
     stageAll(dir);
 
-    const { ctx, stderr } = makeContext(dir);
+    const { ctx, stderr } = realContext(dir);
     const code = await gateCommand.run([], ctx);
 
     assert.equal(code, 2);
@@ -216,9 +166,10 @@ void test("gate e2e: scripts that exist still run when another is missing or doe
       test: markerScript("test", "process.exit(1)"),
     });
     writeFileSync(path.join(dir, "index.js"), "module.exports = 1;\n");
+    await installCore(dir);
     stageAll(dir);
 
-    const { ctx, stderr } = makeContext(dir);
+    const { ctx, stderr } = realContext(dir);
     const code = await gateCommand.run([], ctx);
 
     assert.equal(code, 2);
@@ -239,14 +190,15 @@ void test("gate e2e: scripts that exist still run when another is missing or doe
   }
 });
 
-void test("gate e2e: a repo with only a README and no package.json passes", async () => {
+void test("gate e2e: a repo with only a README and setup's files passes", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-docs-"));
   try {
     initTestRepo(dir);
     writeFileSync(path.join(dir, "README.md"), "# Sample\n\nDocs only.\n");
+    await installCore(dir);
     stageAll(dir);
 
-    const { ctx } = makeContext(dir);
+    const { ctx } = realContext(dir);
     const code = await gateCommand.run([], ctx);
 
     assert.equal(code, 0);
@@ -272,9 +224,10 @@ void test("gate e2e: CI=true reaches the scripts", async () => {
       test: requiresCi,
     });
     writeFileSync(path.join(dir, "index.js"), "module.exports = 1;\n");
+    await installCore(dir);
     stageAll(dir);
 
-    const { ctx, stdout } = makeContext(dir);
+    const { ctx, stdout } = realContext(dir);
     const code = await gateCommand.run([], ctx);
 
     assert.equal(code, 0);
@@ -301,7 +254,7 @@ void test("gate e2e: pnpm is detected from packageManager without needing pnpm o
 
     // detectPackageManager is pure: it never runs anything, so this proves
     // detection picks pnpm without pnpm needing to be on PATH.
-    const { ctx } = makeContext(dir);
+    const { ctx } = realContext(dir);
     const manager = await detectPackageManager(ctx, {
       packageManager: "pnpm@10.34.5",
     });
@@ -330,8 +283,11 @@ void test("gate e2e: a nested worktree inside the project leaves the gate passin
     // Give the nested worktree its own oversized, badly-scripted project —
     // none of it should ever be seen by the outer gate.
     writeFileSync(path.join(nestedDir, "big.ts"), "line\n".repeat(1000));
+    // After every commit and the worktree: from here on the hooks run, and
+    // there is no temple-bar for them to find in this temp repo.
+    await installCore(dir);
 
-    const { ctx } = makeContext(dir);
+    const { ctx } = realContext(dir);
     const code = await gateCommand.run([], ctx);
 
     assert.equal(code, 0);
@@ -370,8 +326,10 @@ void test("gate e2e: a committed node_modules with symlinks is not code and neve
       encoding: "utf8",
     });
     assert.equal(modes.match(/^120000 /gm)?.length, 3);
+    // After staging: setup's .gitignore leaves node_modules out of `git add`.
+    await installCore(dir);
 
-    const { ctx, stdout, stderr } = makeContext(dir);
+    const { ctx, stdout, stderr } = realContext(dir);
     const code = await gateCommand.run([], ctx);
 
     assert.equal(code, 0, stderr.lines.join(""));

@@ -27,6 +27,8 @@ import {
   createFakeWriter,
   type FakeWriter,
 } from "../testing/fakes.ts";
+import { CORE_SCRIPTS } from "../gate/testing/core-fixture.ts";
+import { GITIGNORE_LINES } from "../init/files.ts";
 import { readyCommand } from "./command.ts";
 
 const PASS = 'node -e "process.exit(0)"';
@@ -48,7 +50,9 @@ function setUp(testScript: string): HookFixture {
   const manifest = {
     name: "sample",
     private: true,
+    // A set-up project: the gate checks setup's own scripts are in place.
     scripts: {
+      ...CORE_SCRIPTS,
       typecheck: PASS,
       lint: PASS,
       "format:check": PASS,
@@ -62,7 +66,7 @@ function setUp(testScript: string): HookFixture {
   );
   writeFileSync(
     path.join(fixture.repoDir, ".gitignore"),
-    "node_modules/\n",
+    ["node_modules/", ...GITIGNORE_LINES, ""].join("\n"),
     "utf8",
   );
   writeFileSync(path.join(fixture.repoDir, "index.js"), "export {};\n", "utf8");
