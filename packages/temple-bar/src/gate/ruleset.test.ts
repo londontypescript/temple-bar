@@ -7,7 +7,12 @@ import {
   createFakeGit,
   createFakeHttp,
 } from "../testing/fakes.ts";
-import { gateCommand } from "./command.ts";
+import { testGateCommand as gateCommand } from "./testing/fake-tools.ts";
+import {
+  CORE_SCRIPTS,
+  coreFiles,
+  withCoreGit,
+} from "./testing/core-fixture.ts";
 import type { HttpResult } from "../seams/http.ts";
 import { runRulesetCheck } from "./ruleset.ts";
 import {
@@ -349,12 +354,18 @@ void test("gate: a weakened ruleset fails the whole gate and shows in the report
   const stdout = createFakeWriter();
   const stderr = createFakeWriter();
   const ctx = createFakeContext({
-    git: createFakeGit((args) => ({
-      code: 0,
-      stdout: args[0] === "remote" ? `${ORIGIN}\n` : "README.md\n",
-      stderr: "",
-    })),
-    fs: createFakeFs({ "/repo/README.md": "hi\n" }),
+    git: createFakeGit(
+      withCoreGit((args) => ({
+        code: 0,
+        stdout: args[0] === "remote" ? `${ORIGIN}\n` : "README.md\n",
+        stderr: "",
+      })),
+    ),
+    fs: createFakeFs({
+      ...coreFiles(),
+      "/repo/package.json": JSON.stringify({ scripts: CORE_SCRIPTS }),
+      "/repo/README.md": "hi\n",
+    }),
     http: createFakeHttp((url) =>
       url === REPO_URL
         ? json(200, { private: false, default_branch: "main" })
@@ -366,5 +377,5 @@ void test("gate: a weakened ruleset fails the whole gate and shows in the report
   assert.equal(await gateCommand.run([], ctx), 1);
   const text = stderr.lines.join("");
   assert.match(text, /failed +branch ruleset \(weakened pull_request\)/);
-  assert.match(text, /gate: failed: branch ruleset/);
+  assert.match(text, /^gate: failed: branch ruleset$/m);
 });

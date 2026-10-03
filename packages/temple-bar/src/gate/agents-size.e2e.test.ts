@@ -20,7 +20,8 @@ import {
   createFakeHttp,
 } from "../testing/fakes.ts";
 import { initTestRepo } from "../testing/git-repo.ts";
-import { gateCommand } from "./command.ts";
+import { testGateCommand as gateCommand } from "./testing/fake-tools.ts";
+import { installCore } from "./testing/core-fixture.ts";
 
 function linesOf(count: number): string {
   return `${Array.from({ length: count }, (_, i) => `rule ${String(i)}`).join("\n")}\n`;
@@ -52,6 +53,7 @@ void test("gate e2e: a 201-line AGENTS.md is refused, and trimmed to 200 lines i
     initTestRepo(dir);
     writeFileSync(path.join(dir, "README.md"), "hello\n");
     writeFileSync(path.join(dir, "AGENTS.md"), linesOf(201));
+    await installCore(dir);
     execFileSync("git", ["add", "-A"], { cwd: dir });
 
     const over = await runGateIn(dir);
