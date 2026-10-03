@@ -25,14 +25,23 @@ interface PackageJson {
  * the package.json that was packed into the tarball. */
 const PUBLIC_REGISTRY = "https://registry.npmjs.org/";
 
+// An npm package name, optionally scoped: nothing else is passed on, so
+// the request to the public registry can only ever be a package lookup.
+const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+
 async function passThrough(
   name: string,
   accept: string | undefined,
   res: ServerResponse,
 ): Promise<void> {
+  if (!PACKAGE_NAME.test(name)) {
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end('{"error":"not found"}');
+    return;
+  }
   try {
     const upstream = await fetch(
-      `${PUBLIC_REGISTRY}${name.replace("/", "%2f")}`,
+      new URL(encodeURIComponent(name), PUBLIC_REGISTRY),
       { headers: accept === undefined ? {} : { accept } },
     );
     res.writeHead(upstream.status, {
@@ -40,9 +49,9 @@ async function passThrough(
         upstream.headers.get("content-type") ?? "application/json",
     });
     res.end(Buffer.from(await upstream.arrayBuffer()));
-  } catch (error) {
+  } catch {
     res.writeHead(502, { "content-type": "application/json" });
-    res.end(JSON.stringify({ error: String(error) }));
+    res.end('{"error":"the public registry could not be reached"}');
   }
 }
 
