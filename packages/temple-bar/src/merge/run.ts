@@ -3,8 +3,8 @@
 // when checks finish. Each step either passes or stops the merge with a
 // refusal that says what to do; nothing is merged until every step passes.
 //
-// Order matters: things the author must fix (a draft, a missing bullet
-// list, a change that needs the maintainer's yes) are refused before the
+// Order matters: things the author must fix (a draft, a branch that can't
+// be updated, a change that needs the maintainer's yes) are refused before the
 // long wait for checks, so nobody waits half an hour to hear about them.
 
 import type { Context } from "../context.ts";

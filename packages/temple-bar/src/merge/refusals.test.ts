@@ -112,12 +112,6 @@ void test("refuses a change to the pinned temple-bar without the maintainer's ye
   }, /needs the maintainer's yes: it changes the pinned @londontypescript\/temple-bar from 0\.0\.4 to 0\.0\.5/);
 });
 
-void test("refuses a description without top-level bullets", async () => {
-  await refusal((w) => {
-    w.pr.body = "Adds x.\n\n```\n- not a bullet\n```\n";
-  }, /description has no top-level "- " bullets: the squash commit's body is one bullet per distinct change/);
-});
-
 void test("refuses when a check fails, naming the failed checks", async () => {
   await refusal(
     (w) => {

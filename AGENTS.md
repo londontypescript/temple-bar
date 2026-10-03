@@ -86,8 +86,9 @@ turns them into the commit on `main`:
 - The subject names the change, never the trigger ("address feedback").
 - **Squash merges get a written message,** never GitHub's default, which
   concatenates every commit on the branch. Subject: the pull request title
-  with `(#N)`. Body: one bullet per distinct change, plain text readable in
-  `git log`. Each co-author once, at the end.
+  with `(#N)`. Body: the description's bullets, one per distinct change, plain
+  text readable in `git log`; none when the title says it all. Each co-author
+  once, at the end.
 
 ## 3. Delegation
 

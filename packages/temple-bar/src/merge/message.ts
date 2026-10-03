@@ -2,7 +2,8 @@
 // one commit on the default branch, and GitHub's default message pastes in
 // every commit on the branch ("wip", "fix typo", ...). The written message
 // is instead: the title with the pull request number, one bullet per
-// distinct change from the description, and each co-author once at the end.
+// distinct change when the description lists them, and each co-author once
+// at the end.
 
 import type { Context } from "../context.ts";
 import { refuse } from "./refusal.ts";
@@ -118,18 +119,17 @@ export function buildSquashMessage(
   },
   coAuthors: readonly string[],
 ): SquashMessage {
-  const bullets = topLevelBullets(pullRequest.body);
-  if (bullets.length === 0) {
-    refuse(
-      `pull request #${String(pullRequest.number)}'s description has no top-level "- " bullets: ` +
-        "the squash commit's body is one bullet per distinct change, taken from the description. " +
-        "Add them (one per change) and run merge again.",
-    );
-  }
-  const lines = bullets.map((bullet) => `- ${bullet}`);
-  if (coAuthors.length > 0) {
-    lines.push("", ...coAuthors.map((author) => `Co-Authored-By: ${author}`));
-  }
+  // Bullets are optional: a pull request is one concern, so its title can
+  // say everything, and a bullet repeating it adds nothing. The message is
+  // never built from the branch's commits either way.
+  const bullets = topLevelBullets(pullRequest.body).map(
+    (bullet) => `- ${bullet}`,
+  );
+  const trailers = coAuthors.map((author) => `Co-Authored-By: ${author}`);
+  const lines =
+    bullets.length > 0 && trailers.length > 0
+      ? [...bullets, "", ...trailers]
+      : [...bullets, ...trailers];
   return {
     subject: `${pullRequest.title.trim()} (#${String(pullRequest.number)})`,
     body: lines.join("\n"),
