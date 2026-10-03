@@ -55,7 +55,10 @@ before(async () => {
   registry = await serveTarball(manifest, tarballs.templeBar);
   baseEnv = {
     ...createFakeGh(workDir, cleanEnv()),
-    npm_config_registry: registry.url,
+    // Only temple-bar's own scope comes from the local registry, which serves
+    // just the packed tarball; the tools temple-bar depends on come from the
+    // public registry, as they do for a real install.
+    "npm_config_@londontypescript:registry": registry.url,
     npm_config_cache: path.join(workDir, "npm-cache"),
     npm_config_store_dir: path.join(workDir, "pnpm-store"),
     npm_config_cache_dir: path.join(workDir, "pnpm-cache"),
