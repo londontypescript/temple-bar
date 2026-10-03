@@ -45,6 +45,22 @@ void test("the squash message is the title with the number, the bullets, then co
   );
 });
 
+void test("without bullets, the squash message is the title alone, then co-authors", () => {
+  const pullRequest = {
+    number: 12,
+    title: "chore: bump x",
+    body: "Bumps x.\n\n```\n- not a bullet\n```\n",
+  };
+  assert.deepEqual(buildSquashMessage(pullRequest, ["Ada <ada@example.com>"]), {
+    subject: "chore: bump x (#12)",
+    body: "Co-Authored-By: Ada <ada@example.com>",
+  });
+  assert.deepEqual(buildSquashMessage(pullRequest, []), {
+    subject: "chore: bump x (#12)",
+    body: "",
+  });
+});
+
 void test("co-authors are listed once each, compared without case, in first-seen order", async () => {
   const git = createFakeGit(() => ({
     code: 0,

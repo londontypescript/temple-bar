@@ -20,6 +20,16 @@ export const HEAD = "a".repeat(40);
 export const MERGED_IN = "b".repeat(40);
 export const BASE = "c".repeat(40);
 
+/** A check run as GitHub's API returns it. `id` and `started_at` tell
+ * which of several runs with one name is the newest. */
+export interface CheckRun {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  id?: number;
+  started_at?: string | null;
+}
+
 export interface World {
   pr: {
     number: number;
@@ -40,7 +50,7 @@ export interface World {
   /** Extra worktree entries after the primary one, in porcelain form. */
   worktrees: string;
   /** Check runs on each read; the last one repeats. */
-  checkRuns: { name: string; status: string; conclusion: string | null }[][];
+  checkRuns: CheckRun[][];
   statuses: { context: string; state: string }[];
   required: string[];
   alertsForPr: { number: number; rule: string; path: string }[] | "not-set-up";
@@ -48,8 +58,12 @@ export interface World {
   changedFiles: string[];
   packageBefore: string;
   packageAfter: string;
+  /** Other files' contents where the branched-off commit and the head have
+   * them; a missing side doesn't exist there. */
+  otherFiles: Record<string, { before?: string; after?: string }>;
   coAuthors: string;
-  mergeFails: boolean;
+  /** How many merge requests GitHub refuses before it accepts one. */
+  mergeRefusals: number;
   remoteBranchAfterMerge: boolean;
   incidents: number;
 }
@@ -81,9 +95,10 @@ export function defaultWorld(): World {
       '{"devDependencies":{"@londontypescript/temple-bar":"0.0.4"}}',
     packageAfter:
       '{"devDependencies":{"@londontypescript/temple-bar":"0.0.4"}}',
+    otherFiles: {},
     coAuthors:
       "Ada <ada@example.com>\n\nada <ADA@example.com>\nBob <bob@example.com>\n",
-    mergeFails: false,
+    mergeRefusals: 0,
     remoteBranchAfterMerge: false,
     incidents: 3,
   };
@@ -119,6 +134,7 @@ export function harness(world: World): Harness {
   let merged = false;
   let prReads = 0;
   let checkReads = 0;
+  let mergeRequests = 0;
   let tip = world.localTip;
   let remoteDeleted = false;
   let worktreeRemoved = false;
@@ -160,12 +176,20 @@ export function harness(world: World): Harness {
           return ok("1\t1\tsrc/x.ts\0");
         }
         return ok(world.changedFiles.join("\n"));
-      case "show":
-        return ok(
-          rest[0]?.startsWith(BASE) === true
-            ? world.packageBefore
-            : world.packageAfter,
-        );
+      case "show": {
+        const spec = rest[0] ?? "";
+        const file = spec.slice(spec.indexOf(":") + 1);
+        const atBase = spec.startsWith(BASE);
+        if (file === "package.json") {
+          return ok(atBase ? world.packageBefore : world.packageAfter);
+        }
+        const text = atBase
+          ? world.otherFiles[file]?.before
+          : world.otherFiles[file]?.after;
+        return text === undefined
+          ? fail(`fatal: path '${file}' does not exist`)
+          : ok(text);
+      }
       case "log":
         return ok(world.coAuthors);
       case "ls-remote":
@@ -226,7 +250,7 @@ export function harness(world: World): Harness {
       return ok(lines(world.alertsOnDefault));
     }
     if (joined.startsWith("pr merge")) {
-      if (world.mergeFails) {
+      if (mergeRequests++ < world.mergeRefusals) {
         return fail("Repository rule violations found");
       }
       merged = true;
