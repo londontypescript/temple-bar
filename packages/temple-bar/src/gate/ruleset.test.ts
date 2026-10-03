@@ -219,7 +219,7 @@ void test("ruleset check: fails on a missing rule and says how to fix it", async
   assert.equal(outcome.detail, "missing required_signatures");
   const text = stderr.lines.join("");
   assert.match(text, /missing: required_signatures/);
-  assert.match(text, /--create-ruleset/);
+  assert.match(text, /`pnpm exec temple-bar init --create-ruleset`/);
   assert.match(text, /Settings > Rules > Rulesets/);
 });
 
