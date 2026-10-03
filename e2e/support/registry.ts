@@ -6,7 +6,7 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { createServer, type Server } from "node:http";
+import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
 export interface LocalRegistry {
@@ -23,6 +23,29 @@ interface PackageJson {
 
 /** Serves `tarballPath` as `manifest.name@manifest.version`. `manifest` is
  * the package.json that was packed into the tarball. */
+const PUBLIC_REGISTRY = "https://registry.npmjs.org/";
+
+async function passThrough(
+  name: string,
+  accept: string | undefined,
+  res: ServerResponse,
+): Promise<void> {
+  try {
+    const upstream = await fetch(
+      `${PUBLIC_REGISTRY}${name.replace("/", "%2f")}`,
+      { headers: accept === undefined ? {} : { accept } },
+    );
+    res.writeHead(upstream.status, {
+      "content-type":
+        upstream.headers.get("content-type") ?? "application/json",
+    });
+    res.end(Buffer.from(await upstream.arrayBuffer()));
+  } catch (error) {
+    res.writeHead(502, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: String(error) }));
+  }
+}
+
 export function serveTarball(
   manifest: PackageJson & Record<string, unknown>,
   tarballPath: string,
@@ -46,8 +69,12 @@ export function serveTarball(
 
     requested.push(pathname);
     if (pathname !== manifest.name) {
-      res.writeHead(404, { "content-type": "application/json" });
-      res.end('{"error":"not found"}');
+      // Every other package (temple-bar's own dependencies) comes from the
+      // public registry, as it would for a real install. Passing it through
+      // here, rather than pointing only temple-bar's scope at this server,
+      // works on every pnpm version: newer ones ignore a scope registry
+      // given as an environment variable.
+      void passThrough(pathname, req.headers.accept, res);
       return;
     }
 
