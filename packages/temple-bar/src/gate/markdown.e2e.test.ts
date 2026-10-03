@@ -1,4 +1,4 @@
-// The markdown checks with the real markdownlint-cli2 and real repos, run
+// The markdown checks with the real markdownlint and real repos, run
 // through the whole gate: a lint error or a broken local link fails it,
 // and the fixed file passes.
 
@@ -99,7 +99,8 @@ void test("markdown e2e: a lint error fails the gate, and the fixed file passes"
 void test("markdown e2e: a project's own markdownlint config replaces the default", async () => {
   const { dir } = await docsRepo({
     "README.md": "# Sample\n\n### Skipped a level\n",
-    ".markdownlint.jsonc": '{ "heading-increment": false }\n',
+    ".markdownlint.jsonc":
+      '{\n  // off for this project\n  "heading-increment": false,\n}\n',
   });
   try {
     const result = await runGate(dir);

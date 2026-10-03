@@ -51,7 +51,10 @@ four scripts; found in the scaffolder trials.
 
 **Decision 10: base-check tools.** gitleaks comes through a verified download
 (a pinned version and SHA-256 per operating system, cached). npm tools
-(markdownlint-cli2, knip) are package dependencies, pinned by the lockfile. A
+(markdownlint's library, knip) are package dependencies, pinned by the
+lockfile. The library rather than the markdownlint-cli2 command: the gate
+already lists the files, and the command's file matching brought in a
+dependency with an unpatched flaw (Dependabot, 2026-10-03). A
 built-in link check covers local links and cited paths only, so the gate
 never depends on the network for links. Not built yet (theme B).
 
