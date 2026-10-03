@@ -9,29 +9,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createFsSeam } from "../seams/fs.ts";
-import { createGitSeam } from "../seams/git.ts";
-import { createProcSeam } from "../seams/proc.ts";
-import { createFakeContext, createFakeWriter } from "../testing/fakes.ts";
 import { initTestRepo } from "../testing/git-repo.ts";
 import { createGateCommand } from "./command.ts";
 import { installCore } from "./testing/core-fixture.ts";
+import { realContext } from "./testing/real-repo.ts";
 import { createRealGateTools } from "./tools.ts";
 
 const gate = createGateCommand(createRealGateTools());
 
 async function runGate(dir: string) {
-  const stdout = createFakeWriter();
-  const stderr = createFakeWriter();
-  const ctx = createFakeContext({
-    git: createGitSeam(),
-    fs: createFsSeam(),
-    proc: createProcSeam(),
-    stdout,
-    stderr,
-    cwd: dir,
-    env: process.env,
-  });
+  const { ctx, stdout, stderr } = realContext(dir);
   const code = await gate.run([], ctx);
   return { code, out: stdout.lines.join(""), err: stderr.lines.join("") };
 }
