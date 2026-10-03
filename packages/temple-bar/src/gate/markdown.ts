@@ -1,4 +1,4 @@
-// The gate's two markdown checks: markdown lint (markdownlint-cli2) and the
+// The gate's two markdown checks: markdown lint (markdownlint) and the
 // built-in local link check (links.ts). Both read the markdown files git
 // lists, the same file set as every other check, so built output, vendored
 // packages and nested worktrees are never linted.
