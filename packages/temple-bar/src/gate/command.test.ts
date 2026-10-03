@@ -99,7 +99,7 @@ void test("gate: a failing test script exits 1, but the other scripts still run"
   );
 });
 
-void test("gate: code exists but package.json has no scripts exits 2, naming every required script", async () => {
+void test("gate: content exists but package.json has no scripts exits 2, naming every required script", async () => {
   const git = createFakeGit(() => ({
     code: 0,
     stdout: "package.json\nsrc/index.ts\n",
@@ -115,7 +115,7 @@ void test("gate: code exists but package.json has no scripts exits 2, naming eve
   const code = await route(["gate"], ctx, registryWithGate());
 
   assert.equal(code, 2);
-  assert.equal(proc.calls.length, 0, "missing scripts: nothing is run");
+  assert.equal(proc.calls.length, 0, "no script exists, so none is run");
   const text = (ctx.stderr as FakeWriter).lines.join("");
   assert.match(
     text,
@@ -123,7 +123,7 @@ void test("gate: code exists but package.json has no scripts exits 2, naming eve
   );
 });
 
-void test("gate: format:check is required: a project without it exits 2 and runs nothing", async () => {
+void test("gate: format:check is required: a project without it exits 2, and the scripts it has still run", async () => {
   const { typecheck, lint, test: testScript } = ALL_SCRIPTS;
   const { ctx, proc, stderr } = codeProject({
     typecheck,
@@ -134,10 +134,17 @@ void test("gate: format:check is required: a project without it exits 2 and runs
   const code = await route(["gate"], ctx, registryWithGate());
 
   assert.equal(code, 2);
-  assert.equal(proc.calls.length, 0, "missing scripts: nothing is run");
+  assert.deepEqual(
+    proc.calls.map((c) => c.args[1]),
+    ["typecheck", "lint", "test"],
+  );
   const text = stderr.lines.join("");
   assert.match(text, /missing script\(s\): format:check\n/);
-  assert.match(text, /add "format:check" to "scripts" in package\.json/);
+  assert.match(
+    text,
+    /add "format:check" to "scripts" in package\.json: a command that checks the project's formatting/,
+  );
+  assert.match(text, /^ {2}passed {3}typecheck$/m);
   assert.match(text, /^ {2}missing {2}format:check \(not in package\.json\)$/m);
   assert.match(text, /^gate: failed: format:check$/m);
 });
@@ -184,16 +191,18 @@ void test("gate: a failure lists every check the same way, on stderr, and names 
   assert.match(text, /^gate: failed: lint, test$/m);
 });
 
-void test("gate: a docs-only project with no package.json and no code passes on the base check alone", async () => {
+void test("gate: a repo with only its starting files and no package.json passes on the base checks alone", async () => {
   const git = createFakeGit(() => ({
     code: 0,
-    stdout: "README.md\ndocs/plan.md\n",
+    stdout: "README.md\nLICENSE\nAGENTS.md\n.gitignore\n",
     stderr: "",
   }));
   const proc = createFakeProc();
   const fs = createFakeFs({
     "/repo/README.md": SMALL_FILE,
-    "/repo/docs/plan.md": SMALL_FILE,
+    "/repo/LICENSE": SMALL_FILE,
+    "/repo/AGENTS.md": SMALL_FILE,
+    "/repo/.gitignore": SMALL_FILE,
   });
   const ctx = createFakeContext({ git, proc, fs });
 
@@ -225,7 +234,7 @@ void test("gate: the length cap fails the gate even when the stack checks pass",
   assert.match((ctx.stderr as FakeWriter).lines.join(""), /src\/index\.ts/);
 });
 
-void test("gate: a nested worktree's own code doesn't trip codeExists or the length cap (P3.7)", async () => {
+void test("gate: a nested worktree's own code doesn't make the scripts required or trip the length cap", async () => {
   const git = createFakeGit(() => ({
     code: 0,
     stdout: "README.md\nnested-worktree/\n",

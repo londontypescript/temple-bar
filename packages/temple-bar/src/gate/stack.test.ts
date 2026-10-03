@@ -4,11 +4,9 @@ import test from "node:test";
 import {
   createFakeContext,
   createFakeFs,
-  createFakeGit,
   createFakeProc,
 } from "../testing/fakes.ts";
 import {
-  codeExists,
   detectPackageManager,
   missingRequiredScripts,
   readPackageManifest,
@@ -62,36 +60,6 @@ void test("missingRequiredScripts: names each missing script, in the fixed order
 
 void test("missingRequiredScripts: every script is missing when there is no manifest at all", () => {
   assert.deepEqual(missingRequiredScripts(undefined), [...REQUIRED_SCRIPTS]);
-});
-
-void test("codeExists: true when a git-tracked-or-trackable path has a code extension", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "README.md\nsrc/index.ts\n",
-    stderr: "",
-  }));
-  const ctx = createFakeContext({ git });
-  assert.equal(await codeExists(ctx), true);
-});
-
-void test("codeExists: false for a docs-only project", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "README.md\ndocs/plan.md\n",
-    stderr: "",
-  }));
-  const ctx = createFakeContext({ git });
-  assert.equal(await codeExists(ctx), false);
-});
-
-void test("codeExists: a nested worktree's code doesn't count (P3.7), because git lists it as a directory entry", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "README.md\nnested-worktree/\n",
-    stderr: "",
-  }));
-  const ctx = createFakeContext({ git });
-  assert.equal(await codeExists(ctx), false);
 });
 
 void test("detectPackageManager: pnpm from packageManager field, without running anything", async () => {
@@ -148,41 +116,4 @@ void test("runRequiredScripts: runs every script in order, all with CI=true, eve
     assert.equal(call.env.CI, "true");
     assert.equal(call.env.PATH, "/usr/bin");
   }
-});
-
-void test("codeExists: vendored or built code committed by mistake doesn't count, at any depth", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: [
-      "README.md",
-      "node_modules/left-pad/index.js",
-      "packages/app/node_modules/dep/lib.ts",
-      "dist/index.js",
-      "packages/app/coverage/lcov-report/prettify.js",
-      "",
-    ].join("\n"),
-    stderr: "",
-  }));
-  const ctx = createFakeContext({ git });
-  assert.equal(await codeExists(ctx), false);
-});
-
-void test("codeExists: the project's own code still counts next to vendored files", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "node_modules/left-pad/index.js\nsrc/index.ts\n",
-    stderr: "",
-  }));
-  const ctx = createFakeContext({ git });
-  assert.equal(await codeExists(ctx), true);
-});
-
-void test("codeExists: a file merely named like an ignored folder still counts", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "src/dist.ts\nmy_node_modules/x.js\n",
-    stderr: "",
-  }));
-  const ctx = createFakeContext({ git });
-  assert.equal(await codeExists(ctx), true);
 });

@@ -1,8 +1,8 @@
 // Integration tests against real temp git repos and the real seams (git,
 // fs, proc), run with npm so these tests don't need pnpm on PATH. Sample
-// projects from the plan's "done when": one passing, one with a failing
-// test script, one with code but no scripts, one docs-only with no
-// package.json.
+// projects: one passing, one with a failing test script, one with code but
+// no scripts, one in another language, one with scripts missing or doing
+// nothing, and one with only a README and no package.json.
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -183,7 +183,63 @@ void test("gate e2e: code but no scripts in package.json exits 2, naming every r
   }
 });
 
-void test("gate e2e: a docs-only project with no package.json passes", async () => {
+void test("gate e2e: a fresh Rust project with no scripts exits 2 instead of skipping its checks", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-rust-"));
+  try {
+    initTestRepo(dir);
+    writePackageJson(dir, {});
+    writeFileSync(path.join(dir, "Cargo.toml"), '[package]\nname = "x"\n');
+    mkdirSync(path.join(dir, "src"));
+    writeFileSync(path.join(dir, "src", "main.rs"), "fn main() {}\n");
+    stageAll(dir);
+
+    const { ctx, stderr } = makeContext(dir);
+    const code = await gateCommand.run([], ctx);
+
+    assert.equal(code, 2);
+    assert.match(
+      stderr.lines.join(""),
+      /missing script\(s\): typecheck, lint, format:check, test\n/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("gate e2e: scripts that exist still run when another is missing or does nothing", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-gaps-"));
+  try {
+    initTestRepo(dir);
+    writePackageJson(dir, {
+      typecheck: markerScript("typecheck"),
+      lint: "echo ok",
+      test: markerScript("test", "process.exit(1)"),
+    });
+    writeFileSync(path.join(dir, "index.js"), "module.exports = 1;\n");
+    stageAll(dir);
+
+    const { ctx, stderr } = makeContext(dir);
+    const code = await gateCommand.run([], ctx);
+
+    assert.equal(code, 2);
+    for (const name of ["typecheck", "test"]) {
+      assert.equal(
+        existsSync(path.join(dir, `${name}.marker`)),
+        true,
+        `${name} should have run`,
+      );
+    }
+    const text = stderr.lines.join("");
+    assert.match(text, /missing script\(s\): format:check\n/);
+    assert.match(text, /"lint" is "echo ok": replace it with /);
+    assert.match(text, /^ {2}failed {3}test \(exit 1\)$/m);
+    assert.match(text, /^gate: failed: lint, format:check, test$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("gate e2e: a repo with only a README and no package.json passes", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-docs-"));
   try {
     initTestRepo(dir);
@@ -255,7 +311,7 @@ void test("gate e2e: pnpm is detected from packageManager without needing pnpm o
   }
 });
 
-void test("gate e2e: a nested worktree inside the project leaves the gate passing (P3.7)", async () => {
+void test("gate e2e: a nested worktree inside the project leaves the gate passing", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-worktree-"));
   const nestedDir = path.join(dir, "nested-worktree");
   try {
@@ -321,7 +377,10 @@ void test("gate e2e: a committed node_modules with symlinks is not code and neve
     assert.equal(code, 0, stderr.lines.join(""));
     assert.doesNotMatch(stderr.lines.join(""), /EISDIR|missing script/);
     const text = stdout.lines.join("");
-    assert.match(text, /^ {2}skipped {2}typecheck \(no code yet\)$/m);
+    assert.match(
+      text,
+      /^ {2}skipped {2}typecheck \(no content of its own yet\)$/m,
+    );
     assert.match(text, /^gate: passed$/m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
