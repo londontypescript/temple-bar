@@ -277,6 +277,12 @@ export interface Alert {
   readonly path: string;
 }
 
+export function describeAlerts(alerts: readonly Alert[]): string {
+  return alerts
+    .map((alert) => `#${String(alert.number)} ${alert.rule} in ${alert.path}`)
+    .join(", ");
+}
+
 /** Open code-scanning alerts, or "not-set-up" for a repository without code
  * scanning, which has no alerts to block on. Refuses when GitHub can't be
  * read, because "couldn't tell" must not pass for "none open". */

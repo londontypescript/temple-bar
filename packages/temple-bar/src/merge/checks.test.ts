@@ -81,3 +81,82 @@ void test("waits for a check's newest run while an older run of it has passed", 
   assert.match(h.out(), /waiting for gate\n/);
   assert.match(h.out(), /all 1 checks passed/);
 });
+
+// A description edit starts new CI runs, but GitHub takes a moment to
+// create them. Merge run straight after the edit sees only the finished
+// runs from before it, all green, while GitHub's ruleset is already
+// waiting on the new ones and refuses the merge.
+const OLD = run("gate", "success", 1, 0);
+const NEW_RUNNING = run("gate", null, 2, 5);
+
+void test("when GitHub refuses because it started new runs, waits for them and merges", async () => {
+  const world = defaultWorld();
+  world.mergeRefusals = 1;
+  world.checkRuns = [
+    [OLD],
+    [OLD, NEW_RUNNING],
+    [OLD, NEW_RUNNING],
+    [OLD, run("gate", "success", 2, 5)],
+  ];
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
+  assert.match(
+    h.out(),
+    /GitHub refused the merge while checks it started after merge read them were running: gate \(in_progress\)\. Waiting for them, then trying again/,
+  );
+  assert.match(h.out(), /merged #7/);
+  const merges = h.gh.calls.filter(
+    (c) => c.args[0] === "pr" && c.args[1] === "merge",
+  );
+  assert.equal(merges.length, 2);
+});
+
+void test("when the new run fails, refuses naming it", async () => {
+  const world = defaultWorld();
+  world.mergeRefusals = 1;
+  world.checkRuns = [
+    [OLD],
+    [OLD, NEW_RUNNING],
+    [OLD, run("gate", "failure", 2, 5)],
+  ];
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 1);
+  assert.match(h.err(), /checks failed on a+: gate \(failure\)/);
+});
+
+void test("a refusal with no new runs in sight is reported as GitHub gave it", async () => {
+  const world = defaultWorld();
+  world.mergeRefusals = 1;
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 1);
+  assert.match(
+    h.err(),
+    /refused: GitHub refused the merge: Repository rule violations found\n/,
+  );
+  const merges = h.gh.calls.filter(
+    (c) => c.args[0] === "pr" && c.args[1] === "merge",
+  );
+  assert.equal(merges.length, 1, "no retry without new runs");
+});
+
+void test("stops after a bounded number of tries, naming the checks still running", async () => {
+  const world = defaultWorld();
+  world.mergeRefusals = Number.POSITIVE_INFINITY;
+  // Every wait ends green, but each refusal shows another new run.
+  let id = 1;
+  world.checkRuns = Array.from({ length: 12 }, (_, i) =>
+    i % 2 === 0
+      ? [run("gate", "success", id++, i)]
+      : [run("gate", null, id++, i)],
+  );
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 1);
+  assert.match(
+    h.err(),
+    /GitHub refused the merge: Repository rule violations found\. GitHub is still running checks it started after merge read them: gate \(in_progress\)\. Run merge again once they finish\./,
+  );
+  const merges = h.gh.calls.filter(
+    (c) => c.args[0] === "pr" && c.args[1] === "merge",
+  );
+  assert.equal(merges.length, 3);
+});

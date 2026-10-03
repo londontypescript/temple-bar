@@ -8,24 +8,17 @@
 // long wait for checks, so nobody waits half an hour to hear about them.
 
 import type { Context } from "../context.ts";
-import { warnAboutPullRequestSize } from "../pr/size.ts";
-import { reportLeftovers } from "../leftovers/report.ts";
+import { afterMerge } from "./after.ts";
 import { reasonsForMaintainerApproval } from "./approval.ts";
 import {
-  countOpenIncidents,
-  describeGhFailure,
-  readOpenAlerts,
   readPullRequest,
   readRepository,
-  readRequiredChecks,
-  squashMerge,
-  type Alert,
   type PullRequest,
   type Repository,
 } from "./github.ts";
+import { checkAndMerge } from "./land.ts";
 import {
   bringUpToDate,
-  cleanUp,
   fetchOrigin,
   isAncestor,
   resolveCommit,
@@ -35,7 +28,6 @@ import { buildSquashMessage, readCoAuthors } from "./message.ts";
 import { MergeRefusal, refuse } from "./refusal.ts";
 import {
   DEFAULT_TIMING,
-  waitForChecks,
   waitForHead,
   type Sleep,
   type Timing,
@@ -80,47 +72,6 @@ function checkMergeable(
   if (pullRequest.isCrossRepository) {
     refuse(
       `${label} comes from a fork. Merge works on branches in this repository, which it can update and clean up.`,
-    );
-  }
-}
-
-function describeAlerts(alerts: readonly Alert[]): string {
-  return alerts
-    .map((alert) => `#${String(alert.number)} ${alert.rule} in ${alert.path}`)
-    .join(", ");
-}
-
-async function refuseOnOpenAlerts(
-  ctx: Context,
-  repository: Repository,
-  prNumber: number,
-  cwd: string,
-): Promise<void> {
-  const forPullRequest = await readOpenAlerts(
-    ctx,
-    repository,
-    { pr: prNumber },
-    cwd,
-  );
-  const onDefault = await readOpenAlerts(
-    ctx,
-    repository,
-    { branch: repository.defaultBranch },
-    cwd,
-  );
-  if (forPullRequest === "not-set-up" || onDefault === "not-set-up") {
-    ctx.stdout.write(
-      "merge: code scanning isn't set up here, so there are no alerts to check\n",
-    );
-  }
-  if (forPullRequest !== "not-set-up" && forPullRequest.length > 0) {
-    refuse(
-      `pull request #${String(prNumber)} has open code-scanning alerts: ${describeAlerts(forPullRequest)}. Fix them, push, and run merge again.`,
-    );
-  }
-  if (onDefault !== "not-set-up" && onDefault.length > 0) {
-    refuse(
-      `${repository.defaultBranch} has open code-scanning alerts: ${describeAlerts(onDefault)}. Fix or dismiss them before merging more.`,
     );
   }
 }
@@ -220,42 +171,12 @@ async function mergeAndReport(
     await readCoAuthors(ctx, `${upstream}..${sha}`, root),
   );
 
-  const required = await readRequiredChecks(ctx, repository, root);
-  const checks = await waitForChecks(
+  await checkAndMerge(
     ctx,
-    deps.sleep,
-    timing,
-    { repository, sha, required },
+    deps,
+    { repository, prNumber: options.prNumber, sha, upstream, message },
     root,
   );
-  ctx.stdout.write(
-    `merge: all ${String(checks.length)} checks passed on ${sha}\n`,
-  );
-  await refuseOnOpenAlerts(ctx, repository, options.prNumber, root);
-
-  // Advice only: a failure to measure must not stop the merge.
-  await warnAboutPullRequestSize(
-    { ...ctx, cwd: root },
-    { base: upstream, head: sha, prNumber: String(options.prNumber) },
-  ).catch((error: unknown) => {
-    ctx.stdout.write(
-      `merge: could not measure the pull request's size: ${error instanceof Error ? error.message : String(error)}\n`,
-    );
-  });
-
-  const merged = await squashMerge(
-    ctx,
-    {
-      prNumber: options.prNumber,
-      sha,
-      subject: message.subject,
-      body: message.body,
-    },
-    root,
-  );
-  if (merged.code !== 0) {
-    refuse(`GitHub refused the merge: ${describeGhFailure(merged)}`);
-  }
   ctx.stdout.write(
     `merge: merged #${String(options.prNumber)} as "${message.subject}"\n`,
   );
@@ -267,78 +188,6 @@ async function mergeAndReport(
     root,
     prNumber: options.prNumber,
   });
-}
-
-async function afterMerge(
-  ctx: Context,
-  merged: {
-    readonly repository: Repository;
-    readonly branch: string;
-    readonly sha: string;
-    readonly root: string;
-    readonly prNumber: number;
-  },
-): Promise<number> {
-  let exitCode = 0;
-  const state = (await readPullRequest(ctx, merged.prNumber, merged.root))
-    .state;
-  if (state !== "MERGED") {
-    ctx.stderr.write(
-      `merge: GitHub accepted the merge but shows #${String(merged.prNumber)} as ${state}; nothing was cleaned up\n`,
-    );
-    return 1;
-  }
-
-  const cleanup = await cleanUp(ctx, {
-    primaryPath: merged.root,
-    branch: merged.branch,
-    defaultBranch: merged.repository.defaultBranch,
-    mergedSha: merged.sha,
-  });
-  for (const line of cleanup.done) {
-    ctx.stdout.write(`merge: ${line}\n`);
-  }
-  for (const line of cleanup.problems) {
-    ctx.stderr.write(`merge: left behind: ${line}\n`);
-    exitCode = 1;
-  }
-
-  // The analysis of the merge commit itself may still be running, so this
-  // reports what's open now rather than waiting for it.
-  const alerts = await readOpenAlerts(
-    ctx,
-    merged.repository,
-    { branch: merged.repository.defaultBranch },
-    merged.root,
-  ).catch((error: unknown) =>
-    error instanceof Error ? error.message : String(error),
-  );
-  if (typeof alerts === "string" && alerts !== "not-set-up") {
-    ctx.stderr.write(`merge: ${alerts}\n`);
-    exitCode = 1;
-  } else if (Array.isArray(alerts) && alerts.length > 0) {
-    ctx.stderr.write(
-      `merge: ${merged.repository.defaultBranch} has open code-scanning alerts: ${describeAlerts(alerts)}\n`,
-    );
-    exitCode = 1;
-  } else if (Array.isArray(alerts)) {
-    ctx.stdout.write(
-      `merge: no open code-scanning alerts on ${merged.repository.defaultBranch}\n`,
-    );
-  }
-
-  await reportLeftovers(ctx, merged.root, "merge: ").catch((error: unknown) => {
-    ctx.stdout.write(
-      `merge: could not look for leftovers: ${error instanceof Error ? error.message : String(error)}\n`,
-    );
-  });
-  const incidents = await countOpenIncidents(ctx, merged.root);
-  ctx.stdout.write(
-    incidents === undefined
-      ? "merge: could not count the open incident issues\n"
-      : `merge: ${String(incidents)} open issue${incidents === 1 ? "" : "s"} labelled incident\n`,
-  );
-  return exitCode;
 }
 
 /** Runs the merge and turns a refusal into its message and exit code 1. */

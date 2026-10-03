@@ -59,7 +59,8 @@ export interface World {
   packageBefore: string;
   packageAfter: string;
   coAuthors: string;
-  mergeFails: boolean;
+  /** How many merge requests GitHub refuses before it accepts one. */
+  mergeRefusals: number;
   remoteBranchAfterMerge: boolean;
   incidents: number;
 }
@@ -93,7 +94,7 @@ export function defaultWorld(): World {
       '{"devDependencies":{"@londontypescript/temple-bar":"0.0.4"}}',
     coAuthors:
       "Ada <ada@example.com>\n\nada <ADA@example.com>\nBob <bob@example.com>\n",
-    mergeFails: false,
+    mergeRefusals: 0,
     remoteBranchAfterMerge: false,
     incidents: 3,
   };
@@ -129,6 +130,7 @@ export function harness(world: World): Harness {
   let merged = false;
   let prReads = 0;
   let checkReads = 0;
+  let mergeRequests = 0;
   let tip = world.localTip;
   let remoteDeleted = false;
   let worktreeRemoved = false;
@@ -236,7 +238,7 @@ export function harness(world: World): Harness {
       return ok(lines(world.alertsOnDefault));
     }
     if (joined.startsWith("pr merge")) {
-      if (world.mergeFails) {
+      if (mergeRequests++ < world.mergeRefusals) {
         return fail("Repository rule violations found");
       }
       merged = true;

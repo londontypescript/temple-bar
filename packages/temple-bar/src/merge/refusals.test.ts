@@ -175,7 +175,7 @@ void test("refuses while the default branch has open code-scanning alerts", asyn
 
 void test("reports GitHub refusing the merge", async () => {
   const world = defaultWorld();
-  world.mergeFails = true;
+  world.mergeRefusals = Number.POSITIVE_INFINITY;
   const h = harness(world);
   const code = await createMergeCommand(h.deps).run(["7"], h.ctx);
   assert.match(
