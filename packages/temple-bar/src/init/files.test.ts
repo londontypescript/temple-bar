@@ -8,8 +8,35 @@ import {
   GATE_SCRIPT,
   PREPARE_SCRIPT,
   writeAgentsMdIfMissing,
+  writeJudgeWorkflowIfMissing,
 } from "./files.ts";
+import { judgeWorkflow } from "../judge/workflow.ts";
 import { createFakeContext, createFakeFs } from "../testing/fakes.ts";
+
+void test("writeJudgeWorkflowIfMissing writes the judge workflow when there is none", async () => {
+  const fs = createFakeFs();
+  const wrote = await writeJudgeWorkflowIfMissing(
+    createFakeContext({ fs }),
+    "/repo",
+  );
+  assert.equal(wrote, true);
+  assert.equal(
+    fs.files.get("/repo/.github/workflows/temple-bar-judge.yml"),
+    judgeWorkflow(),
+  );
+});
+
+void test("writeJudgeWorkflowIfMissing leaves a copy that differs alone", async () => {
+  const path = "/repo/.github/workflows/temple-bar-judge.yml";
+  const fs = createFakeFs({ [path]: "# reviewed by the maintainer\n" });
+  const wrote = await writeJudgeWorkflowIfMissing(
+    createFakeContext({ fs }),
+    "/repo",
+  );
+  assert.equal(wrote, false);
+  assert.equal(fs.files.get(path), "# reviewed by the maintainer\n");
+  assert.equal(fs.writes.length, 0);
+});
 
 void test("writeAgentsMdIfMissing writes a minimal file when none exists", async () => {
   const fs = createFakeFs();

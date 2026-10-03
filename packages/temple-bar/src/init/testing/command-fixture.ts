@@ -4,6 +4,7 @@
 // (tsconfig.build.json excludes src/**/testing/**).
 
 import { createInitCommand } from "../command.ts";
+import { JUDGE_RULESET_NAME } from "../judge-ruleset.ts";
 import type { InstallReport } from "../../hooks/install.ts";
 import {
   createFakeContext,
@@ -42,12 +43,15 @@ export function defaultGhScript(args: readonly string[]): GhResult {
   if (args.includes("POST")) {
     return { code: 0, stdout: "", stderr: "", notFound: false };
   }
-  // The usual state: main is already protected (a real second run, or a
-  // repo set up by hand), so most tests aren't about the ruleset at all.
+  // The usual state: main is already protected by both rulesets (a real
+  // second run), so most tests aren't about the rulesets at all.
   if (args.some((a) => a.endsWith("/rulesets"))) {
     return {
       code: 0,
-      stdout: '[{"target":"branch"}]',
+      stdout: JSON.stringify([
+        { target: "branch", name: "main: pull requests only" },
+        { target: "branch", name: JUDGE_RULESET_NAME },
+      ]),
       stderr: "",
       notFound: false,
     };

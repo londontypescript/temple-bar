@@ -5,6 +5,7 @@ import test from "node:test";
 import { isConventionalSubject } from "../conventional/subject.ts";
 import { createInitCommand, SETUP_COMMIT_MESSAGE } from "./command.ts";
 import { GATE_SCRIPT, GITIGNORE_LINES, PREPARE_SCRIPT } from "./files.ts";
+import { judgeWorkflow } from "../judge/workflow.ts";
 import {
   createFakeContext,
   createFakeFs,
@@ -51,6 +52,7 @@ void test("init: a second run changes nothing", async () => {
   const fs = createFakeFs({
     "/repo/AGENTS.md": "# already set up\n",
     "/repo/.gitignore": `${GITIGNORE_LINES.join("\n")}\n`,
+    "/repo/.github/workflows/temple-bar-judge.yml": judgeWorkflow(),
     "/repo/package.json": JSON.stringify({
       name: "widgets",
       scripts: { prepare: PREPARE_SCRIPT, gate: GATE_SCRIPT },
@@ -134,7 +136,10 @@ void test("init: a ruleset offer of 'yes' creates the ruleset", async () => {
   const fixture = makeFixture({ gh: createFakeGh(noRulesetGhScript) }, "yes");
   const code = await runInitFor(fixture);
   assert.equal(code, 0);
-  assert.match(fixture.stdout.lines.join(""), /Created the `main` ruleset/);
+  assert.match(
+    fixture.stdout.lines.join(""),
+    /Created the "main: pull requests only" and "main: the judge" rulesets/,
+  );
 });
 
 void test("init: a ruleset offer of 'no' prints the manual settings and continues", async () => {

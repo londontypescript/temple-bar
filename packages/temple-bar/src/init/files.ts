@@ -1,10 +1,12 @@
-// Writes AGENTS.md and package.json (or updates package.json's scripts).
+// Writes AGENTS.md, the judge workflow and package.json (or updates
+// package.json's scripts).
 // Everything here goes through ctx.fs, which has no delete method (N6/N9):
 // nothing is ever overwritten or removed, only created or added to.
 
 import path from "node:path";
 
 import type { Context } from "../context.ts";
+import { JUDGE_WORKFLOW_PATH, judgeWorkflow } from "../judge/workflow.ts";
 import { RERUN_INIT } from "./requirements.ts";
 
 const MINIMAL_AGENTS_MD = `# Agent directives
@@ -47,6 +49,22 @@ export async function writeAgentsMdIfMissing(
     return false;
   }
   await ctx.fs.writeText(filePath, MINIMAL_AGENTS_MD);
+  return true;
+}
+
+/** Writes the judge workflow only if none exists yet; returns whether it
+ * wrote. A copy that differs is left alone, like AGENTS.md: it may be the
+ * maintainer's own reviewed change. */
+export async function writeJudgeWorkflowIfMissing(
+  ctx: Context,
+  repoRoot: string,
+): Promise<boolean> {
+  const filePath = path.join(repoRoot, ...JUDGE_WORKFLOW_PATH.split("/"));
+  if ((await ctx.fs.readText(filePath)) !== undefined) {
+    return false;
+  }
+  await ctx.fs.mkdirp(path.dirname(filePath));
+  await ctx.fs.writeText(filePath, judgeWorkflow());
   return true;
 }
 
@@ -233,6 +251,7 @@ export function formatLike(
 export interface SetupFilesOutcome {
   readonly wroteGitignore: boolean;
   readonly wroteAgents: boolean;
+  readonly wroteJudge: boolean;
   readonly packageOutcome: PackageJsonOutcome;
 }
 
@@ -244,6 +263,7 @@ export async function writeSetupFiles(
 ): Promise<SetupFilesOutcome> {
   const wroteGitignore = await ensureGitignore(ctx, repoRoot);
   const wroteAgents = await writeAgentsMdIfMissing(ctx, repoRoot);
+  const wroteJudge = await writeJudgeWorkflowIfMissing(ctx, repoRoot);
   const packageOutcome = await ensurePackageJsonScripts(ctx, repoRoot);
-  return { wroteGitignore, wroteAgents, packageOutcome };
+  return { wroteGitignore, wroteAgents, wroteJudge, packageOutcome };
 }

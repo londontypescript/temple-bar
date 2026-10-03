@@ -17,6 +17,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { createInitCommand } from "./command.ts";
+import { JUDGE_RULESET_NAME } from "./judge-ruleset.ts";
 import { createRealContext } from "../context.ts";
 import { installHooks } from "../hooks/install.ts";
 import {
@@ -53,7 +54,10 @@ function fakeGhScript(args: readonly string[]): GhResult {
   if (args.some((a) => a.endsWith("/rulesets"))) {
     return {
       code: 0,
-      stdout: '[{"target":"branch"}]',
+      stdout: JSON.stringify([
+        { target: "branch", name: "main: pull requests only" },
+        { target: "branch", name: JUDGE_RULESET_NAME },
+      ]),
       stderr: "",
       notFound: false,
     };
@@ -170,6 +174,7 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
       .split("\n")
       .filter(Boolean);
     assert.deepEqual(tracked, [
+      ".github/workflows/temple-bar-judge.yml",
       ".gitignore",
       "AGENTS.md",
       "keep.txt",
