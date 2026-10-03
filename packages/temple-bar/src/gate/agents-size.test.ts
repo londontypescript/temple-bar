@@ -16,6 +16,11 @@ import {
   measureAgentsFile,
 } from "./agents-size.ts";
 import { gateCommand } from "./command.ts";
+import {
+  CORE_SCRIPTS,
+  coreFiles,
+  withCoreGit,
+} from "./testing/core-fixture.ts";
 
 function linesOf(count: number): string {
   return `${Array.from({ length: count }, () => "x").join("\n")}\n`;
@@ -24,12 +29,18 @@ function linesOf(count: number): string {
 function gateWith(agents: string | undefined) {
   const registry = new CommandRegistry();
   registry.register(gateCommand);
-  const files: Record<string, string> = { "/repo/README.md": "hi\n" };
+  const files: Record<string, string> = {
+    ...coreFiles(),
+    "/repo/package.json": JSON.stringify({ scripts: CORE_SCRIPTS }),
+    "/repo/README.md": "hi\n",
+  };
   if (agents !== undefined) {
     files["/repo/AGENTS.md"] = agents;
   }
   const ctx = createFakeContext({
-    git: createFakeGit(() => ({ code: 0, stdout: "README.md\n", stderr: "" })),
+    git: createFakeGit(
+      withCoreGit(() => ({ code: 0, stdout: "README.md\n", stderr: "" })),
+    ),
     fs: createFakeFs(files),
   });
   return { ctx, registry };

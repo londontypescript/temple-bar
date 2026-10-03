@@ -26,6 +26,7 @@ import {
   AGENTS_MAX_BYTES,
   AGENTS_MAX_LINES,
 } from "./agents-size.ts";
+import { runCoreCheck } from "./core.ts";
 import { checkFileLengths, formatLengthFailure } from "./lengths.ts";
 import { runRulesetCheck } from "./ruleset.ts";
 import { writeReport, type CheckOutcome } from "./report.ts";
@@ -199,6 +200,7 @@ async function runGate(ctx: Context): Promise<number> {
   const stack = await runStackChecks(ctx);
   const outcomes = [
     ...stack.outcomes,
+    await runCoreCheck(ctx),
     await runLengthCheck(ctx),
     await runAgentsSizeCheck(ctx),
     await runRulesetCheck(ctx),
@@ -232,7 +234,10 @@ export const gateCommand: CommandEntry = {
     "AGENTS.md, .gitignore, README.md, LICENSE and temple-bar.config.json),",
     "requires these package.json scripts and runs every one that exists:",
     `${REQUIRED_SCRIPTS.join(", ")}. A script that does nothing (such as`,
-    "`true` or a bare `echo`) fails. Then checks every tracked text file",
+    "`true` or a bare `echo`) fails. Checks that what setup installs is",
+    "still in place: the git hooks (unchanged, by SHA-256), core.hooksPath",
+    "unset, pull.ff=only, setup's .gitignore lines and its prepare and gate",
+    "scripts. Then checks every tracked text file",
     "against the file-length cap (maxFileLines in temple-bar.config.json).",
     "Also checks AGENTS.md stays within 200 lines and 32 KiB (skipped when",
     "there is no AGENTS.md). Reads GitHub's rules for the default branch and",

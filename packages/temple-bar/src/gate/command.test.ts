@@ -13,6 +13,11 @@ import {
 } from "../testing/fakes.ts";
 import { gateCommand } from "./command.ts";
 import { DEFAULT_MAX_FILE_LINES } from "./lengths.ts";
+import {
+  CORE_SCRIPTS,
+  coreFiles,
+  withCoreGit,
+} from "./testing/core-fixture.ts";
 
 function registryWithGate(): CommandRegistry {
   const registry = new CommandRegistry();
@@ -38,14 +43,19 @@ function codeProject(
   stdout: FakeWriter;
   stderr: FakeWriter;
 } {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "package.json\nsrc/index.ts\n",
-    stderr: "",
-  }));
+  const git = createFakeGit(
+    withCoreGit(() => ({
+      code: 0,
+      stdout: "package.json\nsrc/index.ts\n",
+      stderr: "",
+    })),
+  );
   const proc = createFakeProc((call) => exitCodeFor(call.args[1]));
   const fs = createFakeFs({
-    "/repo/package.json": JSON.stringify({ scripts }),
+    ...coreFiles(),
+    "/repo/package.json": JSON.stringify({
+      scripts: { ...CORE_SCRIPTS, ...scripts },
+    }),
     "/repo/src/index.ts": SMALL_FILE,
   });
   const stdout = createFakeWriter();
@@ -55,15 +65,18 @@ function codeProject(
 }
 
 void test("gate: a passing project (stack + length cap both pass) exits 0", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "package.json\nsrc/index.ts\n",
-    stderr: "",
-  }));
+  const git = createFakeGit(
+    withCoreGit(() => ({
+      code: 0,
+      stdout: "package.json\nsrc/index.ts\n",
+      stderr: "",
+    })),
+  );
   const proc = createFakeProc(() => 0);
   const fs = createFakeFs({
+    ...coreFiles(),
     "/repo/package.json": JSON.stringify({
-      scripts: ALL_SCRIPTS,
+      scripts: { ...CORE_SCRIPTS, ...ALL_SCRIPTS },
     }),
     "/repo/src/index.ts": SMALL_FILE,
   });
@@ -76,15 +89,18 @@ void test("gate: a passing project (stack + length cap both pass) exits 0", asyn
 });
 
 void test("gate: a failing test script exits 1, but the other scripts still run", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "package.json\nsrc/index.ts\n",
-    stderr: "",
-  }));
+  const git = createFakeGit(
+    withCoreGit(() => ({
+      code: 0,
+      stdout: "package.json\nsrc/index.ts\n",
+      stderr: "",
+    })),
+  );
   const proc = createFakeProc((call) => (call.args[1] === "test" ? 1 : 0));
   const fs = createFakeFs({
+    ...coreFiles(),
     "/repo/package.json": JSON.stringify({
-      scripts: ALL_SCRIPTS,
+      scripts: { ...CORE_SCRIPTS, ...ALL_SCRIPTS },
     }),
     "/repo/src/index.ts": SMALL_FILE,
   });
@@ -100,14 +116,17 @@ void test("gate: a failing test script exits 1, but the other scripts still run"
 });
 
 void test("gate: content exists but package.json has no scripts exits 2, naming every required script", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "package.json\nsrc/index.ts\n",
-    stderr: "",
-  }));
+  const git = createFakeGit(
+    withCoreGit(() => ({
+      code: 0,
+      stdout: "package.json\nsrc/index.ts\n",
+      stderr: "",
+    })),
+  );
   const proc = createFakeProc();
   const fs = createFakeFs({
-    "/repo/package.json": JSON.stringify({}),
+    ...coreFiles(),
+    "/repo/package.json": JSON.stringify({ scripts: CORE_SCRIPTS }),
     "/repo/src/index.ts": SMALL_FILE,
   });
   const ctx = createFakeContext({ git, proc, fs });
@@ -164,6 +183,7 @@ void test("gate: a pass lists every check that ran, each passed, on stdout", asy
       "  passed   lint",
       "  passed   format:check",
       "  passed   test",
+      "  passed   core setup (5 hooks unchanged, git config, .gitignore, package.json scripts)",
       `  passed   file-length cap (all 2 tracked text file(s) are within the ${String(DEFAULT_MAX_FILE_LINES)}-line cap)`,
       "  skipped  AGENTS.md size (no AGENTS.md)",
       "  skipped  branch ruleset (origin is not on GitHub)",
@@ -191,18 +211,21 @@ void test("gate: a failure lists every check the same way, on stderr, and names 
   assert.match(text, /^gate: failed: lint, test$/m);
 });
 
-void test("gate: a repo with only its starting files and no package.json passes on the base checks alone", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "README.md\nLICENSE\nAGENTS.md\n.gitignore\n",
-    stderr: "",
-  }));
+void test("gate: a repo with only its starting files and setup's scripts passes on the base checks alone", async () => {
+  const git = createFakeGit(
+    withCoreGit(() => ({
+      code: 0,
+      stdout: "README.md\nLICENSE\nAGENTS.md\n.gitignore\npackage.json\n",
+      stderr: "",
+    })),
+  );
   const proc = createFakeProc();
   const fs = createFakeFs({
+    ...coreFiles(),
+    "/repo/package.json": JSON.stringify({ scripts: CORE_SCRIPTS }),
     "/repo/README.md": SMALL_FILE,
     "/repo/LICENSE": SMALL_FILE,
     "/repo/AGENTS.md": SMALL_FILE,
-    "/repo/.gitignore": SMALL_FILE,
   });
   const ctx = createFakeContext({ git, proc, fs });
 
@@ -213,16 +236,19 @@ void test("gate: a repo with only its starting files and no package.json passes 
 });
 
 void test("gate: the length cap fails the gate even when the stack checks pass", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "package.json\nsrc/index.ts\n",
-    stderr: "",
-  }));
+  const git = createFakeGit(
+    withCoreGit(() => ({
+      code: 0,
+      stdout: "package.json\nsrc/index.ts\n",
+      stderr: "",
+    })),
+  );
   const proc = createFakeProc(() => 0);
   const fs = createFakeFs({
+    ...coreFiles(),
     "/repo/temple-bar.config.json": JSON.stringify({ maxFileLines: 2 }),
     "/repo/package.json": JSON.stringify({
-      scripts: ALL_SCRIPTS,
+      scripts: { ...CORE_SCRIPTS, ...ALL_SCRIPTS },
     }),
     "/repo/src/index.ts": "1\n2\n3\n",
   });
@@ -235,13 +261,19 @@ void test("gate: the length cap fails the gate even when the stack checks pass",
 });
 
 void test("gate: a nested worktree's own code doesn't make the scripts required or trip the length cap", async () => {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: "README.md\nnested-worktree/\n",
-    stderr: "",
-  }));
+  const git = createFakeGit(
+    withCoreGit(() => ({
+      code: 0,
+      stdout: "README.md\nnested-worktree/\n",
+      stderr: "",
+    })),
+  );
   const proc = createFakeProc();
-  const fs = createFakeFs({ "/repo/README.md": SMALL_FILE });
+  const fs = createFakeFs({
+    ...coreFiles(),
+    "/repo/package.json": JSON.stringify({ scripts: CORE_SCRIPTS }),
+    "/repo/README.md": SMALL_FILE,
+  });
   const ctx = createFakeContext({ git, proc, fs });
 
   const code = await route(["gate"], ctx, registryWithGate());

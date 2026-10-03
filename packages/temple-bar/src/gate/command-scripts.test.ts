@@ -16,6 +16,11 @@ import {
   type FakeWriter,
 } from "../testing/fakes.ts";
 import { gateCommand } from "./command.ts";
+import {
+  CORE_SCRIPTS,
+  coreFiles,
+  withCoreGit,
+} from "./testing/core-fixture.ts";
 
 const ALL_SCRIPTS = {
   typecheck: "tsc",
@@ -33,18 +38,22 @@ function project(
   proc: ReturnType<typeof createFakeProc>;
   stderr: FakeWriter;
 } {
-  const git = createFakeGit(() => ({
-    code: 0,
-    stdout: `${files.join("\n")}\n`,
-    stderr: "",
-  }));
+  const git = createFakeGit(
+    withCoreGit(() => ({
+      code: 0,
+      stdout: `${files.join("\n")}\n`,
+      stderr: "",
+    })),
+  );
   const proc = createFakeProc((call) => exitCodeFor(call.args[1]));
-  const contents: Record<string, string> = {};
+  const contents: Record<string, string> = coreFiles();
   for (const file of files) {
     contents[`/repo/${file}`] = "one\n";
   }
   if (scripts !== undefined) {
-    contents["/repo/package.json"] = JSON.stringify({ scripts });
+    contents["/repo/package.json"] = JSON.stringify({
+      scripts: { ...CORE_SCRIPTS, ...scripts },
+    });
   }
   const stderr = createFakeWriter();
   const ctx = createFakeContext({
