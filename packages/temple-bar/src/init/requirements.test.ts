@@ -8,6 +8,7 @@ import {
   checkOrigin,
   parseGithubOrigin,
   RERUN_INIT,
+  rerunInit,
   wrongHostMessage,
 } from "./requirements.ts";
 import {
@@ -137,4 +138,16 @@ void test("every rerun hint is a pnpm command, never npx", async () => {
   assert.match(notRepo.message, /`pnpm exec temple-bar init` again/);
   assert.doesNotMatch(notRepo.message, /npx/);
   assert.doesNotMatch(wrongHostMessage("https://example.com/x"), /npx/);
+});
+
+void test("rerunInit keeps every flag inside the one code quote", () => {
+  assert.equal(rerunInit(), RERUN_INIT);
+  assert.equal(
+    rerunInit("--create-ruleset"),
+    "`pnpm exec temple-bar init --create-ruleset`",
+  );
+  assert.equal(
+    rerunInit("--create-repo", "--create-ruleset"),
+    "`pnpm exec temple-bar init --create-repo --create-ruleset`",
+  );
 });
