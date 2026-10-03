@@ -188,3 +188,47 @@ void test("alerts open on main after the merge are reported and exit 1", async (
   );
   assert.match(h.out(), /merged #7/);
 });
+
+void test("a branch brought up to date passes the gate and is marked ready before the push", async () => {
+  const world = defaultWorld();
+  world.behind = true;
+  world.heads = [HEAD, MERGED_IN];
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
+  assert.deepEqual(
+    h.gateRuns,
+    ["/wt/x"],
+    "the gate runs in the branch's worktree",
+  );
+  assert.equal(
+    (await h.ctx.fs.readText("/wt/x/.git/temple-bar-ready"))?.trim(),
+    MERGED_IN,
+    "the merge commit is marked, so the pre-push hook lets it out",
+  );
+  assert.ok(
+    h.ran("git", "push", "origin", "refs/heads/feat/x:refs/heads/feat/x"),
+  );
+});
+
+void test("a branch that fails the gate once main is merged in is not pushed or merged", async () => {
+  const world = defaultWorld();
+  world.behind = true;
+  world.heads = [HEAD, MERGED_IN];
+  world.gateExit = 1;
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 1);
+  assert.match(
+    h.err(),
+    /with origin\/main merged in, feat\/x fails the gate, so nothing was pushed/,
+  );
+  assert.equal(
+    h.ran("git", "push", "origin", "refs/heads/feat/x:refs/heads/feat/x"),
+    false,
+    "nothing is pushed after a failing gate",
+  );
+  assert.equal(h.ran("gh", "pr", "merge"), false);
+  assert.equal(
+    await h.ctx.fs.readText("/wt/x/.git/temple-bar-ready"),
+    undefined,
+  );
+});

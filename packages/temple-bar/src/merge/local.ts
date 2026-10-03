@@ -81,12 +81,15 @@ export async function worktreeForUpdate(
 
 /** Merges origin's default branch into the branch in its worktree and
  * pushes it. A plain push, never a forced one: the branch only gains a
- * merge commit, so nothing on GitHub is rewritten. Returns the new tip. */
+ * merge commit, so nothing on GitHub is rewritten. `beforePush` sees the
+ * new tip first and can refuse, leaving the merge commit local. Returns the
+ * new tip. */
 export async function bringUpToDate(
   ctx: Context,
   worktree: Worktree,
   branch: string,
   defaultBranch: string,
+  beforePush: (tip: string) => Promise<void>,
 ): Promise<string> {
   const upstream = `origin/${defaultBranch}`;
   const merged = await git(
@@ -109,6 +112,14 @@ export async function bringUpToDate(
         : `could not merge ${upstream} into ${branch}: ${merged.stderr}`,
     );
   }
+  const mergedTip = await resolveCommit(
+    ctx,
+    `refs/heads/${branch}`,
+    worktree.path,
+  );
+  await beforePush(
+    mergedTip ?? refuse(`could not read ${branch} after merging ${upstream}`),
+  );
   const pushed = await git(
     ctx,
     ["push", "origin", `refs/heads/${branch}:refs/heads/${branch}`],
