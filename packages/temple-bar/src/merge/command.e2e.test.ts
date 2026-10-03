@@ -8,7 +8,14 @@ import path from "node:path";
 import test from "node:test";
 
 import { createMergeCommand } from "./command.ts";
-import { context, deps, fakeGitHub, git, setUp } from "./testing/e2e-repos.ts";
+import {
+  commitFile,
+  context,
+  deps,
+  fakeGitHub,
+  git,
+  setUp,
+} from "./testing/e2e-repos.ts";
 
 void test("merges a behind branch end to end: main merged in, plain push, squash, everything tidied", async () => {
   const setup = setUp();
@@ -48,6 +55,22 @@ void test("merges a behind branch end to end: main merged in, plain push, squash
   assert.match(
     stdout.lines.join(""),
     /deleted origin\/feat\/x and confirmed it is gone/,
+  );
+});
+
+void test("a branch of several commits with no bullets merges with its title and co-authors only", async () => {
+  const setup = setUp();
+  commitFile(setup.worktree, "z.ts", "export const z = 3;\n", "wip");
+  git(setup.worktree, "push", "origin", "feat/x");
+  const { gh } = fakeGitHub(setup, "Adds x, in one change.\n");
+  const { ctx, stderr } = context(setup.worktree, gh);
+
+  const code = await createMergeCommand(deps).run(["7"], ctx);
+  assert.equal(code, 0, stderr.lines.join(""));
+  // The squash message never pastes in the branch's commits ("wip").
+  assert.equal(
+    git(setup.origin, "log", "-1", "--format=%B", "main"),
+    "feat: add x (#7)\n\nCo-Authored-By: Ada <ada@example.com>",
   );
 });
 
