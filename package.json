@@ -15,7 +15,8 @@
     "build": "tsc -p packages/temple-bar/tsconfig.build.json && tsc -p packages/create-temple-bar/tsconfig.build.json",
     "check": "pnpm run gate",
     "prepare": "temple-bar hook install",
-    "gate": "temple-bar gate"
+    "gate": "temple-bar gate",
+    "release:publish": "node scripts/release-publish.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

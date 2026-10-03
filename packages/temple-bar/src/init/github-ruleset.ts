@@ -6,7 +6,7 @@
 // ends non-zero, so an unprotected repo never looks set up.
 
 import type { Context } from "../context.ts";
-import { RERUN_INIT, type GithubOrigin } from "./requirements.ts";
+import { rerunInit, type GithubOrigin } from "./requirements.ts";
 
 export const MANUAL_RULESET_STEPS =
   "On GitHub, under Settings > Rules > Rulesets, add a ruleset targeting " +
@@ -138,7 +138,7 @@ export async function offerRuleset(
   if (answer === "no-terminal") {
     return {
       kind: "not-created",
-      message: `No terminal to ask in, so no ruleset was created. An agent: ask the user, and only if they say yes run ${RERUN_INIT} --create-ruleset. Or add it yourself:\n${MANUAL_RULESET_STEPS}`,
+      message: `No terminal to ask in, so no ruleset was created. An agent: ask the user, and only if they say yes run ${rerunInit("--create-ruleset")}. Or add it yourself:\n${MANUAL_RULESET_STEPS}`,
     };
   }
 

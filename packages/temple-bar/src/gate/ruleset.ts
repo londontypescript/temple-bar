@@ -15,7 +15,7 @@
 
 import type { Context } from "../context.ts";
 import { MANUAL_RULESET_STEPS } from "../init/github-ruleset.ts";
-import { RERUN_INIT, checkOrigin } from "../init/requirements.ts";
+import { checkOrigin, rerunInit } from "../init/requirements.ts";
 import type { CheckOutcome } from "./report.ts";
 import {
   findRulesetProblems,
@@ -151,7 +151,7 @@ export function formatRulesetFailure(
     lines.push(`  ${problem.kind}: ${problem.message}`);
   }
   lines.push(
-    `  fix: if there is no ruleset, run ${RERUN_INIT} --create-ruleset.`,
+    `  fix: if there is no ruleset, run ${rerunInit("--create-ruleset")}.`,
     "  setup leaves an existing ruleset alone, so a weakened one is edited by",
     "  hand: Settings > Rules > Rulesets, active (not evaluate), so that it",
     `  matches:\n${MANUAL_RULESET_STEPS.split("\n")

@@ -85,7 +85,8 @@ void test("offerRuleset: no terminal names the flag an agent passes after asking
     prompt: createFakePrompt({ interactive: false, answer: "no-terminal" }),
   });
   const outcome = await offerRuleset(ctx, "/repo", origin);
-  assert.match(outcome.message, /--create-ruleset/);
+  // The flag sits inside the quote, so copying the command copies the flag.
+  assert.match(outcome.message, /`pnpm exec temple-bar init --create-ruleset`/);
 });
 
 void test("offerRuleset: an existing branch ruleset is left alone, no prompt asked", async () => {

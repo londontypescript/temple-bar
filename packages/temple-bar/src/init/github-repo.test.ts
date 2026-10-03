@@ -189,7 +189,8 @@ void test("offerRepoCreation: no terminal names the flag an agent passes after a
   });
   const outcome = await offerRepoCreation(ctx, "/repo");
   assert.equal(outcome.kind, "declined");
-  assert.match(outcome.message, /--create-repo/);
+  // The flag sits inside the quote, so copying the command copies the flag.
+  assert.match(outcome.message, /`pnpm exec temple-bar init --create-repo`/);
 });
 
 void test("offerRepoCreation: approved (--create-repo) creates with no prompt, even with no terminal", async () => {

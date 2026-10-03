@@ -18,11 +18,18 @@ export interface RequirementOk<T> {
 export type RequirementResult<T = undefined> =
   RequirementOk<T> | RequirementFailure;
 
-/** How a user reruns init. `temple-bar` is installed in the project, not on
- * PATH, so a bare `temple-bar init` isn't found; `pnpm exec` finds the
- * project's copy. temple-bar supports pnpm only, so no message prints npx.
- * Every "then run init again" message uses this. */
-export const RERUN_INIT = "`pnpm exec temple-bar init`";
+/** How a user reruns init, quoted for a message, with any flags inside the
+ * same quote: someone copying the quoted command must get the flags too, or
+ * the rerun stops at the same question again. `temple-bar` is installed in
+ * the project, not on PATH, so a bare `temple-bar init` isn't found;
+ * `pnpm exec` finds the project's copy. temple-bar supports pnpm only, so no
+ * message prints npx. */
+export function rerunInit(...flags: readonly string[]): string {
+  return `\`${["pnpm exec temple-bar init", ...flags].join(" ")}\``;
+}
+
+/** Every "then run init again" message without a flag uses this. */
+export const RERUN_INIT = rerunInit();
 
 function fail(message: string): RequirementFailure {
   return { ok: false, message };

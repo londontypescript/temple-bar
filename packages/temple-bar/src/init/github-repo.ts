@@ -1,13 +1,13 @@
-// Offers to create the GitHub repository when `origin` is missing (decision
-// 3, plan §3 1.7). Only ever acts on an explicit "yes" (ctx.prompt, or the
-// --create-repo flag an agent passes after the user said yes in chat); the
-// two declined paths and the no-commits-yet path all stop `init` before it
-// writes anything.
+// Offers to create the GitHub repository when `origin` is missing. Only ever
+// acts on an explicit "yes" (ctx.prompt, or the --create-repo flag an agent
+// passes after the user said yes in chat); the two declined paths and the
+// no-commits-yet path all stop `init` before it writes anything.
 
 import type { Context } from "../context.ts";
 import {
   parseGithubOrigin,
   RERUN_INIT,
+  rerunInit,
   type GithubOrigin,
 } from "./requirements.ts";
 
@@ -28,7 +28,7 @@ export function noTerminalSteps(name: string): string {
   return (
     "No terminal to ask in, so nothing was created. An agent: ask the user " +
     `whether to create the repository, and only if they say yes run ` +
-    `${RERUN_INIT} --create-repo. To finish setup yourself, run:\n  ` +
+    `${rerunInit("--create-repo")}. To finish setup yourself, run:\n  ` +
     `${repoCreateCommand(name)}\nthen run ${RERUN_INIT} again.`
   );
 }
