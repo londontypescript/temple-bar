@@ -13,7 +13,7 @@ import {
 import type { CheckOutcome } from "./report.ts";
 import type { GateTools } from "./tools.ts";
 
-export const MARKDOWN_LINT_CHECK = "markdown lint";
+const MARKDOWN_LINT_CHECK = "markdown lint";
 
 /** markdownlint's own rules, minus the ones about layout: line length,
  * spacing, list indents and marker styles. Layout is the format:check

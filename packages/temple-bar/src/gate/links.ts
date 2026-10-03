@@ -24,7 +24,7 @@ import type { Context } from "../context.ts";
 
 export const LINKS_CHECK = "local links";
 
-export type TargetKind = "link" | "cited path";
+type TargetKind = "link" | "cited path";
 
 export interface LocalTarget {
   readonly line: number;
@@ -102,7 +102,7 @@ export function extractLocalTargets(markdown: string): LocalTarget[] {
 
 /** Every path git lists, plus every folder above one, so a link to a folder
  * counts as existing. Folders end in "/". */
-export function existingPaths(listed: readonly string[]): Set<string> {
+function existingPaths(listed: readonly string[]): Set<string> {
   const existing = new Set<string>();
   for (const listedPath of listed) {
     const parts = listedPath.replace(/\/$/, "").split("/");

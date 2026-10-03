@@ -13,7 +13,7 @@ import type { Context } from "../context.ts";
 import type { CheckOutcome } from "./report.ts";
 import type { GateTools } from "./tools.ts";
 
-export const UNUSED_CHECK = "unused code (knip)";
+const UNUSED_CHECK = "unused code (knip)";
 
 /** files: files nothing imports. exports, types: exported values and types
  * nothing imports. Progress output is off so the gate's log stays readable. */

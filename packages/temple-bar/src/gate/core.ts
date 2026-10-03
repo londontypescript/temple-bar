@@ -33,7 +33,7 @@ import {
 import { GATE_SCRIPT, GITIGNORE_LINES, PREPARE_SCRIPT } from "../init/files.ts";
 import type { CheckOutcome } from "./report.ts";
 
-export const CORE_CHECK = "core setup";
+const CORE_CHECK = "core setup";
 
 const HOOK_INSTALL = "pnpm exec temple-bar hook install";
 
@@ -190,7 +190,7 @@ export async function findCoreProblems(ctx: Context): Promise<CoreProblem[]> {
   ];
 }
 
-export function formatCoreFailure(problems: readonly CoreProblem[]): string {
+function formatCoreFailure(problems: readonly CoreProblem[]): string {
   const lines = [
     `gate: ${String(problems.length)} part(s) of temple-bar's setup are missing or changed:`,
   ];
