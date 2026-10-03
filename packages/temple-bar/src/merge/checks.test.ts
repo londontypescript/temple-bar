@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createMergeCommand } from "./command.ts";
-import { newestRunPerName } from "./github.ts";
+import { newestRunPerCheck } from "./check-runs.ts";
 import { defaultWorld, harness, HEAD, type CheckRun } from "./testing/world.ts";
 
 function run(
@@ -56,7 +56,7 @@ void test("refuses when a check's newest run failed, though an older run of it p
 });
 
 void test("a run that hasn't started yet is told apart by its id", () => {
-  const newest = newestRunPerName([
+  const newest = newestRunPerCheck([
     { name: "gate", conclusion: "success", id: 3, started_at: null },
     { name: "gate", conclusion: null, id: 9, started_at: null },
     { name: "lint", conclusion: "success", id: 4 },
@@ -159,4 +159,42 @@ void test("stops after a bounded number of tries, naming the checks still runnin
     (c) => c.args[0] === "pr" && c.args[1] === "merge",
   );
   assert.equal(merges.length, 3);
+});
+
+void test("a job in another workflow that copies a check's name can't replace its failure", async () => {
+  // Seen on a real repository: a pull request added a workflow whose job is
+  // named like the judge and passed after the real judge failed. GitHub
+  // still blocks the merge, so merge must report the failure too.
+  const world = defaultWorld();
+  world.checkRuns = [
+    [
+      { ...run("temple-bar judge", "failure", 1, 0), suite: 100 },
+      { ...run("temple-bar judge", "success", 2, 5), suite: 200 },
+    ],
+  ];
+  world.workflowRuns = [
+    { suite: 100, workflow: 10 },
+    { suite: 200, workflow: 20 },
+  ];
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 1);
+  assert.match(h.err(), /checks failed on .*temple-bar judge \(failure\)/);
+  assert.equal(h.ran("gh", "pr", "merge"), false);
+});
+
+void test("a re-run in the same workflow still replaces the run before it", () => {
+  const newest = newestRunPerCheck(
+    [
+      { name: "gate", conclusion: "cancelled", id: 1, suite: 100 },
+      { name: "gate", conclusion: "success", id: 2, suite: 200 },
+    ],
+    new Map([
+      [100, 10],
+      [200, 10],
+    ]),
+  );
+  assert.deepEqual(
+    newest.map((r) => r.conclusion),
+    ["success"],
+  );
 });

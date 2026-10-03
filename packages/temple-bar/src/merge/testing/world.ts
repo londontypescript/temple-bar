@@ -28,6 +28,8 @@ export interface CheckRun {
   conclusion: string | null;
   id?: number;
   started_at?: string | null;
+  /** The check suite (one per workflow run) the run belongs to. */
+  suite?: number;
 }
 
 export interface World {
@@ -53,6 +55,8 @@ export interface World {
   worktrees: string;
   /** Check runs on each read; the last one repeats. */
   checkRuns: CheckRun[][];
+  /** Which workflow each check suite belongs to. */
+  workflowRuns: { suite: number; workflow: number }[];
   statuses: { context: string; state: string }[];
   required: string[];
   alertsForPr: { number: number; rule: string; path: string }[] | "not-set-up";
@@ -89,6 +93,7 @@ export function defaultWorld(): World {
     dirty: false,
     worktrees: `worktree /wt/x\nHEAD ${HEAD}\nbranch refs/heads/feat/x\n`,
     checkRuns: [[{ name: "gate", status: "completed", conclusion: "success" }]],
+    workflowRuns: [],
     statuses: [],
     required: [],
     alertsForPr: [],
@@ -242,6 +247,9 @@ export function harness(world: World): Harness {
         world.checkRuns[Math.min(checkReads, world.checkRuns.length - 1)] ?? [];
       checkReads++;
       return ok(lines(runs));
+    }
+    if (joined.includes("/actions/runs?head_sha=")) {
+      return ok(lines(world.workflowRuns));
     }
     if (joined.includes("/status?")) {
       return ok(lines(world.statuses));
