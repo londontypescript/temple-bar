@@ -18,7 +18,26 @@ every time. They are required as soon as the repo has content of its own,
 whatever its language or file types, and a script that does nothing (such as
 `echo ok` or `true`) fails. Which commands they run is the project's choice,
 usually made by its agent from what's in the folder; temple-bar doesn't
-supply a toolchain (decision 5). CI runs the pinned `pnpm gate` as the merge condition; `pnpm build`
+supply a toolchain (decision 5).
+
+- _Content of its own_ means any file beyond the ones a project starts
+  with: what setup writes (`AGENTS.md`, `package.json`, `.gitignore`), the
+  lockfile, `temple-bar.config.json`, and what GitHub offers to create with
+  a new repository (`README.md`, `LICENSE`). Only those exact names at the
+  top of the repo count as starting files; vendored or built folders
+  (`node_modules`, `dist` and the like) and nested worktrees never count as
+  content. No list of file extensions is involved.
+- _Does nothing_ is a short, exact list: an empty command, `true`, `:`,
+  `exit` or `exit 0`, a bare `echo ...`, or a chain made only of these. The
+  message names the script and what belongs there. Subtler ways to weaken a
+  script are left to the judge (planned), which will guard the scripts
+  against later changes.
+- Every required script that exists and does something runs, even when
+  another is missing or does nothing, so one gap never hides another
+  script's failures. The gate exits 2 when a script is missing or does
+  nothing, and 1 for any other failure.
+
+CI runs the pinned `pnpm gate` as the merge condition; `pnpm build`
 stays a separate CI step. The repo's own duplicate length script went: see
 [ADR 0001](0001-length-check-moves-into-the-gate.md) for that story. Before
 this, the rules said the pinned gate was the merge condition while CI still
@@ -26,7 +45,9 @@ ran the source tree's own checks, the gate skipped `format:check`, and the
 length cap was checked twice. Until 2026-10-03 "content" meant files with a
 JavaScript or TypeScript extension, so a project whose code had other
 extensions passed with none of its checks run; found by running the gate on
-a `cargo init` project.
+a `cargo init` project. Until then, too, one missing script stopped the
+others from running, so a project's linter could go unrun until it had all
+four scripts; found in the scaffolder trials.
 
 **Decision 10: base-check tools.** gitleaks comes through a verified download
 (a pinned version and SHA-256 per operating system, cached). npm tools
