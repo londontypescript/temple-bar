@@ -15,7 +15,7 @@ import {
   checkAgentsSize,
   measureAgentsFile,
 } from "./agents-size.ts";
-import { gateCommand } from "./command.ts";
+import { testGateCommand as gateCommand } from "./testing/fake-tools.ts";
 import {
   CORE_SCRIPTS,
   coreFiles,

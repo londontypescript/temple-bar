@@ -11,7 +11,7 @@ import {
   createFakeWriter,
   type FakeWriter,
 } from "../testing/fakes.ts";
-import { gateCommand } from "./command.ts";
+import { testGateCommand as gateCommand } from "./testing/fake-tools.ts";
 import { DEFAULT_MAX_FILE_LINES } from "./lengths.ts";
 import {
   CORE_SCRIPTS,
@@ -186,6 +186,8 @@ void test("gate: a pass lists every check that ran, each passed, on stdout", asy
       "  passed   core setup (5 hooks unchanged, git config, .gitignore, package.json scripts)",
       `  passed   file-length cap (all 2 tracked text file(s) are within the ${String(DEFAULT_MAX_FILE_LINES)}-line cap)`,
       "  skipped  AGENTS.md size (no AGENTS.md)",
+      "  skipped  markdown lint (no markdown files)",
+      "  skipped  local links (no markdown files)",
       "  skipped  branch ruleset (origin is not on GitHub)",
       "gate: passed",
       "",

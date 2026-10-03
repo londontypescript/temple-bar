@@ -20,7 +20,7 @@ import {
   createFakeHttp,
 } from "../testing/fakes.ts";
 import { initTestRepo } from "../testing/git-repo.ts";
-import { gateCommand } from "./command.ts";
+import { testGateCommand as gateCommand } from "./testing/fake-tools.ts";
 import { installCore } from "./testing/core-fixture.ts";
 
 function linesOf(count: number): string {
