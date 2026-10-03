@@ -177,6 +177,20 @@ export function installRealHooks(fixture: HookFixture): CommandResult {
   return fixture.hook(["install"]);
 }
 
+/** Marks the commit checked out in `dir` ready to push, the way a passing
+ * `temple-bar ready` would, without running a gate: for tests about the
+ * push itself. ready.integration.test.ts covers the real command. */
+export function markReady(dir: string): string {
+  const sha = runGit(dir, ["rev-parse", "HEAD"]).stdout.trim();
+  const markPath = runGit(dir, [
+    "rev-parse",
+    "--git-path",
+    "temple-bar-ready",
+  ]).stdout.trim();
+  writeFileSync(path.resolve(dir, markPath), `${sha}\n`, "utf8");
+  return sha;
+}
+
 /** Clones originDir to a second working copy, commits a file on `branch`
  * (default `main`) and pushes it, simulating a merge that happened "on
  * GitHub". Returns the new commit's SHA. */

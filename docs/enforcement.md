@@ -30,10 +30,18 @@ same pull request as any change to a mechanism.
 | Intake stays the user's                   | nothing                                              | **Prose only**        |
 | Whether wide changes mean duplication     | nothing: judgement                                   | **Prose only**        |
 | Worktree per branch; merge steps (§2)     | `temple-bar merge`; nothing forces its use           | **Prose only**        |
-| Push once, when finished                  | nothing until `temple-bar ready`                     | **Prose only**        |
+| Push once, after the gate passed          | `ready` + `pre-push` from the pin that ships them    | **Blocked** locally   |
+| User's yes typed before a gated push      | `ready` asks in a terminal; see the limits below     | **Speed bump** only   |
 | AGENTS.md within 200 lines and 32 KiB     | the pinned gate in CI                                | **Blocked** via CI    |
 | Ruleset not deleted or loosened           | the pinned gate in CI (public repos)                 | **Blocked** via CI    |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
+
+Known limits of push-once ([ADR 0012](adr/0012-push-once-with-ready.md)):
+`git push --no-verify` skips the `pre-push` hook, so CI and the ruleset stay
+the final barrier (a skipped hook costs a red CI run, never a broken
+`main`). And the yes `ready` asks for proves a terminal, not a person: a
+cloud agent with no terminal must ask the user to run `ready`, and an agent
+that can drive a pseudo-terminal could answer it itself.
 
 A rule that exists only as prose is a rule that will eventually be broken. If
 you find one drifting, the fix is a mechanism, not stronger wording. When a
