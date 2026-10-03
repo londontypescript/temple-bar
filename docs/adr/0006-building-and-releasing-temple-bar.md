@@ -59,8 +59,12 @@ that built it. One exception, now done: the maintainer published `0.0.1` of
 each package by hand, because trusted publishing only works for packages that
 already exist. Releases since then come from CI: the release workflow runs the
 full 3-OS CI on the exact commit first, then stages both packages, and the
-maintainer approves each one on npmjs.com with 2FA. Tagging and publishing
-also need the maintainer's yes before the orchestrator starts them
+maintainer approves each one on npmjs.com with 2FA. The workflow leaves a
+draft GitHub Release, and `pnpm release:publish <tag>` publishes it only once
+both package files download from npm: in 0.0.4, npm listed the new version
+minutes before its files could be installed, and a Release published on the
+listing alone announced a version nobody could install yet. Tagging and
+publishing also need the maintainer's yes before the orchestrator starts them
 ([ADR 0003](0003-how-a-change-reaches-main.md), decision 18).
 
 ## What would end it
