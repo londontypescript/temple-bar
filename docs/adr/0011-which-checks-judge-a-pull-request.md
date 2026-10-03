@@ -1,8 +1,10 @@
 # ADR 0011: Which copy of the checks judges a pull request
 
 Date: 2026-10-01. Status: accepted (decisions 41 and 42;
-[#55](https://github.com/londontypescript/temple-bar/issues/55)). Not built
-yet: building it is a separate issue.
+[#55](https://github.com/londontypescript/temple-bar/issues/55)). Built in
+[#147](https://github.com/londontypescript/temple-bar/issues/147) and
+[#148](https://github.com/londontypescript/temple-bar/issues/148); see
+"How it is built" below. Not yet proven on real GitHub.
 
 ## Context
 
@@ -112,6 +114,37 @@ exactly this must be refused, as break-it evidence.
 - The ruleset lives outside the repo. The gate's check that the rulesets are
   still in place ([ADR 0004](0004-github-settings-temple-bar-applies.md))
   catches the judge being dropped from the required checks.
+
+## How it is built
+
+- **The command.** `temple-bar judge` reads the pull request, every page of
+  its changed files, and, only when the root `package.json` changed, that
+  file on the base branch and at the pull request's head, all through
+  Node's `fetch`. It fails on any file under `.github/workflows/` (renames
+  away included), on any change to where `package.json` sets temple-bar's
+  version (the dependency lists and the `overrides`, `pnpm.overrides` and
+  `resolutions` fields, since an override can swap the pin), and on the
+  `gate` script or the four scripts the gate runs. It fails closed: an
+  unreadable answer, or fewer files listed than the pull request has
+  (GitHub stops at 3000), is a failure, never a pass.
+- **The workflow** setup writes, `.github/workflows/temple-bar-judge.yml`.
+  Its job, `temple-bar judge`, is the required check. It checks out only
+  the base branch's `package.json` (sparse, no credentials kept), reads the
+  exact temple-bar version pinned there, and runs that version with
+  `npm exec`. Nothing from the base branch is installed, so no install
+  script runs, and it doesn't depend on the repo naming a pnpm version.
+  Its token is read-only and no pull request text reaches a shell. Tests
+  assert each of these on the template.
+- **The ruleset.** The judge's check is required by a second ruleset,
+  `main: the judge`, beside the `main` ruleset rather than inside it.
+  Setup creates it only once the workflow is on the default branch:
+  requiring a check that never reports would block every pull request,
+  the setup pull request included. On a repo setup creates from scratch
+  the workflow is in the first commit; elsewhere a second run of setup
+  after the setup pull request merges adds it. It requires the check from
+  GitHub Actions on up-to-date branches, and lets the repository admin
+  role past it through a pull request only: decision 42's merge, kept to
+  this one rule, while the `main` ruleset keeps nobody past it.
 
 ## What would end it
 
