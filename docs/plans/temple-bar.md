@@ -25,7 +25,7 @@ Settled before this session:
 - Models: phases rated routine / involved / delicate; the maintainer picks models, temple-bar never does: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 - What became of the earlier hardening plan's D2, D3, D4 and D7: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 
-Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), and while building 0.0.5 on 2026-10-01 and 2 (41–45):
+Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), and while building 0.0.5 on 2026-10-01 and 2 (41–45). Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds:
 
 | #   | Decision                                                                          | ADR                                                       |
 | --- | --------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -33,7 +33,7 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 2   | Public but highly opinionated: the maintainer's defaults, 0.x versions            | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 3   | GitHub only: a git repo, `gh` signed in, `origin` on GitHub                       | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 4   | `main` changes only through merged pull requests; hooks guard local `main`        | [0003](../adr/0003-how-a-change-reaches-main.md)          |
-| 5   | Setup through `pnpm create`, led by a prompt for the user's agent; pnpm only      | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 5   | Scaffold first, then setup through `pnpm create` layers on top; pnpm only         | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 6   | Stage0: plain checks, 3-OS CI and GitHub protection before the first release      | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
 | 7   | temple-bar's repo is gated by its last published release, never its source        | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
 | 8   | Only CI publishes, through npm trusted publishing with provenance                 | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
@@ -51,12 +51,12 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 20  | `--help` runs nothing; a passing gate lists the checks that ran                   | [0007](../adr/0007-what-the-gate-checks.md)               |
 | 21  | The README says hooks arrive with the install; nothing more for fresh clones      | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 22  | Hooks fail closed where temple-bar isn't installed yet                            | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
-| 23  | The gate requires typecheck, lint, test and format:check; CI runs the pinned gate | [0007](../adr/0007-what-the-gate-checks.md)               |
+| 23  | The gate requires the four scripts once a repo has content, never as no-ops       | [0007](../adr/0007-what-the-gate-checks.md)               |
 | 24  | Conventional, proportional commit messages, also for pull request titles          | [0003](../adr/0003-how-a-change-reaches-main.md)          |
 | 25  | CodeQL is a required check on the `main` ruleset                                  | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
 | 26  | The test suite runs shut off from the machine's git config                        | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
 | 27  | _Superseded by 37._ A gitignored `planning/` folder held progress and the handoff | [0010](../adr/0010-plans-progress-and-incidents.md)       |
-| 28  | grand-union starts once temple-bar 0.0.8 ships; other themes continue alongside   | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 28  | grand-union starts once temple-bar 0.0.9 ships; other themes continue alongside   | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 29  | Working, standards-following code first; a showcase for TypeScript devs second    | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 30  | Worktree location stays each harness's choice; one inside the repo is made safe   | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 31  | Built for every London TypeScript repo; GitHub, `gh` and pnpm required            | [0002](../adr/0002-what-temple-bar-is-for.md)             |

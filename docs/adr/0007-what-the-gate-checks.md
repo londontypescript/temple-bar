@@ -1,6 +1,6 @@
 # ADR 0007: What the gate checks
 
-Date: 2026-10-01. Status: accepted (decisions 10, 15, 20, 23, 36 and 43; 10 and 15
+Date: 2026-10-01, updated 2026-10-03. Status: accepted (decisions 10, 15, 20, 23, 36 and 43; 10 and 15
 are decided but not built yet).
 
 ## Context
@@ -14,12 +14,19 @@ a project, which tools it uses, and how it behaves.
 
 **Decision 23: the gate owns the checks.** The gate requires the project's
 `typecheck`, `lint`, `test` and `format:check` scripts, and runs them all
-every time. CI runs the pinned `pnpm gate` as the merge condition; `pnpm build`
+every time. They are required as soon as the repo has content of its own,
+whatever its language or file types, and a script that does nothing (such as
+`echo ok` or `true`) fails. Which commands they run is the project's choice,
+usually made by its agent from what's in the folder; temple-bar doesn't
+supply a toolchain (decision 5). CI runs the pinned `pnpm gate` as the merge condition; `pnpm build`
 stays a separate CI step. The repo's own duplicate length script went: see
 [ADR 0001](0001-length-check-moves-into-the-gate.md) for that story. Before
 this, the rules said the pinned gate was the merge condition while CI still
 ran the source tree's own checks, the gate skipped `format:check`, and the
-length cap was checked twice.
+length cap was checked twice. Until 2026-10-03 "content" meant files with a
+JavaScript or TypeScript extension, so a project whose code had other
+extensions passed with none of its checks run; found by running the gate on
+a `cargo init` project.
 
 **Decision 10: base-check tools.** gitleaks comes through a verified download
 (a pinned version and SHA-256 per operating system, cached). npm tools
