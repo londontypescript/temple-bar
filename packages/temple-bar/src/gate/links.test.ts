@@ -105,6 +105,16 @@ void test("a cited path whose first folder exists must exist; from the repo root
   );
 });
 
+void test("a document in a folder doesn't make `owner/repo` a path by its own folder existing", () => {
+  assert.deepEqual(
+    broken(
+      "docs/adr/0001-first.md",
+      "`londontypescript/temple-bar` `origin/main` `docs/gone.md` `../guide.md`",
+    ),
+    ["1 cited path docs/gone.md"],
+  );
+});
+
 void test("things that only look like paths are not cited paths", () => {
   assert.deepEqual(
     broken(

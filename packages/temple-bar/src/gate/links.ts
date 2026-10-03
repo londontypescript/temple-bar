@@ -152,14 +152,19 @@ function isFine(
     return pathExists(existing, resolved);
   }
   // A document may cite a path from its own folder or from the repo root.
-  const fromRoot = path.posix.normalize(target.target);
-  if (pathExists(existing, resolved) || pathExists(existing, fromRoot)) {
+  // It is only treated as a path when its first folder exists in one of
+  // them: `owner/repo` cited from docs/ must not count just because docs/
+  // exists.
+  const bases = [path.posix.dirname(file), ""];
+  const cited = path.posix.normalize(target.target);
+  if (
+    bases.some((base) => pathExists(existing, path.posix.join(base, cited)))
+  ) {
     return true;
   }
-  const firstFolder = (candidate: string): string =>
-    `${candidate.split("/")[0] ?? ""}/`;
-  return (
-    !existing.has(firstFolder(resolved)) && !existing.has(firstFolder(fromRoot))
+  const first = cited.split("/")[0] ?? "";
+  return !bases.some((base) =>
+    existing.has(`${path.posix.join(base, first)}/`),
   );
 }
 
