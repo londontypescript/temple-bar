@@ -33,7 +33,11 @@ async function markPath(ctx: Context, cwd: string): Promise<string> {
     );
   }
   // git answers relative to `cwd` in the main checkout, absolute elsewhere.
-  return path.resolve(cwd, result.stdout.trim());
+  // Joined rather than resolved: on Windows, resolving adds the current
+  // drive to a path that has none, which names the same file on disk but
+  // not the same string.
+  const answer = result.stdout.trim();
+  return path.isAbsolute(answer) ? answer : path.join(cwd, answer);
 }
 
 /** The commit marked ready in the worktree at `cwd`, or undefined. */
