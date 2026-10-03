@@ -36,10 +36,15 @@ import {
   type Timing,
 } from "./wait.ts";
 import { listWorktrees } from "./worktrees.ts";
+import type { RunGate } from "../ready/command.ts";
+import { writeMark } from "../ready/mark.ts";
 
 export interface MergeDeps {
   readonly sleep: Sleep;
   readonly timing?: Timing;
+  /** The full gate, run in a worktree after merge brings its branch up to
+   * date; resolves the gate's exit code. */
+  readonly runGate: RunGate;
 }
 
 export interface MergeOptions {
@@ -84,6 +89,7 @@ function checkMergeable(
  * GitHub should now show as the pull request's head. */
 async function upToDateTip(
   ctx: Context,
+  deps: MergeDeps,
   pullRequest: PullRequest,
   repository: Repository,
   root: string,
@@ -116,7 +122,29 @@ async function upToDateTip(
   ctx.stdout.write(
     `merge: ${branch} is behind; merging ${upstream} into it and pushing\n`,
   );
-  return bringUpToDate(ctx, worktree, branch, repository.defaultBranch);
+  // The merge commit is new, so the pre-push hook wants it marked ready.
+  // Merge does what ready does: runs the full gate on it, and marks it only
+  // if it passes, since a change that landed on the default branch can
+  // break this branch.
+  return bringUpToDate(
+    ctx,
+    worktree,
+    branch,
+    repository.defaultBranch,
+    async (mergedTip) => {
+      ctx.stdout.write(
+        `merge: running the gate on ${branch} with ${upstream} merged in\n`,
+      );
+      if ((await deps.runGate({ ...ctx, cwd: worktree.path })) !== 0) {
+        refuse(
+          `with ${upstream} merged in, ${branch} fails the gate, so nothing was pushed. ` +
+            `The merge commit is in ${worktree.path}: fix what the gate reported, commit, ` +
+            "run `temple-bar ready`, push, and run merge again.",
+        );
+      }
+      await writeMark(ctx, worktree.path, mergedTip);
+    },
+  );
 }
 
 async function mergeBase(
@@ -147,7 +175,7 @@ async function mergeAndReport(
   checkMergeable(first, repository);
 
   await fetchOrigin(ctx, root);
-  const sha = await upToDateTip(ctx, first, repository, root);
+  const sha = await upToDateTip(ctx, deps, first, repository, root);
   const branch = first.headRefName;
   const pullRequest = await waitForHead(
     ctx,

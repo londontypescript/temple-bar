@@ -48,6 +48,8 @@ export interface World {
   /** Local branch tip, or undefined for no local branch. */
   localTip: string | undefined;
   behind: boolean;
+  /** Exit code of the gate merge runs after bringing a branch up to date. */
+  gateExit: number;
   dirty: boolean;
   /** Extra worktree entries after the primary one, in porcelain form. */
   worktrees: string;
@@ -87,6 +89,7 @@ export function defaultWorld(): World {
     heads: [HEAD],
     localTip: HEAD,
     behind: false,
+    gateExit: 0,
     dirty: false,
     worktrees: `worktree /wt/x\nHEAD ${HEAD}\nbranch refs/heads/feat/x\n`,
     checkRuns: [[{ name: "gate", status: "completed", conclusion: "success" }]],
@@ -129,6 +132,8 @@ export interface Harness {
   readonly stderr: FakeWriter;
   readonly deps: MergeDeps;
   readonly sleeps: number[];
+  /** The directory of each gate run. */
+  readonly gateRuns: string[];
   out(): string;
   err(): string;
   /** Whether a git or gh call whose args start with `prefix` was made. */
@@ -163,6 +168,9 @@ export function harness(world: World): Harness {
       case "for-each-ref":
         return ok(branchDeleted ? "main\n" : `main\n${world.pr.headRefName}\n`);
       case "rev-parse":
+        if (rest[0] === "--git-path") {
+          return ok(`.git/${rest[1] ?? ""}\n`);
+        }
         return tip === undefined ? fail("") : ok(`${tip}\n`);
       case "merge-base":
         if (rest[0] === "--is-ancestor") {
@@ -280,8 +288,13 @@ export function harness(world: World): Harness {
   // few fake polls instead of real minutes.
   let now = ctx.clock.now().getTime();
   const sleeps: number[] = [];
+  const gateRuns: string[] = [];
   const timedCtx: Context = { ...ctx, clock: { now: () => new Date(now) } };
   const deps: MergeDeps = {
+    runGate: (gateCtx) => {
+      gateRuns.push(gateCtx.cwd);
+      return Promise.resolve(world.gateExit);
+    },
     sleep: (ms) => {
       sleeps.push(ms);
       now += ms;
@@ -306,6 +319,7 @@ export function harness(world: World): Harness {
     stderr,
     deps,
     sleeps,
+    gateRuns,
     out: () => stdout.lines.join(""),
     err: () => stderr.lines.join(""),
     ran: (tool, ...prefix) =>

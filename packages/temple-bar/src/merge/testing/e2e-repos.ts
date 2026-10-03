@@ -184,6 +184,9 @@ export function context(cwd: string, gh: Context["gh"]) {
 
 export const deps: MergeDeps = {
   sleep: () => Promise.resolve(),
+  // The gate itself has its own end-to-end tests; here it passes, so the
+  // merge's own git work is what is exercised.
+  runGate: () => Promise.resolve(0),
   timing: {
     pollMs: 1,
     headAttempts: 2,
