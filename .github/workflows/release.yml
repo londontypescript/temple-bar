@@ -156,7 +156,12 @@ jobs:
             echo "Approve @londontypescript/temple-bar first, then create-temple-bar."
             echo "Approving makes each one \`latest\` on npm."
             echo
-            echo "Then publish the draft GitHub Release for this tag, once npm serves both."
+            echo "Then publish the draft GitHub Release for this tag from an up-to-date main."
+            echo "It waits until both package files download from npm, then publishes:"
+            echo
+            echo '```'
+            echo "pnpm release:publish $GITHUB_REF_NAME"
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   # A draft, not a published Release: the version isn't public until a
