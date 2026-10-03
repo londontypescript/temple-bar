@@ -10,7 +10,9 @@
 import type { Context } from "../context.ts";
 import { afterMerge } from "./after.ts";
 import { reasonsForMaintainerApproval } from "./approval.ts";
+import { approvingSection } from "./approving.ts";
 import {
+  countOpenIncidents,
   readPullRequest,
   readRepository,
   type PullRequest,
@@ -24,6 +26,7 @@ import {
   resolveCommit,
   worktreeForUpdate,
 } from "./local.ts";
+import { readChanges } from "./manifests.ts";
 import { buildSquashMessage, readCoAuthors } from "./message.ts";
 import { MergeRefusal, refuse } from "./refusal.ts";
 import {
@@ -156,7 +159,14 @@ async function mergeAndReport(
 
   const upstream = `origin/${repository.defaultBranch}`;
   const base = await mergeBase(ctx, upstream, sha, root);
-  const reasons = await reasonsForMaintainerApproval(ctx, base, sha, root);
+  const changes = await readChanges(ctx, base, sha, root);
+  // Printed before any refusal for the maintainer's yes, so the request
+  // for that yes can carry it.
+  const incidents = await countOpenIncidents(ctx, root);
+  for (const line of approvingSection(options.prNumber, changes, incidents)) {
+    ctx.stdout.write(`merge: ${line}\n`);
+  }
+  const reasons = reasonsForMaintainerApproval(changes);
   if (reasons.length > 0 && !options.maintainerApproved) {
     refuse(
       `this pull request needs the maintainer's yes: ${reasons.join("; ")}. ` +

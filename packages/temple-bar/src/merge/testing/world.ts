@@ -58,6 +58,9 @@ export interface World {
   changedFiles: string[];
   packageBefore: string;
   packageAfter: string;
+  /** Other files' contents where the branched-off commit and the head have
+   * them; a missing side doesn't exist there. */
+  otherFiles: Record<string, { before?: string; after?: string }>;
   coAuthors: string;
   /** How many merge requests GitHub refuses before it accepts one. */
   mergeRefusals: number;
@@ -92,6 +95,7 @@ export function defaultWorld(): World {
       '{"devDependencies":{"@londontypescript/temple-bar":"0.0.4"}}',
     packageAfter:
       '{"devDependencies":{"@londontypescript/temple-bar":"0.0.4"}}',
+    otherFiles: {},
     coAuthors:
       "Ada <ada@example.com>\n\nada <ADA@example.com>\nBob <bob@example.com>\n",
     mergeRefusals: 0,
@@ -172,12 +176,20 @@ export function harness(world: World): Harness {
           return ok("1\t1\tsrc/x.ts\0");
         }
         return ok(world.changedFiles.join("\n"));
-      case "show":
-        return ok(
-          rest[0]?.startsWith(BASE) === true
-            ? world.packageBefore
-            : world.packageAfter,
-        );
+      case "show": {
+        const spec = rest[0] ?? "";
+        const file = spec.slice(spec.indexOf(":") + 1);
+        const atBase = spec.startsWith(BASE);
+        if (file === "package.json") {
+          return ok(atBase ? world.packageBefore : world.packageAfter);
+        }
+        const text = atBase
+          ? world.otherFiles[file]?.before
+          : world.otherFiles[file]?.after;
+        return text === undefined
+          ? fail(`fatal: path '${file}' does not exist`)
+          : ok(text);
+      }
       case "log":
         return ok(world.coAuthors);
       case "ls-remote":

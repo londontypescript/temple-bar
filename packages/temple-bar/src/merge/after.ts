@@ -6,7 +6,6 @@
 import type { Context } from "../context.ts";
 import { reportLeftovers } from "../leftovers/report.ts";
 import {
-  countOpenIncidents,
   describeAlerts,
   readOpenAlerts,
   readPullRequest,
@@ -77,11 +76,5 @@ export async function afterMerge(
       `merge: could not look for leftovers: ${error instanceof Error ? error.message : String(error)}\n`,
     );
   });
-  const incidents = await countOpenIncidents(ctx, merged.root);
-  ctx.stdout.write(
-    incidents === undefined
-      ? "merge: could not count the open incident issues\n"
-      : `merge: ${String(incidents)} open issue${incidents === 1 ? "" : "s"} labelled incident\n`,
-  );
   return exitCode;
 }
