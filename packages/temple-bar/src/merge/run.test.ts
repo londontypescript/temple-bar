@@ -143,7 +143,7 @@ void test("after merging: removes the worktree, deletes the branch, fast-forward
   assert.match(out, /confirmed origin\/feat\/x is gone/);
   assert.match(out, /no open code-scanning alerts on main/);
   assert.match(out, /no leftover branches or worktrees/);
-  assert.match(out, /3 open issues labelled incident\n$/);
+  assert.match(out, /incidents: 3 open issues labelled incident\n/);
   assert.match(out, /pr-size: ok/);
 });
 

@@ -1,12 +1,16 @@
-// Logic behind `temple-bar hook pre-push <remote> <url>`. Two checks on what
-// is about to leave the machine:
+// Logic behind `temple-bar hook pre-push <remote> <url>`. Three checks on
+// what is about to leave the machine:
 //
 //   1. A force push is refused: any update that would replace commits GitHub
 //      already has rather than add to them. A pushed branch is brought up to
 //      date by merging `main` into it, so its history is only ever added to.
 //      This holds for every tool, not only the ones with their own
 //      permission check.
-//   2. A branch that is too big gets the pull request size warning, but is
+//   2. A branch is pushed once, when its work is finished: its tip must be
+//      the commit `temple-bar ready` marked in this worktree after the full
+//      gate passed (see ready/mark.ts). Every push to a pull request costs a
+//      full CI run, and a push that skipped the gate is bound to fail it.
+//   3. A branch that is too big gets the pull request size warning, but is
 //      never blocked: planning should have kept it small long before this
 //      last look. The CI step is the strict one, so if measuring fails here
 //      the reason is printed and the push goes ahead.
@@ -18,6 +22,7 @@
 
 import type { Context } from "../context.ts";
 import { checkPullRequestSize, formatSizeReport } from "../pr/size.ts";
+import { readMark } from "../ready/mark.ts";
 import { findProtectedBranch } from "./protected-branch.ts";
 
 interface PushedRef {
@@ -97,6 +102,19 @@ function describeUnknown(ref: PushedRef): string {
   );
 }
 
+function describeUnmarked(ref: PushedRef, mark: string | undefined): string {
+  const branch = branchName(ref);
+  const markNote =
+    mark === undefined
+      ? ""
+      : ` The commit marked here is ${mark.slice(0, 7)}; any new commit needs ready again.`;
+  return (
+    `temple-bar: refusing to push ${branch}: its tip ${ref.localSha.slice(0, 7)} has not been marked ready to push.${markNote}\n` +
+    `Push once, when the work is finished: run temple-bar ready in the worktree that has ${branch} checked out. ` +
+    "It runs the full gate and marks the commit; then push again.\n"
+  );
+}
+
 async function warnIfTooBig(
   ref: PushedRef,
   defaultBranch: string,
@@ -119,7 +137,8 @@ async function warnIfTooBig(
   }
 }
 
-/** Exit 1 when any pushed branch would be force-pushed, else 0. */
+/** Exit 1 when any pushed branch would be force-pushed or its tip isn't the
+ * commit marked ready, else 0. */
 export async function prePushCheck(
   stdin: string,
   ctx: Context,
@@ -135,6 +154,9 @@ export async function prePushCheck(
     return 0;
   }
   const defaultBranch = await findProtectedBranch(ctx, ctx.cwd);
+  // git runs this hook in the worktree the push was started from, so this is
+  // that worktree's mark.
+  const mark = await readMark(ctx, ctx.cwd);
 
   let refused = false;
   for (const ref of pushed) {
@@ -149,9 +171,15 @@ export async function prePushCheck(
         continue;
       }
     }
-    if (branchName(ref) !== defaultBranch) {
-      await warnIfTooBig(ref, defaultBranch, ctx);
+    if (branchName(ref) === defaultBranch) {
+      continue;
     }
+    if (ref.localSha !== mark) {
+      ctx.stderr.write(describeUnmarked(ref, mark));
+      refused = true;
+      continue;
+    }
+    await warnIfTooBig(ref, defaultBranch, ctx);
   }
   return refused ? 1 : 0;
 }

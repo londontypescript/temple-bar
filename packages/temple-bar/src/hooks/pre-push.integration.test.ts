@@ -13,10 +13,19 @@ import {
   alignWithOrigin,
   createHookFixture,
   installRealHooks,
+  markReady,
   pushToOriginMain,
   runGit,
+  type CommandResult,
   type HookFixture,
 } from "./testing/repo-fixture.ts";
+
+/** Marks the current commit ready, as a passing `temple-bar ready` does,
+ * then pushes the feature branch. */
+function pushReady(fixture: HookFixture): CommandResult {
+  markReady(fixture.repoDir);
+  return runGit(fixture.repoDir, ["push", "origin", "feature"]);
+}
 
 function commitFile(fixture: HookFixture, name: string, lines = 1): void {
   const content = Array.from(
@@ -47,7 +56,7 @@ void test("pre-push: a first push of a new branch is allowed", () => {
   const fixture = setUp();
   try {
     commitFile(fixture, "a.txt");
-    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+    const push = pushReady(fixture);
     assert.equal(push.code, 0, push.stderr);
     assert.doesNotMatch(push.stderr, /temple-bar:/);
   } finally {
@@ -59,12 +68,9 @@ void test("pre-push: a normal push that adds a commit is allowed", () => {
   const fixture = setUp();
   try {
     commitFile(fixture, "a.txt");
-    assert.equal(
-      runGit(fixture.repoDir, ["push", "origin", "feature"]).code,
-      0,
-    );
+    assert.equal(pushReady(fixture).code, 0);
     commitFile(fixture, "b.txt");
-    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+    const push = pushReady(fixture);
     assert.equal(push.code, 0, push.stderr);
   } finally {
     fixture.cleanup();
@@ -75,10 +81,7 @@ void test("pre-push: a force push after amending a pushed commit is refused by t
   const fixture = setUp();
   try {
     commitFile(fixture, "a.txt");
-    assert.equal(
-      runGit(fixture.repoDir, ["push", "origin", "feature"]).code,
-      0,
-    );
+    assert.equal(pushReady(fixture).code, 0);
     const pushed = runGit(fixture.repoDir, ["rev-parse", "HEAD"]).stdout.trim();
     assert.equal(
       runGit(fixture.repoDir, [
@@ -90,6 +93,8 @@ void test("pre-push: a force push after amending a pushed commit is refused by t
       ]).code,
       0,
     );
+    // Marked, so the only thing wrong with this push is that it rewrites.
+    markReady(fixture.repoDir);
 
     const push = runGit(fixture.repoDir, [
       "push",
@@ -120,10 +125,7 @@ void test("pre-push: deleting a pushed branch is allowed", () => {
   const fixture = setUp();
   try {
     commitFile(fixture, "a.txt");
-    assert.equal(
-      runGit(fixture.repoDir, ["push", "origin", "feature"]).code,
-      0,
-    );
+    assert.equal(pushReady(fixture).code, 0);
     const del = runGit(fixture.repoDir, [
       "push",
       "origin",
@@ -141,7 +143,7 @@ void test("pre-push: an oversized branch prints the size warning and still pushe
   try {
     commitFile(fixture, "big.txt", 600);
 
-    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+    const push = pushReady(fixture);
 
     assert.match(push.stderr, /warning: this pull request may be too big/);
     assert.match(push.stderr, /600 lines/);
@@ -160,7 +162,7 @@ void test("pre-push: a normal-sized branch prints nothing extra", () => {
   const fixture = setUp();
   try {
     commitFile(fixture, "a.txt", 3);
-    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+    const push = pushReady(fixture);
     assert.equal(push.code, 0, push.stderr);
     assert.doesNotMatch(push.stderr, /warning|temple-bar:|pr-size/);
   } finally {
@@ -172,10 +174,7 @@ void test("pre-push: bringing a pushed branch up to date by merging main into it
   const fixture = setUp();
   try {
     commitFile(fixture, "a.txt");
-    assert.equal(
-      runGit(fixture.repoDir, ["push", "origin", "feature"]).code,
-      0,
-    );
+    assert.equal(pushReady(fixture).code, 0);
     pushToOriginMain(fixture.root, fixture.originDir, "later.txt", "x\n");
     assert.equal(runGit(fixture.repoDir, ["fetch", "-q", "origin"]).code, 0);
     const merge = runGit(fixture.repoDir, [
@@ -187,9 +186,88 @@ void test("pre-push: bringing a pushed branch up to date by merging main into it
     ]);
     assert.equal(merge.code, 0, merge.stderr + merge.stdout);
 
-    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+    const push = pushReady(fixture);
 
     assert.equal(push.code, 0, push.stderr);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+void test("pre-push: a branch nobody marked ready is refused by the hook and doesn't reach origin", () => {
+  const fixture = setUp();
+  try {
+    commitFile(fixture, "a.txt");
+
+    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+
+    assert.match(
+      push.stderr,
+      /refusing to push feature: its tip [0-9a-f]{7} has not been marked ready to push/,
+    );
+    assert.match(push.stderr, /run temple-bar ready in the worktree/);
+    assert.notEqual(push.code, 0);
+    assert.notEqual(
+      runGit(fixture.originDir, ["rev-parse", "--verify", "refs/heads/feature"])
+        .code,
+      0,
+    );
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+void test("pre-push: a commit made after the mark needs ready again", () => {
+  const fixture = setUp();
+  try {
+    commitFile(fixture, "a.txt");
+    const marked = markReady(fixture.repoDir);
+    commitFile(fixture, "b.txt");
+
+    const push = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+
+    assert.match(push.stderr, /has not been marked ready to push/);
+    assert.match(
+      push.stderr,
+      new RegExp(`The commit marked here is ${marked.slice(0, 7)}`),
+    );
+    assert.notEqual(push.code, 0);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+void test("pre-push: a mark in one worktree doesn't let another worktree's commit out", () => {
+  const fixture = setUp();
+  try {
+    commitFile(fixture, "a.txt");
+    markReady(fixture.repoDir);
+    const otherDir = path.join(fixture.root, "other");
+    assert.equal(
+      runGit(fixture.repoDir, [
+        "worktree",
+        "add",
+        "-q",
+        "-b",
+        "other",
+        otherDir,
+      ]).code,
+      0,
+    );
+    writeFileSync(path.join(otherDir, "c.txt"), "c\n", "utf8");
+    assert.equal(runGit(otherDir, ["add", "c.txt"]).code, 0);
+    assert.equal(
+      runGit(otherDir, ["commit", "-q", "-m", "feat: add c.txt"]).code,
+      0,
+    );
+
+    const push = runGit(otherDir, ["push", "origin", "other"]);
+
+    assert.match(push.stderr, /refusing to push other: .*not been marked/);
+    assert.notEqual(push.code, 0);
+    // The mark in the first worktree still lets its own branch out.
+    const own = runGit(fixture.repoDir, ["push", "origin", "feature"]);
+    assert.equal(own.code, 0, own.stderr);
   } finally {
     fixture.cleanup();
   }

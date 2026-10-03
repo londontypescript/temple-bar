@@ -144,9 +144,46 @@ export interface Check {
 // stale) did, or never really ran.
 const PASSING_CONCLUSIONS = new Set(["success", "neutral", "skipped"]);
 
+/** Whether run `a` started after run `b`. Start times are ISO strings, so
+ * they compare as text; check run ids grow with each new run, so they
+ * settle a tie or a run that hasn't started yet. */
+function isNewer(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+): boolean {
+  const aStarted = text(a.started_at);
+  const bStarted = text(b.started_at);
+  if (aStarted !== bStarted && aStarted !== "" && bStarted !== "") {
+    return aStarted > bStarted;
+  }
+  const aId = typeof a.id === "number" ? a.id : 0;
+  const bId = typeof b.id === "number" ? b.id : 0;
+  return aId > bId;
+}
+
+/** The newest run of each check name. One commit can carry several runs of
+ * the same check: a description edit or a re-run starts a new workflow
+ * run, which often cancels the old one, and GitHub lists both. Its required
+ * checks go by the newest run of each name, so merge does the same, and an
+ * old cancelled or failed run that a later one replaced doesn't count. */
+export function newestRunPerName(
+  runs: readonly Record<string, unknown>[],
+): Record<string, unknown>[] {
+  const newest = new Map<string, Record<string, unknown>>();
+  for (const run of runs) {
+    const name = text(run.name);
+    const seen = newest.get(name);
+    if (seen === undefined || isNewer(run, seen)) {
+      newest.set(name, run);
+    }
+  }
+  return [...newest.values()];
+}
+
 /** Every check on exactly `sha`: GitHub Actions check runs and the older
- * commit statuses. Read by commit, never by pull request, because a pull
- * request's head can lag behind the pushed commit. */
+ * commit statuses, the newest run of each. Read by commit, never by pull
+ * request, because a pull request's head can lag behind the pushed
+ * commit. */
 export async function readChecks(
   ctx: Context,
   repository: Repository,
@@ -157,7 +194,7 @@ export async function readChecks(
   const runs = await apiLines(
     ctx,
     `${base}/check-runs?per_page=100`,
-    ".check_runs[] | {name, status, conclusion}",
+    ".check_runs[] | {name, status, conclusion, id, started_at}",
     cwd,
   );
   if (runs.result.code !== 0) {
@@ -175,7 +212,9 @@ export async function readChecks(
     );
   }
 
-  const checks: Check[] = runs.items.map((run) => {
+  // The combined status endpoint already gives only the newest status of
+  // each context, so only the check runs need narrowing.
+  const checks: Check[] = newestRunPerName(runs.items).map((run) => {
     const status = text(run.status);
     const conclusion = text(run.conclusion);
     if (status !== "completed") {
@@ -236,6 +275,12 @@ export interface Alert {
   readonly number: number;
   readonly rule: string;
   readonly path: string;
+}
+
+export function describeAlerts(alerts: readonly Alert[]): string {
+  return alerts
+    .map((alert) => `#${String(alert.number)} ${alert.rule} in ${alert.path}`)
+    .join(", ");
 }
 
 /** Open code-scanning alerts, or "not-set-up" for a repository without code
