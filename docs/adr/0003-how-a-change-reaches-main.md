@@ -1,7 +1,7 @@
 # ADR 0003: How a change reaches `main`
 
 Date: 2026-10-01. Status: accepted (decisions 4, 17, 18, 24, 33 and 35; 35
-is decided but not built yet).
+is built as described in [ADR 0012](0012-push-once-with-ready.md)).
 
 ## Context
 

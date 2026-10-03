@@ -15,6 +15,7 @@ import { leftoversCommandEntry } from "./leftovers/command.ts";
 import { createMergeCommand, realMergeDeps } from "./merge/command.ts";
 import { prSizeCommandEntry } from "./pr/command.ts";
 import { prTitleCommand } from "./pr/title-command.ts";
+import { readyCommand } from "./ready/command.ts";
 import { buildCommandHelp, buildUsage, CommandRegistry } from "./registry.ts";
 
 // Flags that mean the same thing as a registered command name.
@@ -51,6 +52,7 @@ export function createRegistry(): CommandRegistry {
   registry.register(leftoversCommandEntry);
   registry.register(prSizeCommandEntry);
   registry.register(prTitleCommand);
+  registry.register(readyCommand);
 
   return registry;
 }
