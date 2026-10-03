@@ -20,6 +20,7 @@ import {
   upstreamRefFor,
 } from "../hooks/protected-branch.ts";
 import { reasonsForMaintainerApproval } from "../merge/approval.ts";
+import { readChanges } from "../merge/manifests.ts";
 import type { CommandEntry } from "../registry.ts";
 import { clearMark, writeMark } from "./mark.ts";
 
@@ -110,7 +111,18 @@ async function reasonsToAsk(
         "Run git fetch origin, then run ready again.",
     );
   }
-  return reasonsForMaintainerApproval(ctx, upstream, head, root);
+  // Compared from where the branch left the default branch, as merge does,
+  // so changes that landed on the default branch since don't count as this
+  // branch's.
+  const base = await git(ctx, ["merge-base", upstream, head], root);
+  if (!base.ok) {
+    stop(
+      `could not find where this branch left origin/${defaultBranch}: ${base.stderr}`,
+    );
+  }
+  return reasonsForMaintainerApproval(
+    await readChanges(ctx, base.stdout, head, root),
+  );
 }
 
 function askTheUser(root: string, reasons: readonly string[]): string {

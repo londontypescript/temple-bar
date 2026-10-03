@@ -56,6 +56,9 @@ function setup(scenario: Scenario = {}) {
         ? { code: 1, stdout: "", stderr: "" }
         : ok("e".repeat(40));
     }
+    if (args[0] === "merge-base") {
+      return ok(`${"b".repeat(40)}\n`);
+    }
     if (args[0] === "status") {
       return ok(scenario.status ?? "");
     }
