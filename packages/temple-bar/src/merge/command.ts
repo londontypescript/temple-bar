@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import type { Context } from "../context.ts";
 import type { CommandEntry } from "../registry.ts";
+import { gateCommand } from "../gate/command.ts";
 import { runMerge, type MergeDeps } from "./run.ts";
 
 interface ParsedArgs {
@@ -35,6 +36,7 @@ export const realMergeDeps: MergeDeps = {
   sleep: async (ms) => {
     await delay(ms);
   },
+  runGate: (ctx) => gateCommand.run([], ctx),
 };
 
 export function createMergeCommand(deps: MergeDeps): CommandEntry {
@@ -45,8 +47,10 @@ export function createMergeCommand(deps: MergeDeps): CommandEntry {
     details: [
       "Blocks until done. Refuses a draft, closed or fork pull request, or",
       "one that doesn't target the default branch. When the branch is behind,",
-      "merges the default branch into it in its worktree and pushes (never a",
-      "force push). Waits until GitHub shows the pushed commit as the head.",
+      "merges the default branch into it in its worktree, runs the full gate",
+      "there and marks the commit ready (as `temple-bar ready` does), then",
+      "pushes (never a force push). A failing gate stops it before the push.",
+      "Waits until GitHub shows the pushed commit as the head.",
       "",
       "Then prints what you are approving: changes to the checking machinery",
       "(CI workflows, lint, format and TypeScript config, the gate's scripts,",
