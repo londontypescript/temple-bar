@@ -1,6 +1,6 @@
 # ADR 0005: Setup, hooks and worktrees
 
-Date: 2026-10-01, updated 2026-10-02. Status: accepted (decisions 5, 16, 21,
+Date: 2026-10-01, updated 2026-10-02 and 2026-10-03. Status: accepted (decisions 5, 16, 21,
 22, 30 and 32; 32 is built and 30's ignore line ships in 0.0.6, while 16's
 checks and 30's detection are decided but not built yet).
 
@@ -18,8 +18,15 @@ worktree nested inside the repo where other tools trip over it.
 agent, linking to the README's `#for-ai-agents` section, so the instructions
 sit where the agent reads them. The command is
 `pnpm create @londontypescript/temple-bar@latest`, which runs the thin
-launcher `create-temple-bar`. temple-bar comes first, and scaffolding is phase
-1 of the project's own plan; existing projects are supported. `init` asks
+launcher `create-temple-bar`. The project is scaffolded first (by a framework
+CLI such as Vite, Next.js or Astro, or by hand), and setup then layers
+temple-bar on top of whatever is there. Setup never chooses or writes the
+project's toolchain: the agent sets the gate's four scripts to the right
+commands for the project's stack (decision 23), and setup adapts to the
+framework's files instead of replacing them: its rules go into an existing
+AGENTS.md as a marked block, its hook install chains onto an existing
+`prepare` script, and a `packageManager` naming another tool is explained
+before anything is installed. `init` asks
 before any GitHub change, writes a `prepare` script, and never deletes
 anything. The package has no install scripts: nothing runs merely because it
 was installed, and the hooks go in through the project's own `prepare` script,
@@ -27,7 +34,18 @@ in plain view. The rules it installs make "ask the user what they're building"
 the first step for a new project.
 
 Until 2026-10-01 this decision said the command worked with every package
-manager; it now says pnpm only, as decisions 9 and 31 require.
+manager; it now says pnpm only, as decisions 9 and 31 require. Until
+2026-10-03 it said temple-bar came first and scaffolding followed. Trying
+setup on seven popular scaffolders that day showed the opposite order is the
+only one that works: run after temple-bar, Vite and Nuxt overwrote its
+`package.json` (Vite also deleted AGENTS.md), Next.js and React Router
+refused, Astro made a subfolder and Angular hit a conflict. Run first, every
+scaffolder left temple-bar room, but each exposed a gap: Next.js and Astro
+ship their own AGENTS.md, SvelteKit its own `prepare` script, Angular an npm
+`packageManager`, and none of them the gate's four scripts. A
+temple-bar-template repo, which carried a frozen copy of setup's output,
+was retired the same day for the same reason: it drifted from setup and
+blocked scaffolders.
 
 **Decision 21: fresh clones.** The README says the hooks arrive with the
 install. Nothing more is built for it: the audience runs the install anyway.
@@ -143,4 +161,7 @@ This is wrong if harnesses converge on one worktree location that temple-bar
 could rely on: setting the location would then be simpler than detecting the
 harms of every location. It would also need revisiting if
 failing closed before install caused more harm than an unprotected checkout,
-for example if most users never ran the install.
+for example if most users never ran the install. Scaffold-first is wrong if
+the popular scaffolders start working safely inside an existing project, or
+if adapting to each one's files grows into more code than shipping a
+toolchain would be.

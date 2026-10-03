@@ -1,6 +1,6 @@
 # ADR 0002: What temple-bar is for, and what it will not be
 
-Date: 2026-10-01. Status: accepted (decisions 2, 3, 11, 28, 29 and 31, and
+Date: 2026-10-01, updated 2026-10-03. Status: accepted (decisions 2, 3, 11, 28, 29 and 31, and
 three choices settled before the first planning session).
 
 ## Context
@@ -58,15 +58,17 @@ not a date.
 
 **Decision 28: a solid foundation first.** temple-bar and grand-union are the
 foundation of the London TypeScript GitHub org. grand-union starts once
-temple-bar 0.0.8 ships: a first run that works, an enforced merge path,
+temple-bar 0.0.9 ships: a first run that works, an enforced merge path,
 worktrees that work safely wherever a tool puts them, rules that can't be
-quietly weakened, and everything the earlier template did. The
+quietly weakened, everything the earlier template did, and a setup that
+works on projects made by the popular framework scaffolders. The
 remaining themes continue alongside grand-union, so it starts on a foundation
 that holds rather than waiting for every theme. Until 2026-10-01 this decision
 said every theme (A to F) came first; it changed once the releases up to 0.0.7
 were planned and the rest proved to be later, separable work. On 2026-10-02
 a small worktree release was inserted as 0.0.6, so the same scope now ends at
-0.0.8.
+0.0.8. On 2026-10-03 0.0.9 was added, "works on real projects", after setup
+was found to break or be blocked by framework scaffolders; grand-union is
 
 **Decision 29: working, well-made code first; a showcase second.** The code
 must first work and follow sound standards, in both the code and the
