@@ -3,8 +3,10 @@
 [AGENTS.md](../AGENTS.md) holds only the rules, because every agent loads it in
 every session. The reasons behind some of them live here.
 
-- **The user writes the intake.** Its grouping carries their judgement of what
-  matters, so an agent reordering it replaces that judgement with its own.
+- **The user sets scope through milestones.** Placing an issue in a milestone is
+  their judgement of what matters and when. Grouping a milestone's issues into
+  phases follows the files each change touches, which an agent sees better, so
+  the agent proposes it and the plan's approval covers it.
 - **The tracker moves at every subtask.** A tracker that only moves at phase end
   tells the user nothing about where to spend the rest of a usage window.
 - **Incidents are built in two halves.** Agents see what went wrong in the

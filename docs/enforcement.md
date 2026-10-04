@@ -27,7 +27,7 @@ same pull request as any change to a mechanism.
 | Comments in plain words, no plan IDs      | nothing                                              | **Prose only**        |
 | Plan before code                          | nothing                                              | **Prose only**        |
 | Tracker updated per subtask               | nothing                                              | **Prose only**        |
-| Intake stays the user's                   | nothing                                              | **Prose only**        |
+| Milestone scope stays the user's          | nothing                                              | **Prose only**        |
 | Whether wide changes mean duplication     | nothing: judgement                                   | **Prose only**        |
 | Worktree per branch; merge steps (§2)     | `temple-bar merge`; nothing forces its use           | **Prose only**        |
 | Issues closed need a `One concern:` line  | `temple-bar merge` refuses without it                | **Blocked** by merge  |
