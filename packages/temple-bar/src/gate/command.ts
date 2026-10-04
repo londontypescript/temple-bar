@@ -26,8 +26,16 @@ import {
   AGENTS_MAX_BYTES,
   AGENTS_MAX_LINES,
 } from "./agents-size.ts";
-import { checkFileLengths, formatLengthFailure } from "./lengths.ts";
+import { runCoreCheck } from "./core.ts";
+import {
+  checkFileLengths,
+  formatLengthFailure,
+  listGitPaths,
+} from "./lengths.ts";
+import { runLinkCheck, runMarkdownLint } from "./markdown.ts";
 import { runRulesetCheck } from "./ruleset.ts";
+import { runUnusedCheck } from "./unused.ts";
+import { createRealGateTools, type GateTools } from "./tools.ts";
 import { writeReport, type CheckOutcome } from "./report.ts";
 import {
   detectPackageManager,
@@ -195,12 +203,17 @@ async function runAgentsSizeCheck(ctx: Context): Promise<CheckOutcome> {
   };
 }
 
-async function runGate(ctx: Context): Promise<number> {
+async function runGate(ctx: Context, tools: GateTools): Promise<number> {
   const stack = await runStackChecks(ctx);
+  const listed = await listGitPaths(ctx);
   const outcomes = [
     ...stack.outcomes,
+    await runCoreCheck(ctx),
     await runLengthCheck(ctx),
     await runAgentsSizeCheck(ctx),
+    await runMarkdownLint(ctx, tools, listed),
+    await runLinkCheck(ctx, listed),
+    await runUnusedCheck(ctx, tools),
     await runRulesetCheck(ctx),
   ];
   writeReport(ctx, outcomes);
@@ -213,9 +226,9 @@ async function runGate(ctx: Context): Promise<number> {
 
 // Anything the gate can't determine (git failing, an unreadable config) is
 // a failure with a message, never a pass.
-async function runGateSafely(ctx: Context): Promise<number> {
+async function runGateSafely(ctx: Context, tools: GateTools): Promise<number> {
   try {
-    return await runGate(ctx);
+    return await runGate(ctx, tools);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     ctx.stderr.write(`gate: ${message}\n`);
@@ -223,27 +236,43 @@ async function runGateSafely(ctx: Context): Promise<number> {
   }
 }
 
-export const gateCommand: CommandEntry = {
-  name: "gate",
-  summary:
-    "Run the merge gate: stack checks, the file-length cap, the AGENTS.md size limit and the branch ruleset.",
-  details: [
-    "Once the repo has files of its own (beyond package.json, the lockfile,",
-    "AGENTS.md, .gitignore, README.md, LICENSE and temple-bar.config.json),",
-    "requires these package.json scripts and runs every one that exists:",
-    `${REQUIRED_SCRIPTS.join(", ")}. A script that does nothing (such as`,
-    "`true` or a bare `echo`) fails. Then checks every tracked text file",
-    "against the file-length cap (maxFileLines in temple-bar.config.json).",
-    "Also checks AGENTS.md stays within 200 lines and 32 KiB (skipped when",
-    "there is no AGENTS.md). Reads GitHub's rules for the default branch and",
-    "fails if setup's rules are missing or weakened (public repos only; a",
-    "private repo, no GitHub origin or no network is skipped, except in",
-    "GitHub Actions, where an unreachable API fails). In GitHub Actions it",
-    "needs GH_TOKEN (GH_TOKEN: ${{ github.token }} on the gate step) and",
-    "fails without one. Ends by listing each check and its outcome.",
-    "",
-    "Exit codes: 0 every check passed, 1 a check failed,",
-    "2 a required script is missing from package.json or does nothing.",
-  ].join("\n"),
-  run: (_args, ctx) => runGateSafely(ctx),
-};
+/** The gate, running `tools` for its npm-tool checks; tests pass fakes. */
+export function createGateCommand(tools: GateTools): CommandEntry {
+  return {
+    name: "gate",
+    summary:
+      "Run the merge gate: stack checks, setup's core, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code and the branch ruleset.",
+    details: [
+      "Once the repo has files of its own (beyond package.json, the lockfile,",
+      "AGENTS.md, .gitignore, README.md, LICENSE and temple-bar.config.json),",
+      "requires these package.json scripts and runs every one that exists:",
+      `${REQUIRED_SCRIPTS.join(", ")}. A script that does nothing (such as`,
+      "`true` or a bare `echo`) fails. Checks that what setup installs is",
+      "still in place: the git hooks (unchanged, by SHA-256), core.hooksPath",
+      "unset, pull.ff=only, setup's .gitignore lines and its prepare and gate",
+      "scripts. Then checks every tracked text file",
+      "against the file-length cap (maxFileLines in temple-bar.config.json).",
+      "Also checks AGENTS.md stays within 200 lines and 32 KiB (skipped when",
+      "there is no AGENTS.md). Lints the markdown files with markdownlint",
+      "(the project's own .markdownlint.json or .jsonc if it has one, else",
+      "markdownlint's rules",
+      "minus layout, which format:check owns), and checks that every local",
+      "link and cited path in them names a file git lists; web links are",
+      "never fetched. Runs knip (unused files, exports and types) when there",
+      "is a package.json. Reads GitHub's rules for the default branch and",
+      "fails if setup's rules are missing or weakened (public repos only; a",
+      "private repo, no GitHub origin or no network is skipped, except in",
+      "GitHub Actions, where an unreachable API fails). In GitHub Actions it",
+      "needs GH_TOKEN (GH_TOKEN: ${{ github.token }} on the gate step) and",
+      "fails without one. Ends by listing each check and its outcome.",
+      "",
+      "Exit codes: 0 every check passed, 1 a check failed,",
+      "2 a required script is missing from package.json or does nothing.",
+    ].join("\n"),
+    run: (_args, ctx) => runGateSafely(ctx, tools),
+  };
+}
+
+export const gateCommand: CommandEntry = createGateCommand(
+  createRealGateTools(),
+);

@@ -4,6 +4,7 @@
 
 import type { Context } from "../context.ts";
 import type { GhResult } from "../seams/gh.ts";
+import { newestRunPerCheck } from "./check-runs.ts";
 import { refuse } from "./refusal.ts";
 
 export interface Repository {
@@ -145,8 +146,9 @@ export interface Check {
 const PASSING_CONCLUSIONS = new Set(["success", "neutral", "skipped"]);
 
 /** Every check on exactly `sha`: GitHub Actions check runs and the older
- * commit statuses. Read by commit, never by pull request, because a pull
- * request's head can lag behind the pushed commit. */
+ * commit statuses, the newest run of each. Read by commit, never by pull
+ * request, because a pull request's head can lag behind the pushed
+ * commit. */
 export async function readChecks(
   ctx: Context,
   repository: Repository,
@@ -157,11 +159,30 @@ export async function readChecks(
   const runs = await apiLines(
     ctx,
     `${base}/check-runs?per_page=100`,
-    ".check_runs[] | {name, status, conclusion}",
+    ".check_runs[] | {name, status, conclusion, id, started_at, suite: .check_suite.id, app: .app.id}",
     cwd,
   );
   if (runs.result.code !== 0) {
     refuse(`could not read the checks on ${sha}: ${failure(runs.result)}`);
+  }
+  // Which workflow each check suite belongs to, so runs are only compared
+  // with earlier runs of the same workflow.
+  const workflowRuns = await apiLines(
+    ctx,
+    `repos/${repository.nameWithOwner}/actions/runs?head_sha=${sha}&per_page=100`,
+    ".workflow_runs[] | {suite: .check_suite_id, workflow: .workflow_id}",
+    cwd,
+  );
+  if (workflowRuns.result.code !== 0) {
+    refuse(
+      `could not read the workflow runs on ${sha}: ${failure(workflowRuns.result)}`,
+    );
+  }
+  const workflowOf = new Map<number, number>();
+  for (const item of workflowRuns.items) {
+    if (typeof item.suite === "number" && typeof item.workflow === "number") {
+      workflowOf.set(item.suite, item.workflow);
+    }
   }
   const statuses = await apiLines(
     ctx,
@@ -175,18 +196,22 @@ export async function readChecks(
     );
   }
 
-  const checks: Check[] = runs.items.map((run) => {
-    const status = text(run.status);
-    const conclusion = text(run.conclusion);
-    if (status !== "completed") {
-      return { name: text(run.name), state: "pending", detail: status };
-    }
-    return {
-      name: text(run.name),
-      state: PASSING_CONCLUSIONS.has(conclusion) ? "passed" : "failed",
-      detail: conclusion,
-    };
-  });
+  // The combined status endpoint already gives only the newest status of
+  // each context, so only the check runs need narrowing.
+  const checks: Check[] = newestRunPerCheck(runs.items, workflowOf).map(
+    (run) => {
+      const status = text(run.status);
+      const conclusion = text(run.conclusion);
+      if (status !== "completed") {
+        return { name: text(run.name), state: "pending", detail: status };
+      }
+      return {
+        name: text(run.name),
+        state: PASSING_CONCLUSIONS.has(conclusion) ? "passed" : "failed",
+        detail: conclusion,
+      };
+    },
+  );
   for (const status of statuses.items) {
     const state = text(status.state);
     checks.push({
@@ -236,6 +261,12 @@ export interface Alert {
   readonly number: number;
   readonly rule: string;
   readonly path: string;
+}
+
+export function describeAlerts(alerts: readonly Alert[]): string {
+  return alerts
+    .map((alert) => `#${String(alert.number)} ${alert.rule} in ${alert.path}`)
+    .join(", ");
 }
 
 /** Open code-scanning alerts, or "not-set-up" for a repository without code

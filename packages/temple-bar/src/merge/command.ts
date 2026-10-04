@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import type { Context } from "../context.ts";
 import type { CommandEntry } from "../registry.ts";
+import { gateCommand } from "../gate/command.ts";
 import { runMerge, type MergeDeps } from "./run.ts";
 
 interface ParsedArgs {
@@ -35,6 +36,7 @@ export const realMergeDeps: MergeDeps = {
   sleep: async (ms) => {
     await delay(ms);
   },
+  runGate: (ctx) => gateCommand.run([], ctx),
 };
 
 export function createMergeCommand(deps: MergeDeps): CommandEntry {
@@ -45,17 +47,28 @@ export function createMergeCommand(deps: MergeDeps): CommandEntry {
     details: [
       "Blocks until done. Refuses a draft, closed or fork pull request, or",
       "one that doesn't target the default branch. When the branch is behind,",
-      "merges the default branch into it in its worktree and pushes (never a",
-      "force push). Then waits until GitHub shows the pushed commit as the",
-      "head, and until every check on that commit has passed. Refuses while",
-      "code-scanning alerts are open on the pull request or the default",
-      "branch. Repeats the pull request size warning.",
+      "merges the default branch into it in its worktree, runs the full gate",
+      "there and marks the commit ready (as `temple-bar ready` does), then",
+      "pushes (never a force push). A failing gate stops it before the push.",
+      "Waits until GitHub shows the pushed commit as the head.",
+      "",
+      "Then prints what you are approving: changes to the checking machinery",
+      "(CI workflows, lint, format and TypeScript config, the gate's scripts,",
+      "the hook install, the pinned temple-bar), dependencies added, removed",
+      "or changed in major version, and the number of open incident issues.",
+      "",
+      "Then waits until the newest run of every check on the head commit has",
+      "passed. Refuses while code-scanning alerts are open on the pull",
+      "request or the default branch. Repeats the pull request size warning.",
+      "If GitHub refuses the merge because it started new check runs (after",
+      "a title or description edit), waits for those and tries again.",
       "",
       "The squash commit's subject is the title with (#N); its body is the",
-      'description\'s top-level "- " bullets, then each co-author once.',
+      'description\'s top-level "- " bullets, if it has any, then each',
+      "co-author once. Without bullets the title stands alone.",
       "Afterwards removes the worktree and the local branch, confirms the",
       "remote branch is gone, fast-forwards the default branch, and reports",
-      "alerts on the default branch, leftovers, and open incident issues.",
+      "alerts on the default branch and leftovers.",
       "",
       "Options:",
       "  --maintainer-approved  The maintainer already said yes in chat to a",

@@ -20,6 +20,18 @@ export const HEAD = "a".repeat(40);
 export const MERGED_IN = "b".repeat(40);
 export const BASE = "c".repeat(40);
 
+/** A check run as GitHub's API returns it. `id` and `started_at` tell
+ * which of several runs with one name is the newest. */
+export interface CheckRun {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  id?: number;
+  started_at?: string | null;
+  /** The check suite (one per workflow run) the run belongs to. */
+  suite?: number;
+}
+
 export interface World {
   pr: {
     number: number;
@@ -36,11 +48,15 @@ export interface World {
   /** Local branch tip, or undefined for no local branch. */
   localTip: string | undefined;
   behind: boolean;
+  /** Exit code of the gate merge runs after bringing a branch up to date. */
+  gateExit: number;
   dirty: boolean;
   /** Extra worktree entries after the primary one, in porcelain form. */
   worktrees: string;
   /** Check runs on each read; the last one repeats. */
-  checkRuns: { name: string; status: string; conclusion: string | null }[][];
+  checkRuns: CheckRun[][];
+  /** Which workflow each check suite belongs to. */
+  workflowRuns: { suite: number; workflow: number }[];
   statuses: { context: string; state: string }[];
   required: string[];
   alertsForPr: { number: number; rule: string; path: string }[] | "not-set-up";
@@ -48,8 +64,12 @@ export interface World {
   changedFiles: string[];
   packageBefore: string;
   packageAfter: string;
+  /** Other files' contents where the branched-off commit and the head have
+   * them; a missing side doesn't exist there. */
+  otherFiles: Record<string, { before?: string; after?: string }>;
   coAuthors: string;
-  mergeFails: boolean;
+  /** How many merge requests GitHub refuses before it accepts one. */
+  mergeRefusals: number;
   remoteBranchAfterMerge: boolean;
   incidents: number;
 }
@@ -69,9 +89,11 @@ export function defaultWorld(): World {
     heads: [HEAD],
     localTip: HEAD,
     behind: false,
+    gateExit: 0,
     dirty: false,
     worktrees: `worktree /wt/x\nHEAD ${HEAD}\nbranch refs/heads/feat/x\n`,
     checkRuns: [[{ name: "gate", status: "completed", conclusion: "success" }]],
+    workflowRuns: [],
     statuses: [],
     required: [],
     alertsForPr: [],
@@ -81,9 +103,10 @@ export function defaultWorld(): World {
       '{"devDependencies":{"@londontypescript/temple-bar":"0.0.4"}}',
     packageAfter:
       '{"devDependencies":{"@londontypescript/temple-bar":"0.0.4"}}',
+    otherFiles: {},
     coAuthors:
       "Ada <ada@example.com>\n\nada <ADA@example.com>\nBob <bob@example.com>\n",
-    mergeFails: false,
+    mergeRefusals: 0,
     remoteBranchAfterMerge: false,
     incidents: 3,
   };
@@ -109,6 +132,8 @@ export interface Harness {
   readonly stderr: FakeWriter;
   readonly deps: MergeDeps;
   readonly sleeps: number[];
+  /** The directory of each gate run. */
+  readonly gateRuns: string[];
   out(): string;
   err(): string;
   /** Whether a git or gh call whose args start with `prefix` was made. */
@@ -119,6 +144,7 @@ export function harness(world: World): Harness {
   let merged = false;
   let prReads = 0;
   let checkReads = 0;
+  let mergeRequests = 0;
   let tip = world.localTip;
   let remoteDeleted = false;
   let worktreeRemoved = false;
@@ -142,6 +168,9 @@ export function harness(world: World): Harness {
       case "for-each-ref":
         return ok(branchDeleted ? "main\n" : `main\n${world.pr.headRefName}\n`);
       case "rev-parse":
+        if (rest[0] === "--git-path") {
+          return ok(`.git/${rest[1] ?? ""}\n`);
+        }
         return tip === undefined ? fail("") : ok(`${tip}\n`);
       case "merge-base":
         if (rest[0] === "--is-ancestor") {
@@ -160,12 +189,20 @@ export function harness(world: World): Harness {
           return ok("1\t1\tsrc/x.ts\0");
         }
         return ok(world.changedFiles.join("\n"));
-      case "show":
-        return ok(
-          rest[0]?.startsWith(BASE) === true
-            ? world.packageBefore
-            : world.packageAfter,
-        );
+      case "show": {
+        const spec = rest[0] ?? "";
+        const file = spec.slice(spec.indexOf(":") + 1);
+        const atBase = spec.startsWith(BASE);
+        if (file === "package.json") {
+          return ok(atBase ? world.packageBefore : world.packageAfter);
+        }
+        const text = atBase
+          ? world.otherFiles[file]?.before
+          : world.otherFiles[file]?.after;
+        return text === undefined
+          ? fail(`fatal: path '${file}' does not exist`)
+          : ok(text);
+      }
       case "log":
         return ok(world.coAuthors);
       case "ls-remote":
@@ -211,6 +248,9 @@ export function harness(world: World): Harness {
       checkReads++;
       return ok(lines(runs));
     }
+    if (joined.includes("/actions/runs?head_sha=")) {
+      return ok(lines(world.workflowRuns));
+    }
     if (joined.includes("/status?")) {
       return ok(lines(world.statuses));
     }
@@ -226,7 +266,7 @@ export function harness(world: World): Harness {
       return ok(lines(world.alertsOnDefault));
     }
     if (joined.startsWith("pr merge")) {
-      if (world.mergeFails) {
+      if (mergeRequests++ < world.mergeRefusals) {
         return fail("Repository rule violations found");
       }
       merged = true;
@@ -248,8 +288,13 @@ export function harness(world: World): Harness {
   // few fake polls instead of real minutes.
   let now = ctx.clock.now().getTime();
   const sleeps: number[] = [];
+  const gateRuns: string[] = [];
   const timedCtx: Context = { ...ctx, clock: { now: () => new Date(now) } };
   const deps: MergeDeps = {
+    runGate: (gateCtx) => {
+      gateRuns.push(gateCtx.cwd);
+      return Promise.resolve(world.gateExit);
+    },
     sleep: (ms) => {
       sleeps.push(ms);
       now += ms;
@@ -274,6 +319,7 @@ export function harness(world: World): Harness {
     stderr,
     deps,
     sleeps,
+    gateRuns,
     out: () => stdout.lines.join(""),
     err: () => stderr.lines.join(""),
     ran: (tool, ...prefix) =>

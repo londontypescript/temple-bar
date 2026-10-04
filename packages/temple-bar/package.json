@@ -27,5 +27,9 @@
     "type": "git",
     "url": "git+https://github.com/londontypescript/temple-bar.git",
     "directory": "packages/temple-bar"
+  },
+  "dependencies": {
+    "knip": "6.39.0",
+    "markdownlint": "0.41.1"
   }
 }

@@ -6,7 +6,7 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { createServer, type Server } from "node:http";
+import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
 export interface LocalRegistry {
@@ -23,6 +23,38 @@ interface PackageJson {
 
 /** Serves `tarballPath` as `manifest.name@manifest.version`. `manifest` is
  * the package.json that was packed into the tarball. */
+const PUBLIC_REGISTRY = "https://registry.npmjs.org/";
+
+// An npm package name, optionally scoped: nothing else is passed on, so
+// the request to the public registry can only ever be a package lookup.
+const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+
+async function passThrough(
+  name: string,
+  accept: string | undefined,
+  res: ServerResponse,
+): Promise<void> {
+  if (!PACKAGE_NAME.test(name)) {
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end('{"error":"not found"}');
+    return;
+  }
+  try {
+    const upstream = await fetch(
+      new URL(encodeURIComponent(name), PUBLIC_REGISTRY),
+      { headers: accept === undefined ? {} : { accept } },
+    );
+    res.writeHead(upstream.status, {
+      "content-type":
+        upstream.headers.get("content-type") ?? "application/json",
+    });
+    res.end(Buffer.from(await upstream.arrayBuffer()));
+  } catch {
+    res.writeHead(502, { "content-type": "application/json" });
+    res.end('{"error":"the public registry could not be reached"}');
+  }
+}
+
 export function serveTarball(
   manifest: PackageJson & Record<string, unknown>,
   tarballPath: string,
@@ -46,8 +78,12 @@ export function serveTarball(
 
     requested.push(pathname);
     if (pathname !== manifest.name) {
-      res.writeHead(404, { "content-type": "application/json" });
-      res.end('{"error":"not found"}');
+      // Every other package (temple-bar's own dependencies) comes from the
+      // public registry, as it would for a real install. Passing it through
+      // here, rather than pointing only temple-bar's scope at this server,
+      // works on every pnpm version: newer ones ignore a scope registry
+      // given as an environment variable.
+      void passThrough(pathname, req.headers.accept, res);
       return;
     }
 

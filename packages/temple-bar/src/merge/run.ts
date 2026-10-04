@@ -3,48 +3,48 @@
 // when checks finish. Each step either passes or stops the merge with a
 // refusal that says what to do; nothing is merged until every step passes.
 //
-// Order matters: things the author must fix (a draft, a missing bullet
-// list, a change that needs the maintainer's yes) are refused before the
+// Order matters: things the author must fix (a draft, a branch that can't
+// be updated, a change that needs the maintainer's yes) are refused before the
 // long wait for checks, so nobody waits half an hour to hear about them.
 
 import type { Context } from "../context.ts";
-import { warnAboutPullRequestSize } from "../pr/size.ts";
-import { reportLeftovers } from "../leftovers/report.ts";
+import { afterMerge } from "./after.ts";
 import { reasonsForMaintainerApproval } from "./approval.ts";
+import { approvingSection } from "./approving.ts";
 import {
   countOpenIncidents,
-  describeGhFailure,
-  readOpenAlerts,
   readPullRequest,
   readRepository,
-  readRequiredChecks,
-  squashMerge,
-  type Alert,
   type PullRequest,
   type Repository,
 } from "./github.ts";
+import { checkAndMerge } from "./land.ts";
 import {
   bringUpToDate,
-  cleanUp,
   fetchOrigin,
   isAncestor,
   resolveCommit,
   worktreeForUpdate,
 } from "./local.ts";
+import { readChanges } from "./manifests.ts";
 import { buildSquashMessage, readCoAuthors } from "./message.ts";
 import { MergeRefusal, refuse } from "./refusal.ts";
 import {
   DEFAULT_TIMING,
-  waitForChecks,
   waitForHead,
   type Sleep,
   type Timing,
 } from "./wait.ts";
 import { listWorktrees } from "./worktrees.ts";
+import type { RunGate } from "../ready/command.ts";
+import { writeMark } from "../ready/mark.ts";
 
 export interface MergeDeps {
   readonly sleep: Sleep;
   readonly timing?: Timing;
+  /** The full gate, run in a worktree after merge brings its branch up to
+   * date; resolves the gate's exit code. */
+  readonly runGate: RunGate;
 }
 
 export interface MergeOptions {
@@ -84,52 +84,12 @@ function checkMergeable(
   }
 }
 
-function describeAlerts(alerts: readonly Alert[]): string {
-  return alerts
-    .map((alert) => `#${String(alert.number)} ${alert.rule} in ${alert.path}`)
-    .join(", ");
-}
-
-async function refuseOnOpenAlerts(
-  ctx: Context,
-  repository: Repository,
-  prNumber: number,
-  cwd: string,
-): Promise<void> {
-  const forPullRequest = await readOpenAlerts(
-    ctx,
-    repository,
-    { pr: prNumber },
-    cwd,
-  );
-  const onDefault = await readOpenAlerts(
-    ctx,
-    repository,
-    { branch: repository.defaultBranch },
-    cwd,
-  );
-  if (forPullRequest === "not-set-up" || onDefault === "not-set-up") {
-    ctx.stdout.write(
-      "merge: code scanning isn't set up here, so there are no alerts to check\n",
-    );
-  }
-  if (forPullRequest !== "not-set-up" && forPullRequest.length > 0) {
-    refuse(
-      `pull request #${String(prNumber)} has open code-scanning alerts: ${describeAlerts(forPullRequest)}. Fix them, push, and run merge again.`,
-    );
-  }
-  if (onDefault !== "not-set-up" && onDefault.length > 0) {
-    refuse(
-      `${repository.defaultBranch} has open code-scanning alerts: ${describeAlerts(onDefault)}. Fix or dismiss them before merging more.`,
-    );
-  }
-}
-
 /** Brings the branch up to date with the default branch when it's behind,
  * because the ruleset only merges up-to-date branches. Returns the tip that
  * GitHub should now show as the pull request's head. */
 async function upToDateTip(
   ctx: Context,
+  deps: MergeDeps,
   pullRequest: PullRequest,
   repository: Repository,
   root: string,
@@ -162,7 +122,29 @@ async function upToDateTip(
   ctx.stdout.write(
     `merge: ${branch} is behind; merging ${upstream} into it and pushing\n`,
   );
-  return bringUpToDate(ctx, worktree, branch, repository.defaultBranch);
+  // The merge commit is new, so the pre-push hook wants it marked ready.
+  // Merge does what ready does: runs the full gate on it, and marks it only
+  // if it passes, since a change that landed on the default branch can
+  // break this branch.
+  return bringUpToDate(
+    ctx,
+    worktree,
+    branch,
+    repository.defaultBranch,
+    async (mergedTip) => {
+      ctx.stdout.write(
+        `merge: running the gate on ${branch} with ${upstream} merged in\n`,
+      );
+      if ((await deps.runGate({ ...ctx, cwd: worktree.path })) !== 0) {
+        refuse(
+          `with ${upstream} merged in, ${branch} fails the gate, so nothing was pushed. ` +
+            `The merge commit is in ${worktree.path}: fix what the gate reported, commit, ` +
+            "run `temple-bar ready`, push, and run merge again.",
+        );
+      }
+      await writeMark(ctx, worktree.path, mergedTip);
+    },
+  );
 }
 
 async function mergeBase(
@@ -193,7 +175,7 @@ async function mergeAndReport(
   checkMergeable(first, repository);
 
   await fetchOrigin(ctx, root);
-  const sha = await upToDateTip(ctx, first, repository, root);
+  const sha = await upToDateTip(ctx, deps, first, repository, root);
   const branch = first.headRefName;
   const pullRequest = await waitForHead(
     ctx,
@@ -205,7 +187,14 @@ async function mergeAndReport(
 
   const upstream = `origin/${repository.defaultBranch}`;
   const base = await mergeBase(ctx, upstream, sha, root);
-  const reasons = await reasonsForMaintainerApproval(ctx, base, sha, root);
+  const changes = await readChanges(ctx, base, sha, root);
+  // Printed before any refusal for the maintainer's yes, so the request
+  // for that yes can carry it.
+  const incidents = await countOpenIncidents(ctx, root);
+  for (const line of approvingSection(options.prNumber, changes, incidents)) {
+    ctx.stdout.write(`merge: ${line}\n`);
+  }
+  const reasons = reasonsForMaintainerApproval(changes);
   if (reasons.length > 0 && !options.maintainerApproved) {
     refuse(
       `this pull request needs the maintainer's yes: ${reasons.join("; ")}. ` +
@@ -220,42 +209,12 @@ async function mergeAndReport(
     await readCoAuthors(ctx, `${upstream}..${sha}`, root),
   );
 
-  const required = await readRequiredChecks(ctx, repository, root);
-  const checks = await waitForChecks(
+  await checkAndMerge(
     ctx,
-    deps.sleep,
-    timing,
-    { repository, sha, required },
+    deps,
+    { repository, prNumber: options.prNumber, sha, upstream, message },
     root,
   );
-  ctx.stdout.write(
-    `merge: all ${String(checks.length)} checks passed on ${sha}\n`,
-  );
-  await refuseOnOpenAlerts(ctx, repository, options.prNumber, root);
-
-  // Advice only: a failure to measure must not stop the merge.
-  await warnAboutPullRequestSize(
-    { ...ctx, cwd: root },
-    { base: upstream, head: sha, prNumber: String(options.prNumber) },
-  ).catch((error: unknown) => {
-    ctx.stdout.write(
-      `merge: could not measure the pull request's size: ${error instanceof Error ? error.message : String(error)}\n`,
-    );
-  });
-
-  const merged = await squashMerge(
-    ctx,
-    {
-      prNumber: options.prNumber,
-      sha,
-      subject: message.subject,
-      body: message.body,
-    },
-    root,
-  );
-  if (merged.code !== 0) {
-    refuse(`GitHub refused the merge: ${describeGhFailure(merged)}`);
-  }
   ctx.stdout.write(
     `merge: merged #${String(options.prNumber)} as "${message.subject}"\n`,
   );
@@ -267,78 +226,6 @@ async function mergeAndReport(
     root,
     prNumber: options.prNumber,
   });
-}
-
-async function afterMerge(
-  ctx: Context,
-  merged: {
-    readonly repository: Repository;
-    readonly branch: string;
-    readonly sha: string;
-    readonly root: string;
-    readonly prNumber: number;
-  },
-): Promise<number> {
-  let exitCode = 0;
-  const state = (await readPullRequest(ctx, merged.prNumber, merged.root))
-    .state;
-  if (state !== "MERGED") {
-    ctx.stderr.write(
-      `merge: GitHub accepted the merge but shows #${String(merged.prNumber)} as ${state}; nothing was cleaned up\n`,
-    );
-    return 1;
-  }
-
-  const cleanup = await cleanUp(ctx, {
-    primaryPath: merged.root,
-    branch: merged.branch,
-    defaultBranch: merged.repository.defaultBranch,
-    mergedSha: merged.sha,
-  });
-  for (const line of cleanup.done) {
-    ctx.stdout.write(`merge: ${line}\n`);
-  }
-  for (const line of cleanup.problems) {
-    ctx.stderr.write(`merge: left behind: ${line}\n`);
-    exitCode = 1;
-  }
-
-  // The analysis of the merge commit itself may still be running, so this
-  // reports what's open now rather than waiting for it.
-  const alerts = await readOpenAlerts(
-    ctx,
-    merged.repository,
-    { branch: merged.repository.defaultBranch },
-    merged.root,
-  ).catch((error: unknown) =>
-    error instanceof Error ? error.message : String(error),
-  );
-  if (typeof alerts === "string" && alerts !== "not-set-up") {
-    ctx.stderr.write(`merge: ${alerts}\n`);
-    exitCode = 1;
-  } else if (Array.isArray(alerts) && alerts.length > 0) {
-    ctx.stderr.write(
-      `merge: ${merged.repository.defaultBranch} has open code-scanning alerts: ${describeAlerts(alerts)}\n`,
-    );
-    exitCode = 1;
-  } else if (Array.isArray(alerts)) {
-    ctx.stdout.write(
-      `merge: no open code-scanning alerts on ${merged.repository.defaultBranch}\n`,
-    );
-  }
-
-  await reportLeftovers(ctx, merged.root, "merge: ").catch((error: unknown) => {
-    ctx.stdout.write(
-      `merge: could not look for leftovers: ${error instanceof Error ? error.message : String(error)}\n`,
-    );
-  });
-  const incidents = await countOpenIncidents(ctx, merged.root);
-  ctx.stdout.write(
-    incidents === undefined
-      ? "merge: could not count the open incident issues\n"
-      : `merge: ${String(incidents)} open issue${incidents === 1 ? "" : "s"} labelled incident\n`,
-  );
-  return exitCode;
 }
 
 /** Runs the merge and turns a refusal into its message and exit code 1. */

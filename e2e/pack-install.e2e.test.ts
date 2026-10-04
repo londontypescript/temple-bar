@@ -55,7 +55,9 @@ before(async () => {
   registry = await serveTarball(manifest, tarballs.templeBar);
   baseEnv = {
     ...createFakeGh(workDir, cleanEnv()),
+    // pnpm up to 11 reads npm_config_*, pnpm 12 only pnpm_config_*.
     npm_config_registry: registry.url,
+    pnpm_config_registry: registry.url,
     npm_config_cache: path.join(workDir, "npm-cache"),
     npm_config_store_dir: path.join(workDir, "pnpm-store"),
     npm_config_cache_dir: path.join(workDir, "pnpm-cache"),

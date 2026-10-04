@@ -7,6 +7,7 @@ import test from "node:test";
 import type { GitResult } from "../seams/git.ts";
 import {
   createFakeContext,
+  createFakeFs,
   createFakeGh,
   createFakeGit,
   createFakeWriter,
@@ -30,7 +31,12 @@ interface Scenario {
   numstat?: string;
   diffFails?: boolean;
   originHead?: string;
+  /** The commit `temple-bar ready` marked; defaults to NEW, the pushed tip.
+   * null means nothing is marked. */
+  mark?: string | null;
 }
+
+const MARK_FILE = "/repo/.git/temple-bar-ready";
 
 function setup(scenario: Scenario = {}) {
   const stdout = createFakeWriter();
@@ -39,6 +45,8 @@ function setup(scenario: Scenario = {}) {
   const ok = (out = ""): GitResult => ({ code: 0, stdout: out, stderr: "" });
   const git = createFakeGit((args) => {
     switch (args[0]) {
+      case "rev-parse":
+        return ok(`${MARK_FILE}\n`);
       case "symbolic-ref":
         return scenario.originHead === undefined
           ? { code: 1, stdout: "", stderr: "" }
@@ -57,7 +65,9 @@ function setup(scenario: Scenario = {}) {
         return ok();
     }
   });
-  const ctx = createFakeContext({ git, gh, stdout, stderr });
+  const mark = scenario.mark === undefined ? NEW : scenario.mark;
+  const fs = createFakeFs(mark === null ? {} : { [MARK_FILE]: `${mark}\n` });
+  const ctx = createFakeContext({ git, gh, fs, stdout, stderr });
   return { ctx, git, gh, stdout, stderr };
 }
 
@@ -172,4 +182,52 @@ void test("pre-push: a push with no branches does nothing", async () => {
   const { ctx, git } = setup();
   assert.equal(await prePushCheck("", ctx), 0);
   assert.equal(git.calls.length, 0);
+});
+
+void test("pre-push: a branch whose tip nothing has marked ready is refused, saying to run ready", async () => {
+  const { ctx, stderr } = setup({ mark: null });
+  assert.equal(await prePushCheck(line("refs/heads/work", NEW, ZERO), ctx), 1);
+  const out = stderr.lines.join("");
+  assert.match(
+    out,
+    /refusing to push work: its tip bbbbbbb has not been marked ready to push\./,
+  );
+  assert.match(out, /run temple-bar ready in the worktree that has work/);
+  assert.doesNotMatch(out, /marked here is/);
+});
+
+void test("pre-push: a new commit after the mark is refused, naming the marked commit", async () => {
+  const { ctx, stderr, git } = setup({ mark: OLD, numstat: HUGE });
+  assert.equal(await prePushCheck(line("refs/heads/work", NEW, ZERO), ctx), 1);
+  const out = stderr.lines.join("");
+  assert.match(out, /its tip bbbbbbb has not been marked ready/);
+  assert.match(out, /The commit marked here is aaaaaaa; any new commit/);
+  assert.ok(
+    !git.calls.some((call) => call.args[0] === "diff"),
+    "a refused push isn't measured too",
+  );
+});
+
+void test("pre-push: an existing branch still needs its new tip marked", async () => {
+  const { ctx, stderr } = setup({ mark: OLD, ancestor: 0 });
+  assert.equal(await prePushCheck(line("refs/heads/work", NEW, OLD), ctx), 1);
+  assert.match(stderr.lines.join(""), /has not been marked ready/);
+});
+
+void test("pre-push: the mark is read from this worktree's own git folder", async () => {
+  const { ctx, git } = setup();
+  await prePushCheck(line("refs/heads/work", NEW, ZERO), ctx);
+  assert.ok(
+    git.calls.some(
+      (call) =>
+        call.args.join(" ") === "rev-parse --git-path temple-bar-ready" &&
+        call.cwd === "/repo",
+    ),
+  );
+});
+
+void test("pre-push: a push to the default branch doesn't need a mark here", async () => {
+  const { ctx, stderr } = setup({ mark: null });
+  assert.equal(await prePushCheck(line("refs/heads/main", NEW, OLD), ctx), 0);
+  assert.equal(stderr.lines.length, 0);
 });
