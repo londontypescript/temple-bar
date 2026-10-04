@@ -1,3 +1,5 @@
+# Agent rules
+
 Rules live in `AGENTS.md`, shared with every tool that works on this repo.
 Claude Code auto-loads this file but not that one, so it is imported here.
 

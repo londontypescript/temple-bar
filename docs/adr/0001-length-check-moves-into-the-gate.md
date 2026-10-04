@@ -5,8 +5,8 @@ Date: 2026-09-29. Status: accepted (decision 23).
 ## Context
 
 In 1.2, before any gate existed, this repo checked its file-length cap with its
-own script: `scripts/lengths.ts`, run by `scripts/check-lengths.ts` through
-`pnpm check`. In 1.6 the gate got its own length check, ported by hand from that
+own script (a length-counting module run by a small check script, both since
+removed) through `pnpm check`. In 1.6 the gate got its own length check, ported by hand from that
 script. From then on, the cap was checked twice, by two copies of the same
 logic that could drift apart.
 
