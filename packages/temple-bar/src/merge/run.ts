@@ -28,6 +28,7 @@ import {
   worktreeForUpdate,
 } from "./local.ts";
 import { readChanges } from "./manifests.ts";
+import { checkOneConcern } from "./one-concern.ts";
 import { buildSquashMessage, readCoAuthors } from "./message.ts";
 import { MergeRefusal, refuse } from "./refusal.ts";
 import {
@@ -174,6 +175,7 @@ async function mergeAndReport(
   const repository = await readRepository(ctx, root);
   const first = await readPullRequest(ctx, options.prNumber, root);
   checkMergeable(first, repository);
+  checkOneConcern(first);
 
   await fetchOrigin(ctx, root);
   const sha = await upToDateTip(ctx, deps, first, repository, root);

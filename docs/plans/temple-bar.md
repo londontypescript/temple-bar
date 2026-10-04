@@ -25,7 +25,7 @@ Settled before this session:
 - Models: phases rated routine / involved / delicate; the maintainer picks models, temple-bar never does: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 - What became of the earlier hardening plan's D2, D3, D4 and D7: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 
-Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), and after the judge's trial on 2026-10-03 (46–53). Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds:
+Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), and after the judge's trial on 2026-10-03 (46–54). Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds:
 
 | #   | Decision                                                                            | ADR                                                       |
 | --- | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -82,6 +82,7 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 51  | One maintainer yes creates both rulesets                                            | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
 | 52  | The judge runs the pinned temple-bar with `npm exec`                                | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
 | 53  | temple-bar's own judge is switched on in the 0.0.7 release, before the pin bump     | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 54  | Merge refuses 2+ closed issues without a `One concern:` line                        | [rationale](../agents-rationale.md)                       |
 
 ---
 
