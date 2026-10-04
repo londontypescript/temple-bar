@@ -30,6 +30,7 @@ same pull request as any change to a mechanism.
 | Intake stays the user's                   | nothing                                              | **Prose only**        |
 | Whether wide changes mean duplication     | nothing: judgement                                   | **Prose only**        |
 | Worktree per branch; merge steps (§2)     | `temple-bar merge`; nothing forces its use           | **Prose only**        |
+| Issues closed need a `One concern:` line  | `temple-bar merge` refuses without it                | **Blocked** by merge  |
 | Push once, after the gate passed          | `ready` + `pre-push` from the pin that ships them    | **Blocked** locally   |
 | User's yes typed before a gated push      | `ready` asks in a terminal; see the limits below     | **Speed bump** only   |
 | AGENTS.md within 200 lines and 32 KiB     | the pinned gate in CI                                | **Blocked** via CI    |

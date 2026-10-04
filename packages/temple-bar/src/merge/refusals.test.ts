@@ -227,3 +227,24 @@ void test("usage mistakes exit 2", async () => {
     assert.equal(h.gh.calls.length, 0);
   }
 });
+
+void test("refuses a pull request closing two issues without a One concern line", async () => {
+  await refusal((w) => {
+    w.pr.body = "Fixes #1 and fixes #2.\n";
+  }, /closes 2 issues \(#1, #2\) but its description has no `One concern:` line/);
+});
+
+void test("merges a pull request closing two issues that has a One concern line", async () => {
+  const world = defaultWorld();
+  world.pr.body = "Fixes #1 and fixes #2.\n\nOne concern: same cause.\n";
+  const h = harness(world);
+  const code = await createMergeCommand(h.deps).run(["7"], h.ctx);
+  assert.equal(code, 0);
+  assert.equal(h.ran("gh", "pr", "merge"), true);
+});
+
+void test("an empty One concern line does not count", async () => {
+  await refusal((w) => {
+    w.pr.body = "Fixes #1 and fixes #2.\n\nOne concern:\n";
+  }, /has no `One concern:` line/);
+});

@@ -74,7 +74,9 @@ cleans up.
 
 **One concern per pull request,** settled when the work is planned. The
 `pre-push` size warning is the last check before the push: split the branch,
-or say in the pull request why it is one concern.
+or say why it is one concern. A pull request closing two or more issues needs
+a `One concern:` line giving [a reason that counts](docs/agents-rationale.md),
+or `temple-bar merge` refuses it.
 
 **Commit messages**, and pull request titles and bodies, since a squash merge
 turns them into the commit on `main`:
@@ -184,9 +186,7 @@ on or update a similar one, or open one labelled `incident`. Never in another
 project's repo, never with private details. No incident tool until theme F.
 
 **The user curates.** Keeping, editing, closing and grouping incidents is
-theirs. Never rank or regroup them.
-
-**You remind them.** When you ask for a merge approval or report a merge, say
+theirs. Never rank or regroup them. **You remind them:** when you ask for a merge approval or report a merge, say
 how many `incident` issues are open.
 
 ## 9. What is actually enforced

@@ -15,3 +15,16 @@ every session. The reasons behind some of them live here.
 - **AGENTS.md stays within 200 lines and 32 KiB.** Every agent loads all of it
   in every session. Anthropic's guidance is under 200 lines, and Codex stops
   reading past 32 KiB by default.
+- **A pull request closing several issues says why it is one concern.** The
+  merge tool checks only that a `One concern:` line is there; whether the
+  reason holds is for review. What counts:
+  - same cause: one fix closes both;
+  - they can't be separated: either half alone leaves `main` broken or
+    inconsistent;
+  - same lines: separate pull requests would conflict;
+  - one is a duplicate or subset of the other;
+  - a plan grouping counts only when the line states one of these reasons.
+
+  What doesn't count: both small, same area, already in the file, quicker.
+  Pull request #201 closed two issues on the strength of a plan's phase
+  grouping alone, with no reason written, and merged past a warning.
