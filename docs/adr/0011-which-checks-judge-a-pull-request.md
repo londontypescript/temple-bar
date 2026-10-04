@@ -97,6 +97,10 @@ the pull request. `temple-bar merge` never bypasses.
 - One yes from the maintainer covers both rulesets when setup creates them
   together.
 - The judge runs the pinned version with `npm exec`, as built.
+- temple-bar's own repo switches the judge on during the 0.0.7 release:
+  publish, then the judge workflow and its ruleset, merged by the
+  maintainer as a repository admin, then the pin bump. A pin bump before
+  that would be judged by a gate that fails for want of the judge's ruleset.
 - From 0.0.7 the gate fails when the default branch doesn't require the
   judge's check (see "How it is built").
 - Bypass merges are to be detected and reported from GitHub's rule-suite
