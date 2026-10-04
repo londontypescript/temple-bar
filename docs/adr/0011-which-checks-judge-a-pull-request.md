@@ -174,7 +174,7 @@ permissions, checkout and job name as the template
   `gate` script or the four scripts the gate runs. It fails closed: an
   unreadable answer, or fewer files listed than the pull request has
   (GitHub stops at 3000), is a failure, never a pass.
-- **The workflow** setup writes, `.github/workflows/temple-bar-judge.yml`.
+- **The workflow** setup writes, `temple-bar-judge.yml` in `.github/workflows/`.
   Its job, `temple-bar judge`, is the required check. It checks out only
   the base branch's `package.json` (sparse, no credentials kept), reads the
   exact temple-bar version pinned there, and runs that version with
