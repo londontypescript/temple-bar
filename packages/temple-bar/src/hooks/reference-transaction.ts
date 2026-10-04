@@ -31,7 +31,7 @@ const ZERO_OID_PATTERN = /^0+$/;
  * lines are skipped rather than treated as errors, since a shell pipeline
  * upstream of this may add a trailing blank line.
  */
-export function parseRefUpdates(stdin: string): RefUpdate[] {
+function parseRefUpdates(stdin: string): RefUpdate[] {
   const updates: RefUpdate[] = [];
   for (const line of stdin.split("\n")) {
     const trimmed = line.trim();

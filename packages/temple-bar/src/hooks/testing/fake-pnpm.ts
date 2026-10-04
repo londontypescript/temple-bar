@@ -23,7 +23,7 @@ if (process.env.FAKE_PNPM_FAIL === "1") {
 mkdirSync("node_modules", { recursive: true });
 `;
 
-export interface FakePnpmCall {
+interface FakePnpmCall {
   readonly args: readonly string[];
   readonly cwd: string;
 }

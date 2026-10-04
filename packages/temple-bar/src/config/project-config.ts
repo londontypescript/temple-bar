@@ -51,7 +51,7 @@ function readLimit(
   return value;
 }
 
-export function parseProjectConfig(value: unknown): ProjectConfig {
+function parseProjectConfig(value: unknown): ProjectConfig {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(`${CONFIG_FILE_NAME} must contain a JSON object`);
   }

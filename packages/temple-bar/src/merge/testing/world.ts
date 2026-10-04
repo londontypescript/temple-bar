@@ -18,7 +18,7 @@ import type { MergeDeps } from "../run.ts";
 
 export const HEAD = "a".repeat(40);
 export const MERGED_IN = "b".repeat(40);
-export const BASE = "c".repeat(40);
+const BASE = "c".repeat(40);
 
 /** A check run as GitHub's API returns it. `id` and `started_at` tell
  * which of several runs with one name is the newest. */

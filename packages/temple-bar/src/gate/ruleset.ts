@@ -29,7 +29,7 @@ import {
   type RulesetProblem,
 } from "./ruleset-compare.ts";
 
-export const RULESET_CHECK = "branch ruleset";
+const RULESET_CHECK = "branch ruleset";
 
 const API = "https://api.github.com";
 
@@ -162,9 +162,7 @@ async function readRuleset(ctx: Context): Promise<Read> {
   };
 }
 
-export function formatRulesetFailure(
-  problems: readonly RulesetProblem[],
-): string {
+function formatRulesetFailure(problems: readonly RulesetProblem[]): string {
   const lines = ["gate: the default branch's ruleset is missing or weakened:"];
   for (const problem of problems) {
     lines.push(`  ${problem.kind}: ${problem.message}`);
@@ -181,7 +179,7 @@ export function formatRulesetFailure(
   return `${lines.join("\n")}\n`;
 }
 
-export const NEEDS_TOKEN_MESSAGE =
+const NEEDS_TOKEN_MESSAGE =
   "gate: the branch ruleset check needs a token in GitHub Actions. Add this to the gate step:\n" +
   "  env:\n" +
   "    GH_TOKEN: ${{ github.token }}\n";

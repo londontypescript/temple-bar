@@ -5,12 +5,12 @@
 
 import type { Context } from "../context.ts";
 
-export interface RequirementFailure {
+interface RequirementFailure {
   readonly ok: false;
   readonly message: string;
 }
 
-export interface RequirementOk<T> {
+interface RequirementOk<T> {
   readonly ok: true;
   readonly value: T;
 }

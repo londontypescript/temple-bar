@@ -26,7 +26,7 @@ export interface CommandLine {
 const PACKAGE_NAME = "@londontypescript/temple-bar";
 
 /** The one command setup is run with, and the one every message prints. */
-export const LAUNCH_COMMAND = "pnpm create @londontypescript/temple-bar@latest";
+const LAUNCH_COMMAND = "pnpm create @londontypescript/temple-bar@latest";
 
 /**
  * Adds `@londontypescript/temple-bar` as a dev dependency, pinned to

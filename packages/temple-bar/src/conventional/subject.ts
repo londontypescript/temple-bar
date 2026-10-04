@@ -4,7 +4,7 @@
 // commit on `main`, so both must accept exactly the same thing; keeping the
 // rule here means they cannot drift apart.
 
-export const ALLOWED_PREFIXES = ["feat", "fix", "docs", "chore"] as const;
+const ALLOWED_PREFIXES = ["feat", "fix", "docs", "chore"] as const;
 
 const EXAMPLE = "fix(gate): count lines in files without a final newline";
 

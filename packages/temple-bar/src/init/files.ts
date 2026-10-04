@@ -239,10 +239,7 @@ export async function ensurePackageJsonScripts(
  * or any number of spaces) and the same final newline, so adding scripts
  * doesn't turn into a whole-file formatting diff. A new file gets two spaces
  * and a final newline. */
-export function formatLike(
-  original: string | undefined,
-  value: unknown,
-): string {
+function formatLike(original: string | undefined, value: unknown): string {
   const indent = /^([ \t]+)\S/m.exec(original ?? "")?.[1] ?? "  ";
   const finalNewline = original === undefined || original.endsWith("\n");
   return `${JSON.stringify(value, null, indent)}${finalNewline ? "\n" : ""}`;

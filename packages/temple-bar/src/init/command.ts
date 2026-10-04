@@ -242,7 +242,7 @@ export const SETUP_COMMIT_MESSAGE = "chore: set up temple-bar";
 /** The setup is uncommitted, and main now refuses direct commits: say how
  * to land it. Files are named, not `git add -A`, so unrelated work stays
  * out of the setup commit. */
-export const NEXT_STEPS =
+const NEXT_STEPS =
   "Next: main now refuses direct commits, so land this setup through a " +
   "pull request:\n" +
   "  git switch -c temple-bar-setup\n" +
