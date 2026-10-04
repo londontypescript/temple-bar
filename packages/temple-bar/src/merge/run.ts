@@ -4,12 +4,13 @@
 // refusal that says what to do; nothing is merged until every step passes.
 //
 // Order matters: things the author must fix (a draft, a branch that can't
-// be updated, a change that needs the maintainer's yes) are refused before the
+// be updated, a change that needs the maintainer) are refused before the
 // long wait for checks, so nobody waits half an hour to hear about them.
 
 import type { Context } from "../context.ts";
 import { afterMerge } from "./after.ts";
-import { reasonsForMaintainerApproval } from "./approval.ts";
+import { ASK_FOR_ADMIN_MERGE } from "../judge/changes.ts";
+import { checkChanges, reasonsForMaintainerApproval } from "./approval.ts";
 import { approvingSection } from "./approving.ts";
 import {
   countOpenIncidents,
@@ -193,6 +194,17 @@ async function mergeAndReport(
   const incidents = await countOpenIncidents(ctx, root);
   for (const line of approvingSection(options.prNumber, changes, incidents)) {
     ctx.stdout.write(`merge: ${line}\n`);
+  }
+  // A change to the checks fails the judge on purpose, and only the
+  // maintainer merges it, past the judge. A yes in chat doesn't change
+  // that: merge never goes past a check, so it stops here rather than
+  // after the wait, whatever it was told.
+  const guarded = checkChanges(changes);
+  if (guarded.length > 0) {
+    refuse(
+      `this pull request changes the checks that judge it: ${guarded.join("; ")}. ` +
+        ASK_FOR_ADMIN_MERGE,
+    );
   }
   const reasons = reasonsForMaintainerApproval(changes);
   if (reasons.length > 0 && !options.maintainerApproved) {

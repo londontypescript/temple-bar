@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { ASK_FOR_ADMIN_MERGE } from "./changes.ts";
 import { judgeCommand } from "./command.ts";
 import type { HttpResult } from "../seams/http.ts";
 import {
@@ -108,6 +109,9 @@ void test("judge: a pull request that weakens its own CI is refused, naming the 
   assert.match(text, /changes the checks that judge it/);
   assert.match(text, /\.github\/workflows\/ci\.yml \(modified\)/);
   assert.match(text, /the maintainer decides/);
+  // Who lets it through, in the words merge uses too.
+  assert.ok(text.includes(ASK_FOR_ADMIN_MERGE), text);
+  assert.match(text, /merge it themselves as a repository admin/);
 });
 
 void test("judge: a changed gate script in package.json is refused, read from both sides", async () => {

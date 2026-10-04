@@ -104,12 +104,52 @@ void test("refuses a change to AGENTS.md without the maintainer's yes", async ()
   }, /needs the maintainer's yes: it changes AGENTS\.md\. .*--maintainer-approved/);
 });
 
-void test("refuses a change to the pinned temple-bar without the maintainer's yes", async () => {
+// The judge fails these on purpose; only the maintainer merges them, as a
+// repository admin. Merge says so before the wait, and no flag gets past it.
+const ADMIN_MERGE = /merge it themselves as a repository admin/;
+
+void test("refuses a change to the pinned temple-bar, and asks for the maintainer's admin merge", async () => {
   await refusal((w) => {
     w.changedFiles = ["package.json"];
     w.packageAfter =
       '{"devDependencies":{"@londontypescript/temple-bar":"0.0.5"}}';
-  }, /needs the maintainer's yes: it changes the pinned @londontypescript\/temple-bar from 0\.0\.4 to 0\.0\.5/);
+  }, /changes the checks that judge it: package\.json: the temple-bar version in devDependencies\["@londontypescript\/temple-bar"\] \("0\.0\.4" on the base branch, "0\.0\.5" here\)\. Ask the maintainer/);
+});
+
+void test("refuses a change to a CI workflow, before waiting for any check", async () => {
+  const world = defaultWorld();
+  world.changedFiles = [".github/workflows/ci.yml", "src/x.ts"];
+  const h = harness(world);
+  const code = await createMergeCommand(h.deps).run(["7"], h.ctx);
+  assert.match(
+    h.err(),
+    /changes the checks that judge it: \.github\/workflows\/ci\.yml \(changed\)/,
+  );
+  assert.match(h.err(), ADMIN_MERGE);
+  assert.equal(code, 1);
+  assert.ok(
+    h.gh.calls.every((call) => !call.args.join(" ").includes("/check-runs")),
+    "refused before reading any check",
+  );
+  assert.equal(h.ran("gh", "pr", "merge"), false, "nothing merged");
+});
+
+void test("a yes in chat doesn't let merge past the judge: a changed gate script is still refused", async () => {
+  const world = defaultWorld();
+  world.changedFiles = ["package.json"];
+  world.packageAfter = JSON.stringify({
+    ...(JSON.parse(world.packageBefore) as object),
+    scripts: { test: "echo ok" },
+  });
+  const h = harness(world);
+  const code = await createMergeCommand(h.deps).run(
+    ["7", "--maintainer-approved"],
+    h.ctx,
+  );
+  assert.match(h.err(), /package\.json: the "test" script/);
+  assert.match(h.err(), ADMIN_MERGE);
+  assert.equal(code, 1);
+  assert.equal(h.ran("gh", "pr", "merge"), false, "nothing merged");
 });
 
 void test("refuses when a check fails, naming the failed checks", async () => {

@@ -6,7 +6,9 @@
 // docs/adr/0011-which-checks-judge-a-pull-request.md.
 //
 // Pure: it is handed the changed files and both copies of package.json, and
-// never reads GitHub or the disk itself.
+// never reads GitHub or the disk itself. The judge hands it what GitHub
+// lists; `ready` and `merge` hand it what git shows, so all three agree on
+// which changes only the maintainer can let through.
 
 import { REQUIRED_SCRIPTS } from "../gate/stack.ts";
 
@@ -19,6 +21,14 @@ export const WORKFLOWS_FOLDER = ".github/workflows/";
 /** CI runs `pnpm gate`, and the gate runs the four scripts it requires, so
  * changing any of these changes what the checks do. */
 export const GUARDED_SCRIPTS: readonly string[] = ["gate", ...REQUIRED_SCRIPTS];
+
+/** What to do about a change the judge refuses, said the same way wherever
+ * temple-bar refuses one. The maintainer lets it through with the bypass
+ * the judge's ruleset gives the repository admin role. Only the maintainer
+ * runs that merge; temple-bar never does, and never names how. */
+export const ASK_FOR_ADMIN_MERGE =
+  "Ask the maintainer to review the pull request and, if they agree, to " +
+  "merge it themselves as a repository admin.";
 
 /** Where a dependency's version can be set in package.json. The overrides
  * fields matter as much as the dependency lists: an override can swap the
@@ -46,6 +56,15 @@ export interface ManifestPair {
   readonly head: string | undefined;
 }
 
+type Manifest = Readonly<Record<string, unknown>>;
+
+/** package.json already parsed on each side: undefined where there is none,
+ * or where it isn't a JSON object. */
+export interface ParsedManifestPair {
+  readonly before: Manifest | undefined;
+  readonly after: Manifest | undefined;
+}
+
 function touches(file: ChangedFile, predicate: (path: string) => boolean) {
   return (
     predicate(file.filename) ||
@@ -64,8 +83,6 @@ const isRootManifest = (path: string): boolean => path === "package.json";
 export function changesManifest(files: readonly ChangedFile[]): boolean {
   return files.some((file) => touches(file, isRootManifest));
 }
-
-type Manifest = Readonly<Record<string, unknown>>;
 
 type ParsedManifest =
   | { readonly kind: "absent" }
@@ -131,8 +148,16 @@ function manifestFindings(pair: ManifestPair): string[] {
       "package.json isn't valid JSON here, so the judge can't tell whether it changes the checks",
     ];
   }
-  const before = base.kind === "ok" ? base.value : undefined;
-  const after = head.kind === "ok" ? head.value : undefined;
+  return parsedManifestFindings({
+    before: base.kind === "ok" ? base.value : undefined,
+    after: head.kind === "ok" ? head.value : undefined,
+  });
+}
+
+function parsedManifestFindings({
+  before,
+  after,
+}: ParsedManifestPair): string[] {
   const findings: string[] = [];
 
   const pinsBefore = pinEntries(before);
@@ -157,15 +182,7 @@ function manifestFindings(pair: ManifestPair): string[] {
   return findings;
 }
 
-/**
- * Every change to the checks, one line each, in a stable order: workflows
- * first, then package.json. Empty when the pull request leaves them alone.
- * `manifests` is needed only when changesManifest(files) is true.
- */
-export function findCheckChanges(
-  files: readonly ChangedFile[],
-  manifests?: ManifestPair,
-): string[] {
+function workflowFindings(files: readonly ChangedFile[]): string[] {
   const findings: string[] = [];
   for (const file of files) {
     if (touches(file, isWorkflow)) {
@@ -176,11 +193,45 @@ export function findCheckChanges(
       findings.push(`${file.filename} (${file.status}${renamed})`);
     }
   }
+  return findings;
+}
+
+/**
+ * Every change to the checks, one line each, in a stable order: workflows
+ * first, then package.json. Empty when the pull request leaves them alone.
+ * `manifests` is needed only when changesManifest(files) is true.
+ */
+export function findCheckChanges(
+  files: readonly ChangedFile[],
+  manifests?: ManifestPair,
+): string[] {
+  const findings = workflowFindings(files);
   if (changesManifest(files)) {
     if (manifests === undefined) {
       throw new Error("findCheckChanges: package.json changed but not read");
     }
     findings.push(...manifestFindings(manifests));
+  }
+  return findings;
+}
+
+/**
+ * The same findings from a local diff: the paths git lists, and the root
+ * package.json already parsed when it changed. git's `--no-renames` list
+ * names both sides of a rename, so nothing moves a workflow out of sight.
+ */
+export function findCheckChangesInDiff(
+  paths: readonly string[],
+  rootManifest: ParsedManifestPair | undefined,
+): string[] {
+  const files = paths.map((filename) => ({ filename, status: "changed" }));
+  const findings = workflowFindings(files);
+  if (changesManifest(files)) {
+    findings.push(
+      ...parsedManifestFindings(
+        rootManifest ?? { before: undefined, after: undefined },
+      ),
+    );
   }
   return findings;
 }

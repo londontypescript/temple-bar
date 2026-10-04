@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   changesManifest,
   findCheckChanges,
+  findCheckChangesInDiff,
   type ChangedFile,
 } from "./changes.ts";
 
@@ -153,4 +154,34 @@ void test("package.json that isn't valid JSON fails closed", () => {
 
 void test("asking about a changed package.json without reading it is a programming error", () => {
   assert.throws(() => findCheckChanges([file("package.json")]));
+});
+
+void test("a local diff is judged the same way: workflows, the pin and the gate's scripts", () => {
+  const after = {
+    ...BASE,
+    scripts: { ...BASE.scripts, test: "echo ok", build: "tsc" },
+    pnpm: { overrides: { "@londontypescript/temple-bar": "file:../tb" } },
+  };
+  assert.deepEqual(
+    findCheckChangesInDiff(
+      ["src/a.ts", ".github/workflows/ci.yml", "package.json"],
+      { before: BASE, after },
+    ),
+    [
+      ".github/workflows/ci.yml (changed)",
+      'package.json: the temple-bar version in pnpm.overrides["@londontypescript/temple-bar"] (nothing on the base branch, "file:../tb" here)',
+      'package.json: the "test" script',
+    ],
+  );
+});
+
+void test("a local diff that leaves the checks alone has no findings", () => {
+  const after = { ...BASE, scripts: { ...BASE.scripts, build: "tsc" } };
+  assert.deepEqual(
+    findCheckChangesInDiff(["src/a.ts", "package.json"], {
+      before: BASE,
+      after,
+    }),
+    [],
+  );
 });

@@ -12,7 +12,11 @@
 import type { Context } from "../context.ts";
 import type { CommandEntry } from "../registry.ts";
 import { checkOrigin } from "../init/requirements.ts";
-import { changesManifest, findCheckChanges } from "./changes.ts";
+import {
+  ASK_FOR_ADMIN_MERGE,
+  changesManifest,
+  findCheckChanges,
+} from "./changes.ts";
 import {
   readManifests,
   readPullRequest,
@@ -90,13 +94,14 @@ const NEEDS_TOKEN =
   "    GH_TOKEN: ${{ github.token }}\n";
 
 /** What the maintainer and the agent read when the judge fails. It says what
- * the pull request touched and who decides; it never offers a way past. */
+ * the pull request touched and who decides, in the same words merge uses
+ * when it refuses such a change. */
 export function formatCheckChanges(findings: readonly string[]): string {
   return (
     "judge: this pull request changes the checks that judge it:\n" +
     findings.map((line) => `  ${line}\n`).join("") +
     "Its own CI can't vouch for a change to that CI, so the maintainer " +
-    "decides: ask them to review it. Keep a change like this in a pull " +
+    `decides. ${ASK_FOR_ADMIN_MERGE} Keep a change like this in a pull ` +
     "request of its own, with other work in another one.\n"
   );
 }

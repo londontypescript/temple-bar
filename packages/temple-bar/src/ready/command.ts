@@ -8,8 +8,9 @@
 // needs `ready` again.
 //
 // Some changes need the user's own yes before they leave the machine: a
-// change to AGENTS.md (the rules every agent follows) or to the pinned
-// temple-bar version (what judges the repo). For those, the user confirms by
+// change to AGENTS.md (the rules every agent follows), or to the checks that
+// judge the repo (the files the judge guards: CI workflows, the pinned
+// temple-bar, the scripts the gate runs). For those, the user confirms by
 // typing in a terminal. An agent working without a terminal can't give that
 // answer itself, so it is told to ask the user to run `ready`.
 
@@ -19,7 +20,7 @@ import {
   findProtectedBranch,
   upstreamRefFor,
 } from "../hooks/protected-branch.ts";
-import { reasonsForMaintainerApproval } from "../merge/approval.ts";
+import { reasonsForUsersYes } from "../merge/approval.ts";
 import { readChanges } from "../merge/manifests.ts";
 import type { CommandEntry } from "../registry.ts";
 import { clearMark, writeMark } from "./mark.ts";
@@ -120,9 +121,7 @@ async function reasonsToAsk(
       `could not find where this branch left origin/${defaultBranch}: ${base.stderr}`,
     );
   }
-  return reasonsForMaintainerApproval(
-    await readChanges(ctx, base.stdout, head, root),
-  );
+  return reasonsForUsersYes(await readChanges(ctx, base.stdout, head, root));
 }
 
 function askTheUser(root: string, reasons: readonly string[]): string {
@@ -201,8 +200,9 @@ export function createReadyCommand(runGate: RunGate): CommandEntry {
       "commit needs ready again. Run it in the worktree that has the branch",
       "checked out, with everything committed.",
       "",
-      "A commit that changes AGENTS.md or the pinned temple-bar version also",
-      "needs the user's yes, typed in a terminal.",
+      "A commit that changes AGENTS.md, or the checks that judge the repo (a",
+      "CI workflow, the pinned temple-bar version, or the scripts the gate",
+      "runs), also needs the user's yes, typed in a terminal.",
       "",
       "Exit codes: 0 marked, 1 not marked (the reason is printed).",
     ].join("\n"),

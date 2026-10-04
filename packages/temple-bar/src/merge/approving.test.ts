@@ -164,7 +164,8 @@ void test("an incident count GitHub couldn't give is said so", () => {
 
 void test("merge prints the section before waiting for checks, with its counts", async () => {
   const world = defaultWorld();
-  world.changedFiles = [".github/workflows/ci.yml", "package.json"];
+  // Lint config is machinery the judge leaves alone, so this merges.
+  world.changedFiles = ["eslint.config.js", "package.json"];
   world.packageAfter = JSON.stringify({
     devDependencies: {
       "@londontypescript/temple-bar": "0.0.4",
@@ -176,7 +177,7 @@ void test("merge prints the section before waiting for checks, with its counts",
   const out = h.out();
   assert.match(
     out,
-    /merge: what you are approving in #7:\nmerge: {3}machinery: 1 change to how this repository is checked\nmerge: {5}\.github\/workflows\/ci\.yml \(a CI workflow\)\nmerge: {3}dependencies: 1 change\nmerge: {5}added zod \^4\.0\.0\nmerge: {3}incidents: 3 open issues labelled incident\n/,
+    /merge: what you are approving in #7:\nmerge: {3}machinery: 1 change to how this repository is checked\nmerge: {5}eslint\.config\.js \(lint config\)\nmerge: {3}dependencies: 1 change\nmerge: {5}added zod \^4\.0\.0\nmerge: {3}incidents: 3 open issues labelled incident\n/,
   );
   assert.ok(
     out.indexOf("what you are approving") < out.indexOf("checks passed"),
@@ -191,4 +192,13 @@ void test("the section comes with a refusal for the maintainer's yes, so the req
   assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 1);
   assert.match(h.err(), /needs the maintainer's yes/);
   assert.match(h.out(), /machinery: none\n.*\n.*incidents: 3 open issues/);
+});
+
+void test("the section comes with the refusal of a change to the checks too", async () => {
+  const world = defaultWorld();
+  world.changedFiles = [".github/workflows/ci.yml"];
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 1);
+  assert.match(h.err(), /changes the checks that judge it/);
+  assert.match(h.out(), /\.github\/workflows\/ci\.yml \(a CI workflow\)/);
 });
