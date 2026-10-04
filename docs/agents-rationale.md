@@ -28,3 +28,5 @@ every session. The reasons behind some of them live here.
   What doesn't count: both small, same area, already in the file, quicker.
   Pull request #201 closed two issues on the strength of a plan's phase
   grouping alone, with no reason written, and merged past a warning.
+
+<!-- judge trial: a normal change; closed unmerged. -->
