@@ -57,9 +57,9 @@ decisions, phase definitions, and each phase's status when it starts and ends.
   never collides. Where the worktree goes is the harness's choice.
 
 The orchestrator merges a pull request once CI and CodeQL are green, except
-one that changes AGENTS.md, bumps the pinned temple-bar, tags or publishes:
-those need the user's yes. Agents push branches and open pull requests, never
-`main`.
+one that changes AGENTS.md, tags or publishes (those need the user's yes) or
+changes the checks, which the judge fails: the maintainer admin-merges those.
+Agents push branches and open pull requests, never `main`.
 
 **Push once, when finished.** Every push to a pull request runs the full CI.
 Draft locally, and push only when the work is final: agreed with the user
