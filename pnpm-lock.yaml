@@ -12,8 +12,8 @@ importers:
         specifier: 10.0.1
         version: 10.0.1(eslint@10.11.0(jiti@2.7.0))
       '@londontypescript/temple-bar':
-        specifier: 0.0.6
-        version: 0.0.6
+        specifier: 0.0.7
+        version: 0.0.7
       '@types/node':
         specifier: 24.19.0
         version: 24.19.0
@@ -129,8 +129,8 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@londontypescript/temple-bar@0.0.6':
-    resolution: {integrity: sha512-y+ZO+p6xqul7jKudq1vZV1VRLV1mGULvs1UnULrMKSIDjcNt66ZboutF65egWBqRGZvCqfQH8YDq7UHvaNGibg==}
+  '@londontypescript/temple-bar@0.0.7':
+    resolution: {integrity: sha512-jjP8Id+dsk7p8INzGne+3ElGWSEgR/1Q//HzY8a9nXekfbLzThH/cpTdbWCGlZSknpEXCpDjtOFlASx2wcheoQ==}
     engines: {node: '>=24'}
     hasBin: true
 
@@ -1026,7 +1026,12 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@londontypescript/temple-bar@0.0.6': {}
+  '@londontypescript/temple-bar@0.0.7':
+    dependencies:
+      knip: 6.39.0
+      markdownlint: 0.41.1
+    transitivePeerDependencies:
+      - supports-color
 
   '@napi-rs/wasm-runtime@1.2.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)':
     dependencies:
