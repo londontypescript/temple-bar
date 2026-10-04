@@ -22,12 +22,19 @@ export interface Leftovers {
   readonly unchecked: string[];
 }
 
+interface PullRequest {
+  readonly number: number;
+  readonly state: string;
+  /** The last commit the pull request held. */
+  readonly head: string;
+}
+
 /** Each branch's most recent pull request; gh lists newest first. Open ones
  * are kept too, so a branch reused for new work isn't reported. */
 async function latestPullRequests(
   ctx: Context,
   cwd: string,
-): Promise<Map<string, { number: number; state: string }> | undefined> {
+): Promise<Map<string, PullRequest> | undefined> {
   const result = await ctx.gh.run(
     [
       "pr",
@@ -37,23 +44,24 @@ async function latestPullRequests(
       "--limit",
       "1000",
       "--json",
-      "number,headRefName,state",
+      "number,headRefName,headRefOid,state",
     ],
     cwd,
   );
   if (result.code !== 0) {
     return undefined;
   }
-  const latest = new Map<string, { number: number; state: string }>();
+  const latest = new Map<string, PullRequest>();
   try {
     const list = JSON.parse(result.stdout) as Record<string, unknown>[];
     for (const item of list) {
       const branch =
         typeof item.headRefName === "string" ? item.headRefName : "";
       const number = typeof item.number === "number" ? item.number : 0;
+      const head = typeof item.headRefOid === "string" ? item.headRefOid : "";
       const known = latest.get(branch);
       if (branch !== "" && (known === undefined || number > known.number)) {
-        latest.set(branch, { number, state: String(item.state) });
+        latest.set(branch, { number, state: String(item.state), head });
       }
     }
   } catch {
@@ -62,13 +70,34 @@ async function latestPullRequests(
   return latest;
 }
 
-function closed(
-  pullRequest: { number: number; state: string } | undefined,
-): ClosedPullRequest | undefined {
-  if (pullRequest?.state === "MERGED" || pullRequest?.state === "CLOSED") {
-    return { number: pullRequest.number, state: pullRequest.state };
+/** The branch's closed pull request, but only when the branch holds nothing
+ * beyond it. Branch names get reused: a new branch named like an old, merged
+ * pull request's holds live work, and calling it finished would suggest
+ * deleting commits that exist nowhere else. A tip that is the pull request's
+ * last commit, or behind it, adds nothing. */
+async function finished(
+  ctx: Context,
+  cwd: string,
+  pullRequest: PullRequest | undefined,
+  tip: string,
+): Promise<ClosedPullRequest | undefined> {
+  if (pullRequest?.state !== "MERGED" && pullRequest?.state !== "CLOSED") {
+    return undefined;
   }
-  return undefined;
+  if (pullRequest.head === "" || tip === "") {
+    return undefined;
+  }
+  const holdsNothingMore =
+    tip === pullRequest.head ||
+    (
+      await ctx.git.run(
+        ["merge-base", "--is-ancestor", tip, pullRequest.head],
+        cwd,
+      )
+    ).code === 0;
+  return holdsNothingMore
+    ? { number: pullRequest.number, state: pullRequest.state }
+    : undefined;
 }
 
 function lines(text: string): string[] {
@@ -95,13 +124,26 @@ export async function findLeftovers(
   }
 
   const local = await ctx.git.run(
-    ["for-each-ref", "--format=%(refname:short)", "refs/heads/"],
+    ["for-each-ref", "--format=%(refname:short) %(objectname)", "refs/heads/"],
     cwd,
   );
-  const localBranches = new Set(lines(local.stdout));
-  for (const branch of [...localBranches].sort()) {
-    const pullRequest = closed(pullRequests?.get(branch));
+  // Branch names can't contain spaces, so the first one splits name from tip.
+  const localTips = new Map(
+    lines(local.stdout).map((line) => {
+      const [branch = "", tip = ""] = line.split(" ");
+      return [branch, tip] as const;
+    }),
+  );
+  const finishedLocal = new Map<string, ClosedPullRequest>();
+  for (const branch of [...localTips.keys()].sort()) {
+    const pullRequest = await finished(
+      ctx,
+      cwd,
+      pullRequests?.get(branch),
+      localTips.get(branch) ?? "",
+    );
     if (branch !== defaultBranch && pullRequest !== undefined) {
+      finishedLocal.set(branch, pullRequest);
       leftovers.localBranches.push({ branch, pullRequest });
     }
   }
@@ -109,8 +151,14 @@ export async function findLeftovers(
   const remote = await ctx.git.run(["ls-remote", "--heads", "origin"], cwd);
   if (remote.code === 0) {
     for (const line of lines(remote.stdout)) {
-      const branch = line.split(/\s+/)[1]?.replace(/^refs\/heads\//, "") ?? "";
-      const pullRequest = closed(pullRequests?.get(branch));
+      const [tip = "", ref = ""] = line.split(/\s+/);
+      const branch = ref.replace(/^refs\/heads\//, "");
+      const pullRequest = await finished(
+        ctx,
+        cwd,
+        pullRequests?.get(branch),
+        tip,
+      );
       if (
         branch !== "" &&
         branch !== defaultBranch &&
@@ -130,7 +178,7 @@ export async function findLeftovers(
     const pullRequest =
       worktree.branch === undefined
         ? undefined
-        : closed(pullRequests?.get(worktree.branch));
+        : finishedLocal.get(worktree.branch);
     if (worktree.prunable) {
       leftovers.worktrees.push({
         path: worktree.path,
@@ -138,7 +186,7 @@ export async function findLeftovers(
       });
     } else if (
       worktree.branch !== undefined &&
-      !localBranches.has(worktree.branch)
+      !localTips.has(worktree.branch)
     ) {
       leftovers.worktrees.push({
         path: worktree.path,
