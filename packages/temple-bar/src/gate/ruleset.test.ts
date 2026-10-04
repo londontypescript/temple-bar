@@ -14,7 +14,9 @@ import {
   withCoreGit,
 } from "./testing/core-fixture.ts";
 import type { HttpResult } from "../seams/http.ts";
-import { runRulesetCheck } from "./ruleset.ts";
+import type { Context } from "../context.ts";
+import type { CheckOutcome } from "./report.ts";
+import { runRulesetChecks } from "./ruleset.ts";
 import {
   findRulesetProblems,
   isEffectiveRuleList,
@@ -62,6 +64,14 @@ function goodRules(): EffectiveRule[] {
       required_status_checks: [{ context: "check" }],
     }),
     rule("code_scanning", { code_scanning_tools: [] }),
+    // The judge's ruleset, reported as a rule of its own.
+    rule("required_status_checks", {
+      strict_required_status_checks_policy: true,
+      do_not_enforce_on_create: false,
+      required_status_checks: [
+        { context: "temple-bar judge", integration_id: 15368 },
+      ],
+    }),
   ];
 }
 function without(type: string): EffectiveRule[] {
@@ -163,6 +173,14 @@ void test("findRulesetProblems: a loose second copy of a rule is not hidden by a
 });
 
 // --- the check as the gate runs it, with GitHub faked ---
+
+/** The branch ruleset's outcome, the first of the two the read serves; the
+ * judge's has its own tests (judge-ruleset.test.ts). */
+async function runRulesetCheck(ctx: Context): Promise<CheckOutcome> {
+  const [branch] = await runRulesetChecks(ctx);
+  assert.ok(branch);
+  return branch;
+}
 
 const ORIGIN = "git@github.com:acme/widgets.git";
 const REPO_URL = "https://api.github.com/repos/acme/widgets";

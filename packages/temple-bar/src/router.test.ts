@@ -89,7 +89,17 @@ void test("an unknown command prints usage plus the error to stderr, exits 2, an
 
 void test("the real registry has every shipped command", () => {
   const registry = createRegistry();
-  for (const name of ["help", "version", "init", "gate", "hook"]) {
+  for (const name of [
+    "help",
+    "version",
+    "init",
+    "gate",
+    "hook",
+    "judge",
+    "merge",
+    "leftovers",
+    "ready",
+  ]) {
     assert.ok(registry.get(name), `missing command: ${name}`);
   }
 });

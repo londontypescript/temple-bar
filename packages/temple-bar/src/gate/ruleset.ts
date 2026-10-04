@@ -16,10 +16,16 @@
 import type { Context } from "../context.ts";
 import { MANUAL_RULESET_STEPS } from "../init/github-ruleset.ts";
 import { checkOrigin, rerunInit } from "../init/requirements.ts";
+import {
+  findJudgeWorkflow,
+  judgeRulesetOutcome,
+  JUDGE_RULESET_CHECK,
+} from "./judge-ruleset.ts";
 import type { CheckOutcome } from "./report.ts";
 import {
   findRulesetProblems,
   isEffectiveRuleList,
+  type EffectiveRule,
   type RulesetProblem,
 } from "./ruleset-compare.ts";
 
@@ -33,7 +39,14 @@ type Read =
   | { readonly kind: "unreadable"; readonly reason: string }
   /** In GitHub Actions with no token to read with. */
   | { readonly kind: "needs-token" }
-  | { readonly kind: "read"; readonly problems: RulesetProblem[] };
+  | {
+      readonly kind: "read";
+      readonly rules: EffectiveRule[];
+      /** For a follow-up question about the same repository. */
+      readonly repoUrl: string;
+      readonly defaultBranch: string;
+      readonly token: string | undefined;
+    };
 
 interface RepoInfo {
   readonly isPrivate: boolean;
@@ -140,7 +153,13 @@ async function readRuleset(ctx: Context): Promise<Read> {
   if (!isEffectiveRuleList(rules)) {
     return { kind: "unreadable", reason: "unexpected rules reply" };
   }
-  return { kind: "read", problems: findRulesetProblems(rules) };
+  return {
+    kind: "read",
+    rules,
+    repoUrl,
+    defaultBranch: repo.defaultBranch,
+    token,
+  };
 }
 
 export function formatRulesetFailure(
@@ -167,52 +186,58 @@ export const NEEDS_TOKEN_MESSAGE =
   "  env:\n" +
   "    GH_TOKEN: ${{ github.token }}\n";
 
-export async function runRulesetCheck(ctx: Context): Promise<CheckOutcome> {
+/** Both outcomes alike, for an answer that judges neither ruleset. */
+function both(outcome: Omit<CheckOutcome, "name">): CheckOutcome[] {
+  return [
+    { ...outcome, name: RULESET_CHECK },
+    { ...outcome, name: JUDGE_RULESET_CHECK },
+  ];
+}
+
+/** The branch ruleset check, then the judge's (judge-ruleset.ts): one read
+ * of GitHub serves both. */
+export async function runRulesetChecks(ctx: Context): Promise<CheckOutcome[]> {
   const result = await readRuleset(ctx);
   if (result.kind === "needs-token") {
     ctx.stderr.write(NEEDS_TOKEN_MESSAGE);
-    return {
-      name: RULESET_CHECK,
-      status: "failed",
-      detail: "no GH_TOKEN in GitHub Actions",
-    };
+    return both({ status: "failed", detail: "no GH_TOKEN in GitHub Actions" });
   }
   if (result.kind === "skipped") {
-    return { name: RULESET_CHECK, status: "skipped", detail: result.reason };
+    return both({ status: "skipped", detail: result.reason });
   }
   if (result.kind === "unreadable") {
     // Offline on a laptop is normal, so it is skipped there with its reason.
     // In CI the check is the point: silence would let a loosened ruleset
     // through, so an unreachable GitHub fails the gate.
+    const detail = `could not read GitHub: ${result.reason}`;
     if (ctx.env.GITHUB_ACTIONS === "true") {
       ctx.stderr.write(
         `gate: could not read the branch ruleset from GitHub: ${result.reason}\n`,
       );
-      return {
-        name: RULESET_CHECK,
-        status: "failed",
-        detail: `could not read GitHub: ${result.reason}`,
-      };
+      return both({ status: "failed", detail });
     }
-    return {
-      name: RULESET_CHECK,
-      status: "skipped",
-      detail: `could not read GitHub: ${result.reason}`,
-    };
+    return both({ status: "skipped", detail });
   }
-  if (result.problems.length > 0) {
-    ctx.stderr.write(formatRulesetFailure(result.problems));
-    return {
+  const problems = findRulesetProblems(result.rules);
+  let branch: CheckOutcome;
+  if (problems.length > 0) {
+    ctx.stderr.write(formatRulesetFailure(problems));
+    branch = {
       name: RULESET_CHECK,
       status: "failed",
-      detail: result.problems
+      detail: problems
         .map((problem) => `${problem.kind} ${problem.rule}`)
         .join(", "),
     };
+  } else {
+    branch = {
+      name: RULESET_CHECK,
+      status: "passed",
+      detail: "the default branch has every rule setup creates",
+    };
   }
-  return {
-    name: RULESET_CHECK,
-    status: "passed",
-    detail: "the default branch has every rule setup creates",
-  };
+  const judge = await judgeRulesetOutcome(ctx, result.rules, () =>
+    findJudgeWorkflow(ctx, result.repoUrl, result.defaultBranch, result.token),
+  );
+  return [branch, judge];
 }

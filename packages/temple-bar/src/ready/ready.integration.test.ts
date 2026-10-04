@@ -13,6 +13,7 @@ import {
   alignWithOrigin,
   createHookFixture,
   installRealHooks,
+  pushToOriginMain,
   runGit,
   type HookFixture,
 } from "../hooks/testing/repo-fixture.ts";
@@ -32,7 +33,9 @@ import { GITIGNORE_LINES } from "../init/files.ts";
 import { readyCommand } from "./command.ts";
 
 const PASS = 'node -e "process.exit(0)"';
-const FAIL = 'node -e "process.exit(1)"';
+// What test.js holds: the tests the sample project's test script runs.
+const TESTS_PASS = "process.exit(0);";
+const TESTS_FAIL = "process.exit(1);";
 
 function commitAll(dir: string, message: string): void {
   assert.equal(runGit(dir, ["add", "-A"]).code, 0);
@@ -41,12 +44,12 @@ function commitAll(dir: string, message: string): void {
 }
 
 /** A clone with the hooks installed, on a feature branch holding a small
- * project whose test script passes or fails as asked. */
+ * project whose tests pass or fail as asked. package.json, with the scripts
+ * the gate runs, is already on origin's default branch: changing those
+ * scripts is a change to the checks, which `ready` asks the user about. */
 function setUp(testScript: string): HookFixture {
   const fixture = createHookFixture();
   alignWithOrigin(fixture);
-  assert.equal(installRealHooks(fixture).code, 0);
-  runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
   const manifest = {
     name: "sample",
     private: true,
@@ -56,14 +59,20 @@ function setUp(testScript: string): HookFixture {
       typecheck: PASS,
       lint: PASS,
       "format:check": PASS,
-      test: testScript,
+      test: "node test.js",
     },
   };
-  writeFileSync(
-    path.join(fixture.repoDir, "package.json"),
+  pushToOriginMain(
+    fixture.root,
+    fixture.originDir,
+    "package.json",
     `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8",
+    fixture.branch,
   );
+  assert.equal(runGit(fixture.repoDir, ["pull", "-q", "--ff-only"]).code, 0);
+  assert.equal(installRealHooks(fixture).code, 0);
+  runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
+  writeFileSync(path.join(fixture.repoDir, "test.js"), `${testScript}\n`);
   writeFileSync(
     path.join(fixture.repoDir, ".gitignore"),
     ["node_modules/", ...GITIGNORE_LINES, ""].join("\n"),
@@ -103,7 +112,7 @@ function pushFeature(fixture: HookFixture) {
 }
 
 void test("ready: a commit that passes the gate is marked, and then the push goes through", async () => {
-  const fixture = setUp(PASS);
+  const fixture = setUp(TESTS_PASS);
   try {
     const ready = await runReady(fixture.repoDir);
     assert.equal(ready.code, 0, ready.stderr.lines.join(""));
@@ -119,7 +128,7 @@ void test("ready: a commit that passes the gate is marked, and then the push goe
 });
 
 void test("ready: a failing gate marks nothing, so the push is refused", async () => {
-  const fixture = setUp(FAIL);
+  const fixture = setUp(TESTS_FAIL);
   try {
     const ready = await runReady(fixture.repoDir);
     assert.equal(ready.code, 1);
@@ -135,7 +144,7 @@ void test("ready: a failing gate marks nothing, so the push is refused", async (
 });
 
 void test("ready: a file that was never added is refused, since the push wouldn't carry it", async () => {
-  const fixture = setUp(PASS);
+  const fixture = setUp(TESTS_PASS);
   try {
     writeFileSync(path.join(fixture.repoDir, "forgotten.js"), "x\n", "utf8");
 
@@ -150,7 +159,7 @@ void test("ready: a file that was never added is refused, since the push wouldn'
 });
 
 void test("ready: an AGENTS.md change without a terminal says to ask the user, and the push stays refused", async () => {
-  const fixture = setUp(PASS);
+  const fixture = setUp(TESTS_PASS);
   try {
     writeFileSync(path.join(fixture.repoDir, "AGENTS.md"), "# Rules\n", "utf8");
     commitAll(fixture.repoDir, "docs: add the rules");

@@ -11,6 +11,7 @@ import { createHookCommand } from "./hooks/command.ts";
 import { installHooks } from "./hooks/install.ts";
 import { readRealStdin } from "./hooks/stdin.ts";
 import { createInitCommand } from "./init/command.ts";
+import { judgeCommand } from "./judge/command.ts";
 import { leftoversCommandEntry } from "./leftovers/command.ts";
 import { createMergeCommand, realMergeDeps } from "./merge/command.ts";
 import { prSizeCommandEntry } from "./pr/command.ts";
@@ -48,6 +49,7 @@ export function createRegistry(): CommandRegistry {
   registry.register(createInitCommand({ installHooks }));
   registry.register(gateCommand);
   registry.register(createHookCommand(readRealStdin));
+  registry.register(judgeCommand);
   registry.register(createMergeCommand(realMergeDeps));
   registry.register(leftoversCommandEntry);
   registry.register(prSizeCommandEntry);

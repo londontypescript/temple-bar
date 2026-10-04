@@ -18,9 +18,28 @@ const ok = (stdout = ""): GhResult => ({
   notFound: false,
 });
 
-/** No rulesets listed yet; the create call returns `create`. */
-function ghWithNoRulesets(create: GhResult = ok()) {
-  return createFakeGh((args) => (args.includes("POST") ? create : ok("[]")));
+const notFound: GhResult = {
+  code: 1,
+  stdout: "",
+  stderr: "HTTP 404: Not Found",
+  notFound: false,
+};
+
+const isContentsRead = (args: readonly string[]) =>
+  args.some((a) => a.includes("/contents/"));
+
+/** No rulesets listed yet; the create call returns `create`. The judge
+ * workflow is on the default branch only when `judgeOnMain` says so. */
+function ghWithNoRulesets(create: GhResult = ok(), judgeOnMain = false) {
+  return createFakeGh((args) => {
+    if (args.includes("POST")) {
+      return create;
+    }
+    if (isContentsRead(args)) {
+      return judgeOnMain ? ok() : notFound;
+    }
+    return ok("[]");
+  });
 }
 
 function createCalls(gh: ReturnType<typeof createFakeGh>) {
@@ -90,7 +109,11 @@ void test("offerRuleset: no terminal names the flag an agent passes after asking
 });
 
 void test("offerRuleset: an existing branch ruleset is left alone, no prompt asked", async () => {
-  const gh = createFakeGh(() => ok(JSON.stringify([{ target: "branch" }])));
+  const gh = createFakeGh((args) =>
+    isContentsRead(args)
+      ? notFound
+      : ok(JSON.stringify([{ target: "branch" }])),
+  );
   let asked = false;
   const ctx = createFakeContext({
     gh,

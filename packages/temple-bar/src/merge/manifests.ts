@@ -7,6 +7,7 @@
 import path from "node:path";
 
 import type { Context } from "../context.ts";
+import { TEMPLE_BAR_PACKAGE } from "../judge/changes.ts";
 import { changedFiles, fileAt } from "./local.ts";
 
 export type Manifest = Readonly<Record<string, unknown>>;
@@ -109,8 +110,6 @@ export function allDependencies(
   }
   return all;
 }
-
-export const TEMPLE_BAR_PACKAGE = "@londontypescript/temple-bar";
 
 /** The temple-bar version a manifest pins, which decides what judges the
  * repository. */

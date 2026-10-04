@@ -22,6 +22,7 @@ import {
   type SetupFilesOutcome,
 } from "./files.ts";
 import type { InitDeps } from "./types.ts";
+import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
 
 export type { InitDeps } from "./types.ts";
 
@@ -162,7 +163,8 @@ async function runInit(
     ctx.stdout.write(`${rulesetOutcome.message}\n`);
   }
 
-  const { wroteGitignore, wroteAgents, packageOutcome } = await writeFiles();
+  const { wroteGitignore, wroteAgents, wroteJudge, packageOutcome } =
+    await writeFiles();
   ctx.stdout.write(
     gitignoreFirst || wroteGitignore
       ? "Updated .gitignore.\n"
@@ -172,6 +174,11 @@ async function runInit(
     wroteAgents
       ? "Wrote AGENTS.md.\n"
       : "AGENTS.md already exists; left it alone.\n",
+  );
+  ctx.stdout.write(
+    wroteJudge
+      ? `Wrote the judge workflow, ${JUDGE_WORKFLOW_PATH}.\n`
+      : `${JUDGE_WORKFLOW_PATH} already exists; left it alone.\n`,
   );
 
   if (packageOutcome.invalid !== undefined) {
@@ -218,6 +225,7 @@ async function runInit(
       gitignoreFirst ||
       wroteGitignore ||
       wroteAgents ||
+      wroteJudge ||
       packageOutcome.wrote ||
       hooksReport.items.some((item) => item.status === "written");
     if (changed) {
@@ -238,7 +246,7 @@ export const NEXT_STEPS =
   "Next: main now refuses direct commits, so land this setup through a " +
   "pull request:\n" +
   "  git switch -c temple-bar-setup\n" +
-  "  git add AGENTS.md package.json .gitignore  (plus your lockfile)\n" +
+  `  git add AGENTS.md package.json .gitignore ${JUDGE_WORKFLOW_PATH}  (plus your lockfile)\n` +
   `  git commit -m "${SETUP_COMMIT_MESSAGE}"\n` +
   "  git push -u origin temple-bar-setup\n" +
   "  gh pr create --fill\n";

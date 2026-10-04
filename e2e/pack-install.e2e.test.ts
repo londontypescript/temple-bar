@@ -5,7 +5,8 @@
 // refused), the launcher runs from its tarball: it adds
 // temple-bar (served from a local registry, from its tarball) and runs
 // `temple-bar init`, with a fake `gh` standing in for GitHub. The result
-// must refuse a commit to main, allow one on a branch, and run the gate.
+// must refuse a commit to main, allow one on a branch, run the gate, and
+// judge pull requests (against a fake GitHub API).
 
 import assert from "node:assert/strict";
 import {
@@ -22,6 +23,7 @@ import { after, before, test } from "node:test";
 
 import { initTestRepo } from "../packages/temple-bar/src/testing/git-repo.ts";
 import { createFakeGh } from "./support/fake-gh.ts";
+import { serveFakeGithubApi } from "./support/fake-github-api.ts";
 import { packBoth, type Tarballs } from "./support/pack.ts";
 import { serveTarball, type LocalRegistry } from "./support/registry.ts";
 import { describe, run, type RunResult } from "./support/run.ts";
@@ -171,6 +173,12 @@ for (const pm of ["pnpm"] as const) {
       assert.equal(pkg.scripts?.gate, "temple-bar gate");
       assert.equal(pkg.scripts.prepare, "temple-bar hook install");
       assert.ok(existsSync(path.join(dir, "AGENTS.md")));
+      assert.ok(
+        existsSync(
+          path.join(dir, ".github", "workflows", "temple-bar-judge.yml"),
+        ),
+        "the judge workflow is written",
+      );
       assert.ok(existsSync(path.join(dir, ".git", "hooks", "pre-commit")));
       assert.match(
         readFileSync(path.join(dir, ".gitignore"), "utf8"),
@@ -216,6 +224,40 @@ for (const pm of ["pnpm"] as const) {
         gate.stdout,
         /skipped +branch ruleset \(origin is not on GitHub\)/,
       );
+
+      // The judge the workflow runs is the installed one: it passes a pull
+      // request that leaves the checks alone and fails one that edits CI.
+      const api = await serveFakeGithubApi("acme", "widgets", [
+        { number: 1, files: ["src/a.ts"] },
+        { number: 2, files: [".github/workflows/ci.yml"] },
+      ]);
+      try {
+        const judgeEnv = {
+          cwd: dir,
+          env: {
+            ...baseEnv,
+            GITHUB_API_URL: api.url,
+            GITHUB_REPOSITORY: "acme/widgets",
+          },
+        };
+        const passes = await run(
+          pm,
+          ["exec", "temple-bar", "judge", "--pr", "1"],
+          judgeEnv,
+        );
+        assert.equal(passes.code, 0, describe(passes));
+        assert.match(passes.stdout, /#1 leaves the checks alone/);
+        const fails = await run(
+          pm,
+          ["exec", "temple-bar", "judge", "--pr", "2"],
+          judgeEnv,
+        );
+        assert.equal(fails.code, 1, describe(fails));
+        assert.match(fails.stderr, /\.github\/workflows\/ci\.yml \(modified\)/);
+        assert.match(fails.stderr, /merge it themselves as a repository admin/);
+      } finally {
+        await api.close();
+      }
 
       writeFileSync(path.join(dir, "index.js"), "export {};\n");
       const gateWithCode = await run(pm, ["run", "gate"], inDir);

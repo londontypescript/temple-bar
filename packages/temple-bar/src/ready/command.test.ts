@@ -33,6 +33,8 @@ interface Scenario {
   headAfterGate?: string;
   /** origin/main isn't known in this clone. */
   noUpstream?: boolean;
+  /** package.json where the branch left origin/main, and at HEAD. */
+  manifests?: { readonly base: object; readonly head: object };
 }
 
 function setup(scenario: Scenario = {}) {
@@ -64,6 +66,12 @@ function setup(scenario: Scenario = {}) {
     }
     if (args[0] === "symbolic-ref") {
       return ok("refs/remotes/origin/main\n");
+    }
+    if (args[0] === "show" && scenario.manifests !== undefined) {
+      const side = args[1]?.startsWith(HEAD)
+        ? scenario.manifests.head
+        : scenario.manifests.base;
+      return ok(JSON.stringify(side));
     }
     if (args[0] === "diff") {
       return ok((scenario.changed ?? ["src/a.ts"]).join("\n"));
@@ -156,6 +164,52 @@ void test("ready: an AGENTS.md change the user says no to is not marked", async 
   assert.equal(await t.run(), 1);
   assert.equal(t.mark(), "");
   assert.match(t.stderr.lines.join(""), /the user did not agree/);
+});
+
+// The same list the judge guards, from the judge's own code: a change
+// that only the maintainer can merge is one the user sees before it's pushed.
+void test("ready: a change to a CI workflow with no terminal says to ask the user", async () => {
+  const t = setup({ changed: [".github/workflows/ci.yml", "src/a.ts"] });
+  assert.equal(await t.run(), 1);
+  assert.equal(t.gateRuns(), 0);
+  assert.match(
+    t.stderr.lines.join(""),
+    /needs the user's yes before it is pushed: it changes the checks that judge it \(\.github\/workflows\/ci\.yml \(changed\)\)/,
+  );
+});
+
+void test("ready: a changed pin or gate script asks the user, naming each", async () => {
+  const pin = "@londontypescript/temple-bar";
+  const t = setup({
+    changed: ["package.json"],
+    manifests: {
+      base: {
+        scripts: { lint: "eslint ." },
+        devDependencies: { [pin]: "0.0.6" },
+      },
+      head: { scripts: { lint: "true" }, devDependencies: { [pin]: "0.0.7" } },
+    },
+  });
+  assert.equal(await t.run(), 1);
+  assert.equal(t.gateRuns(), 0);
+  const out = t.stderr.lines.join("");
+  assert.match(
+    out,
+    /the temple-bar version in devDependencies\["@londontypescript\/temple-bar"\] \("0\.0\.6" on the base branch, "0\.0\.7" here\)/,
+  );
+  assert.match(out, /package\.json: the "lint" script/);
+});
+
+void test("ready: a package.json change outside the checks never asks", async () => {
+  const t = setup({
+    changed: ["package.json"],
+    manifests: {
+      base: { scripts: { build: "tsc" } },
+      head: { scripts: { build: "tsc -b" } },
+    },
+    terminal: "no",
+  });
+  assert.equal(await t.run(), 0);
 });
 
 void test("ready: an ordinary change never asks, even with a terminal", async () => {

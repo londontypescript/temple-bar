@@ -28,7 +28,9 @@ void test("init --create-ruleset: with no terminal, creates the ruleset and succ
   const fixture = makeFixture({ gh });
   const code = await run(fixture, ["--create-ruleset"]);
   assert.equal(code, 0);
-  assert.equal(posts(gh).length, 1);
+  // The judge workflow is on the default branch here, so the one yes
+  // creates both rulesets.
+  assert.equal(posts(gh).length, 2);
 });
 
 void test("init without the flag and with no terminal: no ruleset, exit 1, names --create-ruleset", async () => {
