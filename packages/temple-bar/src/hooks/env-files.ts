@@ -20,8 +20,7 @@ import type { Context } from "../context.ts";
 
 const EXAMPLE_SUFFIX = ".example";
 
-export type EnvCopyOutcome =
-  "copied" | "already-there" | "no-folder" | "not-a-file";
+type EnvCopyOutcome = "copied" | "already-there" | "no-folder" | "not-a-file";
 
 export interface EnvCopy {
   /** Relative to the repo root, with forward slashes. */

@@ -5,10 +5,7 @@
 
 import type { Context } from "./context.ts";
 
-export type Command = (
-  args: readonly string[],
-  ctx: Context,
-) => Promise<number>;
+type Command = (args: readonly string[], ctx: Context) => Promise<number>;
 
 export interface CommandEntry {
   readonly name: string;

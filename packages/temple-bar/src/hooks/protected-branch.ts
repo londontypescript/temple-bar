@@ -11,7 +11,7 @@
 import type { Context } from "../context.ts";
 
 /** Protected when origin's default branch isn't known. */
-export const FALLBACK_BRANCH = "main";
+const FALLBACK_BRANCH = "main";
 
 const ORIGIN_HEAD_REF = "refs/remotes/origin/HEAD";
 const ORIGIN_PREFIX = "refs/remotes/origin/";

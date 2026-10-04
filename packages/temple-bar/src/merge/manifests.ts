@@ -88,7 +88,7 @@ export function stringMap(
   return map;
 }
 
-export const DEPENDENCY_FIELDS = [
+const DEPENDENCY_FIELDS = [
   "dependencies",
   "devDependencies",
   "optionalDependencies",

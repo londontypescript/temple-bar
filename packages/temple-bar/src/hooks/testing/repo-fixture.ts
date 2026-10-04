@@ -22,7 +22,7 @@ import { configureTestRepo } from "../../testing/git-repo.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** The real CLI entry point, run from source under type stripping. */
-export const CLI_PATH = path.join(here, "..", "..", "cli.ts");
+const CLI_PATH = path.join(here, "..", "..", "cli.ts");
 
 export interface CommandResult {
   readonly code: number;

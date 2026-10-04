@@ -12,7 +12,7 @@ import type { Context } from "../context.ts";
  * - skipped: deliberately not run (the repo has no content of its own yet,
  *   or the check doesn't apply here); never a failure on its own.
  */
-export type CheckStatus = "passed" | "failed" | "missing" | "no-op" | "skipped";
+type CheckStatus = "passed" | "failed" | "missing" | "no-op" | "skipped";
 
 export interface CheckOutcome {
   readonly name: string;
@@ -29,7 +29,7 @@ function isFailure(outcome: CheckOutcome): boolean {
 }
 
 /** The report text, and whether it describes a failure. */
-export function formatReport(outcomes: readonly CheckOutcome[]): {
+function formatReport(outcomes: readonly CheckOutcome[]): {
   readonly text: string;
   readonly failed: boolean;
 } {

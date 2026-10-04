@@ -39,9 +39,9 @@ import {
   SHIM_MARKER,
 } from "./shims.ts";
 
-export type InstallItemStatus = "written" | "unchanged" | "conflict";
+type InstallItemStatus = "written" | "unchanged" | "conflict";
 
-export interface InstallItem {
+interface InstallItem {
   /** What this item is: a hook file's path relative to the repo root, or a
    * `<section>.<key>` git config key. */
   readonly item: string;

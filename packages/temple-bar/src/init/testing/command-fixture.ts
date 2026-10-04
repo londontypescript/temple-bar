@@ -67,7 +67,7 @@ export function noRulesetGhScript(args: readonly string[]): GhResult {
   return defaultGhScript(args);
 }
 
-export const installedReport: InstallReport = {
+const installedReport: InstallReport = {
   items: [{ item: ".git/hooks/pre-commit", status: "written" }],
   hasConflicts: false,
 };

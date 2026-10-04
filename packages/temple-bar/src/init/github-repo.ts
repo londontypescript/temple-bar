@@ -15,7 +15,7 @@ export function repoCreateCommand(name: string): string {
   return `gh repo create ${name} --public --source . --remote origin --push`;
 }
 
-export function repoCreateQuestion(name: string): string {
+function repoCreateQuestion(name: string): string {
   return (
     `No GitHub remote found. Create a public GitHub repository named ` +
     `"${name}" and push this folder's current commits to it? ` +
@@ -24,7 +24,7 @@ export function repoCreateQuestion(name: string): string {
   );
 }
 
-export function noTerminalSteps(name: string): string {
+function noTerminalSteps(name: string): string {
   return (
     "No terminal to ask in, so nothing was created. An agent: ask the user " +
     `whether to create the repository, and only if they say yes run ` +
@@ -33,19 +33,19 @@ export function noTerminalSteps(name: string): string {
   );
 }
 
-export function declinedSteps(name: string): string {
+function declinedSteps(name: string): string {
   return (
     "OK, nothing was created. Run this yourself when you're ready:\n  " +
     `${repoCreateCommand(name)}\nthen run ${RERUN_INIT} again.`
   );
 }
 
-export const FIRST_COMMIT_MESSAGE = "Initial commit";
+const FIRST_COMMIT_MESSAGE = "Initial commit";
 
 /** The one command left when setup couldn't make the first commit itself
  * (for example signing needs a passphrase an agent can't type). The repo
  * already exists on GitHub by then; only the commit and the push are left. */
-export function commitNeededSteps(detail: string): string {
+function commitNeededSteps(detail: string): string {
   return (
     "Created the GitHub repository, but couldn't make the first commit " +
     `here${detail === "" ? "" : ` (${detail})`}. Everything is staged. ` +

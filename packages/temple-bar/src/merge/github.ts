@@ -13,7 +13,7 @@ export interface Repository {
   readonly defaultBranch: string;
 }
 
-export type PullRequestState = "OPEN" | "CLOSED" | "MERGED";
+type PullRequestState = "OPEN" | "CLOSED" | "MERGED";
 
 export interface PullRequest {
   readonly number: number;
@@ -131,7 +131,7 @@ async function apiLines(
   return { result, items };
 }
 
-export type CheckState = "pending" | "passed" | "failed";
+type CheckState = "pending" | "passed" | "failed";
 
 export interface Check {
   readonly name: string;

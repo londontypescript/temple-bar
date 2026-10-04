@@ -13,7 +13,7 @@ import type { Writer } from "../seams/io.ts";
 import type { ProcRunOptions, ProcSeam } from "../seams/proc.ts";
 import type { ConfirmResult, PromptSeam } from "../seams/prompt.ts";
 
-export interface RecordedCall {
+interface RecordedCall {
   readonly args: readonly string[];
   readonly cwd: string;
 }
@@ -39,7 +39,7 @@ export function createFakeGit(
   };
 }
 
-export interface RecordedGhCall extends RecordedCall {
+interface RecordedGhCall extends RecordedCall {
   readonly input?: string;
 }
 
@@ -65,7 +65,7 @@ export function createFakeGh(
   };
 }
 
-export interface RecordedHttpCall {
+interface RecordedHttpCall {
   readonly url: string;
   readonly token: string | undefined;
 }
@@ -92,7 +92,7 @@ export function createFakeHttp(
   };
 }
 
-export interface RecordedWrite {
+interface RecordedWrite {
   /** Normalised like PathMap's keys: compare with path.normalize(...). */
   readonly path: string;
   readonly content: string;

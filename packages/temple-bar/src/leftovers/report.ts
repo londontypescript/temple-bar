@@ -8,12 +8,12 @@ import type { Context } from "../context.ts";
 import { findProtectedBranch } from "../hooks/protected-branch.ts";
 import { listWorktrees } from "../merge/worktrees.ts";
 
-export interface ClosedPullRequest {
+interface ClosedPullRequest {
   readonly number: number;
   readonly state: "MERGED" | "CLOSED";
 }
 
-export interface Leftovers {
+interface Leftovers {
   readonly localBranches: { branch: string; pullRequest: ClosedPullRequest }[];
   readonly remoteBranches: { branch: string; pullRequest: ClosedPullRequest }[];
   readonly worktrees: { path: string; reason: string }[];
@@ -107,10 +107,7 @@ function lines(text: string): string[] {
     .filter((line) => line !== "");
 }
 
-export async function findLeftovers(
-  ctx: Context,
-  cwd: string,
-): Promise<Leftovers> {
+async function findLeftovers(ctx: Context, cwd: string): Promise<Leftovers> {
   const leftovers: Leftovers = {
     localBranches: [],
     remoteBranches: [],
@@ -208,7 +205,7 @@ function describe(pullRequest: ClosedPullRequest): string {
 
 /** The report, one line per leftover with the command that would remove
  * it, for a person to run after checking. */
-export function formatLeftovers(leftovers: Leftovers, prefix: string): string {
+function formatLeftovers(leftovers: Leftovers, prefix: string): string {
   const out: string[] = [];
   for (const { path, reason } of leftovers.worktrees) {
     out.push(`worktree ${path}: ${reason} (git worktree remove ${path})`);

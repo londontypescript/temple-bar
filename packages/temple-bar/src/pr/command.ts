@@ -35,7 +35,7 @@ function parseArgs(args: readonly string[]): ParsedArgs | string {
   return values;
 }
 
-export async function prSizeCommand(
+async function prSizeCommand(
   args: readonly string[],
   ctx: Context,
 ): Promise<number> {
