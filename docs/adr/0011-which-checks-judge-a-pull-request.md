@@ -1,10 +1,11 @@
 # ADR 0011: Which copy of the checks judges a pull request
 
-Date: 2026-10-01. Status: accepted (decisions 41 and 42;
+Date: 2026-10-01, revised 2026-10-04. Status: accepted (decisions 41 and 42;
 [#55](https://github.com/londontypescript/temple-bar/issues/55)). Built in
 [#147](https://github.com/londontypescript/temple-bar/issues/147) and
 [#148](https://github.com/londontypescript/temple-bar/issues/148); see
-"How it is built" below. Not yet proven on real GitHub.
+"How it is built" below. Proven on real GitHub on 2026-10-03, with a
+throwaway repo: see "The trial" below.
 
 ## Context
 
@@ -78,6 +79,32 @@ the maintainer's yes ([ADR 0003](0003-how-a-change-reaches-main.md)). The
 maintainer merges it through the ruleset's bypass, which GitHub records on
 the pull request. `temple-bar merge` never bypasses.
 
+**How that works day to day** (decided 2026-10-03, after the trial):
+
+- The judge's ruleset lets the repository admin role past it, through a
+  pull request only. Pin bumps, CI changes and gate-script changes are
+  routine, and this is how the maintainer approves them.
+- `temple-bar merge` refuses such a pull request before it waits for any
+  check, even when told the maintainer said yes in chat, and says to ask
+  the maintainer to review it and merge it themselves as a repository
+  admin. The judge's own failure says the same, in the same words. Neither
+  names the command or flag for that merge: no message temple-bar prints
+  names a way past a check.
+- `temple-bar ready` asks the user, typed in a terminal, about exactly the
+  changes the judge refuses, as well as AGENTS.md, before such a commit is
+  pushed. One function finds those changes for the judge, `ready` and
+  `merge`, so the three can't disagree.
+- One yes from the maintainer covers both rulesets when setup creates them
+  together.
+- The judge runs the pinned version with `npm exec`, as built.
+- From 0.0.7 the gate fails when the default branch doesn't require the
+  judge's check (see "How it is built").
+- Bypass merges are to be detected and reported from GitHub's rule-suite
+  history, because an agent sharing the maintainer's credentials could
+  imitate either approval. Until agents have their own identity that is
+  detection, not prevention. It is not built yet: it needs its own trial
+  of what GitHub reports and who may read it, and is planned for 0.0.8.
+
 ## How a change that weakens its own CI gets caught
 
 A pull request changes the gate step in `ci.yml` to `run: echo ok`. Its own
@@ -102,18 +129,34 @@ exactly this must be refused, as break-it evidence.
   their own identity (then option 2 replaces it). Whether they get one is
   decided once the judge exists
   ([#145](https://github.com/londontypescript/temple-bar/issues/145)).
-- To prove on real GitHub before building on it: that a
-  `pull_request_target` job's result counts as the pull request's required
-  check, and what happens when a pull request adds a job with the judge's
-  name. GitHub warns that duplicate job names make required checks ambiguous
-  ([protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)).
-  If that lets a fake judge pass, the judge reports through a GitHub App set
-  as the check's expected source, so only it can satisfy the check
-  ([available rules](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)).
-  That costs an App and a private key secret per organisation.
 - The ruleset lives outside the repo. The gate's check that the rulesets are
   still in place ([ADR 0004](0004-github-settings-temple-bar-applies.md))
   catches the judge being dropped from the required checks.
+
+## The trial
+
+Before building on it, two things had to hold on real GitHub: that a
+`pull_request_target` job's result counts as the pull request's required
+check, and that a pull request can't fake it by adding a job with the
+judge's name. GitHub warns that duplicate job names make required checks
+ambiguous
+([protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)).
+If a fake could pass, the fallback was a GitHub App set as the check's
+expected source
+([available rules](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)),
+at the cost of an App and a private key secret per organisation.
+
+On a throwaway repo, with a stand-in judge using the same trigger,
+permissions, checkout and job name as the template
+([#147](https://github.com/londontypescript/temple-bar/issues/147)):
+
+- a normal change passed the judge and could merge; a change that turned the
+  CI step into `echo ok` failed the judge and was blocked;
+- a pull request that added its own `pull_request` job with the judge's
+  name, passing after the real judge failed, stayed blocked, so the App
+  fallback isn't needed;
+- a plain merge of the blocked pull request was refused, and the
+  maintainer's merge as a repository admin went through.
 
 ## How it is built
 
@@ -145,6 +188,23 @@ exactly this must be refused, as break-it evidence.
   GitHub Actions on up-to-date branches, and lets the repository admin
   role past it through a pull request only: decision 42's merge, kept to
   this one rule, while the `main` ruleset keeps nobody past it.
+- **The gate's check.** Beside its check of the `main` ruleset, the gate
+  reads the same answer from GitHub and fails unless some active rule
+  requires the judge's check from GitHub Actions on up-to-date branches.
+  Another ruleset requiring other checks doesn't count against it. The one
+  exception is the change that brings the judge workflow: until the
+  workflow is on the default branch its ruleset can't exist, so a checkout
+  carrying the workflow is skipped, with what to do once it lands. Without
+  that, the setup pull request on an existing repo, or one that upgrades
+  to this version, could never pass the gate. The exception can't be used
+  to drop the judge: taking the workflow off the default branch is itself
+  a change the judge refuses.
+- **Setup's files.** The judge workflow counts as one of the files a
+  project starts with, so a repo holding only what setup wrote still
+  passes the gate without the four scripts.
+- **The same list everywhere.** The judge, `ready` and `merge` find the
+  guarded changes with one function, fed by the GitHub API in the judge
+  and by git locally.
 
 ## What would end it
 
