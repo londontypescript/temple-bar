@@ -25,7 +25,7 @@ Settled before this session:
 - Models: phases rated routine / involved / delicate; the maintainer picks models, temple-bar never does: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 - What became of the earlier hardening plan's D2, D3, D4 and D7: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 
-Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), and after the judge's trial on 2026-10-03 (46–54). Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds, and 28 again on 2026-10-04, when 0.0.10 was added:
+Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), after the judge's trial on 2026-10-03 (46–54), and while planning 0.0.8 on 2026-10-04 (55). Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds, and 28 again on 2026-10-04, when 0.0.10 was added:
 
 | #   | Decision                                                                            | ADR                                                       |
 | --- | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -83,6 +83,7 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 52  | The judge runs the pinned temple-bar with `npm exec`                                | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
 | 53  | temple-bar's own judge is switched on in the 0.0.7 release, before the pin bump     | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
 | 54  | Merge refuses 2+ closed issues without a `One concern:` line                        | [rationale](../agents-rationale.md)                       |
+| 55  | Work is planned by milestone across the org; agents phase a milestone's issues      | [rationale](../agents-rationale.md)                       |
 
 ---
 

@@ -33,8 +33,8 @@ another model. Ask clarifying questions before the work, not during it.
 Decisions agreed in discussion go into the plan's decisions list, which the user
 approves. Summaries and briefs are checked against that list, not memory.
 
-The user writes the intake themselves: the grouped list of fixes and features.
-Do not reorder it by your own priorities, and do not offer to generate it.
+The user sets scope by placing issues in a milestone. When planning one, you
+group its issues into phases by the files each touches; the user approves the plan.
 
 GitHub issues are the live tracker: update the issue you work on **at every
 subtask**, not at phase end. Drafts go in `.temple-bar/`, this checkout's
