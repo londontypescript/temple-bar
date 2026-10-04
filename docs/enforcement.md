@@ -34,6 +34,8 @@ same pull request as any change to a mechanism.
 | User's yes typed before a gated push      | `ready` asks in a terminal; see the limits below     | **Speed bump** only   |
 | AGENTS.md within 200 lines and 32 KiB     | the pinned gate in CI                                | **Blocked** via CI    |
 | Ruleset not deleted or loosened           | the pinned gate in CI (public repos)                 | **Blocked** via CI    |
+| Check changes merged by the maintainer    | judge workflow + its ruleset, from 0.0.7; see below  | **Blocked** on GitHub |
+| Judge's ruleset still required            | the pinned gate in CI (public repos), from 0.0.7     | **Blocked** via CI    |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
 
 Known limits of push-once ([ADR 0012](adr/0012-push-once-with-ready.md)):
@@ -42,6 +44,13 @@ the final barrier (a skipped hook costs a red CI run, never a broken
 `main`). And the yes `ready` asks for proves a terminal, not a person: a
 cloud agent with no terminal must ask the user to run `ready`, and an agent
 that can drive a pseudo-terminal could answer it itself.
+
+Known limits of the judge ([ADR 0011](adr/0011-which-checks-judge-a-pull-request.md)):
+the maintainer merges a change to the checks through the judge's ruleset,
+which lets the repository admin role past it through a pull request. Agents
+use the maintainer's account, so GitHub can't tell that merge from an
+agent's. `temple-bar merge` never makes it, but nothing yet reports one that
+was made.
 
 A rule that exists only as prose is a rule that will eventually be broken. If
 you find one drifting, the fix is a mechanism, not stronger wording. When a
