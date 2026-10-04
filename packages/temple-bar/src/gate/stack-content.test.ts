@@ -27,8 +27,18 @@ void test("ownContentExists: false when the repo holds only the files every proj
     "temple-bar.config.json",
     "README.md",
     "LICENSE",
+    ".github/workflows/temple-bar-judge.yml",
   );
   assert.equal(await ownContentExists(ctx), false);
+});
+
+void test("ownContentExists: a workflow of the project's own counts, beside setup's judge workflow", async () => {
+  const ctx = withFiles(
+    "package.json",
+    ".github/workflows/temple-bar-judge.yml",
+    ".github/workflows/ci.yml",
+  );
+  assert.equal(await ownContentExists(ctx), true);
 });
 
 void test("ownContentExists: true for a project in another language, such as a fresh `cargo init`", async () => {
