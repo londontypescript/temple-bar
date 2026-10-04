@@ -148,7 +148,16 @@ export function fakeGitHub(setup: Setup, body: string) {
     }
     if (joined.startsWith("pr list")) {
       return Promise.resolve(
-        ok('[{"number":7,"headRefName":"feat/x","state":"MERGED"}]'),
+        ok(
+          JSON.stringify([
+            {
+              number: 7,
+              headRefName: "feat/x",
+              headRefOid: setup.pushedTip,
+              state: "MERGED",
+            },
+          ]),
+        ),
       );
     }
     if (joined.startsWith("issue list")) {

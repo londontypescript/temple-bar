@@ -39,6 +39,21 @@ void test("leftovers reports a merged branch and its worktree, and deletes nothi
   assert.notEqual(git(setup.clone, "branch", "--list", "feat/x"), "");
 });
 
+void test("leftovers leaves out a branch that reuses a merged pull request's name for new work", async () => {
+  const setup = setUp();
+  const { gh } = fakeGitHub(setup, "- add x\n");
+  // New, unpushed work on a branch named like pull request #7's.
+  commitFile(setup.worktree, "new.ts", "export const n = 1;\n", "feat: new");
+  const { ctx, stdout } = context(setup.clone, gh);
+
+  assert.equal(await leftoversCommandEntry.run([], ctx), 0);
+  const out = stdout.lines.join("");
+  assert.doesNotMatch(out, /local branch feat\/x/);
+  assert.doesNotMatch(out, /worktree .*wt-x/);
+  // The pushed branch still ends at #7's last commit, so it is finished.
+  assert.match(out, /remote branch origin\/feat\/x: pull request #7 merged/);
+});
+
 void test("leftovers reports a worktree whose folder is gone", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-leftovers-"));
   initTestRepo(dir);
