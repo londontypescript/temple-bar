@@ -99,7 +99,7 @@ export function findJudgeRuleProblem(
 
 /** Where the judge workflow is: already on the default branch, only in this
  * checkout (on its way there), or nowhere yet. */
-export type WorkflowPlace = "default-branch" | "this-checkout" | "nowhere";
+type WorkflowPlace = "default-branch" | "this-checkout" | "nowhere";
 
 export type WorkflowLookup =
   | { readonly ok: true; readonly place: WorkflowPlace }

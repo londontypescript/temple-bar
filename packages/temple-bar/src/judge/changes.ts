@@ -16,11 +16,11 @@ export const TEMPLE_BAR_PACKAGE = "@londontypescript/temple-bar";
 
 /** Every file under here is a workflow GitHub runs. A pull request runs its
  * own copy of them, so editing one changes the checks that judge it. */
-export const WORKFLOWS_FOLDER = ".github/workflows/";
+const WORKFLOWS_FOLDER = ".github/workflows/";
 
 /** CI runs `pnpm gate`, and the gate runs the four scripts it requires, so
  * changing any of these changes what the checks do. */
-export const GUARDED_SCRIPTS: readonly string[] = ["gate", ...REQUIRED_SCRIPTS];
+const GUARDED_SCRIPTS: readonly string[] = ["gate", ...REQUIRED_SCRIPTS];
 
 /** What to do about a change the judge refuses, said the same way wherever
  * temple-bar refuses one. The maintainer lets it through with the bypass

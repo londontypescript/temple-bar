@@ -17,12 +17,12 @@ import path from "node:path";
 
 import { LOCKFILE_NAMES } from "../gate/lengths.ts";
 import { REQUIRED_SCRIPTS } from "../gate/stack.ts";
+import { TEMPLE_BAR_PACKAGE } from "../judge/changes.ts";
 import {
   allDependencies,
   pinnedTempleBar,
   rootManifest,
   stringMap,
-  TEMPLE_BAR_PACKAGE,
   type ManifestChange,
   type PullRequestChanges,
 } from "./manifests.ts";

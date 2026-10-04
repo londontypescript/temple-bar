@@ -96,7 +96,7 @@ const NEEDS_TOKEN =
 /** What the maintainer and the agent read when the judge fails. It says what
  * the pull request touched and who decides, in the same words merge uses
  * when it refuses such a change. */
-export function formatCheckChanges(findings: readonly string[]): string {
+function formatCheckChanges(findings: readonly string[]): string {
   return (
     "judge: this pull request changes the checks that judge it:\n" +
     findings.map((line) => `  ${line}\n`).join("") +
