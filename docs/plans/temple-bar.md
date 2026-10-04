@@ -25,7 +25,7 @@ Settled before this session:
 - Models: phases rated routine / involved / delicate; the maintainer picks models, temple-bar never does: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 - What became of the earlier hardening plan's D2, D3, D4 and D7: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 
-Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), and after the judge's trial on 2026-10-03 (46–54). Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds:
+Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), and after the judge's trial on 2026-10-03 (46–54). Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds, and 28 again on 2026-10-04, when 0.0.10 was added:
 
 | #   | Decision                                                                            | ADR                                                       |
 | --- | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -56,7 +56,7 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 25  | CodeQL is a required check on the `main` ruleset                                    | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
 | 26  | The test suite runs shut off from the machine's git config                          | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
 | 27  | _Superseded by 37._ A gitignored `planning/` folder held progress and the handoff   | [0010](../adr/0010-plans-progress-and-incidents.md)       |
-| 28  | grand-union starts once temple-bar 0.0.9 ships; other themes continue alongside     | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 28  | grand-union starts once temple-bar 0.0.10 ships; other themes continue alongside    | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 29  | Working, standards-following code first; a showcase for TypeScript devs second      | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 30  | Worktree location stays each harness's choice; one inside the repo is made safe     | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 31  | Built for every London TypeScript repo; GitHub, `gh` and pnpm required              | [0002](../adr/0002-what-temple-bar-is-for.md)             |
