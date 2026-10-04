@@ -10,9 +10,10 @@
 // Some changes need the user's own yes before they leave the machine: a
 // change to AGENTS.md (the rules every agent follows), or to the checks that
 // judge the repo (the files the judge guards: CI workflows, the pinned
-// temple-bar, the scripts the gate runs). For those, the user confirms by
-// typing in a terminal. An agent working without a terminal can't give that
-// answer itself, so it is told to ask the user to run `ready`.
+// temple-bar, the scripts the gate runs, pnpm's install settings). For
+// those, the user confirms by typing in a terminal. An agent working without
+// a terminal can't give that answer itself, so it is told to ask the user to
+// run `ready`.
 
 import type { Context } from "../context.ts";
 import { gateCommand } from "../gate/command.ts";
@@ -201,8 +202,8 @@ export function createReadyCommand(runGate: RunGate): CommandEntry {
       "checked out, with everything committed.",
       "",
       "A commit that changes AGENTS.md, or the checks that judge the repo (a",
-      "CI workflow, the pinned temple-bar version, or the scripts the gate",
-      "runs), also needs the user's yes, typed in a terminal.",
+      "CI workflow, the pinned temple-bar version, the scripts the gate",
+      "runs, or pnpm's install settings), also needs the user's yes, typed in a terminal.",
       "",
       "Exit codes: 0 marked, 1 not marked (the reason is printed).",
     ].join("\n"),

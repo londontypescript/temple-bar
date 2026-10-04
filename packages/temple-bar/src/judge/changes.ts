@@ -22,6 +22,18 @@ const WORKFLOWS_FOLDER = ".github/workflows/";
  * changing any of these changes what the checks do. */
 const GUARDED_SCRIPTS: readonly string[] = ["gate", ...REQUIRED_SCRIPTS];
 
+/** Files pnpm reads at the repo's root when CI installs, and that can swap
+ * the pinned temple-bar without touching package.json: pnpm-workspace.yaml
+ * holds overrides of its own, a pnpmfile can rewrite any package as it
+ * installs, and .npmrc can point installs at another registry. Any change
+ * to them counts, since judging what one does would mean running it. */
+const INSTALL_SETTINGS: ReadonlySet<string> = new Set([
+  "pnpm-workspace.yaml",
+  ".pnpmfile.cjs",
+  ".pnpmfile.mjs",
+  ".npmrc",
+]);
+
 /** What to do about a change the judge refuses, said the same way wherever
  * temple-bar refuses one. The maintainer lets it through with the bypass
  * the judge's ruleset gives the repository admin role. Only the maintainer
@@ -73,6 +85,8 @@ function touches(file: ChangedFile, predicate: (path: string) => boolean) {
 }
 
 const isWorkflow = (path: string): boolean => path.startsWith(WORKFLOWS_FOLDER);
+
+const isInstallSetting = (path: string): boolean => INSTALL_SETTINGS.has(path);
 
 /** Only the root package.json: it is the one whose scripts CI runs and whose
  * dependencies install temple-bar. */
@@ -182,10 +196,11 @@ function parsedManifestFindings({
   return findings;
 }
 
-function workflowFindings(files: readonly ChangedFile[]): string[] {
+/** Workflows and pnpm's install settings: any change to one counts. */
+function fileFindings(files: readonly ChangedFile[]): string[] {
   const findings: string[] = [];
   for (const file of files) {
-    if (touches(file, isWorkflow)) {
+    if (touches(file, isWorkflow) || touches(file, isInstallSetting)) {
       const renamed =
         file.previousFilename === undefined
           ? ""
@@ -198,14 +213,14 @@ function workflowFindings(files: readonly ChangedFile[]): string[] {
 
 /**
  * Every change to the checks, one line each, in a stable order: workflows
- * first, then package.json. Empty when the pull request leaves them alone.
+ * and pnpm's install settings first, then package.json. Empty when the pull request leaves them alone.
  * `manifests` is needed only when changesManifest(files) is true.
  */
 export function findCheckChanges(
   files: readonly ChangedFile[],
   manifests?: ManifestPair,
 ): string[] {
-  const findings = workflowFindings(files);
+  const findings = fileFindings(files);
   if (changesManifest(files)) {
     if (manifests === undefined) {
       throw new Error("findCheckChanges: package.json changed but not read");
@@ -225,7 +240,7 @@ export function findCheckChangesInDiff(
   rootManifest: ParsedManifestPair | undefined,
 ): string[] {
   const files = paths.map((filename) => ({ filename, status: "changed" }));
-  const findings = workflowFindings(files);
+  const findings = fileFindings(files);
   if (changesManifest(files)) {
     findings.push(
       ...parsedManifestFindings(

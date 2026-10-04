@@ -178,8 +178,9 @@ export const judgeCommand: CommandEntry = {
   details:
     "Reads the pull request's changed files from GitHub, without checking " +
     "out or running any of its code, and fails when they change a " +
-    "workflow, the temple-bar version in package.json, or the scripts the " +
-    "gate runs. Setup's judge workflow runs it on every pull request.\n\n" +
+    "workflow, the temple-bar version in package.json, the scripts the " +
+    "gate runs, or pnpm's install settings (pnpm-workspace.yaml, a " +
+    "pnpmfile, .npmrc). Setup's judge workflow runs it on every pull request.\n\n" +
     "Options:\n" +
     "  --pr <number>  The pull request to judge. In GitHub Actions it comes\n" +
     "                 from the event, and the repository from\n" +

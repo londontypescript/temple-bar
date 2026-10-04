@@ -61,6 +61,27 @@ void test("any file under .github/workflows/ is a change to the checks: added, e
   ]);
 });
 
+void test("pnpm's install settings at the root are changes to the checks, since each can swap the pinned temple-bar", () => {
+  const files = [
+    file("pnpm-workspace.yaml"),
+    file(".pnpmfile.cjs", "added"),
+    file(".pnpmfile.mjs", "added"),
+    file(".npmrc", "removed"),
+    file("config/settings.yaml", "renamed", "pnpm-workspace.yaml"),
+    file("packages/a/pnpm-workspace.yaml"),
+  ];
+  assert.deepEqual(findCheckChanges(files), [
+    "pnpm-workspace.yaml (modified)",
+    ".pnpmfile.cjs (added)",
+    ".pnpmfile.mjs (added)",
+    ".npmrc (removed)",
+    "config/settings.yaml (renamed from pnpm-workspace.yaml)",
+  ]);
+  assert.deepEqual(findCheckChangesInDiff(["src/a.ts", ".npmrc"], undefined), [
+    ".npmrc (changed)",
+  ]);
+});
+
 void test("package.json with only other changes passes: a new dependency, another script", () => {
   const files = [file("package.json")];
   const head = manifest({

@@ -171,7 +171,14 @@ permissions, checkout and job name as the template
   away included), on any change to where `package.json` sets temple-bar's
   version (the dependency lists and the `overrides`, `pnpm.overrides` and
   `resolutions` fields, since an override can swap the pin), and on the
-  `gate` script or the four scripts the gate runs. It fails closed: an
+  `gate` script or the four scripts the gate runs. It also fails on any
+  change to pnpm's install settings at the root (`pnpm-workspace.yaml`,
+  `.pnpmfile.cjs` or `.pnpmfile.mjs`, `.npmrc`): each can swap the pinned
+  temple-bar without touching `package.json`, through workspace overrides,
+  a hook that rewrites packages as they install, or another registry. The
+  lockfile can't be guarded as a whole without sending every dependency
+  update to the maintainer; a check on temple-bar's own entry in it is
+  planned for 0.0.8. It fails closed: an
   unreadable answer, or fewer files listed than the pull request has
   (GitHub stops at 3000), is a failure, never a pass.
 - **The workflow** setup writes, `temple-bar-judge.yml` in `.github/workflows/`.

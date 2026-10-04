@@ -36,9 +36,9 @@ const READ_PIN = `const { readFileSync, appendFileSync } = require("node:fs");
 export function judgeWorkflow(): string {
   return `# Written by temple-bar. The judge fails a pull request that changes the
 # checks which judge it: any workflow, the temple-bar version pinned in
-# package.json, or the scripts the gate runs. A pull request runs its own
-# copy of those, so its own CI can't vouch for a change to them. Such a
-# change is the maintainer's to review and merge.
+# package.json, the scripts the gate runs, or pnpm's install settings. A
+# pull request runs its own copy of those, so its own CI can't vouch for a
+# change to them. Such a change is the maintainer's to review and merge.
 name: ${JUDGE_CHECK}
 
 # pull_request_target, not pull_request: GitHub runs this file as it is on
