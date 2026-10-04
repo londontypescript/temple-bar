@@ -6,6 +6,18 @@ It exists because agents drift: after a long session or a context reset, the age
 
 > **Pre-release.** Setup, the git hooks and the gate work today; more is on the way. Progress: [GitHub issues](https://github.com/londontypescript/temple-bar/issues).
 
+## Contents
+
+- [You need](#you-need)
+- [Getting started](#getting-started)
+- [For AI agents](#for-ai-agents)
+- [Why: prose isn't enforcement](#why-prose-isnt-enforcement)
+- [What setup does](#what-setup-does)
+- [Built for London TypeScript](#built-for-london-typescript)
+- [Why "Temple Bar"](#why-temple-bar)
+- [Contributing](#contributing)
+- [Licence](#licence)
+
 ## You need
 
 - a **GitHub** repository (other hosts aren't supported)
