@@ -186,8 +186,8 @@ on or update a similar one, or open one labelled `incident`. Never in another
 project's repo, never with private details. No incident tool until theme F.
 
 **The user curates.** Keeping, editing, closing and grouping incidents is
-theirs. Never rank or regroup them. **You remind them:** when you ask for a merge approval or report a merge, say
-how many `incident` issues are open.
+theirs. Never rank or regroup them. **You remind them:** when you ask for a merge approval or report a merge,
+name any `incident` issue still to triage: one with no milestone and no comments.
 
 ## 9. What is actually enforced
 
