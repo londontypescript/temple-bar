@@ -33,7 +33,7 @@ import {
   listGitPaths,
 } from "./lengths.ts";
 import { runLinkCheck, runMarkdownLint } from "./markdown.ts";
-import { runRulesetCheck } from "./ruleset.ts";
+import { runRulesetChecks } from "./ruleset.ts";
 import { runUnusedCheck } from "./unused.ts";
 import { createRealGateTools, type GateTools } from "./tools.ts";
 import { writeReport, type CheckOutcome } from "./report.ts";
@@ -214,7 +214,7 @@ async function runGate(ctx: Context, tools: GateTools): Promise<number> {
     await runMarkdownLint(ctx, tools, listed),
     await runLinkCheck(ctx, listed),
     await runUnusedCheck(ctx, tools),
-    await runRulesetCheck(ctx),
+    ...(await runRulesetChecks(ctx)),
   ];
   writeReport(ctx, outcomes);
 
@@ -241,10 +241,11 @@ export function createGateCommand(tools: GateTools): CommandEntry {
   return {
     name: "gate",
     summary:
-      "Run the merge gate: stack checks, setup's core, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code and the branch ruleset.",
+      "Run the merge gate: stack checks, setup's core, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code, the branch ruleset and the judge's ruleset.",
     details: [
       "Once the repo has files of its own (beyond package.json, the lockfile,",
-      "AGENTS.md, .gitignore, README.md, LICENSE and temple-bar.config.json),",
+      "AGENTS.md, .gitignore, README.md, LICENSE, temple-bar.config.json and",
+      "setup's judge workflow),",
       "requires these package.json scripts and runs every one that exists:",
       `${REQUIRED_SCRIPTS.join(", ")}. A script that does nothing (such as`,
       "`true` or a bare `echo`) fails. Checks that what setup installs is",
@@ -260,7 +261,9 @@ export function createGateCommand(tools: GateTools): CommandEntry {
       "link and cited path in them names a file git lists; web links are",
       "never fetched. Runs knip (unused files, exports and types) when there",
       "is a package.json. Reads GitHub's rules for the default branch and",
-      "fails if setup's rules are missing or weakened (public repos only; a",
+      "fails if setup's rules are missing or weakened, the judge's check",
+      "included (until the judge workflow reaches the default branch, a",
+      "checkout that carries it is skipped). Public repos only: a",
       "private repo, no GitHub origin or no network is skipped, except in",
       "GitHub Actions, where an unreachable API fails). In GitHub Actions it",
       "needs GH_TOKEN (GH_TOKEN: ${{ github.token }} on the gate step) and",

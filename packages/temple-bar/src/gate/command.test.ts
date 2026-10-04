@@ -190,6 +190,7 @@ void test("gate: a pass lists every check that ran, each passed, on stdout", asy
       "  skipped  local links (no markdown files)",
       "  passed   unused code (knip)",
       "  skipped  branch ruleset (origin is not on GitHub)",
+      "  skipped  judge ruleset (origin is not on GitHub)",
       "gate: passed",
       "",
     ].join("\n"),
