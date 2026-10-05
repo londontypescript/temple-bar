@@ -59,5 +59,14 @@ jobs:
         if: github.event_name == 'pull_request'
         run: pnpm exec temple-bar pr-size
 
+      # The About text is one of the copies of the README's one-line
+      # description; the others are checked offline by the tests. One leg
+      # of the matrix is enough, since it reads GitHub, not this machine.
+      - name: GitHub About text matches the README
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        run: node scripts/check-about.ts
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Build
         run: pnpm build
