@@ -3,24 +3,36 @@
 // closing keywords ("Closes #12", "fixes owner/repo#12").
 
 import type { Context } from "../context.ts";
+import { proseLines } from "./prose.ts";
 
-/** One pass over the text. HTML comments and fenced code are matched first
- * so they're skipped as a whole: GitHub doesn't read closing references
- * inside them, and a pull request template often carries an example there.
- * Skipping them in the same scan, rather than deleting them first, means
- * nothing is rebuilt from the leftovers. */
-const SCAN =
-  /<!--[\s\S]*?(?:-->|$)|```[\s\S]*?(?:```|$)|\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+((?:[\w.-]+\/[\w.-]+)?#\d+)/gi;
+/** A closing keyword, then the issue: `#12`, `owner/repo#12`, or the
+ * issue's full URL on GitHub. Text in comments and code never reaches this
+ * pattern: `proseLines` has blanked it first, because GitHub doesn't read
+ * closing references there and a template often carries an example. */
+const CLOSING_REFERENCE =
+  /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+(?:([\w.-]+\/[\w.-]+)?#(\d+)|https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/issues\/(\d+)\b)/gi;
 
 /** The distinct issues named after a closing keyword in `texts`, in the
- * order first seen, as written ("#12" or "owner/repo#12"). */
-export function findClosingIssues(texts: readonly string[]): string[] {
+ * order first seen, lower-cased. An issue in `repository` ("owner/name")
+ * is written `#12` however it was referenced, so the same issue written
+ * two ways counts once; one in another repository keeps its
+ * `owner/repo#12` form. */
+export function findClosingIssues(
+  texts: readonly string[],
+  repository?: string,
+): string[] {
+  const here = repository?.toLowerCase();
   const found = new Set<string>();
   for (const text of texts) {
-    for (const match of text.matchAll(SCAN)) {
-      const reference = match[1];
-      if (reference !== undefined) {
-        found.add(reference.toLowerCase());
+    for (const line of proseLines(text)) {
+      for (const match of line.matchAll(CLOSING_REFERENCE)) {
+        const owner = (match[1] ?? match[3])?.toLowerCase();
+        const number = match[2] ?? match[4] ?? "";
+        found.add(
+          owner === undefined || owner === here
+            ? `#${number}`
+            : `${owner}#${number}`,
+        );
       }
     }
   }
@@ -30,6 +42,17 @@ export function findClosingIssues(texts: readonly string[]): string[] {
 export interface PullRequestText {
   readonly title: string;
   readonly body: string;
+  /** "owner/name" of the repository the pull request is in, read from its
+   * URL, so a reference to an issue there by its full name counts as the
+   * same issue as `#N`. Undefined when the URL wasn't available. */
+  readonly repository?: string;
+}
+
+function repositoryOf(url: unknown): string | undefined {
+  if (typeof url !== "string") {
+    return undefined;
+  }
+  return /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/\d+/.exec(url)?.[1];
 }
 
 function readPayloadText(raw: string): PullRequestText | undefined {
@@ -47,10 +70,13 @@ function readPayloadText(raw: string): PullRequestText | undefined {
   if (typeof pullRequest !== "object" || pullRequest === null) {
     return undefined;
   }
-  const { title, body } = pullRequest as Record<string, unknown>;
+  // The event payload calls the URL `html_url`; `gh pr view` calls it `url`.
+  const { title, body, url, html_url } = pullRequest as Record<string, unknown>;
+  const repository = repositoryOf(html_url ?? url);
   return {
     title: typeof title === "string" ? title : "",
     body: typeof body === "string" ? body : "",
+    ...(repository === undefined ? {} : { repository }),
   };
 }
 
@@ -58,7 +84,7 @@ async function readViaGh(
   ctx: Context,
   prNumber: string | undefined,
 ): Promise<PullRequestText | undefined> {
-  const args = ["pr", "view", "--json", "title,body"];
+  const args = ["pr", "view", "--json", "title,body,url"];
   if (prNumber !== undefined) {
     args.splice(2, 0, prNumber);
   }
