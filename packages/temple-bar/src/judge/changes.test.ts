@@ -83,6 +83,25 @@ void test("pnpm's install settings at the root are changes to the checks, since 
   ]);
 });
 
+void test("temple-bar's own config at the root is a change to the checks; other tools' configs are not", () => {
+  const files = [
+    file("temple-bar.config.json"),
+    file("config/limits.json", "renamed", "temple-bar.config.json"),
+    file("packages/a/temple-bar.config.json"),
+    file("eslint.config.js"),
+    file("tsconfig.json"),
+    file(".prettierrc"),
+  ];
+  assert.deepEqual(findCheckChanges(files), [
+    "temple-bar.config.json (modified)",
+    "config/limits.json (renamed from temple-bar.config.json)",
+  ]);
+  assert.deepEqual(
+    findCheckChangesInDiff(["src/a.ts", "temple-bar.config.json"], undefined),
+    ["temple-bar.config.json (changed)"],
+  );
+});
+
 void test("package.json with only other changes passes: a new dependency, another script", () => {
   const files = [file("package.json")];
   const head = manifest({

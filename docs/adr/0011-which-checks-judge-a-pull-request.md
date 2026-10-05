@@ -67,6 +67,17 @@ often, and guarding them would make bypass merges routine. Whether to add
 them is decided once the judge has a record
 ([#144](https://github.com/londontypescript/temple-bar/issues/144)).
 
+**Decision 58: of the tool configs, the judge guards only
+`temple-bar.config.json`** (decided 2026-10-05, from the judge's first
+record). Nineteen runs: three refusals, all correct, and no merged pull
+request changed a tool config. temple-bar's own config sets the limits its
+checks enforce, such as the file-length cap, so raising one lets a pull
+request pass by moving the bar, and it rarely changes for a good reason.
+The others stay unguarded: there is no fixed list across stacks, the judge
+can't tell a stricter config from a looser one, the commonest weakening is
+in code (`eslint-disable`, `@ts-expect-error`, a skipped test), which config
+guarding misses, and routine config changes would fill the bypass report.
+
 **Why it is safe.** `pull_request_target` always runs `main`'s copy of the
 workflow, so a pull request that edits or deletes the judge doesn't change
 what judges it. Reading a pull request as data, without running it, is the
@@ -171,7 +182,8 @@ permissions, checkout and job name as the template
   away included), on any change to where `package.json` sets temple-bar's
   version (the dependency lists and the `overrides`, `pnpm.overrides` and
   `resolutions` fields, since an override can swap the pin), and on the
-  `gate` script or the four scripts the gate runs. It also fails on any
+  `gate` script or the four scripts the gate runs, and on any change to
+  `temple-bar.config.json` at the root. It also fails on any
   change to pnpm's install settings at the root (`pnpm-workspace.yaml`,
   `.pnpmfile.cjs` or `.pnpmfile.mjs`, `.npmrc`): each can swap the pinned
   temple-bar without touching `package.json`, through workspace overrides,
@@ -189,7 +201,12 @@ permissions, checkout and job name as the template
   `npm exec`. Nothing from the base branch is installed, and it doesn't
   depend on the repo naming a pnpm version. npm does install temple-bar's
   own dependencies, without a lockfile, with the read-only token in the
-  environment; none of them has an install script today.
+  environment, so it runs with install scripts off: one could tamper with
+  the judge before it judges, and temple-bar has none of its own. Our
+  check that no shipped text names a way past a refusal carries one
+  reviewed exception for this line; it was decided on 2026-10-05, and
+  tried with a package whose install script ran without the flag and
+  didn't with it.
   Its token is read-only and no pull request text reaches a shell. Tests
   assert each of these on the template.
 - **The ruleset.** The judge's check is required by a second ruleset,

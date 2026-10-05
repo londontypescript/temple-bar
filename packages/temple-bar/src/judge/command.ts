@@ -18,6 +18,7 @@ import {
   changesManifest,
   findCheckChanges,
 } from "./changes.ts";
+import { GUARDED_CHECKS } from "./guarded-checks.ts";
 import {
   readLockfiles,
   readManifests,
@@ -185,10 +186,8 @@ export const judgeCommand: CommandEntry = {
   args: "[--pr <number>]",
   details:
     "Reads the pull request's changed files from GitHub, without checking " +
-    "out or running any of its code, and fails when they change a " +
-    "workflow, the temple-bar version in package.json, the scripts the " +
-    "gate runs, pnpm's install settings (pnpm-workspace.yaml, a " +
-    "pnpmfile, .npmrc), or temple-bar's own entries in pnpm-lock.yaml. " +
+    "out or running any of its code, and fails when they change " +
+    `${GUARDED_CHECKS}. ` +
     "Setup's judge workflow runs it on every pull request.\n\n" +
     "Options:\n" +
     "  --pr <number>  The pull request to judge. In GitHub Actions it comes\n" +

@@ -10,6 +10,7 @@
 // lists; `ready` and `merge` hand it what git shows, so all three agree on
 // which changes only the maintainer can let through.
 
+import { CONFIG_FILE_NAME } from "../config/project-config.ts";
 import { REQUIRED_SCRIPTS } from "../gate/stack.ts";
 import { LOCKFILE, lockfileFindings } from "./lockfile.ts";
 
@@ -89,6 +90,15 @@ function touches(file: ChangedFile, predicate: (path: string) => boolean) {
 const isWorkflow = (path: string): boolean => path.startsWith(WORKFLOWS_FOLDER);
 
 const isInstallSetting = (path: string): boolean => INSTALL_SETTINGS.has(path);
+
+/** temple-bar's own settings at the root. They set the limits its checks
+ * enforce, such as the file-length cap, so raising one would let a pull
+ * request pass by moving the bar it is measured against. They rarely change
+ * for a good reason. Other tools' configs (ESLint, TypeScript, Prettier) are
+ * not guarded: they differ by stack, the judge can't tell a stricter change
+ * from a looser one, and guarding them would make bypass merges routine
+ * (see the ADR named at the top). */
+const isTempleBarConfig = (path: string): boolean => path === CONFIG_FILE_NAME;
 
 /** Only the root package.json: it is the one whose scripts CI runs and whose
  * dependencies install temple-bar. */
@@ -207,11 +217,16 @@ function parsedManifestFindings({
   return findings;
 }
 
-/** Workflows and pnpm's install settings: any change to one counts. */
+/** Workflows, pnpm's install settings and temple-bar's own config: any
+ * change to one counts. */
 function fileFindings(files: readonly ChangedFile[]): string[] {
   const findings: string[] = [];
   for (const file of files) {
-    if (touches(file, isWorkflow) || touches(file, isInstallSetting)) {
+    if (
+      touches(file, isWorkflow) ||
+      touches(file, isInstallSetting) ||
+      touches(file, isTempleBarConfig)
+    ) {
       const renamed =
         file.previousFilename === undefined
           ? ""
@@ -237,8 +252,8 @@ function lockfileChanges(
 }
 
 /**
- * Every change to the checks, one line each, in a stable order: workflows
- * and pnpm's install settings first, then package.json, then temple-bar's
+ * Every change to the checks, one line each, in a stable order: workflows,
+ * pnpm's install settings and temple-bar's config first, then package.json, then temple-bar's
  * entries in the lockfile. Empty when the pull request leaves them alone.
  * `manifests` is needed only when changesManifest(files) is true, and
  * `lockfile` only when changesLockfile(files) is.

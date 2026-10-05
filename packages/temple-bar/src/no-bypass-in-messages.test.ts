@@ -165,16 +165,55 @@ function shippedSources(): string[] {
   return files.sort();
 }
 
+/** Reviewed exceptions, each allowed in one file, for one bypass, in text
+ * that holds one exact phrase. The judge workflow turns npm's install
+ * scripts off on purpose: npm installs temple-bar's dependencies there with
+ * a token in reach, and an install script could tamper with the judge
+ * before it judges (docs/adr/0011-which-checks-judge-a-pull-request.md).
+ * That text is the workflow itself, not a message telling anyone how to get
+ * past a refusal. */
+const EXCEPTIONS: readonly {
+  readonly file: string;
+  readonly bypass: string;
+  readonly phrase: string;
+}[] = [
+  {
+    file: path.join("temple-bar", "src", "judge", "workflow.ts"),
+    bypass: "--ignore-scripts",
+    phrase: "run: npm exec --yes --ignore-scripts --package=",
+  },
+];
+
+function exceptionFor(hit: Hit) {
+  return EXCEPTIONS.find(
+    (exception) =>
+      hit.where.startsWith(`${exception.file}:`) &&
+      hit.bypass === exception.bypass &&
+      hit.text.includes(exception.phrase),
+  );
+}
+
 void test("no message in any shipped source names a way around a refusal", () => {
   const files = shippedSources();
   const hits = files.flatMap((file) =>
     findBypasses(path.relative(PACKAGES, file), readFileSync(file, "utf8")),
   );
   assert.deepEqual(
-    hits.map((hit) => `${hit.where} names ${hit.bypass}: ${hit.text}`),
+    hits
+      .filter((hit) => exceptionFor(hit) === undefined)
+      .map((hit) => `${hit.where} names ${hit.bypass}: ${hit.text}`),
     [],
     "A message names a way around a refusal. Say what to do instead.",
   );
+  // An exception that no longer matches anything is stale, and one that
+  // matches twice has spread: either way it needs reviewing again.
+  for (const exception of EXCEPTIONS) {
+    assert.equal(
+      hits.filter((hit) => exceptionFor(hit) === exception).length,
+      1,
+      `the reviewed exception for ${exception.bypass} in ${exception.file} should match exactly once`,
+    );
+  }
 });
 
 void test("the scan reads the real refusal messages, not an empty set", () => {

@@ -7,6 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import type { Context } from "../context.ts";
 import type { CommandEntry } from "../registry.ts";
 import { gateCommand } from "../gate/command.ts";
+import { GUARDED_CHECKS } from "../judge/guarded-checks.ts";
 import { runMerge, type MergeDeps } from "./run.ts";
 
 interface ParsedArgs {
@@ -73,10 +74,10 @@ export function createMergeCommand(deps: MergeDeps): CommandEntry {
       "remote branch is gone, fast-forwards the default branch, and reports",
       "alerts on the default branch and leftovers.",
       "",
-      "Refuses a change to the checks that judge the repository (a CI",
-      "workflow, the temple-bar version in package.json, the scripts the",
-      "gate runs, or pnpm's install settings): the judge fails it on purpose, and only the maintainer",
-      "merges it, as a repository admin. No option changes that.",
+      "Refuses a change to the checks that judge the repository",
+      `(${GUARDED_CHECKS}):`,
+      "the judge fails it on purpose, and only the maintainer merges it, as",
+      "a repository admin. No option changes that.",
       "",
       "Refuses a pull request that closes two or more issues unless its",
       "description has a line starting `One concern:` that says why they",

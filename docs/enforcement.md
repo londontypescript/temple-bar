@@ -40,6 +40,9 @@ same pull request as any change to a mechanism.
 | AGENTS.md within 200 lines and 32 KiB     | the pinned gate in CI                                | **Blocked** via CI    |
 | Ruleset not deleted or loosened           | the pinned gate in CI (public repos)                 | **Blocked** via CI    |
 | Check changes merged by the maintainer    | judge workflow + its ruleset, from 0.0.7; see below  | **Blocked** on GitHub |
+| temple-bar's lockfile entries unchanged   | the judge, from 0.0.8                                | **Blocked** on GitHub |
+| temple-bar.config.json limits unchanged   | the judge, from 0.0.8                                | **Blocked** on GitHub |
+| Bypass merges seen by the maintainer      | `merge` lists the past month's, from 0.0.8           | **Detected** after    |
 | Judge's ruleset still required            | the pinned gate in CI (public repos), from 0.0.7     | **Blocked** via CI    |
 | Release notes finished before publishing  | `pnpm release:publish` refuses unfinished notes      | **Blocked** locally   |
 | One-line description the same everywhere  | tests; About text by a CI step                       | **Blocked** via CI    |
@@ -64,8 +67,11 @@ Known limits of the judge ([ADR 0011](adr/0011-which-checks-judge-a-pull-request
 the maintainer merges a change to the checks through the judge's ruleset,
 which lets the repository admin role past it through a pull request. Agents
 use the maintainer's account, so GitHub can't tell that merge from an
-agent's. `temple-bar merge` never makes it, but nothing yet reports one that
-was made.
+agent's. `temple-bar merge` never makes it, and lists every one made on the
+default branch in the past month, for the maintainer to recognise as theirs.
+That is detection, not prevention, and only for a month: GitHub keeps its
+rule history no longer, so a bypass made while no merge ran within the month
+is seen only by reading that history directly.
 
 A rule that exists only as prose is a rule that will eventually be violated. If
 you find one drifting, the fix is a mechanism, not stronger wording. When a
