@@ -21,7 +21,7 @@ import type { Context } from "../context.ts";
  * its list offers. */
 const WINDOW = "month";
 
-export interface Bypass {
+interface Bypass {
   /** The commit the bypass put on the branch. */
   readonly commit: string;
   readonly actor: string;
