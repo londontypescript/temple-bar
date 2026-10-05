@@ -16,7 +16,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { freshAgentsMd } from "./agents-template.ts";
 import { createInitCommand } from "./command.ts";
+import { COMPANION_FILES } from "./companion-docs.ts";
 import { JUDGE_RULESET_NAME } from "./judge-ruleset.ts";
 import { createRealContext } from "../context.ts";
 import { installHooks } from "../hooks/install.ts";
@@ -96,7 +98,13 @@ void test("integration: init sets up a real repo (AGENTS.md, scripts, real hooks
     assert.match(firstStdout.lines.join(""), /git switch -c temple-bar-setup/);
     assert.match(firstStdout.lines.join(""), /gh pr create/);
     const agents = readFileSync(path.join(dir, "AGENTS.md"), "utf8");
-    assert.match(agents, /pull requests the user merges/);
+    assert.equal(agents, freshAgentsMd());
+    for (const file of COMPANION_FILES) {
+      assert.equal(
+        readFileSync(path.join(dir, file.path), "utf8"),
+        file.content,
+      );
+    }
     const pkg = JSON.parse(
       readFileSync(path.join(dir, "package.json"), "utf8"),
     ) as { scripts: Record<string, string> };
@@ -117,6 +125,7 @@ void test("integration: init sets up a real repo (AGENTS.md, scripts, real hooks
     assert.equal(secondCode, 0);
     const second = secondStdout.lines.join("");
     assert.match(second, /AGENTS\.md already exists; left it alone/);
+    assert.equal(readFileSync(path.join(dir, "AGENTS.md"), "utf8"), agents);
     assert.match(second, /already has the required scripts; left it alone/);
     assert.match(second, /Git hooks already installed; left them alone/);
     assert.doesNotMatch(second, /Next:/, "nothing to land on a second run");
@@ -177,6 +186,11 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
       ".github/workflows/temple-bar-judge.yml",
       ".gitignore",
       "AGENTS.md",
+      "CLAUDE.md",
+      "docs/adr/0000-template.md",
+      "docs/agents-rationale.md",
+      "docs/conventions.md",
+      "docs/phase-boundaries.md",
       "keep.txt",
       "package.json",
     ]);

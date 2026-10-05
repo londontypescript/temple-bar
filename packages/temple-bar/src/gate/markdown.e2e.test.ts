@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { COMPANION_FILES } from "../init/companion-docs.ts";
 import { initTestRepo } from "../testing/git-repo.ts";
 import { createGateCommand } from "./command.ts";
 import { installCore } from "./testing/core-fixture.ts";
@@ -55,6 +56,10 @@ async function docsRepo(
   return { dir, write };
 }
 
+const COMPANION_MARKDOWN = COMPANION_FILES.filter((file) =>
+  file.path.endsWith(".md"),
+).length;
+
 const LONG_LINE = `${"word ".repeat(40)}end\n`;
 
 void test("markdown e2e: setup's own files and a long-lined README pass both checks", async () => {
@@ -65,13 +70,21 @@ void test("markdown e2e: setup's own files and a long-lined README pass both che
   try {
     const result = await runGate(dir);
     assert.equal(result.code, 0, result.err);
+    // The README, the guide, and every markdown file setup writes.
+    const count = String(3 + COMPANION_MARKDOWN);
     assert.match(
       result.out,
-      /^ {2}passed {3}markdown lint \(3 markdown file\(s\)\)$/m,
+      new RegExp(
+        `^ {2}passed {3}markdown lint \\(${count} markdown file\\(s\\)\\)$`,
+        "m",
+      ),
     );
     assert.match(
       result.out,
-      /^ {2}passed {3}local links \(3 markdown file\(s\)\)$/m,
+      new RegExp(
+        `^ {2}passed {3}local links \\(${count} markdown file\\(s\\)\\)$`,
+        "m",
+      ),
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -91,6 +104,18 @@ void test("markdown e2e: a lint error fails the gate, and the fixed file passes"
 
     write("README.md", "# Sample\n\n## One level down\n");
     assert.equal((await runGate(dir)).code, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("markdown e2e: Next.js's one-line CLAUDE.md passes straight after setup", async () => {
+  // Without setup's heading, markdown lint fails it (first-line-heading).
+  const { dir } = await docsRepo({ "CLAUDE.md": "@AGENTS.md\n" });
+  try {
+    const result = await runGate(dir);
+    assert.equal(result.code, 0, result.err);
+    assert.match(result.out, /^ {2}passed {3}markdown lint /m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

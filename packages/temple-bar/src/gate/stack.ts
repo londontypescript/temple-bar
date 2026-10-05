@@ -5,6 +5,7 @@
 import path from "node:path";
 import { CONFIG_FILE_NAME } from "../config/project-config.ts";
 import type { Context } from "../context.ts";
+import { COMPANION_FILES } from "../init/companion-docs.ts";
 import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
 import { LOCKFILE_NAMES, listGitPaths } from "./lengths.ts";
 
@@ -111,8 +112,8 @@ const NOT_OWN_CONTENT_FOLDERS = new Set([
 ]);
 
 /** Files a project starts with before it has anything of its own: the ones
- * setup writes (AGENTS.md, package.json, .gitignore and the judge
- * workflow), the lockfile its install writes, temple-bar's own config, and
+ * setup writes (AGENTS.md and the docs it links to, CLAUDE.md, package.json,
+ * .gitignore and the judge workflow), the lockfile its install writes, temple-bar's own config, and
  * the ones GitHub offers to create with a new repository (README.md,
  * LICENSE and .gitignore). A repo holding only these has nothing for the
  * four scripts to check yet. */
@@ -120,6 +121,7 @@ const STARTING_FILES = new Set([
   "AGENTS.md",
   "package.json",
   ".gitignore",
+  ...COMPANION_FILES.map((file) => file.path),
   JUDGE_WORKFLOW_PATH,
   CONFIG_FILE_NAME,
   "README.md",

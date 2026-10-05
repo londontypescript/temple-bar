@@ -58,6 +58,21 @@ mechanism ships, its rule shrinks to one line. The gate will check both
 limits, on this repo and on every London TypeScript repo's AGENTS.md; not
 built yet (theme B).
 
+**Decision 56: temple-bar's block in AGENTS.md is never trimmed to make
+room for a project's own text** (decided 2026-10-05). Setup writes temple-bar's
+rules as a marked block of about 150 lines, leaving roughly 50 of the 200 for
+the project, and a framework's scaffolder may already have written more than
+that. Shortening the block would mean moving its rules into linked docs, but
+agents only reliably follow what is in AGENTS.md itself: a link is read when
+the agent judges it worth reading, so a rule behind one can be missed at the
+moment it matters. The block's rules are the foundation every repo shares, so
+they stay whole. When the file is over its limits, the project's own text
+outside the block moves to a doc, linked with when to read it ("Before
+changing the UI, read docs/conventions.md."), a pointer agents follow far
+more reliably than "see X". The gate's size failure and setup both say this,
+and the gate fails on an edited block, so an agent can't fix the size by
+cutting temple-bar's rules.
+
 ## What would end it
 
 The AGENTS.md limits are wrong if the agents in use stop loading the whole

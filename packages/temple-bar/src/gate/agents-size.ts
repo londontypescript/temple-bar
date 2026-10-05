@@ -48,20 +48,39 @@ export async function checkAgentsSize(ctx: Context): Promise<AgentsSizeResult> {
   return measureAgentsFile(content);
 }
 
-export function formatAgentsSizeFailure(result: AgentsSizeResult): string {
-  const lines = [`gate: ${AGENTS_FILE} is over its size limit:`];
+/** How to bring AGENTS.md back within its limits, shared by the gate's
+ * failure and setup's warning. temple-bar's block is never what gives way:
+ * agents only reliably follow what is in AGENTS.md itself, so its rules must
+ * stay there, while a project's own reference text can live in a doc an
+ * agent reads when the link tells it to. */
+export const AGENTS_OVERSIZE_FIX =
+  "keep temple-bar's block whole (the gate fails on an edited one); move " +
+  "this project's own text from outside it into a doc, linked with when to " +
+  'read it, for example "Before changing the UI, read docs/conventions.md."';
+
+/** One line per limit the file is over, for any report about its size. */
+export function describeAgentsOverage(
+  result: AgentsSizeResult,
+): readonly string[] {
+  const lines: string[] = [];
   if (result.overLines) {
     lines.push(
-      `  ${String(result.lines)} lines (limit ${String(AGENTS_MAX_LINES)})`,
+      `${String(result.lines)} lines (limit ${String(AGENTS_MAX_LINES)})`,
     );
   }
   if (result.overBytes) {
     lines.push(
-      `  ${String(result.bytes)} bytes (limit ${String(AGENTS_MAX_BYTES)}, 32 KiB)`,
+      `${String(result.bytes)} bytes (limit ${String(AGENTS_MAX_BYTES)}, 32 KiB)`,
     );
   }
-  lines.push(
-    "  move reference material and reasons into docs and link to them",
-  );
+  return lines;
+}
+
+export function formatAgentsSizeFailure(result: AgentsSizeResult): string {
+  const lines = [
+    `gate: ${AGENTS_FILE} is over its size limit:`,
+    ...describeAgentsOverage(result).map((line) => `  ${line}`),
+    `  Fix: ${AGENTS_OVERSIZE_FIX}`,
+  ];
   return `${lines.join("\n")}\n`;
 }
