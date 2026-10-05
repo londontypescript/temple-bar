@@ -4,11 +4,12 @@
 //   node scripts/release-notes.ts v0.0.4 > notes.md
 //
 // The result is a draft for a maintainer to edit before publishing, so it
-// groups and tidies but never invents text. What commits can't say (the steps
-// repos already using temple-bar must take, and the incidents the release
-// fixes) gets an empty heading of its own, plus a reminder comment. Release
-// 0.0.7 went out with neither written, so `release:publish` checks the draft
-// with `unfinishedNotes` below and refuses until both are filled in.
+// groups and tidies but never invents text. What commits can't say gets a
+// heading of its own: Upgrading starts with the routine upgrade command and a
+// placeholder for any extra steps, and Incidents fixed starts empty. A
+// reminder comment ends the draft. Release 0.0.7 went out with neither
+// section written, so `release:publish` checks the draft with
+// `unfinishedNotes` below and refuses until both are filled in.
 
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -17,12 +18,20 @@ import { fileURLToPath } from "node:url";
 const SUBJECT =
   /^(?<type>[a-z]+)(?:\((?<scope>[^)]+)\))?(?<breaking>!)?: (?<text>.+)$/;
 
-/** The sections only the maintainer can write, and what goes in each;
- * "None" is a valid entry. */
+const UPGRADING = "Upgrading";
+const INCIDENTS = "Incidents fixed";
+
+/** What finishing each hand-written section takes, said when it's empty. */
 const HAND_WRITTEN_SECTIONS: Readonly<Record<string, string>> = {
-  Upgrading: "the steps repos already using temple-bar must take",
-  Incidents: "the incident issues this release fixes",
+  [UPGRADING]: `Put back the upgrade command, then list any extra steps repos already using temple-bar must take, or write "No other steps."`,
+  [INCIDENTS]: `List the incident issues this release fixes, or write "None".`,
 };
+
+/** Stands under the upgrade command until the maintainer has decided whether
+ * this release needs more than it. The command alone doesn't finish the
+ * section: most releases need nothing else, but some (0.0.7) do. */
+export const UPGRADE_PLACEHOLDER =
+  '<!-- Extra upgrade steps, or "No other steps." -->';
 
 /** The draft ends with this, hidden in a comment, until the notes are done. */
 export const REMINDER =
@@ -40,8 +49,22 @@ function formatLine(scope: string | undefined, text: string): string {
   return scope === undefined ? `- ${text}` : `- **${scope}:** ${text}`;
 }
 
-/** Markdown notes from commit subjects, newest first as `git log` gives them. */
-export function buildReleaseNotes(subjects: readonly string[]): string {
+/** The routine upgrade: the same pinned install setup itself runs. */
+function upgradeCommand(tag: string): string {
+  const version = tag.replace(/^v/, "");
+  return [
+    "```bash",
+    `pnpm add -D --save-exact @londontypescript/temple-bar@${version}`,
+    "```",
+  ].join("\n");
+}
+
+/** Markdown notes for `tag` from commit subjects, newest first as `git log`
+ * gives them. */
+export function buildReleaseNotes(
+  subjects: readonly string[],
+  tag: string,
+): string {
   const breaking: Section = { title: "Breaking changes", lines: [] };
   const features: Section = { title: "Features", lines: [] };
   const fixes: Section = { title: "Fixes", lines: [] };
@@ -80,9 +103,12 @@ export function buildReleaseNotes(subjects: readonly string[]): string {
             (section) => `## ${section.title}\n\n${section.lines.join("\n")}`,
           )
           .join("\n\n");
-  const handWritten = Object.keys(HAND_WRITTEN_SECTIONS)
-    .map((title) => `## ${title}`)
-    .join("\n\n");
+  const handWritten = [
+    `## ${UPGRADING}`,
+    upgradeCommand(tag),
+    UPGRADE_PLACEHOLDER,
+    `## ${INCIDENTS}`,
+  ].join("\n\n");
   return `${body}\n\n${handWritten}\n\n<!-- Draft from conventional commits. ${REMINDER} -->\n`;
 }
 
@@ -116,16 +142,19 @@ export function unfinishedNotes(notes: string): string[] {
       `The reminder comment is still in the notes ("${REMINDER}"). Delete it once the notes are written.`,
     );
   }
-  for (const [title, purpose] of Object.entries(HAND_WRITTEN_SECTIONS)) {
+  if (text.includes(UPGRADE_PLACEHOLDER)) {
+    problems.push(
+      `The "## ${UPGRADING}" section still has its placeholder (${UPGRADE_PLACEHOLDER}). Replace it with the extra steps repos already using temple-bar must take, or with "No other steps."`,
+    );
+  }
+  for (const [title, howToFinish] of Object.entries(HAND_WRITTEN_SECTIONS)) {
     const content = sectionText(text, title);
     if (content === undefined) {
       problems.push(
-        `The "## ${title}" heading is missing. Put it back and list ${purpose}, or write "None".`,
+        `The "## ${title}" heading is missing. Put it back. ${howToFinish}`,
       );
     } else if (content === "") {
-      problems.push(
-        `The "## ${title}" section is empty. List ${purpose} under it, or write "None".`,
-      );
+      problems.push(`The "## ${title}" section is empty. ${howToFinish}`);
     }
   }
   return problems;
@@ -153,7 +182,7 @@ function main(tag: string | undefined): void {
   const previous = previousTag(tag);
   const range = previous === undefined ? tag : `${previous}..${tag}`;
   const log = git(["log", "--first-parent", "--format=%s", range]);
-  process.stdout.write(buildReleaseNotes(log.split("\n")));
+  process.stdout.write(buildReleaseNotes(log.split("\n"), tag));
 }
 
 const invokedDirectly =
