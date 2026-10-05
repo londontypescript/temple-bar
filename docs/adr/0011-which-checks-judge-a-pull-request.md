@@ -1,6 +1,6 @@
 # ADR 0011: Which copy of the checks judges a pull request
 
-Date: 2026-10-01, revised 2026-10-04. Status: accepted (decisions 41 and 42;
+Date: 2026-10-01, revised 2026-10-04 and 2026-10-05. Status: accepted (decisions 41 and 42;
 [#55](https://github.com/londontypescript/temple-bar/issues/55)). Built in
 [#147](https://github.com/londontypescript/temple-bar/issues/147) and
 [#148](https://github.com/londontypescript/temple-bar/issues/148); see
@@ -104,11 +104,10 @@ the pull request. `temple-bar merge` never bypasses.
   that would be judged by a gate that fails for want of the judge's ruleset.
 - From 0.0.7 the gate fails when the default branch doesn't require the
   judge's check (see "How it is built").
-- Bypass merges are to be detected and reported from GitHub's rule-suite
+- Bypass merges are detected and reported from GitHub's rule-suite
   history, because an agent sharing the maintainer's credentials could
   imitate either approval. Until agents have their own identity that is
-  detection, not prevention. It is not built yet: it needs its own trial
-  of what GitHub reports and who may read it, and is planned for 0.0.8.
+  detection, not prevention. See "Reporting bypass merges" below.
 
 ## How a change that weakens its own CI gets caught
 
@@ -178,16 +177,19 @@ permissions, checkout and job name as the template
   temple-bar without touching `package.json`, through workspace overrides,
   a hook that rewrites packages as they install, or another registry. The
   lockfile can't be guarded as a whole without sending every dependency
-  update to the maintainer; a check on temple-bar's own entry in it is
-  planned for 0.0.8. It fails closed: an
+  update to the maintainer, so it fails only on a change to temple-bar's
+  own entries in the root `pnpm-lock.yaml` (see "The lockfile" below). It
+  fails closed: an
   unreadable answer, or fewer files listed than the pull request has
   (GitHub stops at 3000), is a failure, never a pass.
 - **The workflow** setup writes, `temple-bar-judge.yml` in `.github/workflows/`.
   Its job, `temple-bar judge`, is the required check. It checks out only
   the base branch's `package.json` (sparse, no credentials kept), reads the
   exact temple-bar version pinned there, and runs that version with
-  `npm exec`. Nothing from the base branch is installed, so no install
-  script runs, and it doesn't depend on the repo naming a pnpm version.
+  `npm exec`. Nothing from the base branch is installed, and it doesn't
+  depend on the repo naming a pnpm version. npm does install temple-bar's
+  own dependencies, without a lockfile, with the read-only token in the
+  environment; none of them has an install script today.
   Its token is read-only and no pull request text reaches a shell. Tests
   assert each of these on the template.
 - **The ruleset.** The judge's check is required by a second ruleset,
@@ -217,6 +219,68 @@ permissions, checkout and job name as the template
 - **The same list everywhere.** The judge, `ready` and `merge` find the
   guarded changes with one function, fed by the GitHub API in the judge
   and by git locally.
+
+## Which side of the base branch the judge compares with
+
+The judge compares `package.json` and the lockfile at the base branch's
+current tip, not at the commit the pull request branched from. That is what
+a merge would change, and the judge's ruleset merges only branches that are
+up to date, where the two are the same commit. On a branch that is behind,
+the base branch's newer changes look like the pull request undoing them, so
+the judge can refuse wrongly but never pass wrongly, and updating the branch
+runs it again. Comparing at the branch point instead would need the merge
+base from GitHub's compare API, one more read that changes no outcome on a
+mergeable branch. The one cost: judging a pull request again after it has
+merged passes, since its changes are on the base branch by then. Nothing
+relies on that, so it is recorded here rather than built around.
+
+## The lockfile
+
+Tried locally on 2026-10-05 with pnpm 10.34.5: a project pinning
+temple-bar `0.0.7` exactly, with only its `pnpm-lock.yaml` entry's
+`resolution` changed to `0.0.6`'s tarball and integrity, installed `0.0.6`
+under `pnpm install --frozen-lockfile` with an empty store, while pnpm
+printed `+ @londontypescript/temple-bar 0.0.7`. A frozen install checks the
+lockfile against `package.json`'s ranges, not against the registry, so a
+pull request can swap the checks through the lockfile alone.
+
+So the judge, `ready` and `merge` compare every part of the root lockfile
+that names temple-bar (its importer entries, `packages`, `snapshots`, and
+any patch or override naming it), and fail on any difference. Other
+dependencies' entries are left alone, so ordinary updates still merge
+normally. The lockfile is read as text, never run, through GitHub's tree and
+blob API (the contents API stops at 1 MB). The reader understands the YAML
+pnpm writes; YAML that could hide the package's name from it (escapes,
+anchors and aliases, tags, explicit keys, flow mappings across lines) fails
+closed, since pnpm never writes it.
+
+Not covered: the lockfile entries of temple-bar's own dependencies, such as
+the knip the gate runs. A change to which knip temple-bar uses shows in
+temple-bar's `snapshots` entry and fails; a change to where that same knip
+version's tarball comes from does not.
+
+## Reporting bypass merges
+
+Tried read-only on 2026-10-05 against this repo. GitHub's rule-suite list
+(`GET /repos/{owner}/{repo}/rulesets/rule-suites`) records each push to a
+branch a ruleset covers, with `result` `pass`, `fail` or `bypass`, and keeps
+a month (`time_period=month` is the longest). The per-suite endpoint names
+each rule that failed: for the `0.0.7` pin bump, the only bypass that month,
+it was `main: the judge`'s required `temple-bar judge` check. The list needs
+a token even on a public repo (401 without one); GitHub lists Administration
+read for fine-grained tokens, and the classic `repo` scope that `gh` logs in
+with works. Actions' `GITHUB_TOKEN` can't be given that permission, so the
+gate in CI can't read it.
+
+So `temple-bar merge`, which runs with the maintainer's `gh` login, lists
+every bypass on the default branch in the past month, with who made it,
+when, and the rules it went past, alongside what the merge is approving.
+The maintainer checks each one was theirs. It is detection, not
+prevention: merge decides nothing on it, and a history it can't read is
+said so rather than reported as none. A bypass older than a month, or one
+made while no merge ran, is seen only by reading the history directly.
+Prevention needs agents to have their own GitHub identity
+([#145](https://github.com/londontypescript/temple-bar/issues/145)).
 
 ## What would end it
 
