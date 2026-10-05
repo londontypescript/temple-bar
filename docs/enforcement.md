@@ -38,6 +38,7 @@ same pull request as any change to a mechanism.
 | Ruleset not deleted or loosened           | the pinned gate in CI (public repos)                 | **Blocked** via CI    |
 | Check changes merged by the maintainer    | judge workflow + its ruleset, from 0.0.7; see below  | **Blocked** on GitHub |
 | Judge's ruleset still required            | the pinned gate in CI (public repos), from 0.0.7     | **Blocked** via CI    |
+| Release notes finished before publishing  | `pnpm release:publish` refuses unfinished notes      | **Blocked** locally   |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
 
 Known limits of push-once ([ADR 0012](adr/0012-push-once-with-ready.md)):
