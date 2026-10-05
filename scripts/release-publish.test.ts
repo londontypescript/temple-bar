@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { buildReleaseNotes } from "./release-notes.ts";
 import {
   publishWhenDownloadable,
   RETRY_MS,
@@ -18,11 +19,30 @@ const TB =
 const CTB =
   "https://registry.npmjs.org/@londontypescript/create-temple-bar/-/create-temple-bar-0.0.7.tgz";
 
+/** Notes the maintainer has finished: both hand-written sections filled in
+ * and the reminder deleted. */
+const FINISHED = [
+  "## Fixes",
+  "",
+  "- **gate:** report a missing config file (#31)",
+  "",
+  "## Upgrading",
+  "",
+  "None",
+  "",
+  "## Incidents",
+  "",
+  "- A Release was published with its notes unfinished (#223)",
+  "",
+].join("\n");
+
 /** A fake world: a clock that moves only when the script sleeps, a registry
- * whose answers the test chooses, and a GitHub that records publishes. */
+ * whose answers the test chooses, and a GitHub that holds one Release (or
+ * none) and records publishes. */
 function fakes(
   statusAt: (url: string, elapsedMs: number) => number,
   draft: boolean | undefined,
+  body: string = FINISHED,
 ) {
   let clock = 0;
   const published: string[] = [];
@@ -33,7 +53,8 @@ function fakes(
       downloads.push(url);
       return Promise.resolve(statusAt(url, clock));
     },
-    releaseIsDraft: () => draft,
+    viewRelease: () =>
+      draft === undefined ? undefined : { isDraft: draft, body },
     publishRelease: (tag) => {
       published.push(tag);
     },
@@ -144,4 +165,85 @@ void test("a dry run checks the downloads but never publishes", async () => {
     world.lines.at(-1) ?? "",
     /Dry run: the GitHub Release was left as it is\.$/,
   );
+});
+
+void test("refuses a draft still holding the generated reminder and empty sections", async () => {
+  // Exactly what the release workflow drafts, as 0.0.7 was published.
+  const world = fakes(() => 200, true, buildReleaseNotes(["fix: x"]));
+  assert.equal(
+    await publishWhenDownloadable(options, world.deps),
+    1,
+    "a draft with unfinished notes must be refused",
+  );
+  assert.deepEqual(world.published, [], "unfinished notes must stay a draft");
+  assert.deepEqual(world.downloads, [], "it refuses before waiting on npm");
+  const refusal = world.lines.at(-1) ?? "";
+  assert.match(
+    refusal,
+    /^Not published: the draft notes for v0\.0\.7 aren't finished:/,
+  );
+  assert.match(refusal, /reminder comment is still in the notes/);
+  assert.match(refusal, /"## Upgrading" section is empty\. .*"None"/);
+  assert.match(refusal, /"## Incidents" section is empty\. .*"None"/);
+  assert.match(refusal, /gh release edit v0\.0\.7 .*then run this again\.$/);
+});
+
+void test("refuses while only the reminder is left, and names only that", async () => {
+  const body = `${FINISHED}\n<!-- Add upgrade notes and the incidents this release fixes before publishing. -->\n`;
+  const world = fakes(() => 200, true, body);
+  assert.equal(
+    await publishWhenDownloadable(options, world.deps),
+    1,
+    "a draft with unfinished notes must be refused",
+  );
+  assert.deepEqual(world.published, []);
+  const refusal = world.lines.at(-1) ?? "";
+  assert.match(refusal, /reminder comment is still in the notes/);
+  assert.doesNotMatch(refusal, /section is empty|heading is missing/);
+});
+
+void test("refuses a section that is empty or holds only a comment", async () => {
+  const body = FINISHED.replace("None", "<!-- todo -->");
+  const world = fakes(() => 200, true, body);
+  assert.equal(
+    await publishWhenDownloadable(options, world.deps),
+    1,
+    "a draft with unfinished notes must be refused",
+  );
+  const refusal = world.lines.at(-1) ?? "";
+  assert.match(refusal, /"## Upgrading" section is empty/);
+  assert.doesNotMatch(refusal, /Incidents|reminder/);
+});
+
+void test("refuses notes whose heading was deleted", async () => {
+  const body = FINISHED.replace("## Incidents\n\n- A Release", "- A Release");
+  const world = fakes(() => 200, true, body);
+  assert.equal(
+    await publishWhenDownloadable(options, world.deps),
+    1,
+    "a draft with unfinished notes must be refused",
+  );
+  assert.match(world.lines.at(-1) ?? "", /"## Incidents" heading is missing\./);
+});
+
+void test("accepts finished notes saved with Windows line endings", async () => {
+  const world = fakes(() => 200, true, FINISHED.replaceAll("\n", "\r\n"));
+  assert.equal(await publishWhenDownloadable(options, world.deps), 0);
+  assert.deepEqual(world.published, ["v0.0.7"]);
+});
+
+void test("keeps subheadings inside their section", async () => {
+  const body = FINISHED.replace("None", "### From 0.0.6\n\n- Run setup again.");
+  const world = fakes(() => 200, true, body);
+  assert.equal(await publishWhenDownloadable(options, world.deps), 0);
+});
+
+void test("a dry run also refuses unfinished notes", async () => {
+  const world = fakes(() => 200, true, buildReleaseNotes(["fix: x"]));
+  assert.equal(
+    await publishWhenDownloadable({ ...options, dryRun: true }, world.deps),
+    1,
+    "a dry run must not call unfinished notes ready",
+  );
+  assert.match(world.lines.at(-1) ?? "", /^Not published: the draft notes/);
 });

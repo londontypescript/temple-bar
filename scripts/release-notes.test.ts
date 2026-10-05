@@ -65,9 +65,13 @@ void test("says so when there is nothing to release", () => {
   );
 });
 
-void test("ends with a hidden reminder to edit the draft", () => {
+void test("ends with empty Upgrading and Incidents headings and a hidden reminder", () => {
   assert.match(
     buildReleaseNotes(["fix: x"]),
-    /\n<!-- Draft from conventional commits\. [^\n]*-->\n$/,
+    /\n\n## Upgrading\n\n## Incidents\n\n<!-- Draft from conventional commits\. Add upgrade notes and the incidents this release fixes before publishing\. -->\n$/,
+  );
+  assert.match(
+    buildReleaseNotes([]),
+    /^No changes since the previous release\.\n\n## Upgrading\n\n## Incidents\n/,
   );
 });
