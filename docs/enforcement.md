@@ -30,6 +30,7 @@ same pull request as any change to a mechanism.
 | Milestone scope stays the user's          | nothing                                              | **Prose only**        |
 | Whether wide changes mean duplication     | nothing: judgement                                   | **Prose only**        |
 | Worktree per branch; merge steps (§2)     | `temple-bar merge`; nothing forces its use           | **Prose only**        |
+| Main checkout stays on the default branch | `post-checkout` hook warns on a switch or detach     | **Warned** only       |
 | Issues closed need a `One concern:` line  | `temple-bar merge` refuses without it                | **Blocked** by merge  |
 | Push once, after the gate passed          | `ready` + `pre-push` from the pin that ships them    | **Blocked** locally   |
 | User's yes typed before a gated push      | `ready` asks in a terminal; see the limits below     | **Speed bump** only   |
