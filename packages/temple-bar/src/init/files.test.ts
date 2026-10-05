@@ -65,6 +65,26 @@ void test("writeAgentsMd adds temple-bar's block to a framework's AGENTS.md, kee
   assert.equal(fs.writes.length, 1);
 });
 
+void test("writeAgentsMd adds the block to a long framework AGENTS.md, keeps it whole, and warns what to move", async () => {
+  // A scaffolder's 100-line AGENTS.md plus temple-bar's block is over 200.
+  const own = `# Framework rules\n\n${"Use the router.\n".repeat(98)}`;
+  const fs = createFakeFs({ "/repo/AGENTS.md": own });
+  const ctx = createFakeContext({ fs });
+  const outcome = await writeAgentsMd(ctx, "/repo");
+  assert.equal(outcome.wrote, true);
+  assert.equal(fs.files.get("/repo/AGENTS.md"), `${own}\n${templeBarBlock()}`);
+  assert.match(
+    outcome.sizeWarning ?? "",
+    /over its size limit: \d+ lines \(limit 200\)/,
+  );
+  assert.match(outcome.sizeWarning ?? "", /keep temple-bar's block whole/);
+  // An up-to-date block on a file still over the limit warns again.
+  assert.match(
+    (await writeAgentsMd(ctx, "/repo")).sizeWarning ?? "",
+    /over its size limit/,
+  );
+});
+
 void test("writeAgentsMd leaves an AGENTS.md with unpaired markers alone and says how to fix it", async () => {
   const broken = `# Rules\n\n${BLOCK_BEGIN}\n\nNo end marker.\n`;
   const fs = createFakeFs({ "/repo/AGENTS.md": broken });

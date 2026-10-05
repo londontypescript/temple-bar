@@ -79,6 +79,7 @@ void test("gate: a 201-line AGENTS.md fails with the size message, and the trimm
   const text = (over.ctx.stderr as FakeWriter).lines.join("");
   assert.match(text, /gate: AGENTS\.md is over its size limit:/);
   assert.match(text, /201 lines \(limit 200\)/);
+  assert.match(text, /Fix: keep temple-bar's block whole/);
   assert.match(text, /^gate: failed: AGENTS\.md size$/m);
 
   const trimmed = gateWith(linesOf(AGENTS_MAX_LINES));

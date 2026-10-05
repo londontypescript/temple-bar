@@ -7,6 +7,11 @@
 import path from "node:path";
 
 import type { Context } from "../context.ts";
+import {
+  AGENTS_OVERSIZE_FIX,
+  describeAgentsOverage,
+  measureAgentsFile,
+} from "../gate/agents-size.ts";
 import { JUDGE_WORKFLOW_PATH, judgeWorkflow } from "../judge/workflow.ts";
 import {
   freshAgentsMd,
@@ -44,6 +49,26 @@ export interface AgentsMdOutcome {
    * markers don't pair up: what is wrong and the fix. Nothing is written
    * in that case. */
   readonly problem?: string;
+  /** Set when AGENTS.md, as setup leaves it, is over the size limits the
+   * gate checks: by how much, and what to move. A framework's own AGENTS.md
+   * plus temple-bar's block can be, and setup is the moment to say so
+   * rather than the first gate run. */
+  readonly sizeWarning?: string;
+}
+
+/** The outcome for AGENTS.md as written (or found up to date), with a
+ * size warning when it is over the gate's limits. */
+function withSizeCheck(wrote: boolean, content: string): AgentsMdOutcome {
+  const overage = describeAgentsOverage(measureAgentsFile(content));
+  if (overage.length === 0) {
+    return { wrote };
+  }
+  return {
+    wrote,
+    sizeWarning:
+      `AGENTS.md is over its size limit: ${overage.join(", ")}, and the ` +
+      `gate will fail on it. Fix: ${AGENTS_OVERSIZE_FIX}`,
+  };
 }
 
 /**
@@ -61,8 +86,9 @@ export async function writeAgentsMd(
   const filePath = path.join(repoRoot, "AGENTS.md");
   const existing = await ctx.fs.readText(filePath);
   if (existing === undefined) {
-    await ctx.fs.writeText(filePath, freshAgentsMd());
-    return { wrote: true };
+    const content = freshAgentsMd();
+    await ctx.fs.writeText(filePath, content);
+    return withSizeCheck(true, content);
   }
   const update = withTempleBarBlock(existing);
   if (update.kind === "refused") {
@@ -72,10 +98,10 @@ export async function writeAgentsMd(
     };
   }
   if (update.kind === "unchanged") {
-    return { wrote: false };
+    return withSizeCheck(false, existing);
   }
   await ctx.fs.writeText(filePath, update.content);
-  return { wrote: true };
+  return withSizeCheck(true, update.content);
 }
 
 /** Writes each file AGENTS.md links to (and CLAUDE.md) where the project
@@ -302,6 +328,8 @@ export interface SetupFilesOutcome {
   readonly wroteAgents: boolean;
   /** Set when setup left AGENTS.md alone; see AgentsMdOutcome. */
   readonly agentsProblem?: string;
+  /** Set when AGENTS.md is over its size limits; see AgentsMdOutcome. */
+  readonly agentsSizeWarning?: string;
   /** The docs AGENTS.md links to, and CLAUDE.md, that this run wrote. */
   readonly wroteCompanions: readonly string[];
   /** What this run added to an existing CLAUDE.md, in words ("a heading",
@@ -327,6 +355,9 @@ export async function writeSetupFiles(
     wroteGitignore,
     wroteAgents: agents.wrote,
     ...(agents.problem === undefined ? {} : { agentsProblem: agents.problem }),
+    ...(agents.sizeWarning === undefined
+      ? {}
+      : { agentsSizeWarning: agents.sizeWarning }),
     wroteCompanions,
     claudeMdAdded,
     wroteJudge,
