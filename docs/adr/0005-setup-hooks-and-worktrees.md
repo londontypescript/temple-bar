@@ -1,6 +1,6 @@
 # ADR 0005: Setup, hooks and worktrees
 
-Date: 2026-10-01, updated 2026-10-02 and 2026-10-03. Status: accepted (decisions 5, 16, 21,
+Date: 2026-10-01, updated 2026-10-02, 2026-10-03 and 2026-10-05. Status: accepted (decisions 5, 16, 21,
 22, 30 and 32; 32 is built and 30's ignore line ships in 0.0.6, while 16's
 checks and 30's detection are decided but not built yet).
 
@@ -134,10 +134,16 @@ appeared half-way through, in a checkout with no `node_modules`. So:
   fail nor take the shims back to its own version; a newer release replaces
   the shims it knows from earlier releases.
 
-The `post-checkout` hook acts only when git passes a previous HEAD of all
-zeros and the checkout is a linked worktree, which is what `git worktree add`
-produces (a fresh clone also passes zeros, but is the main worktree). Any
-other checkout returns at once, without starting Node. In the new worktree it:
+The `post-checkout` hook sets up a worktree only when git passes a previous
+HEAD of all zeros and the checkout is a linked worktree, which is what `git
+worktree add` produces (a fresh clone also passes zeros, but is the main
+worktree). Any other checkout in a linked worktree returns at once in the
+shim, without starting Node. A checkout in the main checkout does start Node,
+so the hook can warn when the main checkout has left the default branch: for
+another branch or a detached HEAD, it says how to put it back and to do branch
+work in a worktree. That is only a warning, printed after the checkout has
+happened: it never fails a checkout, and with temple-bar installed in no
+checkout it stays quiet. In the new worktree the hook:
 
 1. Copies env files from the main worktree: every git-ignored file whose name
    starts with `.env` and doesn't end in `.example`, at the root and in any
