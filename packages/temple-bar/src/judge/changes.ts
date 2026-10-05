@@ -10,7 +10,9 @@
 // lists; `ready` and `merge` hand it what git shows, so all three agree on
 // which changes only the maintainer can let through.
 
+import { CONFIG_FILE_NAME } from "../config/project-config.ts";
 import { REQUIRED_SCRIPTS } from "../gate/stack.ts";
+import { LOCKFILE, lockfileFindings } from "./lockfile.ts";
 
 export const TEMPLE_BAR_PACKAGE = "@londontypescript/temple-bar";
 
@@ -62,8 +64,9 @@ export interface ChangedFile {
   readonly previousFilename?: string;
 }
 
-/** package.json as text on each side, or undefined where there is none. */
-export interface ManifestPair {
+/** A root file (package.json, pnpm-lock.yaml) as text on each side, or
+ * undefined where there is none. */
+export interface TextPair {
   readonly base: string | undefined;
   readonly head: string | undefined;
 }
@@ -88,6 +91,15 @@ const isWorkflow = (path: string): boolean => path.startsWith(WORKFLOWS_FOLDER);
 
 const isInstallSetting = (path: string): boolean => INSTALL_SETTINGS.has(path);
 
+/** temple-bar's own settings at the root. They set the limits its checks
+ * enforce, such as the file-length cap, so raising one would let a pull
+ * request pass by moving the bar it is measured against. They rarely change
+ * for a good reason. Other tools' configs (ESLint, TypeScript, Prettier) are
+ * not guarded: they differ by stack, the judge can't tell a stricter change
+ * from a looser one, and guarding them would make bypass merges routine
+ * (see the ADR named at the top). */
+const isTempleBarConfig = (path: string): boolean => path === CONFIG_FILE_NAME;
+
 /** Only the root package.json: it is the one whose scripts CI runs and whose
  * dependencies install temple-bar. */
 const isRootManifest = (path: string): boolean => path === "package.json";
@@ -96,6 +108,15 @@ const isRootManifest = (path: string): boolean => path === "package.json";
  * caller knows whether both copies need reading. */
 export function changesManifest(files: readonly ChangedFile[]): boolean {
   return files.some((file) => touches(file, isRootManifest));
+}
+
+/** Only the root lockfile: it is the one CI's install reads. */
+const isRootLockfile = (path: string): boolean => path === LOCKFILE;
+
+/** Whether the pull request changes the root pnpm-lock.yaml, so the caller
+ * knows whether both copies need reading. */
+export function changesLockfile(files: readonly ChangedFile[]): boolean {
+  return files.some((file) => touches(file, isRootLockfile));
 }
 
 type ParsedManifest =
@@ -152,7 +173,7 @@ function show(value: unknown): string {
   return value === undefined ? "nothing" : JSON.stringify(value);
 }
 
-function manifestFindings(pair: ManifestPair): string[] {
+function manifestFindings(pair: TextPair): string[] {
   const base = parseManifest(pair.base);
   const head = parseManifest(pair.head);
   if (head.kind === "invalid") {
@@ -196,11 +217,16 @@ function parsedManifestFindings({
   return findings;
 }
 
-/** Workflows and pnpm's install settings: any change to one counts. */
+/** Workflows, pnpm's install settings and temple-bar's own config: any
+ * change to one counts. */
 function fileFindings(files: readonly ChangedFile[]): string[] {
   const findings: string[] = [];
   for (const file of files) {
-    if (touches(file, isWorkflow) || touches(file, isInstallSetting)) {
+    if (
+      touches(file, isWorkflow) ||
+      touches(file, isInstallSetting) ||
+      touches(file, isTempleBarConfig)
+    ) {
       const renamed =
         file.previousFilename === undefined
           ? ""
@@ -211,14 +237,31 @@ function fileFindings(files: readonly ChangedFile[]): string[] {
   return findings;
 }
 
+/** temple-bar's entries in the lockfile, compared on both sides. */
+function lockfileChanges(
+  files: readonly ChangedFile[],
+  lockfile: TextPair | undefined,
+): string[] {
+  if (!changesLockfile(files)) {
+    return [];
+  }
+  if (lockfile === undefined) {
+    throw new Error("findCheckChanges: pnpm-lock.yaml changed but not read");
+  }
+  return lockfileFindings(TEMPLE_BAR_PACKAGE, lockfile.base, lockfile.head);
+}
+
 /**
- * Every change to the checks, one line each, in a stable order: workflows
- * and pnpm's install settings first, then package.json. Empty when the pull request leaves them alone.
- * `manifests` is needed only when changesManifest(files) is true.
+ * Every change to the checks, one line each, in a stable order: workflows,
+ * pnpm's install settings and temple-bar's config first, then package.json, then temple-bar's
+ * entries in the lockfile. Empty when the pull request leaves them alone.
+ * `manifests` is needed only when changesManifest(files) is true, and
+ * `lockfile` only when changesLockfile(files) is.
  */
 export function findCheckChanges(
   files: readonly ChangedFile[],
-  manifests?: ManifestPair,
+  manifests?: TextPair,
+  lockfile?: TextPair,
 ): string[] {
   const findings = fileFindings(files);
   if (changesManifest(files)) {
@@ -227,17 +270,20 @@ export function findCheckChanges(
     }
     findings.push(...manifestFindings(manifests));
   }
+  findings.push(...lockfileChanges(files, lockfile));
   return findings;
 }
 
 /**
- * The same findings from a local diff: the paths git lists, and the root
- * package.json already parsed when it changed. git's `--no-renames` list
- * names both sides of a rename, so nothing moves a workflow out of sight.
+ * The same findings from a local diff: the paths git lists, the root
+ * package.json already parsed when it changed, and the root lockfile's text
+ * whenever it changed (an unread lockfile is a mistake, never a pass). git's `--no-renames` list names both sides of a rename,
+ * so nothing moves a workflow out of sight.
  */
 export function findCheckChangesInDiff(
   paths: readonly string[],
   rootManifest: ParsedManifestPair | undefined,
+  lockfile?: TextPair,
 ): string[] {
   const files = paths.map((filename) => ({ filename, status: "changed" }));
   const findings = fileFindings(files);
@@ -248,5 +294,6 @@ export function findCheckChangesInDiff(
       ),
     );
   }
+  findings.push(...lockfileChanges(files, lockfile));
   return findings;
 }

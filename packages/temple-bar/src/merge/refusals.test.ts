@@ -116,6 +116,28 @@ void test("refuses a change to the pinned temple-bar, and asks for the maintaine
   }, /changes the checks that judge it: package\.json: the temple-bar version in devDependencies\["@londontypescript\/temple-bar"\] \("0\.0\.4" on the base branch, "0\.0\.5" here\)\. Ask the maintainer/);
 });
 
+void test("refuses a lockfile that points temple-bar elsewhere, but not other lockfile changes", async () => {
+  const lockfile = (integrity: string, eslint = "10.0.0"): string =>
+    `lockfileVersion: '9.0'\n\npackages:\n\n  '@londontypescript/temple-bar@0.0.4':\n    resolution: {integrity: ${integrity}}\n\n  eslint@${eslint}:\n    resolution: {integrity: sha512-e==}\n`;
+  await refusal((w) => {
+    w.changedFiles = ["pnpm-lock.yaml"];
+    w.otherFiles["pnpm-lock.yaml"] = {
+      before: lockfile("sha512-a=="),
+      after: lockfile("sha512-b=="),
+    };
+  }, /changes the checks that judge it: pnpm-lock\.yaml: temple-bar's entries: packages > @londontypescript\/temple-bar@0\.0\.4 \(changed\)\. Ask the maintainer/);
+
+  const world = defaultWorld();
+  world.changedFiles = ["pnpm-lock.yaml"];
+  world.otherFiles["pnpm-lock.yaml"] = {
+    before: lockfile("sha512-a=="),
+    after: lockfile("sha512-a==", "10.1.0"),
+  };
+  const h = harness(world);
+  await createMergeCommand(h.deps).run(["7"], h.ctx);
+  assert.doesNotMatch(h.err(), /changes the checks that judge it/);
+});
+
 void test("refuses a change to a CI workflow, before waiting for any check", async () => {
   const world = defaultWorld();
   world.changedFiles = [".github/workflows/ci.yml", "src/x.ts"];

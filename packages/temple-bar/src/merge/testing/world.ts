@@ -72,6 +72,9 @@ export interface World {
   mergeRefusals: number;
   remoteBranchAfterMerge: boolean;
   incidents: number;
+  /** Bypassed rule suites on the default branch, one JSON object a line, as
+   * the listing's --jq prints them. Each one went past the judge. */
+  bypasses: string;
 }
 
 export function defaultWorld(): World {
@@ -109,6 +112,7 @@ export function defaultWorld(): World {
     mergeRefusals: 0,
     remoteBranchAfterMerge: false,
     incidents: 3,
+    bypasses: "",
   };
 }
 
@@ -274,6 +278,22 @@ export function harness(world: World): Harness {
     }
     if (joined.startsWith("pr list")) {
       return ok("[]");
+    }
+    if (joined.includes("rulesets/rule-suites?")) {
+      return ok(world.bypasses);
+    }
+    if (joined.includes("rulesets/rule-suites/")) {
+      return ok(
+        JSON.stringify({
+          rule_evaluations: [
+            {
+              rule_source: { name: "main: the judge" },
+              result: "fail",
+              rule_type: "required_status_checks",
+            },
+          ],
+        }),
+      );
     }
     if (joined.startsWith("issue list")) {
       return ok(String(world.incidents));

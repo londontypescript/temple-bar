@@ -7,7 +7,8 @@
 import path from "node:path";
 
 import type { Context } from "../context.ts";
-import { TEMPLE_BAR_PACKAGE } from "../judge/changes.ts";
+import { TEMPLE_BAR_PACKAGE, type TextPair } from "../judge/changes.ts";
+import { LOCKFILE } from "../judge/lockfile.ts";
 import { changedFiles, fileAt } from "./local.ts";
 
 export type Manifest = Readonly<Record<string, unknown>>;
@@ -23,6 +24,9 @@ export interface ManifestChange {
 export interface PullRequestChanges {
   readonly files: readonly string[];
   readonly manifests: readonly ManifestChange[];
+  /** The root pnpm-lock.yaml's text on each side, read only when it changed:
+   * the judge's check of temple-bar's entries in it needs both. */
+  readonly lockfile?: TextPair;
 }
 
 function parse(text: string | undefined): Manifest | undefined {
@@ -61,7 +65,14 @@ export async function readChanges(
       after: parse(await fileAt(ctx, head, file, cwd)),
     });
   }
-  return { files, manifests };
+  if (!files.includes(LOCKFILE)) {
+    return { files, manifests };
+  }
+  const lockfile = {
+    base: await fileAt(ctx, base, LOCKFILE, cwd),
+    head: await fileAt(ctx, head, LOCKFILE, cwd),
+  };
+  return { files, manifests, lockfile };
 }
 
 /** The repository's root package.json change, if it has one. */
