@@ -21,7 +21,10 @@ is held, London TypeScript, and the story of the name. The incident loop
 appears as an "in progress" outline. The decision first had the README open
 with the slogan "Prose != Enforcement"; the slogan was dropped on 2026-10-01,
 when the README was restructured at the maintainer's direction to put a plain
-intro first.
+intro first. On 2026-10-05 the intro became one bold line, the same sentence
+as the npm and GitHub descriptions, followed by the quote "A rule that exists
+only as prose is a rule that will eventually be violated." The plain intro
+still comes first.
 
 **Decision 12: the TypeScript trademark.** temple-bar never uses the
 TypeScript logo, and always writes "TypeScript" with a capital S. Its README

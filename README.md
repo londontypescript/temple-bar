@@ -1,8 +1,12 @@
 # temple-bar
 
-**temple-bar makes AI coding agents follow your workflow, by enforcing it instead of trusting them to remember it.** Git hooks refuse commits to `main`, a quality gate refuses changes that fail their checks, and GitHub only accepts changes through pull requests.
+**The London TypeScript workflow, enforced on AI coding agents via git hooks, a quality gate and GitHub rules.**
 
-It exists because agents drift: after a long session or a context reset, the agent that used branches all day commits straight to `main`. It's built for TypeScript projects on GitHub using pnpm, and it's the foundation of every [London TypeScript](https://github.com/londontypescript) repository.
+> A rule that exists only as prose is a rule that will eventually be violated.
+
+Agents drift. After a long session or a context reset, the agent that used branches all day commits straight to `main`, and an agent chasing a goal will bend a rule to reach it. Written instructions don't stop that, so temple-bar enforces the rules instead: git hooks refuse commits to `main`, a quality gate refuses changes that fail their checks, and GitHub only accepts changes through pull requests.
+
+The workflow is opinionated on purpose, and every [London TypeScript](https://github.com/londontypescript) repository runs on it. Any TypeScript project on GitHub using pnpm can adopt it as it is.
 
 > **Pre-release.** Setup, the git hooks and the gate work today; more is on the way. Progress: [GitHub issues](https://github.com/londontypescript/temple-bar/issues).
 
@@ -11,7 +15,7 @@ It exists because agents drift: after a long session or a context reset, the age
 - [You need](#you-need)
 - [Getting started](#getting-started)
 - [For AI agents](#for-ai-agents)
-- [Why: prose isn't enforcement](#why-prose-isnt-enforcement)
+- [Why? Prose != Enforcement](#why-prose--enforcement)
 - [What setup does](#what-setup-does)
 - [Built for London TypeScript](#built-for-london-typescript)
 - [Why "Temple Bar"](#why-temple-bar)
@@ -77,7 +81,7 @@ You've been asked to set up temple-bar. Follow these steps exactly.
 4. Don't install the package on its own (`pnpm add -D …`). That leaves the repo unprotected.
 5. When setup finishes, `main` refuses direct commits, so land the setup through a pull request, as setup's output describes. Then read `AGENTS.md` and follow it. For a new project, start by asking the user what they want to build. Then write a plan, and don't scaffold a framework or write code before the user approves it.
 
-## Why: prose isn't enforcement
+## Why? Prose != Enforcement
 
 AI coding agents follow written rules most of the time, then drift. After a long session, a context reset or a usage-limit pause, the agent that carefully used branches for six phases commits straight to `main` in the seventh. Nothing noticed, because the rule was only ever words in a file.
 

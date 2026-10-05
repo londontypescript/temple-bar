@@ -116,7 +116,12 @@ void test("--maintainer-approved lets a change to AGENTS.md merge, and says so",
     h.ctx,
   );
   assert.equal(code, 0, h.err());
-  assert.match(h.out(), /maintainer approved: it changes AGENTS\.md/);
+  assert.match(h.out(), /maintainer approved: changes AGENTS\.md/);
+  // The claim lands on main, readable in git log, before the co-authors.
+  assert.equal(
+    mergeCall(h).at(-1),
+    "- add the x command\n- document x\n\nMaintainer-Approved: changes AGENTS.md\nCo-Authored-By: Ada <ada@example.com>\nCo-Authored-By: Bob <bob@example.com>",
+  );
 });
 
 void test("a repository without code scanning merges and says there was nothing to check", async () => {

@@ -44,6 +44,37 @@ void test("findClosingIssues reads around comments, and an unclosed comment hide
   );
 });
 
+void test("findClosingIssues reads an issue's full URL", () => {
+  assert.deepEqual(
+    findClosingIssues([
+      "Fixes https://github.com/o/r/issues/2 and closes https://github.com/o/r/pull/3",
+    ]),
+    ["o/r#2"],
+  );
+});
+
+void test("findClosingIssues counts an issue in its own repository once, however written", () => {
+  assert.deepEqual(
+    findClosingIssues(
+      [
+        "Fixes #5",
+        "Closes O/R#5, fixes https://github.com/o/r/issues/5 and fixes x/y#5",
+      ],
+      "o/r",
+    ),
+    ["#5", "x/y#5"],
+  );
+});
+
+void test("findClosingIssues skips ~~~ fences, code spans and indented code", () => {
+  assert.deepEqual(
+    findClosingIssues([
+      "~~~\nCloses #1\n~~~\nUse `Closes #2` or ``Closes #3``.\n\n    Closes #4\n\nCloses #5",
+    ]),
+    ["#5"],
+  );
+});
+
 void test("readPullRequestText prefers the Actions event payload and needs no gh", async () => {
   const gh = createFakeGh();
   const ctx = createFakeContext({
@@ -59,10 +90,34 @@ void test("readPullRequestText prefers the Actions event payload and needs no gh
   assert.equal(gh.calls.length, 0);
 });
 
+void test("readPullRequestText reads the repository from the event's pull request URL", async () => {
+  const ctx = createFakeContext({
+    env: { GITHUB_EVENT_PATH: "/event.json" },
+    fs: createFakeFs({
+      "/event.json": JSON.stringify({
+        pull_request: {
+          title: "T",
+          body: "B",
+          html_url: "https://github.com/o/r/pull/3",
+        },
+      }),
+    }),
+  });
+  assert.deepEqual(await readPullRequestText(ctx), {
+    title: "T",
+    body: "B",
+    repository: "o/r",
+  });
+});
+
 void test("readPullRequestText falls back to gh, and for a given number asks for that pull request", async () => {
   const gh = createFakeGh(() => ({
     code: 0,
-    stdout: JSON.stringify({ title: "T", body: "Closes #1" }),
+    stdout: JSON.stringify({
+      title: "T",
+      body: "Closes #1",
+      url: "https://github.com/o/r/pull/12",
+    }),
     stderr: "",
     notFound: false,
   }));
@@ -70,13 +125,14 @@ void test("readPullRequestText falls back to gh, and for a given number asks for
   assert.deepEqual(await readPullRequestText(ctx, "12"), {
     title: "T",
     body: "Closes #1",
+    repository: "o/r",
   });
   assert.deepEqual(gh.calls[0]?.args, [
     "pr",
     "view",
     "12",
     "--json",
-    "title,body",
+    "title,body,url",
   ]);
 });
 

@@ -1,6 +1,6 @@
 # @londontypescript/create-temple-bar
 
-The setup launcher for [temple-bar](https://github.com/londontypescript/temple-bar#readme): rules for AI coding agents that git actually enforces.
+The setup launcher for [temple-bar](https://github.com/londontypescript/temple-bar#readme), the London TypeScript workflow enforced on AI coding agents via git hooks, a quality gate and GitHub rules.
 
 > **Pre-release** (`0.0.x`). Expect changes.
 

@@ -2,8 +2,8 @@
 // one commit on the default branch, and GitHub's default message pastes in
 // every commit on the branch ("wip", "fix typo", ...). The written message
 // is instead: the title with the pull request number, one bullet per
-// distinct change when the description lists them, and each co-author once
-// at the end.
+// distinct change when the description lists them, then trailers: whether
+// the maintainer approved a change that needs them, and each co-author once.
 
 import type { Context } from "../context.ts";
 import { refuse } from "./refusal.ts";
@@ -111,6 +111,12 @@ export interface SquashMessage {
   readonly body: string;
 }
 
+/** The trailer that records, on the default branch, that the merging agent
+ * said the maintainer approved a change that needs their yes. */
+const MAINTAINER_APPROVED_TRAILER = "Maintainer-Approved";
+
+/** `maintainerApproved` lists the changes the maintainer said yes to (as
+ * merge words them); empty when the pull request needed no such yes. */
 export function buildSquashMessage(
   pullRequest: {
     readonly number: number;
@@ -118,6 +124,7 @@ export function buildSquashMessage(
     readonly body: string;
   },
   coAuthors: readonly string[],
+  maintainerApproved: readonly string[] = [],
 ): SquashMessage {
   // Bullets are optional: a pull request is one concern, so its title can
   // say everything, and a bullet repeating it adds nothing. The message is
@@ -125,7 +132,16 @@ export function buildSquashMessage(
   const bullets = topLevelBullets(pullRequest.body).map(
     (bullet) => `- ${bullet}`,
   );
-  const trailers = coAuthors.map((author) => `Co-Authored-By: ${author}`);
+  // Nothing can prove the maintainer said yes, so the claim is written
+  // where everyone reads it: `git log` on the default branch. A commit
+  // there that changes AGENTS.md without this line was merged some other
+  // way, and so skipped the request for the yes.
+  const trailers = [
+    ...(maintainerApproved.length > 0
+      ? [`${MAINTAINER_APPROVED_TRAILER}: ${maintainerApproved.join("; ")}`]
+      : []),
+    ...coAuthors.map((author) => `Co-Authored-By: ${author}`),
+  ];
   const lines =
     bullets.length > 0 && trailers.length > 0
       ? [...bullets, "", ...trailers]

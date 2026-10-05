@@ -10,7 +10,11 @@
 import type { Context } from "../context.ts";
 import { afterMerge } from "./after.ts";
 import { ASK_FOR_ADMIN_MERGE } from "../judge/changes.ts";
-import { checkChanges, reasonsForMaintainerApproval } from "./approval.ts";
+import {
+  ASK_THE_MAINTAINER,
+  checkChanges,
+  reasonsForMaintainerApproval,
+} from "./approval.ts";
 import { approvingSection } from "./approving.ts";
 import {
   countOpenIncidents,
@@ -175,7 +179,7 @@ async function mergeAndReport(
   const repository = await readRepository(ctx, root);
   const first = await readPullRequest(ctx, options.prNumber, root);
   checkMergeable(first, repository);
-  checkOneConcern(first);
+  checkOneConcern(first, repository.nameWithOwner);
 
   await fetchOrigin(ctx, root);
   const sha = await upToDateTip(ctx, deps, first, repository, root);
@@ -208,11 +212,14 @@ async function mergeAndReport(
         ASK_FOR_ADMIN_MERGE,
     );
   }
+  // The flag is the agent's own claim that the maintainer said yes in chat.
+  // Merge can't check it, so it records it in the squash message instead,
+  // where a merge that skipped the request would show by its absence.
   const reasons = reasonsForMaintainerApproval(changes);
   if (reasons.length > 0 && !options.maintainerApproved) {
     refuse(
       `this pull request needs the maintainer's yes: ${reasons.join("; ")}. ` +
-        `Ask them; once they say yes in chat, run \`temple-bar merge ${String(options.prNumber)} --maintainer-approved\`.`,
+        `${ASK_THE_MAINTAINER}; once they say yes, run \`temple-bar merge ${String(options.prNumber)} --maintainer-approved\`.`,
     );
   }
   if (reasons.length > 0) {
@@ -221,6 +228,7 @@ async function mergeAndReport(
   const message = buildSquashMessage(
     pullRequest,
     await readCoAuthors(ctx, `${upstream}..${sha}`, root),
+    reasons,
   );
 
   await checkAndMerge(

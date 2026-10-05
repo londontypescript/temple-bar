@@ -31,10 +31,10 @@ models yourself. A struggling subagent is stopped and reported, not moved to
 another model. Ask clarifying questions before the work, not during it.
 
 Decisions agreed in discussion go into the plan's decisions list, which the user
-approves. Summaries and briefs are checked against that list, not memory.
-
-The user sets scope by placing issues in a milestone. When planning one, you
-group its issues into phases by the files each touches; the user approves the plan.
+approves. Briefs, summaries and every issue's premise are checked against that
+list and git history, not memory; a new issue cites what set the current state.
+The user sets scope by placing issues in a milestone. You phase them by the files
+each touches, giving each multi-issue phase its `One concern:` reason to approve.
 
 GitHub issues are the live tracker: update the issue you work on **at every
 subtask**, not at phase end. Drafts go in `.temple-bar/`, this checkout's
