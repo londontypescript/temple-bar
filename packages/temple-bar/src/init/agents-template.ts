@@ -27,9 +27,8 @@ export const BLOCK_END = "<!-- END:temple-bar -->";
 /** The top of a new AGENTS.md, outside the block: the project's own. */
 const HEADER = `# Agent directives
 
-These rules bind every agent working in this repo (Claude Code, Codex,
-Antigravity or any other) and the people working with them. This project's
-own rules go here, outside temple-bar's block below.
+These rules bind every agent and person working in this repo. This
+project's own rules go here, outside temple-bar's block below.
 `;
 
 const RULES = `## Start here
@@ -50,14 +49,17 @@ verifiable phases, say which can run in parallel, and rate each one
 Never pick or switch models yourself. Ask questions before the work, not
 during it.
 
-Decisions agreed in discussion go into the plan's decisions list, which the
-user approves. Briefs, summaries and every issue's premise are checked
-against that list and git history, not memory; a new issue cites what set
-the current state (a decision, commit or pull request).
+The user sets scope by placing issues in a milestone. Its plan is a short
+file, \`docs/plans/<milestone>.md\`, approved through a pull request: you
+group the issues into phases by the files each touches, and give each phase
+that closes several issues its \`One concern:\` reason. Progress goes on
+the issues, never in the plan.
 
-The user sets scope by placing issues in a milestone. You group its issues
-into phases by the files each touches, and give each phase that closes
-several issues its \`One concern:\` reason, for the user to approve.
+Decisions agreed in discussion become ADRs in \`docs/adr/\`, from
+[the template](docs/adr/0000-template.md), which the user approves. Briefs,
+summaries and every issue's premise are checked against the ADRs and git
+history, not memory; a new issue cites what set the current state (an ADR,
+commit or pull request).
 
 ## Tracking and sessions
 
@@ -80,8 +82,7 @@ git, open pull requests and the issue; don't ask the user to remember. How:
 
 The default branch changes only through merged pull requests, each squashed:
 one branch, one pull request, one commit. Never commit to it directly, even
-a one-line fix. Every branch gets its own worktree, with dependencies
-installed before its first commit.
+a one-line fix. Every branch gets its own worktree.
 
 - **Commit at every point where the checks pass.** Never hold a large
   uncommitted change; commit a clean baseline before debugging, so going
@@ -101,10 +102,12 @@ installed before its first commit.
   \`One concern:\` line giving a reason that counts (see the rationale doc).
 - **Merge with \`pnpm exec temple-bar merge <N>\`** once CI and code scanning
   are green. A change to AGENTS.md or to the checks, or one that tags or
-  publishes, needs the user's yes first. Never rewrite a pushed branch.
-- **Squash messages are written,** never GitHub's default. Subject: the pull
-  request title with \`(#N)\`. Body: one bullet per distinct change, plain
-  text. Each co-author once, at the end.
+  publishes, needs the user's yes first. The judge refuses a change to the
+  checks it guards: the user merges that one as admin. Never rewrite a
+  pushed branch.
+- **One bullet per distinct change** in the pull request description, as a
+  top-level list: merge turns the title and those bullets into the squash
+  commit.
 
 ## Checks and verification
 
@@ -173,10 +176,11 @@ When something goes wrong (rework, confusion, a rule that got in the way or
 was broken), propose an incident to the user there and then. On a yes,
 comment on a similar one in
 [temple-bar's issues](https://github.com/londontypescript/temple-bar/issues)
-or open one labelled \`incident\`; never in this repo, never with private
-details. Curating incidents is the user's.
+or open one titled \`incident: <what went wrong>\`; never in this repo, never
+with private details. temple-bar's maintainers curate them.
 
-Keep this file within 200 lines and 32 KiB: reasons go in docs.
+Keep this file within 200 lines and 32 KiB (the gate checks). When it grows
+past them, move this project's own text to docs, never this block.
 `;
 
 /** temple-bar's block: the markers and the rules between them. Blank lines

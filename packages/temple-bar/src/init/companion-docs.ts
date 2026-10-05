@@ -33,7 +33,7 @@ wrote this file; add your own project's reasons as you add rules.
   which an agent sees better, so the agent proposes it and the plan's
   approval covers it.
 - **Every issue's premise is checked.** An issue records what someone
-  believed when they wrote it. Checked against the decisions list and git
+  believed when they wrote it. Checked against the ADRs and git
   history, a stale premise is caught before work starts on it, not after.
 - **The tracker moves at every subtask.** A tracker that only moves at phase
   end tells the user nothing about where to spend the rest of a usage

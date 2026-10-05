@@ -88,7 +88,8 @@ void test("nothing setup writes points into temple-bar's own plans or issue numb
   for (const text of texts) {
     assert.doesNotMatch(text, /#\d+/);
     assert.doesNotMatch(text, /\bdecision \d+/i);
-    assert.doesNotMatch(text, /docs\/plans\//);
+    // Projects keep their own plans in docs/plans/; only temple-bar's is off limits.
+    assert.doesNotMatch(text, /docs\/plans\/temple-bar/);
   }
 });
 

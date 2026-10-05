@@ -31,7 +31,11 @@ project's own folder.)
 **Decision 38: incidents improve temple-bar only.** When an agent doesn't do
 what it should, it proposes an incident and asks the maintainer there and
 then. If they agree, it searches temple-bar's issues and opens a new one
-labelled `incident`, or comments on or updates a similar one. Never in the
+titled `incident: …`, or comments on or updates a similar one. (Until
+2026-10-05 it said "labelled `incident`", but GitHub silently drops labels
+set by anyone without write access to the repo, which is everyone outside
+temple-bar's maintainers; the title works for anyone, and temple-bar's
+side does the labelling.) Never in the
 project's own repo, never with private details. Incidents are built in two
 halves because agents see what went wrong in the moment, while the
 maintainer sees which of those matter across projects.
@@ -41,6 +45,18 @@ gets its own project, because it is large and expected to be busy all the
 time. temple-bar either gets a project of its own or joins a London
 TypeScript-wide one; that is decided when it's needed. Until then, labels,
 milestones and saved views on temple-bar's own issues are enough.
+
+**Decision 57: a short plan file per milestone; decisions in ADRs**
+(decided 2026-10-05, for the AGENTS.md template; temple-bar's own plan file
+moves to it in 0.0.9). A milestone's plan is `docs/plans/<milestone>.md`: its
+phases, the files each owns and each phase's `One concern:` reason, approved
+through a pull request. Decisions are ADRs in `docs/adr/`, and briefs are
+checked against them. Progress stays on the issues. Plans were not moved into
+the issues entirely: in git a plan is reviewed before it changes, readable
+offline and without a GitHub login, tied to the commits it describes, and
+safe from two agents overwriting each other's edit to an issue body. One file
+per milestone, rather than one plan for the whole project, keeps it short
+enough to read on every resume.
 
 ## What ended decision 27
 
