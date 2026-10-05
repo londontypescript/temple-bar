@@ -16,6 +16,7 @@ import {
 import type { HttpResult } from "../seams/http.ts";
 import type { Context } from "../context.ts";
 import type { CheckOutcome } from "./report.ts";
+import { codeScanningRule } from "../init/code-scanning.ts";
 import { runRulesetChecks } from "./ruleset.ts";
 import {
   findRulesetProblems,
@@ -63,7 +64,7 @@ function goodRules(): EffectiveRule[] {
       strict_required_status_checks_policy: true,
       required_status_checks: [{ context: "check" }],
     }),
-    rule("code_scanning", { code_scanning_tools: [] }),
+    rule("code_scanning", codeScanningRule().parameters),
     // The judge's ruleset, reported as a rule of its own.
     rule("required_status_checks", {
       strict_required_status_checks_policy: true,

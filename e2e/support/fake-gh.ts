@@ -11,8 +11,9 @@
 import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-// Answers as a signed-in `gh` for a repo whose `main` ruleset already
-// exists. Node resolves the first argument to an absolute path (it takes it
+// Answers as a signed-in `gh` for a public repo whose `main` ruleset already
+// exists, with CodeQL on but not yet through its first analysis of the
+// default branch (GitHub answers 404 for no analyses). Node resolves the first argument to an absolute path (it takes it
 // for a script), so only its basename is the subcommand.
 const PRELOAD = `"use strict";
 const path = require("node:path");
@@ -24,6 +25,22 @@ if (path.basename(process.execPath).replace(/\\.exe$/i, "") === "gh") {
   if (args[0] === "api" && args.some((a) => a.endsWith("/rulesets"))) {
     process.stdout.write('[{"target":"branch"}]');
     process.exit(0);
+  }
+  if (args[0] === "api" && args[1] === "repos/acme/widgets") {
+    process.stdout.write('{"private":false,"default_branch":"main"}');
+    process.exit(0);
+  }
+  if (args[0] === "api" && args[1] === "repos/acme/widgets/rules/branches/main") {
+    process.stdout.write("[]");
+    process.exit(0);
+  }
+  if (args[0] === "api" && args[1] === "repos/acme/widgets/code-scanning/default-setup") {
+    process.stdout.write('{"state":"configured"}');
+    process.exit(0);
+  }
+  if (args[0] === "api" && String(args[1]).startsWith("repos/acme/widgets/code-scanning/analyses?")) {
+    process.stderr.write("gh: no analysis found (HTTP 404)\\n");
+    process.exit(1);
   }
   process.stderr.write("fake gh: unexpected call: " + JSON.stringify(args) + "\\n");
   process.exit(1);

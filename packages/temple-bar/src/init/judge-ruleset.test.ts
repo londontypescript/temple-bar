@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  offerRuleset,
-  rulesetBody,
-  rulesetQuestion,
-} from "./github-ruleset.ts";
+  offerProtection as offerRuleset,
+  protectionQuestion,
+} from "./github-protection.ts";
+import { rulesetBody } from "./github-ruleset.ts";
+import { codeScanningAnswer } from "./testing/code-scanning-fake.ts";
 import { judgeRulesetBody, JUDGE_RULESET_NAME } from "./judge-ruleset.ts";
 import { GITHUB_ACTIONS_APP_ID, JUDGE_CHECK } from "../judge/workflow.ts";
 import { createFakeContext, createFakeGh } from "../testing/fakes.ts";
@@ -39,6 +40,10 @@ function github(listed: readonly object[], judgeOnMain: boolean) {
   return createFakeGh((args) => {
     if (args.includes("POST")) {
       return ok();
+    }
+    const codeScanning = codeScanningAnswer(args, "required");
+    if (codeScanning !== undefined) {
+      return codeScanning;
     }
     if (isContentsRead(args)) {
       return judgeOnMain ? ok() : notFound;
@@ -120,7 +125,14 @@ void test("offerRuleset: a run after the setup pull request merged adds only the
   });
   const outcome = await offerRuleset(ctx, "/repo", origin);
   assert.equal(outcome.kind, "created");
-  assert.deepEqual(questions, [rulesetQuestion(false, true)]);
+  assert.deepEqual(questions, [
+    protectionQuestion({
+      main: false,
+      judge: true,
+      turnOnCodeQl: false,
+      requireCodeQl: false,
+    }),
+  ]);
   assert.deepEqual(createdBodies(gh), [judgeRulesetBody()]);
 });
 
@@ -155,7 +167,10 @@ void test("offerRuleset: the judge's ruleset failing to create says what was cre
       posts += 1;
       return posts === 2 ? notFound : ok();
     }
-    return isContentsRead(args) ? ok() : ok("[]");
+    return (
+      codeScanningAnswer(args, "required") ??
+      (isContentsRead(args) ? ok() : ok("[]"))
+    );
   });
   const outcome = await offerRuleset(
     createFakeContext({ gh }),

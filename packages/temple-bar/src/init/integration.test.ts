@@ -20,6 +20,7 @@ import { freshAgentsMd } from "./agents-template.ts";
 import { createInitCommand } from "./command.ts";
 import { COMPANION_FILES } from "./companion-docs.ts";
 import { JUDGE_RULESET_NAME } from "./judge-ruleset.ts";
+import { codeScanningAnswer } from "./testing/code-scanning-fake.ts";
 import { createRealContext } from "../context.ts";
 import { installHooks } from "../hooks/install.ts";
 import {
@@ -48,10 +49,15 @@ function makeRepo(withCommit: boolean): string {
   return dir;
 }
 
-/** gh installed and signed in; GitHub already has the `main` ruleset. */
+/** gh installed and signed in; GitHub already has both rulesets, and
+ * requires CodeQL. */
 function fakeGhScript(args: readonly string[]): GhResult {
   if (args[0] === "--version") {
     return { code: 0, stdout: "gh 2.0.0", stderr: "", notFound: false };
+  }
+  const codeScanning = codeScanningAnswer(args, "required");
+  if (codeScanning !== undefined) {
+    return codeScanning;
   }
   if (args.some((a) => a.endsWith("/rulesets"))) {
     return {
@@ -124,7 +130,10 @@ void test("integration: init sets up a real repo (AGENTS.md, scripts, real hooks
 
     assert.equal(secondCode, 0);
     const second = secondStdout.lines.join("");
-    assert.match(second, /AGENTS\.md already exists; left it alone/);
+    assert.match(
+      second,
+      /AGENTS\.md already has temple-bar's rules; left it alone/,
+    );
     assert.equal(readFileSync(path.join(dir, "AGENTS.md"), "utf8"), agents);
     assert.match(second, /already has the required scripts; left it alone/);
     assert.match(second, /Git hooks already installed; left them alone/);

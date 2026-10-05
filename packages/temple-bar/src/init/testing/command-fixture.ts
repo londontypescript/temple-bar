@@ -5,6 +5,7 @@
 
 import { createInitCommand } from "../command.ts";
 import { JUDGE_RULESET_NAME } from "../judge-ruleset.ts";
+import { codeScanningAnswer } from "./code-scanning-fake.ts";
 import type { InstallReport } from "../../hooks/install.ts";
 import {
   createFakeContext,
@@ -43,8 +44,13 @@ export function defaultGhScript(args: readonly string[]): GhResult {
   if (args.includes("POST")) {
     return { code: 0, stdout: "", stderr: "", notFound: false };
   }
-  // The usual state: main is already protected by both rulesets (a real
-  // second run), so most tests aren't about the rulesets at all.
+  // The usual state: main is already protected by both rulesets and
+  // requires CodeQL (a real second run), so most tests aren't about GitHub
+  // at all.
+  const codeScanning = codeScanningAnswer(args, "required");
+  if (codeScanning !== undefined) {
+    return codeScanning;
+  }
   if (args.some((a) => a.endsWith("/rulesets"))) {
     return {
       code: 0,

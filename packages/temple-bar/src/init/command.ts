@@ -1,8 +1,8 @@
-// `temple-bar init`: checks the requirements, offers the two GitHub actions
-// (repo creation, the `main` ruleset) only on an explicit yes, writes
-// AGENTS.md and package.json if they're missing, then installs the hooks.
-// Every hard stop below happens before any write, so a failed run leaves the
-// repo untouched. See docs/plans/temple-bar.md §3 subtask 1.7.
+// `temple-bar init`: checks the requirements, offers the GitHub changes
+// (repo creation; the rulesets and CodeQL under one yes) only on an explicit
+// yes, writes AGENTS.md, its companion docs and package.json where they're
+// missing, then installs the hooks. Every hard stop below happens before any
+// write, so a failed run leaves the repo untouched.
 
 import type { CommandEntry } from "../registry.ts";
 import type { Context } from "../context.ts";
@@ -15,7 +15,7 @@ import {
   type GithubOrigin,
 } from "./requirements.ts";
 import { offerRepoCreation } from "./github-repo.ts";
-import { offerRuleset } from "./github-ruleset.ts";
+import { offerProtection } from "./github-protection.ts";
 import {
   ensureGitignore,
   writeSetupFiles,
@@ -23,6 +23,7 @@ import {
 } from "./files.ts";
 import type { InitDeps } from "./types.ts";
 import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
+import { CLAUDE_MD_PATH } from "./companion-docs.ts";
 
 export type { InitDeps } from "./types.ts";
 
@@ -147,10 +148,10 @@ async function runInit(
 
   let exitCode = 0;
 
-  // An unprotected main is not "set up": a ruleset that couldn't be created
-  // (no terminal, or the API call failed) ends the run non-zero. The local
-  // setup below still runs, so a second run only has the ruleset left to do.
-  const rulesetOutcome = await offerRuleset(
+  // An unprotected main is not "set up": a ruleset or CodeQL that couldn't
+  // be set up (no terminal, or the API call failed) ends the run non-zero.
+  // The local setup below still runs, so a second run only has GitHub left.
+  const rulesetOutcome = await offerProtection(
     ctx,
     repoRoot,
     origin,
@@ -163,18 +164,16 @@ async function runInit(
     ctx.stdout.write(`${rulesetOutcome.message}\n`);
   }
 
-  const { wroteGitignore, wroteAgents, wroteJudge, packageOutcome } =
-    await writeFiles();
+  const files = await writeFiles();
+  const { wroteGitignore, wroteJudge, packageOutcome } = files;
   ctx.stdout.write(
     gitignoreFirst || wroteGitignore
       ? "Updated .gitignore.\n"
       : ".gitignore already has the required lines; left it alone.\n",
   );
-  ctx.stdout.write(
-    wroteAgents
-      ? "Wrote AGENTS.md.\n"
-      : "AGENTS.md already exists; left it alone.\n",
-  );
+  if (reportAgentsFiles(ctx, files)) {
+    exitCode = 1;
+  }
   ctx.stdout.write(
     wroteJudge
       ? `Wrote the judge workflow, ${JUDGE_WORKFLOW_PATH}.\n`
@@ -224,15 +223,47 @@ async function runInit(
     const changed =
       gitignoreFirst ||
       wroteGitignore ||
-      wroteAgents ||
+      files.wroteAgents ||
+      files.wroteCompanions.length > 0 ||
+      files.claudeMdAdded.length > 0 ||
       wroteJudge ||
       packageOutcome.wrote ||
       hooksReport.items.some((item) => item.status === "written");
     if (changed) {
-      ctx.stdout.write(NEXT_STEPS);
+      ctx.stdout.write(nextSteps(files));
     }
   }
   return exitCode;
+}
+
+/** Reports AGENTS.md and the files beside it; returns true when AGENTS.md
+ * was refused, which ends the run non-zero: the rules agents read aren't
+ * temple-bar's until the block is put right. A size warning doesn't: the
+ * file is written, and the gate names the overage again until it's fixed. */
+function reportAgentsFiles(ctx: Context, files: SetupFilesOutcome): boolean {
+  if (files.agentsProblem !== undefined) {
+    ctx.stderr.write(`${files.agentsProblem}\n`);
+  } else {
+    ctx.stdout.write(
+      files.wroteAgents
+        ? "Wrote temple-bar's rules into AGENTS.md.\n"
+        : "AGENTS.md already has temple-bar's rules; left it alone.\n",
+    );
+  }
+  if (files.agentsSizeWarning !== undefined) {
+    ctx.stdout.write(`Warning: ${files.agentsSizeWarning}\n`);
+  }
+  if (files.wroteCompanions.length > 0) {
+    ctx.stdout.write(
+      `Wrote the files AGENTS.md links to, where missing: ${files.wroteCompanions.join(", ")}.\n`,
+    );
+  }
+  if (files.claudeMdAdded.length > 0) {
+    ctx.stdout.write(
+      `Added to CLAUDE.md: ${files.claudeMdAdded.join(" and ")}.\n`,
+    );
+  }
+  return files.agentsProblem !== undefined;
 }
 
 /** The commit message setup's next steps suggest. It must pass the
@@ -240,13 +271,34 @@ async function runInit(
 export const SETUP_COMMIT_MESSAGE = "chore: set up temple-bar";
 
 /** The setup is uncommitted, and main now refuses direct commits: say how
- * to land it. Files are named, not `git add -A`, so unrelated work stays
- * out of the setup commit. */
-const NEXT_STEPS =
+ * to land it. Files are named, not `git add -A` or a whole folder, so
+ * unrelated work (in docs/, say) stays out of the setup commit: only the
+ * companion files this run wrote are listed. */
+function nextSteps(files: SetupFilesOutcome): string {
+  const claudeMdUpdated =
+    files.claudeMdAdded.length > 0 &&
+    !files.wroteCompanions.includes(CLAUDE_MD_PATH);
+  const paths = [
+    "AGENTS.md",
+    ...(claudeMdUpdated ? [CLAUDE_MD_PATH] : []),
+    ...files.wroteCompanions,
+    "package.json",
+    ".gitignore",
+    JUDGE_WORKFLOW_PATH,
+  ];
+  return (
+    NEXT_STEPS_BEFORE +
+    `  git add ${paths.join(" ")}  (plus your lockfile)\n` +
+    NEXT_STEPS_AFTER
+  );
+}
+
+const NEXT_STEPS_BEFORE =
   "Next: main now refuses direct commits, so land this setup through a " +
   "pull request:\n" +
-  "  git switch -c temple-bar-setup\n" +
-  `  git add AGENTS.md package.json .gitignore ${JUDGE_WORKFLOW_PATH}  (plus your lockfile)\n` +
+  "  git switch -c temple-bar-setup\n";
+
+const NEXT_STEPS_AFTER =
   `  git commit -m "${SETUP_COMMIT_MESSAGE}"\n` +
   "  git push -u origin temple-bar-setup\n" +
   "  gh pr create --fill\n";
@@ -257,14 +309,16 @@ export function createInitCommand(deps: InitDeps): CommandEntry {
     summary: "Set up temple-bar in this repository.",
     args: "[--create-repo] [--create-ruleset]",
     details:
-      "Asks before creating a GitHub repository or the `main` ruleset. " +
+      "Asks before creating a GitHub repository, and once more before " +
+      "changing GitHub's protection of `main`: its rulesets and CodeQL " +
+      "code scanning. " +
       "With no terminal to ask in (an agent's shell), nothing is created " +
       "and setup says which flag to pass.\n\n" +
       "Options:\n" +
       "  --create-repo     The user already said yes to creating the GitHub\n" +
       "                    repository. Answers only that question.\n" +
-      "  --create-ruleset  The user already said yes to creating the `main`\n" +
-      "                    ruleset. Answers only that question.\n\n" +
+      "  --create-ruleset  The user already said yes to the rulesets and\n" +
+      "                    CodeQL. Answers only that question.\n\n" +
       "An agent passes a flag only after the user said yes in chat.",
     run: (args, ctx) => runInit(deps, ctx, parseApprovals(args)),
   };
