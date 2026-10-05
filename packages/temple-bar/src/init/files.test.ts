@@ -2,13 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  BLOCK_BEGIN,
+  freshAgentsMd,
+  templeBarBlock,
+} from "./agents-template.ts";
+import { COMPANION_FILES } from "./companion-docs.ts";
+import {
   ensureGitignore,
   GITIGNORE_LINES,
   ensurePackageJsonScripts,
   GATE_SCRIPT,
   PREPARE_SCRIPT,
-  writeAgentsMdIfMissing,
+  writeAgentsMd,
+  writeCompanionFiles,
   writeJudgeWorkflowIfMissing,
+  writeSetupFiles,
 } from "./files.ts";
 import { judgeWorkflow } from "../judge/workflow.ts";
 import { createFakeContext, createFakeFs } from "../testing/fakes.ts";
@@ -38,23 +46,68 @@ void test("writeJudgeWorkflowIfMissing leaves a copy that differs alone", async 
   assert.equal(fs.writes.length, 0);
 });
 
-void test("writeAgentsMdIfMissing writes a minimal file when none exists", async () => {
+void test("writeAgentsMd writes the full template when there is none, and a second run writes nothing", async () => {
   const fs = createFakeFs();
   const ctx = createFakeContext({ fs });
-  const wrote = await writeAgentsMdIfMissing(ctx, "/repo");
-  assert.equal(wrote, true);
-  const content = fs.files.get("/repo/AGENTS.md");
-  assert.match(content ?? "", /pull requests the user merges/);
-  assert.match(content ?? "", /ask the user what they want to build/);
+  assert.deepEqual(await writeAgentsMd(ctx, "/repo"), { wrote: true });
+  assert.equal(fs.files.get("/repo/AGENTS.md"), freshAgentsMd());
+  assert.deepEqual(await writeAgentsMd(ctx, "/repo"), { wrote: false });
+  assert.equal(fs.writes.length, 1);
 });
 
-void test("writeAgentsMdIfMissing leaves an existing AGENTS.md untouched", async () => {
-  const fs = createFakeFs({ "/repo/AGENTS.md": "# My own rules\n" });
+void test("writeAgentsMd adds temple-bar's block to a framework's AGENTS.md, keeping its text", async () => {
+  const own = "# Framework rules\n\nRead the framework's docs first.\n";
+  const fs = createFakeFs({ "/repo/AGENTS.md": own });
   const ctx = createFakeContext({ fs });
-  const wrote = await writeAgentsMdIfMissing(ctx, "/repo");
-  assert.equal(wrote, false);
-  assert.equal(fs.files.get("/repo/AGENTS.md"), "# My own rules\n");
+  assert.deepEqual(await writeAgentsMd(ctx, "/repo"), { wrote: true });
+  assert.equal(fs.files.get("/repo/AGENTS.md"), `${own}\n${templeBarBlock()}`);
+  assert.deepEqual(await writeAgentsMd(ctx, "/repo"), { wrote: false });
+  assert.equal(fs.writes.length, 1);
+});
+
+void test("writeAgentsMd leaves an AGENTS.md with unpaired markers alone and says how to fix it", async () => {
+  const broken = `# Rules\n\n${BLOCK_BEGIN}\n\nNo end marker.\n`;
+  const fs = createFakeFs({ "/repo/AGENTS.md": broken });
+  const outcome = await writeAgentsMd(createFakeContext({ fs }), "/repo");
+  assert.equal(outcome.wrote, false);
+  assert.match(outcome.problem ?? "", /1 BEGIN and 0 END lines/);
+  assert.match(outcome.problem ?? "", /run .* again/);
   assert.equal(fs.writes.length, 0);
+});
+
+void test("writeCompanionFiles writes each missing doc, never over the project's own, and a second run writes nothing", async () => {
+  const fs = createFakeFs({ "/repo/CLAUDE.md": "# Ours\n" });
+  const ctx = createFakeContext({ fs });
+  const written = await writeCompanionFiles(ctx, "/repo");
+  assert.deepEqual(
+    written,
+    COMPANION_FILES.map((file) => file.path).filter((p) => p !== "CLAUDE.md"),
+  );
+  assert.equal(fs.files.get("/repo/CLAUDE.md"), "# Ours\n");
+  for (const file of COMPANION_FILES.filter((f) => f.path !== "CLAUDE.md")) {
+    assert.equal(fs.files.get(`/repo/${file.path}`), file.content);
+  }
+  const writesSoFar = fs.writes.length;
+  assert.deepEqual(await writeCompanionFiles(ctx, "/repo"), []);
+  assert.equal(fs.writes.length, writesSoFar);
+});
+
+void test("CLAUDE.md imports AGENTS.md", () => {
+  const claude = COMPANION_FILES.find((file) => file.path === "CLAUDE.md");
+  assert.match(claude?.content ?? "", /^@AGENTS\.md$/m);
+});
+
+void test("writeSetupFiles changes nothing on a second run", async () => {
+  const fs = createFakeFs();
+  const ctx = createFakeContext({ fs, cwd: "/repo" });
+  const first = await writeSetupFiles(ctx, "/repo");
+  assert.equal(first.wroteAgents, true);
+  assert.equal(first.wroteCompanions.length, COMPANION_FILES.length);
+  const writesSoFar = fs.writes.length;
+  const second = await writeSetupFiles(ctx, "/repo");
+  assert.equal(second.wroteAgents, false);
+  assert.deepEqual(second.wroteCompanions, []);
+  assert.equal(fs.writes.length, writesSoFar);
 });
 
 void test("ensurePackageJsonScripts creates a minimal package.json when none exists", async () => {

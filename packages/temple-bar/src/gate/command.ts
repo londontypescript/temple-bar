@@ -245,7 +245,7 @@ export function createGateCommand(tools: GateTools): CommandEntry {
     details: [
       "Once the repo has files of its own (beyond package.json, the lockfile,",
       "AGENTS.md, .gitignore, README.md, LICENSE, temple-bar.config.json and",
-      "setup's judge workflow),",
+      "the docs, CLAUDE.md and judge workflow setup writes),",
       "requires these package.json scripts and runs every one that exists:",
       `${REQUIRED_SCRIPTS.join(", ")}. A script that does nothing (such as`,
       "`true` or a bare `echo`) fails. Checks that what setup installs is",

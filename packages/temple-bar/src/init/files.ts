@@ -1,55 +1,87 @@
-// Writes AGENTS.md, the judge workflow and package.json (or updates
-// package.json's scripts).
-// Everything here goes through ctx.fs, which has no delete method (N6/N9):
-// nothing is ever overwritten or removed, only created or added to.
+// Writes AGENTS.md and the docs it links to, the judge workflow and
+// package.json (or updates package.json's scripts).
+// Everything here goes through ctx.fs, which has no delete method: nothing
+// is ever removed. The one thing setup rewrites is its own marked block in
+// AGENTS.md; everything else is only created or added to.
 
 import path from "node:path";
 
 import type { Context } from "../context.ts";
 import { JUDGE_WORKFLOW_PATH, judgeWorkflow } from "../judge/workflow.ts";
+import { freshAgentsMd, withTempleBarBlock } from "./agents-template.ts";
+import { COMPANION_FILES } from "./companion-docs.ts";
 import { RERUN_INIT } from "./requirements.ts";
 
-const MINIMAL_AGENTS_MD = `# Agent directives
-
-Pre-release: these rules are still being built out. Nothing here is enforced
-by a mechanism yet unless this file says so.
-
-## Before code
-
-For a new project: ask the user what they want to build, then write a plan
-and get their approval before writing any code.
-
-## Branching
-
-The default branch (usually \`main\`) changes only through
-pull requests the user merges, each squashed into one commit. Agents push
-branches and open pull requests, never the default branch.
-
-## Drafts
-
-Plans, drafts and anything else that's local to this checkout go in
-\`.temple-bar/\`, which is never committed. Draft there, agree it with the
-user, then push it once.
-
-## Staying inside the rules
-
-Agents never install global tools on the user's behalf, and never route
-around a refusal (a failed check, a declined prompt, a blocked command) by
-working around it. Stop and report instead.
-`;
-
-/** Writes AGENTS.md only if none exists yet; returns whether it wrote. */
-export async function writeAgentsMdIfMissing(
+/** Writes `content` at `relativePath` only if nothing is there yet;
+ * returns whether it wrote. A copy that differs is left alone: once written,
+ * the file is the project's to edit. */
+async function writeIfMissing(
   ctx: Context,
   repoRoot: string,
+  relativePath: string,
+  content: string,
 ): Promise<boolean> {
-  const filePath = path.join(repoRoot, "AGENTS.md");
-  const existing = await ctx.fs.readText(filePath);
-  if (existing !== undefined) {
+  const filePath = path.join(repoRoot, ...relativePath.split("/"));
+  if ((await ctx.fs.readText(filePath)) !== undefined) {
     return false;
   }
-  await ctx.fs.writeText(filePath, MINIMAL_AGENTS_MD);
+  await ctx.fs.mkdirp(path.dirname(filePath));
+  await ctx.fs.writeText(filePath, content);
   return true;
+}
+
+export interface AgentsMdOutcome {
+  readonly wrote: boolean;
+  /** Set when AGENTS.md's temple-bar markers don't pair up: what is wrong
+   * and the fix. Nothing is written in that case. */
+  readonly problem?: string;
+}
+
+/**
+ * Writes a new AGENTS.md, or puts temple-bar's rules into an existing one as
+ * a marked block: added at the end the first time, and on later runs
+ * brought up to date in place. Nothing outside the block is touched, so a
+ * framework's own AGENTS.md, and the project's own rules, stay as they are.
+ */
+export async function writeAgentsMd(
+  ctx: Context,
+  repoRoot: string,
+): Promise<AgentsMdOutcome> {
+  const filePath = path.join(repoRoot, "AGENTS.md");
+  const existing = await ctx.fs.readText(filePath);
+  if (existing === undefined) {
+    await ctx.fs.writeText(filePath, freshAgentsMd());
+    return { wrote: true };
+  }
+  const update = withTempleBarBlock(existing);
+  if (update.kind === "malformed") {
+    return {
+      wrote: false,
+      problem:
+        `${update.detail} It was left alone. Fix: correct the markers, or ` +
+        `remove both to have the block added again, then run ${RERUN_INIT} again.`,
+    };
+  }
+  if (update.kind === "unchanged") {
+    return { wrote: false };
+  }
+  await ctx.fs.writeText(filePath, update.content);
+  return { wrote: true };
+}
+
+/** Writes each file AGENTS.md links to (and CLAUDE.md) where the project
+ * has none; returns the paths it wrote, relative to the repo root. */
+export async function writeCompanionFiles(
+  ctx: Context,
+  repoRoot: string,
+): Promise<readonly string[]> {
+  const written: string[] = [];
+  for (const file of COMPANION_FILES) {
+    if (await writeIfMissing(ctx, repoRoot, file.path, file.content)) {
+      written.push(file.path);
+    }
+  }
+  return written;
 }
 
 /** Writes the judge workflow only if none exists yet; returns whether it
@@ -59,13 +91,7 @@ export async function writeJudgeWorkflowIfMissing(
   ctx: Context,
   repoRoot: string,
 ): Promise<boolean> {
-  const filePath = path.join(repoRoot, ...JUDGE_WORKFLOW_PATH.split("/"));
-  if ((await ctx.fs.readText(filePath)) !== undefined) {
-    return false;
-  }
-  await ctx.fs.mkdirp(path.dirname(filePath));
-  await ctx.fs.writeText(filePath, judgeWorkflow());
-  return true;
+  return writeIfMissing(ctx, repoRoot, JUDGE_WORKFLOW_PATH, judgeWorkflow());
 }
 
 /** What setup keeps in .gitignore, in commented groups: a sensible default
@@ -248,6 +274,10 @@ function formatLike(original: string | undefined, value: unknown): string {
 export interface SetupFilesOutcome {
   readonly wroteGitignore: boolean;
   readonly wroteAgents: boolean;
+  /** Set when AGENTS.md's markers don't pair up; see AgentsMdOutcome. */
+  readonly agentsProblem?: string;
+  /** The docs AGENTS.md links to, and CLAUDE.md, that this run wrote. */
+  readonly wroteCompanions: readonly string[];
   readonly wroteJudge: boolean;
   readonly packageOutcome: PackageJsonOutcome;
 }
@@ -259,8 +289,16 @@ export async function writeSetupFiles(
   repoRoot: string,
 ): Promise<SetupFilesOutcome> {
   const wroteGitignore = await ensureGitignore(ctx, repoRoot);
-  const wroteAgents = await writeAgentsMdIfMissing(ctx, repoRoot);
+  const agents = await writeAgentsMd(ctx, repoRoot);
+  const wroteCompanions = await writeCompanionFiles(ctx, repoRoot);
   const wroteJudge = await writeJudgeWorkflowIfMissing(ctx, repoRoot);
   const packageOutcome = await ensurePackageJsonScripts(ctx, repoRoot);
-  return { wroteGitignore, wroteAgents, wroteJudge, packageOutcome };
+  return {
+    wroteGitignore,
+    wroteAgents: agents.wrote,
+    ...(agents.problem === undefined ? {} : { agentsProblem: agents.problem }),
+    wroteCompanions,
+    wroteJudge,
+    packageOutcome,
+  };
 }

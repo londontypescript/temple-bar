@@ -4,6 +4,8 @@ import test from "node:test";
 
 import { isConventionalSubject } from "../conventional/subject.ts";
 import { createInitCommand, SETUP_COMMIT_MESSAGE } from "./command.ts";
+import { freshAgentsMd, templeBarBlock } from "./agents-template.ts";
+import { COMPANION_FILES } from "./companion-docs.ts";
 import { GATE_SCRIPT, GITIGNORE_LINES, PREPARE_SCRIPT } from "./files.ts";
 import { judgeWorkflow } from "../judge/workflow.ts";
 import {
@@ -50,7 +52,10 @@ void test("init: an existing project with other scripts gets AGENTS.md and the t
 
 void test("init: a second run changes nothing", async () => {
   const fs = createFakeFs({
-    "/repo/AGENTS.md": "# already set up\n",
+    "/repo/AGENTS.md": freshAgentsMd(),
+    ...Object.fromEntries(
+      COMPANION_FILES.map((file) => [`/repo/${file.path}`, file.content]),
+    ),
     "/repo/.gitignore": `${GITIGNORE_LINES.join("\n")}\n`,
     "/repo/.github/workflows/temple-bar-judge.yml": judgeWorkflow(),
     "/repo/package.json": JSON.stringify({
@@ -120,15 +125,18 @@ void test("init: an existing different `prepare` script is left alone and the ru
   );
 });
 
-void test("init: an existing AGENTS.md is left untouched", async () => {
+void test("init: an existing AGENTS.md keeps its text and gains temple-bar's block", async () => {
   const fs = createFakeFs({ "/repo/AGENTS.md": "# custom rules\n" });
   const fixture = makeFixture({ fs });
   const code = await runInitFor(fixture);
   assert.equal(code, 0);
-  assert.equal(fs.files.get("/repo/AGENTS.md"), "# custom rules\n");
   assert.equal(
-    fs.writes.some((w) => w.path === normalize("/repo/AGENTS.md")),
-    false,
+    fs.files.get("/repo/AGENTS.md"),
+    `# custom rules\n\n${templeBarBlock()}`,
+  );
+  assert.equal(
+    fs.writes.filter((w) => w.path === normalize("/repo/AGENTS.md")).length,
+    1,
   );
 });
 
