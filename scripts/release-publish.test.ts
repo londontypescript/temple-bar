@@ -215,6 +215,18 @@ void test("refuses a section that is empty or holds only a comment", async () =>
   assert.doesNotMatch(refusal, /Incidents|reminder/);
 });
 
+void test("refuses a section whose text sits inside an unclosed comment", async () => {
+  // GitHub hides everything after an unclosed comment, so this reads as empty.
+  const body = FINISHED.replace("None", "<!-- todo\n\nNone");
+  const world = fakes(() => 200, true, body);
+  assert.equal(
+    await publishWhenDownloadable(options, world.deps),
+    1,
+    "a section hidden by an unclosed comment must be refused",
+  );
+  assert.match(world.lines.at(-1) ?? "", /"## Upgrading" section is empty/);
+});
+
 void test("refuses notes whose heading was deleted", async () => {
   const body = FINISHED.replace("## Incidents\n\n- A Release", "- A Release");
   const world = fakes(() => 200, true, body);

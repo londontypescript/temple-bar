@@ -88,7 +88,9 @@ export function buildReleaseNotes(subjects: readonly string[]): string {
 
 /** What a section holds once comments are dropped, or undefined when the
  * notes have no `## <title>` heading. The section runs to the next heading of
- * the same or a higher level, so `###` subheadings stay inside it. */
+ * the same or a higher level, so `###` subheadings stay inside it. A comment
+ * left unclosed hides the rest of the section, as GitHub renders it, so
+ * nothing after it counts as written. */
 function sectionText(notes: string, title: string): string | undefined {
   const lines = notes.split("\n");
   const start = lines.findIndex(
@@ -100,7 +102,7 @@ function sectionText(notes: string, title: string): string | undefined {
   const rest = lines.slice(start + 1);
   const end = rest.findIndex((line) => /^#{1,2}\s/.test(line));
   const content = (end === -1 ? rest : rest.slice(0, end)).join("\n");
-  return content.replace(/<!--[\s\S]*?-->/g, "").trim();
+  return content.replace(/<!--[\s\S]*?(?:-->|$)/g, "").trim();
 }
 
 /** Each thing still to do before release notes can be published, in words
