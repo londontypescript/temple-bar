@@ -59,6 +59,9 @@ void test("pr-size warns, names size and issues, suggests one pull request per i
   assert.match(out, /1,178 lines/);
   assert.match(out, /closes 3 issues: #101, #104, #125/);
   assert.match(out, /one pull request per issue/);
+  // Merge accepts several closed issues when a One concern: line explains
+  // them, so the warning names that way out too.
+  assert.match(out, /`One concern:`/);
   assert.doesNotMatch(out, /::warning/, "no annotation outside GitHub Actions");
 });
 
@@ -92,6 +95,7 @@ void test("in GitHub Actions the warning is also an annotation, on one line", as
     .filter((line) => line.startsWith("::warning title=Pull request size::"));
   assert.equal(annotation.length, 1);
   assert.match(annotation[0] ?? "", /1,178 lines/);
+  assert.match(annotation[0] ?? "", /`One concern:`/);
 });
 
 void test("GITHUB_BASE_REF names the base as its remote branch", async () => {
