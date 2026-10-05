@@ -15,6 +15,14 @@
   ],
   "type": "module",
   "license": "MIT",
+  "author": {
+    "name": "London TypeScript",
+    "url": "https://github.com/londontypescript"
+  },
+  "homepage": "https://github.com/londontypescript/temple-bar#readme",
+  "bugs": {
+    "url": "https://github.com/londontypescript/temple-bar/issues"
+  },
   "engines": {
     "node": ">=24"
   },
