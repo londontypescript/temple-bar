@@ -8,7 +8,11 @@ import { measureAgentsFile } from "../gate/agents-size.ts";
 import {
   BLOCK_BEGIN,
   BLOCK_END,
+  blockHash,
+  EARLIER_BLOCK_SHA256,
   freshAgentsMd,
+  isCurrentBlock,
+  locateTempleBarBlock,
   templeBarBlock,
   withTempleBarBlock,
 } from "./agents-template.ts";
@@ -108,14 +112,46 @@ void test("an empty AGENTS.md becomes a new one", () => {
   });
 });
 
-void test("an outdated block is replaced in place, and only the block", () => {
-  const before = "# Agent directives\n\nOur rule first.\n\n";
-  const after = "\n## Our own section\n\nKept.\n";
-  const outdated = `${before}<!-- BEGIN:temple-bar: older wording -->\n\n## Old rules\n\nGone.\n\n${BLOCK_END}\n${after}`;
-  const update = withTempleBarBlock(outdated);
+const OUR_BEFORE = "# Agent directives\n\nOur rule first.\n\n";
+const OUR_AFTER = "\n## Our own section\n\nKept.\n";
+const OLDER_BLOCK = `<!-- BEGIN:temple-bar: older wording -->\n\n## Old rules\n\nGone.\n\n${BLOCK_END}\n`;
+
+void test("a block an earlier release wrote is replaced in place, and only the block", () => {
+  const outdated = `${OUR_BEFORE}${OLDER_BLOCK}${OUR_AFTER}`;
+  const update = withTempleBarBlock(outdated, [blockHash(OLDER_BLOCK)]);
+  assert.deepEqual(update, {
+    kind: "updated",
+    content: `${OUR_BEFORE}${templeBarBlock()}${OUR_AFTER}`,
+  });
   assert.equal(update.kind, "updated");
-  assert.equal(update.content, `${before}${templeBarBlock()}${after}`);
   assert.deepEqual(withTempleBarBlock(update.content), { kind: "unchanged" });
+});
+
+void test("a block edited by hand is refused, not overwritten", () => {
+  const edited = `${OUR_BEFORE}${templeBarBlock().replace("## Plans", "## Plans\n\nOur extra rule.")}${OUR_AFTER}`;
+  const update = withTempleBarBlock(edited, [blockHash(OLDER_BLOCK)]);
+  assert.equal(update.kind, "refused");
+  assert.match(update.detail, /has been edited/);
+  // So is an older-looking block no release is known to have written.
+  assert.equal(
+    withTempleBarBlock(`${OUR_BEFORE}${OLDER_BLOCK}`).kind,
+    "refused",
+  );
+});
+
+void test("the earlier releases' hashes never include today's block", () => {
+  assert.equal(
+    EARLIER_BLOCK_SHA256.includes(blockHash(templeBarBlock())),
+    false,
+  );
+});
+
+void test("a block still counts as current after git turns its line endings into CRLF", () => {
+  const crlf = freshAgentsMd().replace(/\n/g, "\r\n");
+  const location = locateTempleBarBlock(crlf);
+  assert.equal(location.kind, "found");
+  assert.equal(isCurrentBlock(location.block), true);
+  assert.deepEqual(withTempleBarBlock(crlf), { kind: "unchanged" });
 });
 
 void test("markers that don't pair up leave the file alone", () => {
@@ -127,7 +163,7 @@ void test("markers that don't pair up leave the file alone", () => {
   ];
   for (const [content, detail] of cases) {
     const update = withTempleBarBlock(content);
-    assert.equal(update.kind, "malformed", content);
+    assert.equal(update.kind, "refused", content);
     assert.match(update.detail, detail);
   }
 });

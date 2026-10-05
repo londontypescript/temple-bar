@@ -7,6 +7,14 @@
 // The rules are written for any project, not for temple-bar itself. Every
 // agent loads AGENTS.md in every session, so the reasons behind the rules
 // live in the rationale doc setup writes beside it (companion-docs.ts).
+//
+// The block is setup's, as the hook shims are: the gate fails when it
+// differs from what this release writes, and setup replaces it only when it
+// is a block temple-bar wrote, never one edited by hand.
+
+import { createHash } from "node:crypto";
+
+import { RERUN_INIT } from "./requirements.ts";
 
 /** The marker lines. The opening one says what the block is, so a person
  * reading the file knows where their own rules go; it stays within 80
@@ -182,10 +190,41 @@ export function freshAgentsMd(): string {
   return `${HEADER}\n${templeBarBlock()}`;
 }
 
-export type BlockUpdate =
-  | { readonly kind: "unchanged" }
-  | { readonly kind: "updated"; readonly content: string }
-  | { readonly kind: "malformed"; readonly detail: string };
+/** SHA-256 of the block each earlier temple-bar release wrote, as
+ * blockHash computes it. Setup replaces a block matching one of these (an
+ * upgrade); any other block that differs from today's was edited by hand,
+ * and setup leaves it alone rather than lose the edit. When a release
+ * changes the block, add the hash of the block it replaces here. Empty
+ * while only one release has written a block. */
+export const EARLIER_BLOCK_SHA256: readonly string[] = [];
+
+/** The block's text compared without its final newline and with Windows
+ * line endings made plain, so a checkout that turns LF into CRLF (git's
+ * autocrlf) or a file ending right after the END line still matches. */
+function comparable(block: string): string {
+  // The END line's own "\r" survives splitting the file on "\n", so a lone
+  // final "\r" is a line ending too.
+  return block.replace(/\r\n?/g, "\n").replace(/\n$/, "");
+}
+
+export function blockHash(block: string): string {
+  return createHash("sha256").update(comparable(block), "utf8").digest("hex");
+}
+
+/** Where temple-bar's block sits in an AGENTS.md, if it has one. */
+export type BlockLocation =
+  | { readonly kind: "absent" }
+  | { readonly kind: "malformed"; readonly detail: string }
+  | {
+      readonly kind: "found";
+      /** Everything before the BEGIN line, each line with its newline. */
+      readonly before: string;
+      /** From the BEGIN line to the END line, as the file has it. */
+      readonly block: string;
+      /** Everything after the END line's own newline (which the block
+       * text leaves out), as the file has it. */
+      readonly after: string;
+    };
 
 function lineIndexes(
   lines: readonly string[],
@@ -194,28 +233,16 @@ function lineIndexes(
   return lines.flatMap((line, index) => (matches(line.trim()) ? [index] : []));
 }
 
-/**
- * What an existing AGENTS.md becomes with temple-bar's current block in it.
- * With no block yet, the block goes at the end, after whatever the file
- * holds. With one, only the lines from its BEGIN to its END are replaced.
- * Markers that don't pair up (one without the other, two of either, or END
- * first) leave the file alone: guessing where the block ends could replace
- * the project's own rules.
- */
-export function withTempleBarBlock(existing: string): BlockUpdate {
-  if (existing.trim() === "") {
-    return { kind: "updated", content: freshAgentsMd() };
-  }
-  const lines = existing.split("\n");
+/** Finds the block. Markers that don't pair up (one without the other, two
+ * of either, or END first) are malformed: guessing where the block ends
+ * could take the project's own rules for setup's. */
+export function locateTempleBarBlock(content: string): BlockLocation {
+  const lines = content.split("\n");
   const begins = lineIndexes(lines, (line) => line.startsWith(BEGIN_PREFIX));
   const ends = lineIndexes(lines, (line) => line === BLOCK_END);
-  const block = templeBarBlock();
-
   if (begins.length === 0 && ends.length === 0) {
-    const separator = existing.endsWith("\n") ? "\n" : "\n\n";
-    return { kind: "updated", content: `${existing}${separator}${block}` };
+    return { kind: "absent" };
   }
-
   const begin = begins[0];
   const end = ends[0];
   if (
@@ -236,16 +263,74 @@ export function withTempleBarBlock(existing: string): BlockUpdate {
         `"${BLOCK_END}" line after it, but ${found}.`,
     };
   }
+  return {
+    kind: "found",
+    before: lines
+      .slice(0, begin)
+      .map((line) => `${line}\n`)
+      .join(""),
+    block: lines.slice(begin, end + 1).join("\n"),
+    after: lines.slice(end + 1).join("\n"),
+  };
+}
 
-  // Lines before BEGIN keep their newline; whatever follows END's line
-  // (including the file's final newline) is kept as it was.
-  const before = lines
-    .slice(0, begin)
-    .map((line) => `${line}\n`)
-    .join("");
-  const after = lines.slice(end + 1).join("\n");
-  const content = `${before}${block}${after}`;
-  return content === existing
-    ? { kind: "unchanged" }
-    : { kind: "updated", content };
+/** Whether a block found in AGENTS.md is exactly the one this release
+ * writes. */
+export function isCurrentBlock(block: string): boolean {
+  return comparable(block) === comparable(templeBarBlock());
+}
+
+/** How to put an edited or broken block right, said the same way by setup
+ * and the gate. Deleting the block is the way back because setup adds a
+ * missing block, but never rewrites one it didn't write. */
+export const RESTORE_BLOCK =
+  "move any change of your own above or below the block, delete the " +
+  `block (both marker lines and everything between), then run ${RERUN_INIT} ` +
+  "to write it again";
+
+export type BlockUpdate =
+  | { readonly kind: "unchanged" }
+  | { readonly kind: "updated"; readonly content: string }
+  | { readonly kind: "refused"; readonly detail: string };
+
+/**
+ * What an existing AGENTS.md becomes with temple-bar's current block in it.
+ * With no block yet, the block goes at the end, after whatever the file
+ * holds. A block an earlier release wrote is replaced in place, and only
+ * the block. Malformed markers, or a block edited by hand, are refused:
+ * the file is left alone and `detail` says why.
+ */
+export function withTempleBarBlock(
+  existing: string,
+  earlierHashes: readonly string[] = EARLIER_BLOCK_SHA256,
+): BlockUpdate {
+  if (existing.trim() === "") {
+    return { kind: "updated", content: freshAgentsMd() };
+  }
+  const location = locateTempleBarBlock(existing);
+  if (location.kind === "absent") {
+    const separator = existing.endsWith("\n") ? "\n" : "\n\n";
+    return {
+      kind: "updated",
+      content: `${existing}${separator}${templeBarBlock()}`,
+    };
+  }
+  if (location.kind === "malformed") {
+    return { kind: "refused", detail: location.detail };
+  }
+  if (isCurrentBlock(location.block)) {
+    return { kind: "unchanged" };
+  }
+  if (!earlierHashes.includes(blockHash(location.block))) {
+    return {
+      kind: "refused",
+      detail:
+        "AGENTS.md's temple-bar block has been edited: it matches no block " +
+        "temple-bar has written, and rewriting it would lose the edit.",
+    };
+  }
+  return {
+    kind: "updated",
+    content: `${location.before}${templeBarBlock()}${location.after}`,
+  };
 }

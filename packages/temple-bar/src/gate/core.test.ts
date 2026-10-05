@@ -9,6 +9,11 @@ import {
   createFakeGit,
   createFakeWriter,
 } from "../testing/fakes.ts";
+import {
+  BLOCK_BEGIN,
+  freshAgentsMd,
+  templeBarBlock,
+} from "../init/agents-template.ts";
 import { findCoreProblems, runCoreCheck } from "./core.ts";
 import {
   CORE_SCRIPTS,
@@ -164,4 +169,45 @@ void test("runCoreCheck reports a failure with each problem and its fix", async 
     stderr.lines.join(""),
     /part\(s\) of temple-bar's setup are missing or changed:\n {2}the commit-msg hook is missing\n {4}fix: run `pnpm exec temple-bar hook install`/,
   );
+});
+
+const AGENTS = path.join("/repo", "AGENTS.md");
+
+void test("AGENTS.md with this release's block, or with no block at all, passes", async () => {
+  for (const content of [
+    freshAgentsMd(),
+    `# Framework rules\n\n${templeBarBlock()}`,
+    "# Our own rules, set up before the block existed\n",
+  ]) {
+    const { ctx } = setUpRepo((files) => files.set(AGENTS, content));
+    assert.deepEqual(await findCoreProblems(ctx), [], content);
+  }
+});
+
+void test("an edited temple-bar block in AGENTS.md fails, saying how to move the change out or rerun setup", async () => {
+  const { ctx, stderr } = setUpRepo((files) =>
+    files.set(
+      AGENTS,
+      freshAgentsMd().replace("## Plans", "## Plans\n\nOur extra rule."),
+    ),
+  );
+  assert.equal((await runCoreCheck(ctx)).status, "failed");
+  const text = stderr.lines.join("");
+  assert.match(
+    text,
+    /AGENTS\.md's temple-bar block differs from the one this temple-bar version writes/,
+  );
+  assert.match(
+    text,
+    /if temple-bar was upgraded, run `pnpm exec temple-bar init`; if the block was edited, move any change of your own above or below the block/,
+  );
+});
+
+void test("temple-bar markers in AGENTS.md that don't pair up fail", async () => {
+  const { ctx } = setUpRepo((files) =>
+    files.set(AGENTS, `# Rules\n\n${BLOCK_BEGIN}\n\nNo end.\n`),
+  );
+  const problems = await findCoreProblems(ctx);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0]?.problem ?? "", /1 BEGIN and 0 END lines/);
 });

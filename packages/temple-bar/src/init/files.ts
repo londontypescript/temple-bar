@@ -8,7 +8,11 @@ import path from "node:path";
 
 import type { Context } from "../context.ts";
 import { JUDGE_WORKFLOW_PATH, judgeWorkflow } from "../judge/workflow.ts";
-import { freshAgentsMd, withTempleBarBlock } from "./agents-template.ts";
+import {
+  freshAgentsMd,
+  RESTORE_BLOCK,
+  withTempleBarBlock,
+} from "./agents-template.ts";
 import { COMPANION_FILES } from "./companion-docs.ts";
 import { RERUN_INIT } from "./requirements.ts";
 
@@ -32,16 +36,19 @@ async function writeIfMissing(
 
 export interface AgentsMdOutcome {
   readonly wrote: boolean;
-  /** Set when AGENTS.md's temple-bar markers don't pair up: what is wrong
-   * and the fix. Nothing is written in that case. */
+  /** Set when AGENTS.md's temple-bar block was edited by hand or its
+   * markers don't pair up: what is wrong and the fix. Nothing is written
+   * in that case. */
   readonly problem?: string;
 }
 
 /**
  * Writes a new AGENTS.md, or puts temple-bar's rules into an existing one as
  * a marked block: added at the end the first time, and on later runs
- * brought up to date in place. Nothing outside the block is touched, so a
- * framework's own AGENTS.md, and the project's own rules, stay as they are.
+ * brought up to date in place when it is a block temple-bar wrote. Nothing
+ * outside the block is touched, so a framework's own AGENTS.md, and the
+ * project's own rules, stay as they are. A block edited by hand is refused,
+ * not overwritten: the edit would be lost.
  */
 export async function writeAgentsMd(
   ctx: Context,
@@ -54,12 +61,10 @@ export async function writeAgentsMd(
     return { wrote: true };
   }
   const update = withTempleBarBlock(existing);
-  if (update.kind === "malformed") {
+  if (update.kind === "refused") {
     return {
       wrote: false,
-      problem:
-        `${update.detail} It was left alone. Fix: correct the markers, or ` +
-        `remove both to have the block added again, then run ${RERUN_INIT} again.`,
+      problem: `${update.detail} It was left alone. Fix: ${RESTORE_BLOCK}.`,
     };
   }
   if (update.kind === "unchanged") {
@@ -274,7 +279,7 @@ function formatLike(original: string | undefined, value: unknown): string {
 export interface SetupFilesOutcome {
   readonly wroteGitignore: boolean;
   readonly wroteAgents: boolean;
-  /** Set when AGENTS.md's markers don't pair up; see AgentsMdOutcome. */
+  /** Set when setup left AGENTS.md alone; see AgentsMdOutcome. */
   readonly agentsProblem?: string;
   /** The docs AGENTS.md links to, and CLAUDE.md, that this run wrote. */
   readonly wroteCompanions: readonly string[];

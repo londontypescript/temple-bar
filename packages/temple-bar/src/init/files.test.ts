@@ -75,6 +75,20 @@ void test("writeAgentsMd leaves an AGENTS.md with unpaired markers alone and say
   assert.equal(fs.writes.length, 0);
 });
 
+void test("writeAgentsMd refuses to overwrite a block edited by hand, and says to move the change out", async () => {
+  const edited = freshAgentsMd().replace("## Plans", "## Plans\n\nOurs.");
+  const fs = createFakeFs({ "/repo/AGENTS.md": edited });
+  const outcome = await writeAgentsMd(createFakeContext({ fs }), "/repo");
+  assert.equal(outcome.wrote, false);
+  assert.match(outcome.problem ?? "", /has been edited/);
+  assert.match(
+    outcome.problem ?? "",
+    /move any change of your own above or below/,
+  );
+  assert.equal(fs.files.get("/repo/AGENTS.md"), edited);
+  assert.equal(fs.writes.length, 0);
+});
+
 void test("writeCompanionFiles writes each missing doc, never over the project's own, and a second run writes nothing", async () => {
   const fs = createFakeFs({ "/repo/CLAUDE.md": "# Ours\n" });
   const ctx = createFakeContext({ fs });
