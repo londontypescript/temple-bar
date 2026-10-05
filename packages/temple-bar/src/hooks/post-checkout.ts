@@ -4,10 +4,13 @@
 // then dependencies, with `pnpm install --frozen-lockfile`, so the worktree
 // gets exactly what the lockfile on its branch says.
 //
-// Every other checkout does nothing. git passes a previous HEAD of all zeros
-// only for a checkout with nothing before it: a new worktree, or the first
-// checkout of a fresh clone, told apart here because a new worktree has a
-// git folder of its own inside the shared one.
+// Every other checkout in a linked worktree does nothing. git passes a
+// previous HEAD of all zeros only for a checkout with nothing before it: a
+// new worktree, or the first checkout of a fresh clone, told apart here
+// because a new worktree has a git folder of its own inside the shared one.
+//
+// Any checkout in the main checkout instead warns when it has left the
+// default branch (primary-checkout.ts says why).
 //
 // The checkout has already happened, and a hook can't undo it, so a failure
 // here says exactly what to run to finish the setup by hand.
@@ -16,30 +19,15 @@ import path from "node:path";
 
 import type { Context } from "../context.ts";
 import { checkEnvKeys, copyEnvFiles, describeEnv } from "./env-files.ts";
+import {
+  findCheckout,
+  warnIfMainCheckoutOffDefault,
+} from "./primary-checkout.ts";
 
 const NO_PREVIOUS_HEAD = /^0+$/;
 
 const INSTALL_ARGS = ["install", "--frozen-lockfile"] as const;
 const INSTALL_COMMAND = `pnpm ${INSTALL_ARGS.join(" ")}`;
-
-/** git prints some paths relative to `cwd`. Joined rather than resolved:
- * path.resolve would put the current drive in front of an already absolute
- * path on Windows. */
-function absolute(cwd: string, p: string): string {
-  return path.isAbsolute(p) ? p : path.join(cwd, p);
-}
-
-async function gitPath(
-  ctx: Context,
-  cwd: string,
-  flag: string,
-): Promise<string | undefined> {
-  const result = await ctx.git.run(["rev-parse", flag], cwd);
-  if (result.code !== 0) {
-    return undefined;
-  }
-  return absolute(cwd, result.stdout.trim());
-}
 
 /** The checkout to copy env files from: the main worktree, which `git
  * worktree list` names first. Undefined when it is bare (no files). */
@@ -119,28 +107,27 @@ async function installDependencies(
 }
 
 /**
- * `temple-bar hook post-checkout`: 0 when there was nothing to do or the
- * setup finished, 1 when a step failed (and its message says how to finish).
+ * `temple-bar hook post-checkout`: 0 when there was nothing to do, the setup
+ * finished or only a warning was printed; 1 when a setup step failed (and
+ * its message says how to finish).
  */
 export async function postCheckout(
   previousHead: string,
   ctx: Context,
 ): Promise<number> {
+  const checkout = await findCheckout(ctx);
+  if (checkout === undefined) {
+    return 0;
+  }
+  if (!checkout.linked) {
+    await warnIfMainCheckoutOffDefault(ctx, checkout);
+    return 0;
+  }
   if (!NO_PREVIOUS_HEAD.test(previousHead)) {
     return 0;
   }
-  const gitDir = await gitPath(ctx, ctx.cwd, "--git-dir");
-  const commonDir = await gitPath(ctx, ctx.cwd, "--git-common-dir");
-  const worktree = await gitPath(ctx, ctx.cwd, "--show-toplevel");
-  if (
-    gitDir === undefined ||
-    commonDir === undefined ||
-    worktree === undefined ||
-    path.normalize(gitDir) === path.normalize(commonDir)
-  ) {
-    return 0;
-  }
 
+  const { worktree } = checkout;
   say(ctx, `setting up the new worktree at ${worktree}`);
   const envCode = await setUpEnvFiles(ctx, worktree);
   const installCode = await installDependencies(ctx, worktree);

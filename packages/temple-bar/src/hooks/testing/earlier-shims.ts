@@ -1,4 +1,4 @@
-// The shims exactly as releases 0.0.1 to 0.0.3 installed them, so the
+// The shims exactly as earlier releases installed them, so the
 // install tests can prove an upgrade replaces them. Frozen history: never
 // edit these to match the current shims.
 
@@ -37,4 +37,39 @@ if [ ! -x "$bin" ]; then
   exit 1
 fi
 printf '%s\\n' "$input" | exec "$bin" hook reference-transaction "$state"
+`;
+
+// 0.0.5 to 0.0.7: only a new worktree started Node.
+export const POST_CHECKOUT_SHIM_0_0_7 = `#!/bin/sh
+# Installed by \`temple-bar hook install\`. Do not edit by hand.
+case "$1" in
+  ""|*[!0]*) exit 0 ;;
+esac
+bin=""
+common=$(git rev-parse --git-common-dir 2>/dev/null)
+if [ -n "$common" ] && [ -f "$common/hooks/temple-bar-checkout" ]; then
+  IFS= read -r installed < "$common/hooks/temple-bar-checkout"
+  bin="$installed/node_modules/.bin/temple-bar"
+fi
+if [ ! -x "$bin" ]; then
+  root=$(git rev-parse --show-toplevel 2>/dev/null)
+  if [ -n "$root" ]; then
+    bin="$root/node_modules/.bin/temple-bar"
+  fi
+fi
+if [ ! -x "$bin" ]; then
+  bin=$(git worktree list --porcelain | while IFS= read -r line; do
+    candidate="\${line#worktree }/node_modules/.bin/temple-bar"
+    if [ "\${line#worktree }" != "$line" ] && [ -x "$candidate" ]; then
+      printf '%s\\n' "$candidate"
+      break
+    fi
+  done)
+fi
+if [ -z "$bin" ]; then
+  echo 'temple-bar is not installed in any checkout of this repo, so this new worktree was not set up.
+Run pnpm install in it.' >&2
+  exit 1
+fi
+exec "$bin" hook post-checkout "$1" "$2" "$3"
 `;
