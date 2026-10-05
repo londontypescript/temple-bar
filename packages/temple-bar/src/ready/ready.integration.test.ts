@@ -158,7 +158,7 @@ void test("ready: a file that was never added is refused, since the push wouldn'
   }
 });
 
-void test("ready: an AGENTS.md change without a terminal says to ask the user, and the push stays refused", async () => {
+void test("ready: an AGENTS.md change is marked with a warning to ask the maintainer, and the push warns again", async () => {
   const fixture = setUp(TESTS_PASS);
   try {
     writeFileSync(path.join(fixture.repoDir, "AGENTS.md"), "# Rules\n", "utf8");
@@ -166,17 +166,19 @@ void test("ready: an AGENTS.md change without a terminal says to ask the user, a
 
     const ready = await runReady(fixture.repoDir);
 
-    assert.equal(ready.code, 1);
-    const out = ready.stderr.lines.join("");
+    assert.equal(ready.code, 0, ready.stderr.lines.join(""));
     assert.match(
-      out,
-      /needs the user's yes before it is pushed: it changes AGENTS\.md/,
+      ready.stderr.lines.join(""),
+      /needs the maintainer's yes before it is pushed: changes AGENTS\.md\.\nAsk the maintainer in chat, and push only once they say yes\./,
     );
+
+    // A warning, not a block: the hook repeats it and lets the push out.
+    const push = pushFeature(fixture);
+    assert.equal(push.code, 0, push.stderr);
     assert.match(
-      out,
-      /Ask the user to run `temple-bar ready` themselves, in a terminal/,
+      push.stderr,
+      /warning: feature needs the maintainer's yes before it is pushed: changes AGENTS\.md\./,
     );
-    assert.notEqual(pushFeature(fixture).code, 0);
   } finally {
     fixture.cleanup();
   }

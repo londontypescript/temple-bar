@@ -90,9 +90,10 @@ the pull request. `temple-bar merge` never bypasses.
   admin. The judge's own failure says the same, in the same words. Neither
   names the command or flag for that merge: no message temple-bar prints
   names a way past a check.
-- `temple-bar ready` asks the user, typed in a terminal, about exactly the
-  changes the judge refuses, as well as AGENTS.md, before such a commit is
-  pushed. One function finds those changes for the judge, `ready` and
+- `temple-bar ready` and the `pre-push` hook warn about exactly the
+  changes the judge refuses, as well as AGENTS.md, and tell the agent to
+  ask the maintainer in chat before pushing
+  ([ADR 0012](0012-push-once-with-ready.md) says why a warning). One function finds those changes for the judge, `ready` and
   `merge`, so the three can't disagree.
 - One yes from the maintainer covers both rulesets when setup creates them
   together.

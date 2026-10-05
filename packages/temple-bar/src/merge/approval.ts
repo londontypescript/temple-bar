@@ -6,14 +6,24 @@
 //   ../judge/changes.ts). The judge fails such a pull request on purpose,
 //   and only the maintainer can merge it, past the judge. Merge never does.
 //
-// `ready` asks the user about both kinds before a push, from these same two
-// lists, so what it asks about and what merge refuses can't drift apart.
+// `ready` and the pre-push hook warn about both kinds before a push, from
+// these same two lists, so what they warn about and what merge refuses
+// can't drift apart.
+//
+// None of this proves the maintainer said yes: an agent works under the
+// maintainer's own GitHub account and can pass any flag. It makes the
+// request visible instead, and merge records the claim on the default
+// branch, so a change that skipped it shows up in `git log`.
 
 import { findCheckChangesInDiff } from "../judge/changes.ts";
 import { rootManifest, type PullRequestChanges } from "./manifests.ts";
 
-/** One reason per change that needs the maintainer's yes in chat; empty if
- * none. */
+/** What every warning and refusal about the maintainer's yes tells the
+ * agent to do: ask a person, where a person answers. */
+export const ASK_THE_MAINTAINER = "Ask the maintainer in chat";
+
+/** One reason per change that needs the maintainer's yes in chat before
+ * merge will land it; empty if none. */
 export function reasonsForMaintainerApproval(
   changes: PullRequestChanges,
 ): string[] {
@@ -21,7 +31,7 @@ export function reasonsForMaintainerApproval(
   const agentsFiles = changes.files.filter(
     (file) => file === "AGENTS.md" || file.endsWith("/AGENTS.md"),
   );
-  return agentsFiles.length > 0 ? [`it changes ${agentsFiles.join(", ")}`] : [];
+  return agentsFiles.length > 0 ? [`changes ${agentsFiles.join(", ")}`] : [];
 }
 
 /** Each change to the checks that judge the repository, as the judge words
@@ -34,13 +44,15 @@ export function checkChanges(changes: PullRequestChanges): string[] {
   );
 }
 
-/** Everything the user is asked about before a push: both kinds above. */
-export function reasonsForUsersYes(changes: PullRequestChanges): string[] {
+/** Every change that needs the maintainer, of both kinds above. */
+export function reasonsForMaintainersYes(
+  changes: PullRequestChanges,
+): string[] {
   const checks = checkChanges(changes);
   return [
     ...reasonsForMaintainerApproval(changes),
     ...(checks.length > 0
-      ? [`it changes the checks that judge it (${checks.join(", ")})`]
+      ? [`changes the checks that judge it (${checks.join(", ")})`]
       : []),
   ];
 }
