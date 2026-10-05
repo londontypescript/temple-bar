@@ -1,9 +1,11 @@
 name: CI
 
 on:
+  # Not on "edited": GitHub sends it for a description change too, and the
+  # full matrix gains nothing from rerunning on the same commit. The title
+  # is checked by pr-title.yml, which does run on "edited".
   pull_request:
-    # edited: a changed title is checked again.
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, synchronize, reopened]
   # No run on pushes to main: the ruleset requires these checks and an
   # up-to-date branch, so a squash merge lands exactly what CI just passed.
   # The release workflow calls this, so nothing is staged on npm until the
@@ -53,13 +55,18 @@ jobs:
           # without a token rather than hit the anonymous rate limit.
           GH_TOKEN: ${{ github.token }}
 
-      - name: Pull request title
-        if: github.event_name == 'pull_request'
-        run: pnpm exec temple-bar pr-title
-
       - name: Pull request size (a warning, never a failure)
         if: github.event_name == 'pull_request'
         run: pnpm exec temple-bar pr-size
+
+      # The About text is one of the copies of the README's one-line
+      # description; the others are checked offline by the tests. One leg
+      # of the matrix is enough, since it reads GitHub, not this machine.
+      - name: GitHub About text matches the README
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        run: node scripts/check-about.ts
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Build
         run: pnpm build
