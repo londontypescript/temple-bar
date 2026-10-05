@@ -99,6 +99,7 @@ export function formatSizeReport(report: PullRequestSizeReport): string {
     "pr-size: warning: this pull request may be too big or mix concerns:",
     ...report.problems.map((problem) => `  - ${problem}`),
     "A squash merge makes each pull request one commit on main, so keep one concern per pull request: open one pull request per issue.",
+    "If the issues really are one concern, add a line to the description starting `One concern:` that says why.",
   ];
   return `${lines.join("\n")}\n`;
 }
@@ -106,7 +107,7 @@ export function formatSizeReport(report: PullRequestSizeReport): string {
 /** GitHub Actions turns this line into an annotation on the pull request.
  * Its data must be one line, with %, CR and LF escaped. */
 function formatAnnotation(report: PullRequestSizeReport): string {
-  const message = `This pull request may be too big or mix concerns: ${report.problems.join("; ")}. Open one pull request per issue.`;
+  const message = `This pull request may be too big or mix concerns: ${report.problems.join("; ")}. Open one pull request per issue, or add a \`One concern:\` line to the description that says why they are one concern.`;
   const escaped = message
     .replaceAll("%", "%25")
     .replaceAll("\r", "%0D")
