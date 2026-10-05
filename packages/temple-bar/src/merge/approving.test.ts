@@ -1,5 +1,6 @@
-// The "what you are approving" section: machinery changes, dependency
-// changes and the open incident count, each shown even when there are none.
+// The "what you are approving" section: changes that need the maintainer's
+// yes, machinery changes, dependency changes and the open incident count,
+// each shown even when there are none.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -24,6 +25,7 @@ function changes(
 void test("a pull request touching neither machinery nor dependencies says none, and zero incidents", () => {
   assert.deepEqual(approvingSection(7, changes(["src/x.ts"]), 0), [
     "what you are approving in #7:",
+    "  maintainer's yes: not needed",
     "  machinery: none",
     "  dependencies: none added, removed or changed in major version",
     "  incidents: 0 open issues labelled incident",
@@ -148,7 +150,7 @@ void test("lists dependencies added, removed and moved to a new major version, a
 
 void test("a changed lockfile is mentioned, with what the list leaves out", () => {
   const lines = approvingSection(3, changes(["pnpm-lock.yaml"]), 1);
-  assert.deepEqual(lines.slice(2), [
+  assert.deepEqual(lines.slice(3), [
     "  dependencies: none added, removed or changed in major version",
     "    pnpm-lock.yaml changed too; versions within existing ranges and indirect dependencies aren't listed",
     "  incidents: 1 open issue labelled incident",
@@ -177,7 +179,7 @@ void test("merge prints the section before waiting for checks, with its counts",
   const out = h.out();
   assert.match(
     out,
-    /merge: what you are approving in #7:\nmerge: {3}machinery: 1 change to how this repository is checked\nmerge: {5}eslint\.config\.js \(lint config\)\nmerge: {3}dependencies: 1 change\nmerge: {5}added zod \^4\.0\.0\nmerge: {3}incidents: 3 open issues labelled incident\n/,
+    /merge: what you are approving in #7:\nmerge: {3}maintainer's yes: not needed\nmerge: {3}machinery: 1 change to how this repository is checked\nmerge: {5}eslint\.config\.js \(lint config\)\nmerge: {3}dependencies: 1 change\nmerge: {5}added zod \^4\.0\.0\nmerge: {3}incidents: 3 open issues labelled incident\n/,
   );
   assert.ok(
     out.indexOf("what you are approving") < out.indexOf("checks passed"),
@@ -191,7 +193,29 @@ void test("the section comes with a refusal for the maintainer's yes, so the req
   const h = harness(world);
   assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 1);
   assert.match(h.err(), /needs the maintainer's yes/);
-  assert.match(h.out(), /machinery: none\n.*\n.*incidents: 3 open issues/);
+  assert.match(
+    h.out(),
+    /merge: {3}maintainer's yes: needed for 1 change\nmerge: {5}changes AGENTS\.md\nmerge: {3}machinery: none\n.*\n.*incidents: 3 open issues/,
+  );
+});
+
+void test("the section lists each change that needs the maintainer, of both kinds", () => {
+  assert.deepEqual(
+    approvingSection(
+      7,
+      changes([
+        "AGENTS.md",
+        "packages/a/AGENTS.md",
+        ".github/workflows/ci.yml",
+      ]),
+      0,
+    ).slice(1, 4),
+    [
+      "  maintainer's yes: needed for 2 changes",
+      "    changes AGENTS.md, packages/a/AGENTS.md",
+      "    changes the checks that judge it (.github/workflows/ci.yml (changed))",
+    ],
+  );
 });
 
 void test("the section comes with the refusal of a change to the checks too", async () => {

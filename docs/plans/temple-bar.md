@@ -76,7 +76,7 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 45  | Hooks live in git's shared hooks folder, so every worktree has them                 | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 46  | Repository admins merge check changes past the judge, through a pull request only   | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
 | 47  | `merge` refuses check changes; it and the judge both say to ask for the admin merge | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-| 48  | `ready` asks about exactly the files the judge guards, from the judge's own list    | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 48  | `ready` warns about exactly the files the judge guards, from the judge's own list   | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
 | 49  | Bypass merges are detected and reported from rule-suite history (from 0.0.8)        | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
 | 50  | The gate fails without the judge's ruleset, except while its workflow is on its way | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
 | 51  | One maintainer yes creates both rulesets                                            | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
