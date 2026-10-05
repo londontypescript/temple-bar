@@ -30,12 +30,13 @@ a full CI run, so a branch is pushed only when its work is final: agreed with
 the maintainer for changes that need their yes (AGENTS.md, plan decisions, the
 README), or finished by the agent otherwise. The planned mechanism is a
 `pre-push` hook that refuses a push until `temple-bar ready` has marked the
-current commit; any new commit clears the mark, and changes that need the
-maintainer's yes need their confirmation typed in a terminal. Known limits:
-`git push --no-verify` skips the hook, and a cloud agent with no terminal
-needs another way to get the confirmation, still to be designed. Not built
-yet: [#65](https://github.com/londontypescript/temple-bar/issues/65). Until
-then, AGENTS.md §2 states the rule as prose.
+current commit; any new commit clears the mark. For changes that need the
+maintainer's yes, `ready` and `pre-push` warn and tell the agent to ask the
+maintainer in chat before pushing. Known limit: `git push --no-verify` skips
+the hook. Built as [ADR 0012](0012-push-once-with-ready.md) describes, which
+also says why the yes is a warning rather than a typed confirmation
+([#65](https://github.com/londontypescript/temple-bar/issues/65),
+[#237](https://github.com/londontypescript/temple-bar/issues/237)).
 
 **Decision 24: commit messages.** Conventional prefixes (`feat`, `fix`,
 `docs`, `chore`, with a scope where it helps), proportional to the change,
@@ -79,9 +80,10 @@ the remote branch is gone. It blocks until done, so it works under any
 harness, including one that can't be woken when checks finish. A branch
 that's behind the default branch is brought up to date by merging the
 default branch into it and pushing normally, never by rewriting it. A change
-to AGENTS.md or to the pinned temple-bar needs `--maintainer-approved`, which
-is passed only after the maintainer's yes in chat, and the command never
-bypasses the ruleset. Built in 0.0.5
+to AGENTS.md needs `--maintainer-approved`, which is passed only after the
+maintainer's yes in chat and is recorded in the squash message (see
+[ADR 0012](0012-push-once-with-ready.md)), and the command never bypasses
+the ruleset. Built in 0.0.5
 ([#64](https://github.com/londontypescript/temple-bar/issues/64)); this repo
 uses it once it pins that release.
 
