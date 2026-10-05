@@ -34,7 +34,13 @@ interface Scenario {
   /** The commit `temple-bar ready` marked; defaults to NEW, the pushed tip.
    * null means nothing is marked. */
   mark?: string | null;
+  /** Files the branch changes since it left origin's default branch. */
+  changed?: string[];
+  /** git can't find where the branch left origin's default branch. */
+  noMergeBase?: boolean;
 }
+
+const BASE = "e".repeat(40);
 
 const MARK_FILE = "/repo/.git/temple-bar-ready";
 
@@ -56,8 +62,16 @@ function setup(scenario: Scenario = {}) {
           ? { code: 128, stdout: "", stderr: "not a valid object" }
           : ok();
       case "merge-base":
-        return { code: scenario.ancestor ?? 0, stdout: "", stderr: "" };
+        if (args[1] === "--is-ancestor") {
+          return { code: scenario.ancestor ?? 0, stdout: "", stderr: "" };
+        }
+        return scenario.noMergeBase === true
+          ? { code: 1, stdout: "", stderr: "no merge base" }
+          : ok(`${BASE}\n`);
       case "diff":
+        if (args[1] === "--name-only") {
+          return ok((scenario.changed ?? ["a.ts"]).join("\n"));
+        }
         return scenario.diffFails === true
           ? { code: 128, stdout: "", stderr: "bad revision origin/main" }
           : ok(scenario.numstat ?? "5\t1\ta.ts\0");
@@ -118,7 +132,7 @@ void test("pre-push: an ancestry check that errors is refused, not guessed", asy
 void test("pre-push: a new branch is allowed without comparing anything", async () => {
   const { ctx, git } = setup();
   assert.equal(await prePushCheck(line("refs/heads/work", NEW, ZERO), ctx), 0);
-  assert.ok(!git.calls.some((call) => call.args[0] === "merge-base"));
+  assert.ok(!git.calls.some((call) => call.args[1] === "--is-ancestor"));
 });
 
 void test("pre-push: deleting a branch is allowed and not measured", async () => {
@@ -230,4 +244,46 @@ void test("pre-push: a push to the default branch doesn't need a mark here", asy
   const { ctx, stderr } = setup({ mark: null });
   assert.equal(await prePushCheck(line("refs/heads/main", NEW, OLD), ctx), 0);
   assert.equal(stderr.lines.length, 0);
+});
+
+void test("pre-push: a marked branch that changes AGENTS.md warns to ask the maintainer in chat, and still pushes", async () => {
+  const { ctx, stderr, git } = setup({ changed: ["AGENTS.md", "a.ts"] });
+  assert.equal(await prePushCheck(line("refs/heads/work", NEW, ZERO), ctx), 0);
+  assert.equal(
+    stderr.lines.join(""),
+    "temple-bar: warning: work needs the maintainer's yes before it is pushed: changes AGENTS.md.\n" +
+      "Ask the maintainer in chat, and push only once they say yes.\n",
+  );
+  assert.ok(
+    git.calls.some(
+      (call) =>
+        call.args.join(" ") ===
+        `diff --name-only --no-renames ${BASE}...${NEW}`,
+    ),
+    "compared from where the branch left origin's default branch",
+  );
+});
+
+void test("pre-push: a marked branch that changes a CI workflow warns, naming it", async () => {
+  const { ctx, stderr } = setup({ changed: [".github/workflows/ci.yml"] });
+  assert.equal(await prePushCheck(line("refs/heads/work", NEW, ZERO), ctx), 0);
+  assert.match(
+    stderr.lines.join(""),
+    /work needs the maintainer's yes before it is pushed: changes the checks that judge it \(\.github\/workflows\/ci\.yml/,
+  );
+});
+
+void test("pre-push: an unmarked AGENTS.md branch is refused for the mark, without the maintainer warning", async () => {
+  const { ctx, stderr } = setup({ mark: null, changed: ["AGENTS.md"] });
+  assert.equal(await prePushCheck(line("refs/heads/work", NEW, ZERO), ctx), 1);
+  assert.doesNotMatch(stderr.lines.join(""), /maintainer/);
+});
+
+void test("pre-push: when the maintainer check can't run, the reason is printed and the push is allowed", async () => {
+  const { ctx, stderr } = setup({ noMergeBase: true });
+  assert.equal(await prePushCheck(line("refs/heads/work", NEW, ZERO), ctx), 0);
+  assert.match(
+    stderr.lines.join(""),
+    /could not check whether work needs the maintainer's yes, pushing anyway: could not find where this branch left origin\/main: no merge base/,
+  );
 });

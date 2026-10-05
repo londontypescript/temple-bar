@@ -61,6 +61,32 @@ void test("without bullets, the squash message is the title alone, then co-autho
   });
 });
 
+void test("a maintainer-approved change gets a trailer naming it, before the co-authors", () => {
+  const pullRequest = { number: 12, title: "docs(agents): x", body: "- one" };
+  assert.equal(
+    buildSquashMessage(
+      pullRequest,
+      ["Ada <ada@example.com>"],
+      ["changes AGENTS.md", "changes docs/AGENTS.md"],
+    ).body,
+    "- one\n\nMaintainer-Approved: changes AGENTS.md; changes docs/AGENTS.md\nCo-Authored-By: Ada <ada@example.com>",
+  );
+  // With no bullets and no co-authors, the trailer stands alone.
+  assert.equal(
+    buildSquashMessage({ ...pullRequest, body: "" }, [], ["changes AGENTS.md"])
+      .body,
+    "Maintainer-Approved: changes AGENTS.md",
+  );
+});
+
+void test("a change that needed no yes carries no maintainer trailer", () => {
+  const body = buildSquashMessage(
+    { number: 12, title: "fix: x", body: "- one" },
+    ["Ada <ada@example.com>"],
+  ).body;
+  assert.doesNotMatch(body, /Maintainer-Approved/);
+});
+
 void test("co-authors are listed once each, compared without case, in first-seen order", async () => {
   const git = createFakeGit(() => ({
     code: 0,

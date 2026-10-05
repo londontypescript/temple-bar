@@ -14,6 +14,11 @@
 //      never blocked: planning should have kept it small long before this
 //      last look. The CI step is the strict one, so if measuring fails here
 //      the reason is printed and the push goes ahead.
+//   4. A branch that needs the maintainer's yes (AGENTS.md, or the checks
+//      that judge the repo) gets the same warning `ready` printed, as the
+//      last thing seen before it leaves. It is never blocked: nothing on
+//      this machine can tell whether the maintainer said yes in chat, and
+//      `temple-bar merge` is where the claim is made and recorded.
 //
 // Pushes to the default branch itself are already refused elsewhere (the
 // GitHub ruleset and the reference-transaction hook), so this hook leaves
@@ -22,6 +27,10 @@
 
 import type { Context } from "../context.ts";
 import { checkPullRequestSize, formatSizeReport } from "../pr/size.ts";
+import {
+  changesNeedingMaintainer,
+  maintainerWarning,
+} from "../ready/maintainer.ts";
 import { readMark } from "../ready/mark.ts";
 import { findProtectedBranch } from "./protected-branch.ts";
 
@@ -137,6 +146,25 @@ async function warnIfTooBig(
   }
 }
 
+async function warnIfNeedsMaintainer(
+  ref: PushedRef,
+  ctx: Context,
+): Promise<void> {
+  try {
+    const reasons = await changesNeedingMaintainer(ctx, ctx.cwd, ref.localSha);
+    if (reasons.length > 0) {
+      ctx.stderr.write(
+        `temple-bar: ${maintainerWarning(branchName(ref), reasons)}`,
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    ctx.stderr.write(
+      `temple-bar: could not check whether ${branchName(ref)} needs the maintainer's yes, pushing anyway: ${message}\n`,
+    );
+  }
+}
+
 /** Exit 1 when any pushed branch would be force-pushed or its tip isn't the
  * commit marked ready, else 0. */
 export async function prePushCheck(
@@ -180,6 +208,7 @@ export async function prePushCheck(
       continue;
     }
     await warnIfTooBig(ref, defaultBranch, ctx);
+    await warnIfNeedsMaintainer(ref, ctx);
   }
   return refused ? 1 : 0;
 }

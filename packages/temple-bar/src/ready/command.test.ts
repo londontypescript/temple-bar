@@ -1,17 +1,16 @@
-// Unit tests for `temple-bar ready` with fake git, fs and prompt, and a gate
-// whose result each test chooses. The real-git version, with the real gate
-// and the real pre-push hook, is ready.integration.test.ts.
+// Unit tests for `temple-bar ready` with fake git and fs, and a gate whose
+// result each test chooses. The real-git version, with the real gate and
+// the real pre-push hook, is ready.integration.test.ts.
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { GitResult } from "../seams/git.ts";
-import type { ConfirmResult } from "../seams/prompt.ts";
+import type { PromptSeam } from "../seams/prompt.ts";
 import {
   createFakeContext,
   createFakeFs,
   createFakeGit,
-  createFakePrompt,
   createFakeWriter,
 } from "../testing/fakes.ts";
 import { createReadyCommand } from "./command.ts";
@@ -27,8 +26,6 @@ interface Scenario {
   changed?: string[];
   /** Exit code the gate returns; 0 by default. */
   gate?: number;
-  /** A terminal is attached, and what the user answers. */
-  terminal?: ConfirmResult;
   /** HEAD after the gate has run, when it moved meanwhile. */
   headAfterGate?: string;
   /** origin/main isn't known in this clone. */
@@ -81,10 +78,19 @@ function setup(scenario: Scenario = {}) {
   const fs = createFakeFs({ [MARK_FILE]: `${"0".repeat(39)}1\n` });
   const stdout = createFakeWriter();
   const stderr = createFakeWriter();
-  const prompt =
-    scenario.terminal === undefined
-      ? createFakePrompt()
-      : createFakePrompt({ interactive: true, answer: scenario.terminal });
+  // ready never asks anything in the terminal, so any use of the prompt is
+  // counted, and each test checks the count stays at zero.
+  let promptUses = 0;
+  const prompt: PromptSeam = {
+    isInteractive: () => {
+      promptUses += 1;
+      return true;
+    },
+    confirm: () => {
+      promptUses += 1;
+      return Promise.resolve("yes");
+    },
+  };
   const ctx = createFakeContext({ git, fs, prompt, stdout, stderr });
   const command = createReadyCommand(() => {
     gateRan += 1;
@@ -94,6 +100,7 @@ function setup(scenario: Scenario = {}) {
     run: () => command.run([], ctx),
     mark: () => fs.files.get(MARK_FILE),
     gateRuns: () => gateRan,
+    promptUses: () => promptUses,
     stdout,
     stderr,
   };
@@ -137,48 +144,47 @@ void test("ready: a commit that moved while the gate ran is not marked", async (
   assert.match(t.stderr.lines.join(""), /changed while the gate ran/);
 });
 
-void test("ready: an AGENTS.md change with no terminal says to ask the user, before running the gate", async () => {
+void test("ready: an AGENTS.md change is marked, with a warning to ask the maintainer in chat and no prompt", async () => {
   const t = setup({ changed: ["AGENTS.md", "src/a.ts"] });
-  assert.equal(await t.run(), 1);
-  assert.equal(t.gateRuns(), 0);
-  assert.equal(t.mark(), "");
-  const out = t.stderr.lines.join("");
-  assert.match(
-    out,
-    /needs the user's yes before it is pushed: it changes AGENTS\.md/,
-  );
-  assert.match(
-    out,
-    /Ask the user to run `temple-bar ready` themselves, in a terminal, in \/repo\./,
-  );
-});
-
-void test("ready: an AGENTS.md change is marked once the user types yes", async () => {
-  const t = setup({ changed: ["AGENTS.md"], terminal: "yes" });
   assert.equal(await t.run(), 0);
+  assert.equal(t.gateRuns(), 1);
   assert.equal(t.mark(), `${HEAD}\n`);
+  assert.equal(t.promptUses(), 0, "ready asks nothing in the terminal");
+  assert.equal(
+    t.stderr.lines.join(""),
+    "ready: warning: ccccccc needs the maintainer's yes before it is pushed: changes AGENTS.md.\n" +
+      "Ask the maintainer in chat, and push only once they say yes.\n",
+  );
 });
 
-void test("ready: an AGENTS.md change the user says no to is not marked", async () => {
-  const t = setup({ changed: ["docs/AGENTS.md"], terminal: "no" });
+void test("ready: a nested AGENTS.md is warned about too", async () => {
+  const t = setup({ changed: ["docs/AGENTS.md"] });
+  assert.equal(await t.run(), 0);
+  assert.match(t.stderr.lines.join(""), /changes docs\/AGENTS\.md\./);
+});
+
+void test("ready: a failing gate on an AGENTS.md change refuses, without the warning", async () => {
+  const t = setup({ changed: ["AGENTS.md"], gate: 1 });
   assert.equal(await t.run(), 1);
-  assert.equal(t.mark(), "");
-  assert.match(t.stderr.lines.join(""), /the user did not agree/);
+  const out = t.stderr.lines.join("");
+  assert.match(out, /the gate did not pass/);
+  assert.doesNotMatch(out, /maintainer/);
 });
 
 // The same list the judge guards, from the judge's own code: a change
-// that only the maintainer can merge is one the user sees before it's pushed.
-void test("ready: a change to a CI workflow with no terminal says to ask the user", async () => {
+// that only the maintainer can merge is one they hear about before it's
+// pushed.
+void test("ready: a change to a CI workflow is warned about, naming it", async () => {
   const t = setup({ changed: [".github/workflows/ci.yml", "src/a.ts"] });
-  assert.equal(await t.run(), 1);
-  assert.equal(t.gateRuns(), 0);
+  assert.equal(await t.run(), 0);
+  assert.equal(t.promptUses(), 0);
   assert.match(
     t.stderr.lines.join(""),
-    /needs the user's yes before it is pushed: it changes the checks that judge it \(\.github\/workflows\/ci\.yml \(changed\)\)/,
+    /needs the maintainer's yes before it is pushed: changes the checks that judge it \(\.github\/workflows\/ci\.yml \(changed\)\)/,
   );
 });
 
-void test("ready: a changed pin or gate script asks the user, naming each", async () => {
+void test("ready: a changed pin or gate script is warned about, naming each", async () => {
   const pin = "@londontypescript/temple-bar";
   const t = setup({
     changed: ["package.json"],
@@ -190,8 +196,7 @@ void test("ready: a changed pin or gate script asks the user, naming each", asyn
       head: { scripts: { lint: "true" }, devDependencies: { [pin]: "0.0.7" } },
     },
   });
-  assert.equal(await t.run(), 1);
-  assert.equal(t.gateRuns(), 0);
+  assert.equal(await t.run(), 0);
   const out = t.stderr.lines.join("");
   assert.match(
     out,
@@ -200,23 +205,24 @@ void test("ready: a changed pin or gate script asks the user, naming each", asyn
   assert.match(out, /package\.json: the "lint" script/);
 });
 
-void test("ready: a package.json change outside the checks never asks", async () => {
+void test("ready: a package.json change outside the checks is not warned about", async () => {
   const t = setup({
     changed: ["package.json"],
     manifests: {
       base: { scripts: { build: "tsc" } },
       head: { scripts: { build: "tsc -b" } },
     },
-    terminal: "no",
   });
   assert.equal(await t.run(), 0);
+  assert.equal(t.stderr.lines.length, 0);
 });
 
-void test("ready: an ordinary change never asks, even with a terminal", async () => {
-  // "no" would refuse if it were asked, so a pass shows it wasn't.
-  const t = setup({ terminal: "no" });
+void test("ready: an ordinary change prints no warning", async () => {
+  const t = setup();
   assert.equal(await t.run(), 0);
   assert.equal(t.mark(), `${HEAD}\n`);
+  assert.equal(t.stderr.lines.length, 0);
+  assert.equal(t.promptUses(), 0);
 });
 
 void test("ready: with no origin default branch to compare with, says to fetch", async () => {

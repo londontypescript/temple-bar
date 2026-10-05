@@ -1,8 +1,11 @@
 // "What you are approving": a short section merge prints before it waits
 // for checks, so whoever is asked to approve the merge sees what the code
-// diff hides. Three things, each shown even when there is nothing, so "none"
+// diff hides. Four things, each shown even when there is nothing, so "none"
 // is a statement rather than a missing line:
 //
+//   - the maintainer's yes: each change that needs it (see approval.ts),
+//     such as a change to AGENTS.md, so the maintainer asked in chat sees
+//     what they are saying yes to.
 //   - machinery: changes to what checks this repository (CI workflows, the
 //     lint, format and TypeScript config, the scripts the gate runs, the
 //     hook install, the pinned temple-bar). A pull request that changes
@@ -18,6 +21,7 @@ import path from "node:path";
 import { LOCKFILE_NAMES } from "../gate/lengths.ts";
 import { REQUIRED_SCRIPTS } from "../gate/stack.ts";
 import { TEMPLE_BAR_PACKAGE } from "../judge/changes.ts";
+import { reasonsForMaintainersYes } from "./approval.ts";
 import {
   allDependencies,
   pinnedTempleBar,
@@ -171,6 +175,14 @@ export function approvingSection(
   incidents: number | undefined,
 ): string[] {
   const lines = [`what you are approving in #${String(prNumber)}:`];
+
+  const maintainer = reasonsForMaintainersYes(changes);
+  lines.push(
+    maintainer.length === 0
+      ? "  maintainer's yes: not needed"
+      : `  maintainer's yes: needed for ${counted(maintainer.length, "change", "changes")}`,
+    ...maintainer.map((entry) => `    ${entry}`),
+  );
 
   const machinery = machineryChanges(changes);
   lines.push(
