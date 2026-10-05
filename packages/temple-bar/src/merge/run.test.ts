@@ -33,6 +33,26 @@ void test("merges with a written squash message pinned to the checked head", asy
   ]);
 });
 
+void test("reports bypass merges already on the default branch, and still merges", async () => {
+  const world = defaultWorld();
+  world.bypasses = `${JSON.stringify({
+    id: 1,
+    after_sha: "4bd23a923cfde9e247195c391aa44e9709f5f8af",
+    actor_name: "maintainer",
+    pushed_at: "2026-10-04T03:35:02+01:00",
+  })}\n`;
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
+  assert.match(
+    h.out(),
+    /merge: bypass merges on main in the past month: 1\. .*\nmerge: {3}4bd23a9 by maintainer at 2026-10-04T03:35:02\+01:00, past main: the judge \(required_status_checks\)\n/,
+  );
+
+  const quiet = harness(defaultWorld());
+  assert.equal(await createMergeCommand(quiet.deps).run(["7"], quiet.ctx), 0);
+  assert.match(quiet.out(), /bypass merges on main in the past month: none/);
+});
+
 void test("never bypasses a ruleset or forces a push", async () => {
   const world = defaultWorld();
   world.behind = true;
