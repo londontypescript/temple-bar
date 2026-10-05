@@ -157,6 +157,9 @@ for (const pm of ["pnpm"] as const) {
 
       const launch = await run(launcher.command, launcher.args, inDir);
       assert.equal(launch.code, 0, describe(launch));
+      // CodeQL hasn't analysed the default branch yet, so setup doesn't
+      // require it and says to run again.
+      assert.match(launch.stdout, /CodeQL isn't required yet/);
       assert.ok(
         registry.requested.includes(PACKAGE_NAME),
         "added from the registry",

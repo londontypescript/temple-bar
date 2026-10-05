@@ -11,7 +11,7 @@ same pull request as any change to a mechanism.
 | No force-push or deletion of `main`       | GitHub ruleset on `main`                             | **Blocked** on GitHub |
 | CI passes before merge                    | required status checks (U6)                          | **Blocked** on GitHub |
 | One concern per pull request              | `temple-bar pr-size` in CI                           | **Warned** only       |
-| CodeQL passes before merge                | required check, from M2                              | **Blocked** from M2   |
+| CodeQL passes before merge                | ruleset `code_scanning` rule, checked by the gate    | **Blocked** on GitHub |
 | Squash merges only on `main`              | ruleset: squash only, linear history; repo settings  | **Blocked** on GitHub |
 | Signed commits on `main`                  | ruleset: required signatures (GitHub signs squashes) | **Blocked** on GitHub |
 | No commits to the local default branch    | pinned temple-bar hooks, once installed              | **Blocked** locally   |

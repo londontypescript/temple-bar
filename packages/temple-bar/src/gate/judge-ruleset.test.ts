@@ -39,6 +39,18 @@ function checks(
 }
 
 const JUDGE = { context: "temple-bar judge", integration_id: 15368 };
+const CODEQL: EffectiveRule = {
+  type: "code_scanning",
+  parameters: {
+    code_scanning_tools: [
+      {
+        tool: "CodeQL",
+        security_alerts_threshold: "high_or_higher",
+        alerts_threshold: "errors",
+      },
+    ],
+  },
+};
 // Another ruleset's required checks, as temple-bar's own `main` has.
 const CI = checks([{ context: "gate (ubuntu-latest)" }], false);
 
@@ -86,7 +98,8 @@ function run(options: {
     if (url === CONTENTS_URL) {
       return options.contents ?? json(404, { message: "Not Found" });
     }
-    return json(200, options.rules);
+    // CodeQL required too, so only the judge's rule is in question.
+    return json(200, [...options.rules, CODEQL]);
   });
   const stderr = createFakeWriter();
   const ctx = createFakeContext({

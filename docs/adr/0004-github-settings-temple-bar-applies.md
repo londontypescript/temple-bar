@@ -13,7 +13,19 @@ fix which settings temple-bar touches.
 ## Decision
 
 **Decision 25: CodeQL is a required check on the `main` ruleset.** A pull
-request can't merge while code scanning fails, the same as CI.
+request can't merge while code scanning fails, the same as CI. Setup turns on
+CodeQL's default setup under the same yes as the rulesets, and adds a
+`code_scanning` rule (CodeQL, blocking on errors and on security alerts high
+or higher) to the `main` ruleset on a later run, once CodeQL has analysed the
+default branch: requiring it before then would block every pull request,
+the setup pull request included. The judge's ruleset waits for its workflow
+the same way ([ADR 0011](0011-which-checks-judge-a-pull-request.md)). Code
+scanning is free only on public repositories, so on a private one setup
+explains and leaves it off. The gate fails when the rule is missing or
+looser, except on setup's own pull request, while the judge workflow is
+still on its way to the default branch: CI's token can't read whether
+CodeQL has analysed yet, and that pull request is the one whose merge lets
+setup finish.
 
 **Decision 34: the same GitHub rulesets on every London TypeScript repo,
 including signed commits.** Setup applies them, and the gate checks they are

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { offerRuleset, rulesetBody } from "./github-ruleset.ts";
+import { offerProtection as offerRuleset } from "./github-protection.ts";
+import { rulesetBody } from "./github-ruleset.ts";
+import { codeScanningAnswer } from "./testing/code-scanning-fake.ts";
 import {
   createFakeContext,
   createFakeGh,
@@ -34,6 +36,10 @@ function ghWithNoRulesets(create: GhResult = ok(), judgeOnMain = false) {
   return createFakeGh((args) => {
     if (args.includes("POST")) {
       return create;
+    }
+    const codeScanning = codeScanningAnswer(args, "required");
+    if (codeScanning !== undefined) {
+      return codeScanning;
     }
     if (isContentsRead(args)) {
       return judgeOnMain ? ok() : notFound;
@@ -109,10 +115,12 @@ void test("offerRuleset: no terminal names the flag an agent passes after asking
 });
 
 void test("offerRuleset: an existing branch ruleset is left alone, no prompt asked", async () => {
-  const gh = createFakeGh((args) =>
-    isContentsRead(args)
-      ? notFound
-      : ok(JSON.stringify([{ target: "branch" }])),
+  const gh = createFakeGh(
+    (args) =>
+      codeScanningAnswer(args, "required") ??
+      (isContentsRead(args)
+        ? notFound
+        : ok(JSON.stringify([{ target: "branch" }]))),
   );
   let asked = false;
   const ctx = createFakeContext({

@@ -1,6 +1,7 @@
 // The gate's ruleset check: the default branch must still be protected by
 // the rules `init` sets up (pull request, squash only, linear history, signed
-// commits, no force-push, no deletion). GitHub enforces them, but nothing
+// commits, no force-push, no deletion; the judge's check and CodeQL's
+// results are checked beside it). GitHub enforces them, but nothing
 // else notices if the ruleset is deleted or loosened later.
 //
 // How it reads GitHub: Node's built-in fetch against the public API, not
@@ -17,9 +18,14 @@ import type { Context } from "../context.ts";
 import { MANUAL_RULESET_STEPS } from "../init/github-ruleset.ts";
 import { checkOrigin, rerunInit } from "../init/requirements.ts";
 import {
+  CODE_SCANNING_CHECK,
+  codeScanningOutcome,
+} from "./code-scanning-rule.ts";
+import {
   findJudgeWorkflow,
   judgeRulesetOutcome,
   JUDGE_RULESET_CHECK,
+  type WorkflowLookup,
 } from "./judge-ruleset.ts";
 import type { CheckOutcome } from "./report.ts";
 import {
@@ -184,24 +190,26 @@ const NEEDS_TOKEN_MESSAGE =
   "  env:\n" +
   "    GH_TOKEN: ${{ github.token }}\n";
 
-/** Both outcomes alike, for an answer that judges neither ruleset. */
-function both(outcome: Omit<CheckOutcome, "name">): CheckOutcome[] {
+/** Every outcome alike, for an answer that judges none of the rules. */
+function every(outcome: Omit<CheckOutcome, "name">): CheckOutcome[] {
   return [
     { ...outcome, name: RULESET_CHECK },
     { ...outcome, name: JUDGE_RULESET_CHECK },
+    { ...outcome, name: CODE_SCANNING_CHECK },
   ];
 }
 
-/** The branch ruleset check, then the judge's (judge-ruleset.ts): one read
- * of GitHub serves both. */
+/** The branch ruleset check, then the judge's (judge-ruleset.ts) and
+ * CodeQL's (code-scanning-rule.ts): one read of GitHub serves all three,
+ * and the question about the judge workflow is asked at most once. */
 export async function runRulesetChecks(ctx: Context): Promise<CheckOutcome[]> {
   const result = await readRuleset(ctx);
   if (result.kind === "needs-token") {
     ctx.stderr.write(NEEDS_TOKEN_MESSAGE);
-    return both({ status: "failed", detail: "no GH_TOKEN in GitHub Actions" });
+    return every({ status: "failed", detail: "no GH_TOKEN in GitHub Actions" });
   }
   if (result.kind === "skipped") {
-    return both({ status: "skipped", detail: result.reason });
+    return every({ status: "skipped", detail: result.reason });
   }
   if (result.kind === "unreadable") {
     // Offline on a laptop is normal, so it is skipped there with its reason.
@@ -212,9 +220,9 @@ export async function runRulesetChecks(ctx: Context): Promise<CheckOutcome[]> {
       ctx.stderr.write(
         `gate: could not read the branch ruleset from GitHub: ${result.reason}\n`,
       );
-      return both({ status: "failed", detail });
+      return every({ status: "failed", detail });
     }
-    return both({ status: "skipped", detail });
+    return every({ status: "skipped", detail });
   }
   const problems = findRulesetProblems(result.rules);
   let branch: CheckOutcome;
@@ -234,8 +242,15 @@ export async function runRulesetChecks(ctx: Context): Promise<CheckOutcome[]> {
       detail: "the default branch has every rule setup creates",
     };
   }
-  const judge = await judgeRulesetOutcome(ctx, result.rules, () =>
-    findJudgeWorkflow(ctx, result.repoUrl, result.defaultBranch, result.token),
-  );
-  return [branch, judge];
+  let lookup: Promise<WorkflowLookup> | undefined;
+  const workflow = (): Promise<WorkflowLookup> =>
+    (lookup ??= findJudgeWorkflow(
+      ctx,
+      result.repoUrl,
+      result.defaultBranch,
+      result.token,
+    ));
+  const judge = await judgeRulesetOutcome(ctx, result.rules, workflow);
+  const codeScanning = await codeScanningOutcome(ctx, result.rules, workflow);
+  return [branch, judge, codeScanning];
 }
