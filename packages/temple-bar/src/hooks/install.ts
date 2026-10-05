@@ -96,7 +96,10 @@ const SHIMS: readonly Shim[] = [
   {
     name: "post-checkout",
     content: POST_CHECKOUT_SHIM,
-    earlierReleases: [],
+    // 0.0.5 to 0.0.7, which only set up new worktrees
+    earlierReleases: [
+      "2917b58cc9b7791b577edfc77514c49c29bd56d6fc447f57ac691c3e8a54ce43",
+    ],
   },
 ];
 

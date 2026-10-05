@@ -158,19 +158,30 @@ printf '%s\\n' "$input" | exec "$bin" hook reference-transaction "$state"
 `;
 
 // git passes the previous HEAD, the new HEAD and a flag (1 for a branch
-// checkout) on every checkout. Only a previous HEAD of all zeros, which is
-// what `git worktree add` passes, can mean a new checkout to set up; every
-// other checkout returns here without starting even git. The CLI then tells
-// a new worktree apart from a fresh clone, which passes zeros too.
+// checkout) on every checkout. Node starts for two kinds only. A previous
+// HEAD of all zeros, which is what `git worktree add` passes, can mean a new
+// worktree to set up; the CLI tells it apart from a fresh clone, which
+// passes zeros too. And any checkout in the main checkout (whose git folder
+// is the shared one), so the CLI can warn when it has left the default
+// branch. A checkout in a linked worktree returns here, after two quick git
+// calls.
 //
 // The checkout has already happened and can't be refused, so with no
-// temple-bar anywhere this only says what was skipped.
+// temple-bar anywhere this only says what was skipped: a new worktree that
+// wasn't set up. A warning that can't be checked is left out.
 export const POST_CHECKOUT_SHIM = `${HEADER}
 case "$1" in
-  ""|*[!0]*) exit 0 ;;
+  ""|*[!0]*) new=no ;;
+  *) new=yes ;;
 esac
+if [ "$new" = no ] && [ "$(git rev-parse --git-dir 2>/dev/null)" != "$(git rev-parse --git-common-dir 2>/dev/null)" ]; then
+  exit 0
+fi
 ${FIND_CLI}
 if [ -z "$bin" ]; then
+  if [ "$new" = no ]; then
+    exit 0
+  fi
   echo '${NOT_SET_UP_MESSAGE}' >&2
   exit 1
 fi

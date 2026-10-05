@@ -23,7 +23,7 @@ function ok(stdout: string): GitResult {
 
 /** git as seen from inside a linked worktree at /worktree of the repo whose
  * primary checkout is /primary; `linked: false` makes it the primary itself,
- * as in a fresh clone. */
+ * as in a fresh clone. HEAD is on main unless a test says otherwise. */
 function repoScript(
   options: { linked?: boolean; bare?: boolean } = {},
 ): (args: readonly string[]) => GitResult {
@@ -47,6 +47,9 @@ function repoScript(
         `${primary}\nworktree /worktree\nHEAD abc\nbranch refs/heads/b\n`,
       );
     }
+    if (joined === "symbolic-ref --quiet --short HEAD") {
+      return ok("main\n");
+    }
     if (args[0] === "ls-files") {
       return ok("");
     }
@@ -58,29 +61,58 @@ function repoGit(options: { linked?: boolean; bare?: boolean } = {}) {
   return createFakeGit(repoScript(options));
 }
 
-void test("post-checkout: a checkout with a previous HEAD does nothing, without even asking git", async () => {
-  const git = createFakeGit();
+void test("post-checkout: a branch switch in a linked worktree does nothing", async () => {
   const proc = createFakeProc();
   const stdout = createFakeWriter();
-  const ctx = createFakeContext({ git, proc, stdout, cwd: "/worktree" });
+  const stderr = createFakeWriter();
+  const ctx = createFakeContext({
+    git: repoGit(),
+    proc,
+    stdout,
+    stderr,
+    cwd: "/worktree",
+  });
 
   const code = await postCheckout(SOME_COMMIT, ctx);
 
   assert.equal(code, 0);
-  assert.equal(git.calls.length, 0);
   assert.equal(proc.calls.length, 0);
   assert.deepEqual(stdout.lines, []);
+  assert.deepEqual(stderr.lines, []);
+});
+
+void test("post-checkout: a branch switch in the main checkout warns it has left main, and still exits 0", async () => {
+  const inPrimary = repoScript({ linked: false });
+  const git = createFakeGit((args) =>
+    args.join(" ") === "symbolic-ref --quiet --short HEAD"
+      ? ok("feature\n")
+      : inPrimary(args),
+  );
+  const proc = createFakeProc();
+  const stderr = createFakeWriter();
+  const ctx = createFakeContext({ git, proc, stderr, cwd: "/primary" });
+
+  const code = await postCheckout(SOME_COMMIT, ctx);
+
+  assert.equal(code, 0);
+  assert.equal(proc.calls.length, 0);
+  assert.match(
+    stderr.lines.join(""),
+    /the main checkout at \/primary is on the branch feature, not main/,
+  );
 });
 
 void test("post-checkout: the first checkout of a fresh clone (not a linked worktree) does nothing", async () => {
   const proc = createFakeProc();
   const stdout = createFakeWriter();
+  const stderr = createFakeWriter();
   const fs = createFakeFs({ "/primary/pnpm-lock.yaml": "" });
   const ctx = createFakeContext({
     git: repoGit({ linked: false }),
     proc,
     fs,
     stdout,
+    stderr,
     cwd: "/primary",
   });
 
@@ -89,6 +121,7 @@ void test("post-checkout: the first checkout of a fresh clone (not a linked work
   assert.equal(code, 0);
   assert.equal(proc.calls.length, 0);
   assert.deepEqual(stdout.lines, []);
+  assert.deepEqual(stderr.lines, []);
 });
 
 void test("post-checkout: a new worktree gets pnpm install --frozen-lockfile, run in the worktree", async () => {
