@@ -59,7 +59,23 @@ void test("init report: a fresh repo names the companion files it wrote, and the
       `Wrote the files AGENTS\\.md links to, where missing: ${COMPANION_FILES.map((file) => file.path.replaceAll(".", "\\.")).join(", ")}\\.`,
     ),
   );
-  assert.match(out, /git add AGENTS\.md CLAUDE\.md docs\/ package\.json/);
+  assert.match(
+    out,
+    new RegExp(
+      `git add AGENTS\\.md ${COMPANION_FILES.map((file) => file.path.replaceAll(".", "\\.")).join(" ")} package\\.json`,
+    ),
+  );
+});
+
+void test("init report: the next steps add only the files setup wrote, never a whole folder with the project's own work in it", async () => {
+  const fixture = makeFixture({
+    fs: createFakeFs({ "/repo/docs/conventions.md": "# Ours\n" }),
+  });
+  assert.equal(await runInitFor(fixture), 0);
+  const out = fixture.stdout.lines.join("");
+  const addLine = /^ {2}git add .*$/m.exec(out)?.[0] ?? "";
+  assert.match(addLine, /docs\/agents-rationale\.md/);
+  assert.doesNotMatch(addLine, /docs\/conventions\.md|docs\/ /);
 });
 
 void test("init report: an AGENTS.md block setup can't update goes to stderr and ends the run non-zero, after the rest of setup", async () => {

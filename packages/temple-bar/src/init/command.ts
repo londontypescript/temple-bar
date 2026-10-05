@@ -23,6 +23,7 @@ import {
 } from "./files.ts";
 import type { InitDeps } from "./types.ts";
 import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
+import { CLAUDE_MD_PATH } from "./companion-docs.ts";
 
 export type { InitDeps } from "./types.ts";
 
@@ -229,7 +230,7 @@ async function runInit(
       packageOutcome.wrote ||
       hooksReport.items.some((item) => item.status === "written");
     if (changed) {
-      ctx.stdout.write(NEXT_STEPS);
+      ctx.stdout.write(nextSteps(files));
     }
   }
   return exitCode;
@@ -270,13 +271,34 @@ function reportAgentsFiles(ctx: Context, files: SetupFilesOutcome): boolean {
 export const SETUP_COMMIT_MESSAGE = "chore: set up temple-bar";
 
 /** The setup is uncommitted, and main now refuses direct commits: say how
- * to land it. Files are named, not `git add -A`, so unrelated work stays
- * out of the setup commit. */
-const NEXT_STEPS =
+ * to land it. Files are named, not `git add -A` or a whole folder, so
+ * unrelated work (in docs/, say) stays out of the setup commit: only the
+ * companion files this run wrote are listed. */
+function nextSteps(files: SetupFilesOutcome): string {
+  const claudeMdUpdated =
+    files.claudeMdAdded.length > 0 &&
+    !files.wroteCompanions.includes(CLAUDE_MD_PATH);
+  const paths = [
+    "AGENTS.md",
+    ...(claudeMdUpdated ? [CLAUDE_MD_PATH] : []),
+    ...files.wroteCompanions,
+    "package.json",
+    ".gitignore",
+    JUDGE_WORKFLOW_PATH,
+  ];
+  return (
+    NEXT_STEPS_BEFORE +
+    `  git add ${paths.join(" ")}  (plus your lockfile)\n` +
+    NEXT_STEPS_AFTER
+  );
+}
+
+const NEXT_STEPS_BEFORE =
   "Next: main now refuses direct commits, so land this setup through a " +
   "pull request:\n" +
-  "  git switch -c temple-bar-setup\n" +
-  `  git add AGENTS.md CLAUDE.md docs/ package.json .gitignore ${JUDGE_WORKFLOW_PATH}  (plus your lockfile)\n` +
+  "  git switch -c temple-bar-setup\n";
+
+const NEXT_STEPS_AFTER =
   `  git commit -m "${SETUP_COMMIT_MESSAGE}"\n` +
   "  git push -u origin temple-bar-setup\n" +
   "  gh pr create --fill\n";
