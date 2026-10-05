@@ -13,8 +13,11 @@
 // - .gitignore with every line setup keeps there, and the `prepare` and
 //   `gate` scripts in package.json, exactly as setup writes them.
 //
-// AGENTS.md is setup's too, but a repo without one must still be able to
-// pass the gate (the AGENTS.md size check skips it, see
+// - temple-bar's marked block in AGENTS.md, when the file has one: byte for
+//   byte the block this temple-bar writes, so an edit inside it fails.
+//
+// AGENTS.md itself is setup's too, but a repo without one must still be
+// able to pass the gate (the AGENTS.md size check skips it, see
 // docs/adr/0007-what-the-gate-checks.md), so its absence isn't failed here.
 // What a project writes itself after setup (its other scripts and
 // .gitignore lines) is its own: only setup's exact lines count.
@@ -30,7 +33,13 @@ import {
   PRE_PUSH_SHIM,
   REFERENCE_TRANSACTION_SHIM,
 } from "../hooks/shims.ts";
+import {
+  isCurrentBlock,
+  locateTempleBarBlock,
+  RESTORE_BLOCK,
+} from "../init/agents-template.ts";
 import { GATE_SCRIPT, GITIGNORE_LINES, PREPARE_SCRIPT } from "../init/files.ts";
+import { RERUN_INIT } from "../init/requirements.ts";
 import type { CheckOutcome } from "./report.ts";
 
 const CORE_CHECK = "core setup";
@@ -148,6 +157,37 @@ async function checkGitignore(ctx: Context): Promise<CoreProblem[]> {
   ];
 }
 
+/** AGENTS.md's temple-bar block, when there is one, must be exactly what
+ * this release's setup writes, like the hook shims. A repo without
+ * AGENTS.md, or one whose AGENTS.md has no markers, passes: the block is
+ * how setup adds its rules, not a requirement on every AGENTS.md (this
+ * repo's own, and those set up before the block existed, have none). */
+async function checkAgentsBlock(ctx: Context): Promise<CoreProblem[]> {
+  const content = await ctx.fs.readText(path.join(ctx.cwd, "AGENTS.md"));
+  if (content === undefined) {
+    return [];
+  }
+  const location = locateTempleBarBlock(content);
+  if (location.kind === "absent") {
+    return [];
+  }
+  if (location.kind === "malformed") {
+    return [{ problem: location.detail, fix: RESTORE_BLOCK }];
+  }
+  if (isCurrentBlock(location.block)) {
+    return [];
+  }
+  return [
+    {
+      problem:
+        "AGENTS.md's temple-bar block differs from the one this temple-bar version writes",
+      fix:
+        `if temple-bar was upgraded, run ${RERUN_INIT}; ` +
+        `if the block was edited, ${RESTORE_BLOCK}`,
+    },
+  ];
+}
+
 async function checkScripts(ctx: Context): Promise<CoreProblem[]> {
   const raw = await ctx.fs.readText(path.join(ctx.cwd, "package.json"));
   let scripts: Record<string, unknown> = {};
@@ -187,6 +227,7 @@ export async function findCoreProblems(ctx: Context): Promise<CoreProblem[]> {
     ...(await checkGitConfig(ctx)),
     ...(await checkGitignore(ctx)),
     ...(await checkScripts(ctx)),
+    ...(await checkAgentsBlock(ctx)),
   ];
 }
 

@@ -52,8 +52,9 @@ void test("gate e2e: a 201-line AGENTS.md is refused, and trimmed to 200 lines i
   try {
     initTestRepo(dir);
     writeFileSync(path.join(dir, "README.md"), "hello\n");
-    writeFileSync(path.join(dir, "AGENTS.md"), linesOf(201));
+    // After setup, which would otherwise add its own rules to the file.
     await installCore(dir);
+    writeFileSync(path.join(dir, "AGENTS.md"), linesOf(201));
     execFileSync("git", ["add", "-A"], { cwd: dir });
 
     const over = await runGateIn(dir);
