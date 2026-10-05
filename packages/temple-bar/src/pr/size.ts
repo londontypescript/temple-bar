@@ -53,7 +53,9 @@ export async function checkPullRequestSize(
       ? undefined
       : await readPullRequestText(ctx, options.prNumber);
   const closedIssues =
-    text === undefined ? undefined : findClosingIssues([text.title, text.body]);
+    text === undefined
+      ? undefined
+      : findClosingIssues([text.title, text.body], text.repository);
 
   const problems: string[] = [];
   if (size.linesChanged > config.maxPullRequestLines) {

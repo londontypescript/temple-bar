@@ -30,6 +30,7 @@ same pull request as any change to a mechanism.
 | Milestone scope stays the user's          | nothing                                              | **Prose only**        |
 | Whether wide changes mean duplication     | nothing: judgement                                   | **Prose only**        |
 | Worktree per branch; merge steps (§2)     | `temple-bar merge`; nothing forces its use           | **Prose only**        |
+| Main checkout stays on the default branch | `post-checkout` hook warns on a switch or detach     | **Warned** only       |
 | Issues closed need a `One concern:` line  | `temple-bar merge` refuses without it                | **Blocked** by merge  |
 | Push once, after the gate passed          | `ready` + `pre-push` from the pin that ships them    | **Blocked** locally   |
 | Maintainer asked in chat before a push    | `ready` and `pre-push` warn; see the limits below    | **Warned** only       |
@@ -38,6 +39,7 @@ same pull request as any change to a mechanism.
 | Ruleset not deleted or loosened           | the pinned gate in CI (public repos)                 | **Blocked** via CI    |
 | Check changes merged by the maintainer    | judge workflow + its ruleset, from 0.0.7; see below  | **Blocked** on GitHub |
 | Judge's ruleset still required            | the pinned gate in CI (public repos), from 0.0.7     | **Blocked** via CI    |
+| Release notes finished before publishing  | `pnpm release:publish` refuses unfinished notes      | **Blocked** locally   |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
 
 Known limits of push-once ([ADR 0012](adr/0012-push-once-with-ready.md)):
@@ -62,6 +64,6 @@ use the maintainer's account, so GitHub can't tell that merge from an
 agent's. `temple-bar merge` never makes it, but nothing yet reports one that
 was made.
 
-A rule that exists only as prose is a rule that will eventually be broken. If
+A rule that exists only as prose is a rule that will eventually be violated. If
 you find one drifting, the fix is a mechanism, not stronger wording. When a
 mechanism ships, shrink its rule in AGENTS.md to one line.

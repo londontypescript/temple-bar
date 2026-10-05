@@ -21,10 +21,15 @@ import {
   runSh,
 } from "./testing/repo-fixture.ts";
 import {
+  POST_CHECKOUT_SHIM_0_0_7,
   PRE_COMMIT_SHIM_0_0_3,
   REFERENCE_TRANSACTION_SHIM_0_0_3,
 } from "./testing/earlier-shims.ts";
-import { PRE_COMMIT_SHIM, REFERENCE_TRANSACTION_SHIM } from "./shims.ts";
+import {
+  POST_CHECKOUT_SHIM,
+  PRE_COMMIT_SHIM,
+  REFERENCE_TRANSACTION_SHIM,
+} from "./shims.ts";
 
 void test("install: writes every shim into the shared git folder, sets pull.ff and leaves core.hooksPath unset", () => {
   const fixture = createHookFixture();
@@ -146,6 +151,10 @@ void test("install: shims exactly as an earlier release wrote them are replaced,
       path.join(hooksDir, "reference-transaction"),
       REFERENCE_TRANSACTION_SHIM_0_0_3,
     );
+    writeFileSync(
+      path.join(hooksDir, "post-checkout"),
+      POST_CHECKOUT_SHIM_0_0_7,
+    );
 
     const result = installRealHooks(fixture);
 
@@ -161,6 +170,10 @@ void test("install: shims exactly as an earlier release wrote them are replaced,
     assert.equal(
       readFileSync(path.join(hooksDir, "reference-transaction"), "utf8"),
       REFERENCE_TRANSACTION_SHIM,
+    );
+    assert.equal(
+      readFileSync(path.join(hooksDir, "post-checkout"), "utf8"),
+      POST_CHECKOUT_SHIM,
     );
   } finally {
     fixture.cleanup();

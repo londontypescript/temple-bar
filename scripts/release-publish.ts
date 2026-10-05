@@ -1,5 +1,5 @@
-// Publishes the draft GitHub Release for a tag, but only once npm actually
-// serves both packages' files for that version:
+// Publishes the draft GitHub Release for a tag, but only once its notes are
+// finished and npm actually serves both packages' files for that version:
 //
 //   node scripts/release-publish.ts v0.0.7
 //   node scripts/release-publish.ts v0.0.7 --dry-run
@@ -10,12 +10,18 @@
 // points people at a version their package manager can't install yet. This
 // script asks for each package file directly, and keeps asking for a few
 // minutes before it gives up.
+//
+// It reads the draft's notes first and refuses while they still carry the
+// reminder comment or an empty Upgrading or Incidents section: release 0.0.7
+// was published with its notes unfinished.
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+
+import { unfinishedNotes } from "./release-notes.ts";
 
 const REGISTRY = "https://registry.npmjs.org";
 
@@ -30,13 +36,19 @@ const PACKAGE_DIRS = ["packages/temple-bar", "packages/create-temple-bar"];
 export interface PublishDeps {
   /** HTTP status of a full download of `url`; 0 when the request fails. */
   readonly download: (url: string) => Promise<number>;
-  /** Whether the GitHub Release for `tag` is a draft; undefined if none. */
-  readonly releaseIsDraft: (tag: string) => boolean | undefined;
+  /** The GitHub Release for `tag`: whether it is a draft, and its notes.
+   * Undefined if there is none. */
+  readonly viewRelease: (tag: string) => ReleaseView | undefined;
   /** Turns the draft GitHub Release for `tag` into a published one. */
   readonly publishRelease: (tag: string) => void;
   readonly now: () => number;
   readonly sleep: (ms: number) => Promise<void>;
   readonly log: (line: string) => void;
+}
+
+export interface ReleaseView {
+  readonly isDraft: boolean;
+  readonly body: string;
 }
 
 export interface PublishOptions {
@@ -63,12 +75,28 @@ export async function publishWhenDownloadable(
   const { tag, packageNames, dryRun } = options;
   const version = tag.replace(/^v/, "");
 
-  const draft = deps.releaseIsDraft(tag);
+  const release = deps.viewRelease(tag);
+  const draft = release?.isDraft;
   if (draft !== true && !dryRun) {
     deps.log(
       draft === undefined
         ? `No GitHub Release exists for ${tag}. The release workflow drafts one when the tag is pushed; check that it finished, then run this again.`
         : `The GitHub Release for ${tag} is already published. Nothing to do.`,
+    );
+    return 1;
+  }
+
+  // Checked before waiting on npm, so unfinished notes are found at once.
+  // A dry run checks them too, so it never says a draft is ready when it isn't.
+  const problems =
+    release?.isDraft === true ? unfinishedNotes(release.body) : [];
+  if (problems.length > 0) {
+    deps.log(
+      [
+        `Not published: the draft notes for ${tag} aren't finished:`,
+        ...problems.map((problem) => `  - ${problem}`),
+        `Edit the draft on GitHub (or gh release edit ${tag} --notes-file <file>), then run this again.`,
+      ].join("\n"),
     );
     return 1;
   }
@@ -126,14 +154,14 @@ async function download(url: string): Promise<number> {
   }
 }
 
-function releaseIsDraft(tag: string): boolean | undefined {
+function viewRelease(tag: string): ReleaseView | undefined {
   try {
     const out = execFileSync(
       "gh",
-      ["release", "view", tag, "--json", "isDraft", "--jq", ".isDraft"],
+      ["release", "view", tag, "--json", "isDraft,body"],
       { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-    ).trim();
-    return out === "true";
+    );
+    return JSON.parse(out) as ReleaseView;
   } catch {
     return undefined;
   }
@@ -168,7 +196,7 @@ async function main(args: readonly string[]): Promise<void> {
     { tag, packageNames: PACKAGE_DIRS.map(packageName), dryRun },
     {
       download,
-      releaseIsDraft,
+      viewRelease,
       publishRelease,
       now: Date.now,
       sleep: (ms) => delay(ms),

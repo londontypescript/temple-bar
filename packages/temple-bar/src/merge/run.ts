@@ -179,7 +179,7 @@ async function mergeAndReport(
   const repository = await readRepository(ctx, root);
   const first = await readPullRequest(ctx, options.prNumber, root);
   checkMergeable(first, repository);
-  checkOneConcern(first);
+  checkOneConcern(first, repository.nameWithOwner);
 
   await fetchOrigin(ctx, root);
   const sha = await upToDateTip(ctx, deps, first, repository, root);
