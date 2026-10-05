@@ -1,7 +1,7 @@
 {
   "name": "@londontypescript/create-temple-bar",
   "version": "0.0.7",
-  "description": "Sets up temple-bar, which enforces the London TypeScript workflow for AI coding agents: git hooks, a quality gate and GitHub rules.",
+  "description": "Sets up temple-bar, the London TypeScript workflow enforced on AI coding agents via git hooks, a quality gate and GitHub rules.",
   "keywords": [
     "typescript",
     "ai-agents",

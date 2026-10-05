@@ -54,6 +54,6 @@ use the maintainer's account, so GitHub can't tell that merge from an
 agent's. `temple-bar merge` never makes it, but nothing yet reports one that
 was made.
 
-A rule that exists only as prose is a rule that will eventually be broken. If
+A rule that exists only as prose is a rule that will eventually be violated. If
 you find one drifting, the fix is a mechanism, not stronger wording. When a
 mechanism ships, shrink its rule in AGENTS.md to one line.

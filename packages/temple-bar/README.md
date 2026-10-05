@@ -1,6 +1,8 @@
 # @londontypescript/temple-bar
 
-**Prose != Enforcement.** Rules for AI coding agents that git actually enforces.
+**The London TypeScript workflow, enforced on AI coding agents via git hooks, a quality gate and GitHub rules.**
+
+> A rule that exists only as prose is a rule that will eventually be violated.
 
 > **Pre-release** (`0.0.x`). Expect changes.
 
