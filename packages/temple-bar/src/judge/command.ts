@@ -14,10 +14,12 @@ import type { CommandEntry } from "../registry.ts";
 import { checkOrigin } from "../init/requirements.ts";
 import {
   ASK_FOR_ADMIN_MERGE,
+  changesLockfile,
   changesManifest,
   findCheckChanges,
 } from "./changes.ts";
 import {
+  readLockfiles,
   readManifests,
   readPullRequest,
   type PullRequestRef,
@@ -149,16 +151,22 @@ async function runJudge(
   if (!facts.ok) {
     return cantRead(facts.reason);
   }
-  let findings: string[];
-  if (changesManifest(facts.value.files)) {
-    const manifests = await readManifests(ctx, pr, facts.value);
-    if (!manifests.ok) {
-      return cantRead(manifests.reason);
-    }
-    findings = findCheckChanges(facts.value.files, manifests.value);
-  } else {
-    findings = findCheckChanges(facts.value.files);
+  // Both files are read only when the pull request changes them, and only
+  // as text to compare: nothing in them runs here.
+  const { files } = facts.value;
+  const manifests = changesManifest(files)
+    ? await readManifests(ctx, pr, facts.value)
+    : undefined;
+  if (manifests !== undefined && !manifests.ok) {
+    return cantRead(manifests.reason);
   }
+  const lockfiles = changesLockfile(files)
+    ? await readLockfiles(ctx, pr, facts.value)
+    : undefined;
+  if (lockfiles !== undefined && !lockfiles.ok) {
+    return cantRead(lockfiles.reason);
+  }
+  const findings = findCheckChanges(files, manifests?.value, lockfiles?.value);
 
   if (findings.length > 0) {
     ctx.stderr.write(formatCheckChanges(findings));
@@ -179,8 +187,9 @@ export const judgeCommand: CommandEntry = {
     "Reads the pull request's changed files from GitHub, without checking " +
     "out or running any of its code, and fails when they change a " +
     "workflow, the temple-bar version in package.json, the scripts the " +
-    "gate runs, or pnpm's install settings (pnpm-workspace.yaml, a " +
-    "pnpmfile, .npmrc). Setup's judge workflow runs it on every pull request.\n\n" +
+    "gate runs, pnpm's install settings (pnpm-workspace.yaml, a " +
+    "pnpmfile, .npmrc), or temple-bar's own entries in pnpm-lock.yaml. " +
+    "Setup's judge workflow runs it on every pull request.\n\n" +
     "Options:\n" +
     "  --pr <number>  The pull request to judge. In GitHub Actions it comes\n" +
     "                 from the event, and the repository from\n" +

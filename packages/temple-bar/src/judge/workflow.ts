@@ -36,9 +36,9 @@ const READ_PIN = `const { readFileSync, appendFileSync } = require("node:fs");
 export function judgeWorkflow(): string {
   return `# Written by temple-bar. The judge fails a pull request that changes the
 # checks which judge it: any workflow, the temple-bar version pinned in
-# package.json, the scripts the gate runs, or pnpm's install settings. A
-# pull request runs its own copy of those, so its own CI can't vouch for a
-# change to them. Such a change is the maintainer's to review and merge.
+# package.json or its lockfile entries, the scripts the gate runs, or pnpm's
+# install settings. A pull request runs its own copy of those, so its own CI
+# can't vouch for a change to them. Such a change is the maintainer's to review and merge.
 name: ${JUDGE_CHECK}
 
 # pull_request_target, not pull_request: GitHub runs this file as it is on
@@ -87,8 +87,10 @@ jobs:
             ${READ_PIN}
           '
 
-      # Exactly the pinned version, from the npm registry. Nothing else from
-      # the base branch is installed, so no install script runs here.
+      # Exactly the pinned version, from the npm registry. Nothing from the
+      # base branch is installed. npm does install temple-bar's own
+      # dependencies, without a lockfile, while the token is in reach; none
+      # of them has an install script today.
       - name: Judge the pull request
         run: npm exec --yes --package="@londontypescript/temple-bar@$PIN" -- temple-bar judge
         env:

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  changesLockfile,
   changesManifest,
   findCheckChanges,
   findCheckChangesInDiff,
@@ -205,4 +206,27 @@ void test("a local diff that leaves the checks alone has no findings", () => {
     }),
     [],
   );
+});
+
+void test("a changed lockfile is judged by temple-bar's entries in it, locally too, and must be read", () => {
+  const lockfile = (integrity: string): string =>
+    `lockfileVersion: '9.0'\n\npackages:\n\n  '@londontypescript/temple-bar@0.0.7':\n    resolution: {integrity: ${integrity}}\n`;
+  const same = { base: lockfile("sha512-a=="), head: lockfile("sha512-a==") };
+  const moved = { base: lockfile("sha512-a=="), head: lockfile("sha512-b==") };
+  const files = [file("pnpm-lock.yaml")];
+  assert.equal(changesLockfile(files), true);
+  assert.deepEqual(findCheckChanges(files, undefined, same), []);
+  const expected = [
+    "pnpm-lock.yaml: temple-bar's entries: packages > @londontypescript/temple-bar@0.0.7 (changed)",
+  ];
+  assert.deepEqual(findCheckChanges(files, undefined, moved), expected);
+  assert.deepEqual(
+    findCheckChangesInDiff(["pnpm-lock.yaml"], undefined, moved),
+    expected,
+  );
+  // An unread lockfile is a mistake in the caller, never a pass.
+  assert.throws(() => findCheckChanges(files));
+  assert.throws(() => findCheckChangesInDiff(["pnpm-lock.yaml"], undefined));
+  // A nested lockfile isn't the one CI installs from.
+  assert.equal(changesLockfile([file("packages/a/pnpm-lock.yaml")]), false);
 });

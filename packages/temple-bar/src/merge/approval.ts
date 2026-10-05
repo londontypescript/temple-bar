@@ -41,6 +41,7 @@ export function checkChanges(changes: PullRequestChanges): string[] {
   return findCheckChangesInDiff(
     changes.files,
     root === undefined ? undefined : { before: root.before, after: root.after },
+    changes.lockfile,
   );
 }
 

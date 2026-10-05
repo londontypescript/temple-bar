@@ -149,7 +149,15 @@ void test("lists dependencies added, removed and moved to a new major version, a
 });
 
 void test("a changed lockfile is mentioned, with what the list leaves out", () => {
-  const lines = approvingSection(3, changes(["pnpm-lock.yaml"]), 1);
+  const lockfile = "lockfileVersion: '9.0'\n";
+  const lines = approvingSection(
+    3,
+    {
+      ...changes(["pnpm-lock.yaml"]),
+      lockfile: { base: lockfile, head: lockfile },
+    },
+    1,
+  );
   assert.deepEqual(lines.slice(3), [
     "  dependencies: none added, removed or changed in major version",
     "    pnpm-lock.yaml changed too; versions within existing ranges and indirect dependencies aren't listed",
