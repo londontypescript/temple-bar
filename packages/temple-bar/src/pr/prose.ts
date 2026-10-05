@@ -9,7 +9,7 @@
  * content is code still has content; and it is not a word character or
  * `#`, so it can never become part of a closing keyword or an issue
  * reference. */
-export const CODE_SPAN = "";
+export const CODE_SPAN = "\uE000";
 
 /** A fence opens on a line of three or more backticks or tildes, indented
  * by at most three spaces. A backtick fence's info string can't hold a
