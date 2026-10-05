@@ -63,7 +63,12 @@ maintainer approves each one on npmjs.com with 2FA. The workflow leaves a
 draft GitHub Release, and `pnpm release:publish <tag>` publishes it only once
 both package files download from npm: in 0.0.4, npm listed the new version
 minutes before its files could be installed, and a Release published on the
-listing alone announced a version nobody could install yet. Tagging and
+listing alone announced a version nobody could install yet. It also refuses
+while the notes are unfinished: the draft's Upgrading section opens with the
+routine install command and a placeholder for any extra steps, and Incidents
+fixed starts empty, and publishing waits until the placeholder is replaced
+(or says "No other steps.") and the incidents are listed (or "None"). 0.0.7
+was published with neither written. Tagging and
 publishing also need the maintainer's yes before the orchestrator starts them
 ([ADR 0003](0003-how-a-change-reaches-main.md), decision 18).
 
