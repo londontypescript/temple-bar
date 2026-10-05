@@ -13,7 +13,11 @@ import {
   RESTORE_BLOCK,
   withTempleBarBlock,
 } from "./agents-template.ts";
-import { COMPANION_FILES } from "./companion-docs.ts";
+import {
+  CLAUDE_MD_PATH,
+  COMPANION_FILES,
+  fixClaudeMd,
+} from "./companion-docs.ts";
 import { RERUN_INIT } from "./requirements.ts";
 
 /** Writes `content` at `relativePath` only if nothing is there yet;
@@ -87,6 +91,23 @@ export async function writeCompanionFiles(
     }
   }
   return written;
+}
+
+/** Adds what an existing CLAUDE.md lacks (a heading, the AGENTS.md
+ * import), never removing anything; returns what it added, in words, or
+ * nothing when the file was already right or isn't there. */
+export async function updateClaudeMd(
+  ctx: Context,
+  repoRoot: string,
+): Promise<readonly string[]> {
+  const filePath = path.join(repoRoot, CLAUDE_MD_PATH);
+  const existing = await ctx.fs.readText(filePath);
+  const fix = existing === undefined ? undefined : fixClaudeMd(existing);
+  if (fix === undefined) {
+    return [];
+  }
+  await ctx.fs.writeText(filePath, fix.content);
+  return fix.added;
 }
 
 /** Writes the judge workflow only if none exists yet; returns whether it
@@ -283,6 +304,9 @@ export interface SetupFilesOutcome {
   readonly agentsProblem?: string;
   /** The docs AGENTS.md links to, and CLAUDE.md, that this run wrote. */
   readonly wroteCompanions: readonly string[];
+  /** What this run added to an existing CLAUDE.md, in words ("a heading",
+   * "the AGENTS.md import"); empty when it needed nothing. */
+  readonly claudeMdAdded: readonly string[];
   readonly wroteJudge: boolean;
   readonly packageOutcome: PackageJsonOutcome;
 }
@@ -296,6 +320,7 @@ export async function writeSetupFiles(
   const wroteGitignore = await ensureGitignore(ctx, repoRoot);
   const agents = await writeAgentsMd(ctx, repoRoot);
   const wroteCompanions = await writeCompanionFiles(ctx, repoRoot);
+  const claudeMdAdded = await updateClaudeMd(ctx, repoRoot);
   const wroteJudge = await writeJudgeWorkflowIfMissing(ctx, repoRoot);
   const packageOutcome = await ensurePackageJsonScripts(ctx, repoRoot);
   return {
@@ -303,6 +328,7 @@ export async function writeSetupFiles(
     wroteAgents: agents.wrote,
     ...(agents.problem === undefined ? {} : { agentsProblem: agents.problem }),
     wroteCompanions,
+    claudeMdAdded,
     wroteJudge,
     packageOutcome,
   };

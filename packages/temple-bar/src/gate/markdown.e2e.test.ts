@@ -109,6 +109,18 @@ void test("markdown e2e: a lint error fails the gate, and the fixed file passes"
   }
 });
 
+void test("markdown e2e: Next.js's one-line CLAUDE.md passes straight after setup", async () => {
+  // Without setup's heading, markdown lint fails it (first-line-heading).
+  const { dir } = await docsRepo({ "CLAUDE.md": "@AGENTS.md\n" });
+  try {
+    const result = await runGate(dir);
+    assert.equal(result.code, 0, result.err);
+    assert.match(result.out, /^ {2}passed {3}markdown lint /m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 void test("markdown e2e: a project's own markdownlint config replaces the default", async () => {
   const { dir } = await docsRepo({
     "README.md": "# Sample\n\n### Skipped a level\n",

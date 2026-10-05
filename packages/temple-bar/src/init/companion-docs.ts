@@ -1,16 +1,17 @@
 // The files setup writes beside AGENTS.md, each only where the project has
 // none: AGENTS.md links to them, so they have to exist, but once there they
-// are the project's to edit. Like AGENTS.md, they are written for any
+// are the project's to edit. The exception is CLAUDE.md, which setup also
+// adds to (see fixClaudeMd). Like AGENTS.md, they are written for any
 // project, not for temple-bar itself.
 
 /** Claude Code reads CLAUDE.md, and falls back to AGENTS.md only in recent
  * versions, with the fallback switched on, and not on every cloud provider.
  * An import works in all of them. The heading is there because the gate's
  * markdown lint wants every file to start with one. */
-const CLAUDE_MD = `# Claude Code
-
-@AGENTS.md
-`;
+export const CLAUDE_MD_PATH = "CLAUDE.md";
+const CLAUDE_HEADING = "# Claude Code";
+const AGENTS_IMPORT = "@AGENTS.md";
+const CLAUDE_MD = `${CLAUDE_HEADING}\n\n${AGENTS_IMPORT}\n`;
 
 /** The reasons behind the AGENTS.md rules, kept out of AGENTS.md because
  * every agent loads that file in every session. */
@@ -173,9 +174,49 @@ export interface CompanionFile {
 
 /** Every file setup writes beside AGENTS.md, if missing. */
 export const COMPANION_FILES: readonly CompanionFile[] = [
-  { path: "CLAUDE.md", content: CLAUDE_MD },
+  { path: CLAUDE_MD_PATH, content: CLAUDE_MD },
   { path: "docs/agents-rationale.md", content: RATIONALE },
   { path: "docs/phase-boundaries.md", content: PHASE_BOUNDARIES },
   { path: "docs/conventions.md", content: CONVENTIONS },
   { path: "docs/adr/0000-template.md", content: ADR_TEMPLATE },
 ];
+
+export interface ClaudeMdFix {
+  readonly content: string;
+  /** What was added, in words for the user. */
+  readonly added: readonly string[];
+}
+
+/**
+ * What an existing CLAUDE.md, written by the project or a framework (Next.js
+ * ships a one-line `@AGENTS.md`), needs added: a heading at the top, which
+ * the gate's markdown lint asks of every file, and the AGENTS.md import,
+ * without which Claude Code may never read the rules. Nothing is removed or
+ * reordered. Returns undefined when nothing is missing, so a second run
+ * changes nothing.
+ */
+export function fixClaudeMd(existing: string): ClaudeMdFix | undefined {
+  if (existing.trim() === "") {
+    return { content: CLAUDE_MD, added: ["a heading", "the AGENTS.md import"] };
+  }
+  const lines = existing.split(/\r?\n/);
+  const hasHeading = /^#\s/.test(lines[0] ?? "");
+  const importsAgents = lines.some((line) =>
+    [AGENTS_IMPORT, "@./AGENTS.md"].includes(line.trim()),
+  );
+  if (hasHeading && importsAgents) {
+    return undefined;
+  }
+  let content = existing;
+  const added: string[] = [];
+  if (!hasHeading) {
+    content = `${CLAUDE_HEADING}\n\n${content}`;
+    added.push("a heading");
+  }
+  if (!importsAgents) {
+    const separator = content.endsWith("\n") ? "\n" : "\n\n";
+    content = `${content}${separator}${AGENTS_IMPORT}\n`;
+    added.push("the AGENTS.md import");
+  }
+  return { content, added };
+}
