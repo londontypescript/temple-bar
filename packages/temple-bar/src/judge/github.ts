@@ -1,5 +1,5 @@
 // Reads a pull request from GitHub's API as data: its changed files, and
-// package.json on each side when it changed. Nothing here checks out, runs or
+// package.json and pnpm-lock.yaml on each side when they changed. Nothing here checks out, runs or
 // installs anything from the pull request. That is what makes the judge safe
 // to run with the default branch's trust: the pull request's content is only
 // ever compared, never executed.
@@ -8,7 +8,8 @@
 // read the pull request must fail rather than pass it unseen.
 
 import type { Context } from "../context.ts";
-import type { ChangedFile, ManifestPair } from "./changes.ts";
+import type { ChangedFile, TextPair } from "./changes.ts";
+import { LOCKFILE } from "./lockfile.ts";
 
 export interface PullRequestRef {
   readonly api: string;
@@ -189,17 +190,92 @@ async function readManifestAt(
 
 /** package.json on the base branch as it is now, and at the pull request's
  * head. The base branch's current copy, not the one the pull request
- * started from: that is what a merge would change. */
+ * started from: that is what a merge would change. The judge's ruleset
+ * merges only branches that are up to date, and there the two are the same
+ * commit. On a branch that is behind, the comparison can only see too much
+ * (the base branch's own newer changes look like the pull request undoing
+ * them), so it refuses wrongly rather than passes wrongly, and updating the
+ * branch runs the judge again. The one thing it can't do is re-judge a pull
+ * request that has already merged: its changes are then on the base branch
+ * too, so it passes. */
 export async function readManifests(
   ctx: Context,
   pr: PullRequestRef,
   facts: PullRequestFacts,
-): Promise<Read<ManifestPair>> {
+): Promise<Read<TextPair>> {
   const base = await readManifestAt(ctx, pr, facts.baseRef);
   if (!base.ok) {
     return base;
   }
   const head = await readManifestAt(ctx, pr, facts.headSha);
+  if (!head.ok) {
+    return head;
+  }
+  return { ok: true, value: { base: base.value, head: head.value } };
+}
+
+/** A file at the root of the tree at `ref`, or undefined when there is none
+ * there. Read through the tree and its blob rather than the contents API,
+ * which stops at 1 MB: a large repo's lockfile can be bigger than that, and
+ * a lockfile the judge can't read would fail every dependency update. */
+async function readRootFileAt(
+  ctx: Context,
+  pr: PullRequestRef,
+  ref: string,
+  name: string,
+): Promise<Read<string | undefined>> {
+  const tree = await getJson(
+    ctx,
+    `${repoUrl(pr)}/git/trees/${encodeURIComponent(ref)}`,
+    pr.token,
+  );
+  if (!tree.ok) {
+    return tree;
+  }
+  const entries = isRecord(tree.value) ? tree.value.tree : undefined;
+  if (!Array.isArray(entries)) {
+    return fail(`an unexpected answer for the files at ${ref}`);
+  }
+  const entry: unknown = entries.find(
+    (item: unknown) => isRecord(item) && item.path === name,
+  );
+  if (entry === undefined) {
+    return { ok: true, value: undefined };
+  }
+  const sha = isRecord(entry) && entry.type === "blob" ? entry.sha : undefined;
+  if (typeof sha !== "string") {
+    return fail(`an unexpected answer for ${name}`);
+  }
+  const blob = await getJson(
+    ctx,
+    `${repoUrl(pr)}/git/blobs/${encodeURIComponent(sha)}`,
+    pr.token,
+  );
+  if (!blob.ok) {
+    return blob;
+  }
+  const { content, encoding } = isRecord(blob.value)
+    ? blob.value
+    : { content: undefined, encoding: undefined };
+  if (typeof content !== "string" || encoding !== "base64") {
+    return fail(`an unexpected answer for ${name}`);
+  }
+  return { ok: true, value: Buffer.from(content, "base64").toString("utf8") };
+}
+
+/** The root lockfile on the base branch as it is now, and at the pull
+ * request's head, compared on the same terms as package.json (see
+ * readManifests). */
+export async function readLockfiles(
+  ctx: Context,
+  pr: PullRequestRef,
+  facts: PullRequestFacts,
+): Promise<Read<TextPair>> {
+  const base = await readRootFileAt(ctx, pr, facts.baseRef, LOCKFILE);
+  if (!base.ok) {
+    return base;
+  }
+  const head = await readRootFileAt(ctx, pr, facts.headSha, LOCKFILE);
   if (!head.ok) {
     return head;
   }

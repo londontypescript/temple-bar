@@ -9,8 +9,7 @@
 //
 // Some changes need the maintainer's yes before they leave the machine: a
 // change to AGENTS.md (the rules every agent follows), or to the checks that
-// judge the repo (the files the judge guards: CI workflows, the pinned
-// temple-bar, the scripts the gate runs, pnpm's install settings). For
+// judge the repo (the files the judge guards, listed in judge/changes.ts). For
 // those, `ready` still marks the commit, and warns that the agent must ask
 // the maintainer in chat before pushing (maintainer.ts says why it warns
 // rather than asks).
@@ -18,6 +17,7 @@
 import type { Context } from "../context.ts";
 import { gateCommand } from "../gate/command.ts";
 import type { CommandEntry } from "../registry.ts";
+import { GUARDED_CHECKS } from "../judge/guarded-checks.ts";
 import { changesNeedingMaintainer, maintainerWarning } from "./maintainer.ts";
 import { clearMark, writeMark } from "./mark.ts";
 
@@ -147,9 +147,9 @@ export function createReadyCommand(runGate: RunGate): CommandEntry {
       "commit needs ready again. Run it in the worktree that has the branch",
       "checked out, with everything committed.",
       "",
-      "A commit that changes AGENTS.md, or the checks that judge the repo (a",
-      "CI workflow, the pinned temple-bar version, the scripts the gate",
-      "runs, or pnpm's install settings), needs the maintainer's yes too:",
+      "A commit that changes AGENTS.md, or the checks that judge the repo",
+      `(${GUARDED_CHECKS}),`,
+      "needs the maintainer's yes too:",
       "ready marks it, and warns to ask the maintainer in chat before pushing.",
       "The pre-push hook repeats the warning.",
       "",

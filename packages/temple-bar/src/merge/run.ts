@@ -9,6 +9,7 @@
 
 import type { Context } from "../context.ts";
 import { afterMerge } from "./after.ts";
+import { bypassReport, readBypasses } from "../judge/bypasses.ts";
 import { ASK_FOR_ADMIN_MERGE } from "../judge/changes.ts";
 import {
   ASK_THE_MAINTAINER,
@@ -199,6 +200,18 @@ async function mergeAndReport(
   // for that yes can carry it.
   const incidents = await countOpenIncidents(ctx, root);
   for (const line of approvingSection(options.prNumber, changes, incidents)) {
+    ctx.stdout.write(`merge: ${line}\n`);
+  }
+  // Bypass merges already on the default branch, listed for the maintainer
+  // to recognise as theirs. Detection only: merge decides nothing on them,
+  // so a history it can't read is said so and doesn't stop the merge.
+  const bypasses = await readBypasses(
+    ctx,
+    repository.nameWithOwner,
+    repository.defaultBranch,
+    root,
+  );
+  for (const line of bypassReport(repository.defaultBranch, bypasses)) {
     ctx.stdout.write(`merge: ${line}\n`);
   }
   // A change to the checks fails the judge on purpose, and only the

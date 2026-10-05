@@ -19,10 +19,22 @@ const BASE_MANIFEST = JSON.stringify({
   devDependencies: { "@londontypescript/temple-bar": "0.0.7" },
 });
 
+const BASE_LOCKFILE = `lockfileVersion: '9.0'
+
+packages:
+
+  '@londontypescript/temple-bar@0.0.7':
+    resolution: {integrity: sha512-seven==}
+
+  eslint@10.0.0:
+    resolution: {integrity: sha512-ten==}
+`;
+
 interface FakeGithub {
   readonly files: readonly object[];
   readonly changedFiles?: number;
   readonly headManifest?: string;
+  readonly headLockfile?: string;
   readonly status?: number;
 }
 
@@ -60,6 +72,24 @@ function github(state: FakeGithub) {
       return state.headManifest === undefined
         ? { kind: "response", status: 404, body: "{}" }
         : contents(state.headManifest);
+    }
+    // The lockfile, read through each side's tree and its blob.
+    const tree = /\/git\/trees\/(main|headsha)$/.exec(url);
+    if (tree !== null) {
+      return json({
+        tree: [
+          { path: "package.json", type: "blob", sha: "manifestblob" },
+          { path: "pnpm-lock.yaml", type: "blob", sha: `${tree[1] ?? ""}lock` },
+        ],
+      });
+    }
+    const blob = /\/git\/blobs\/(main|headsha)lock$/.exec(url);
+    if (blob !== null) {
+      return contents(
+        blob[1] === "main"
+          ? BASE_LOCKFILE
+          : (state.headLockfile ?? BASE_LOCKFILE),
+      );
     }
     return { kind: "response", status: 404, body: "{}" };
   });
@@ -126,6 +156,35 @@ void test("judge: a changed gate script in package.json is refused, read from bo
   const { ctx, stderr } = actionsContext(http);
   assert.equal(await judgeCommand.run([], ctx), 1);
   assert.match(stderr.lines.join(""), /package\.json: the "gate" script/);
+});
+
+void test("judge: a lockfile change that leaves temple-bar's entries alone passes", async () => {
+  const http = github({
+    files: [{ filename: "pnpm-lock.yaml", status: "modified" }],
+    headLockfile: BASE_LOCKFILE.replace("sha512-ten==", "sha512-eleven=="),
+  });
+  const { ctx, stdout } = actionsContext(http);
+  assert.equal(await judgeCommand.run([], ctx), 0);
+  assert.match(stdout.lines.join(""), /leaves the checks alone/);
+  assert.ok(
+    http.calls.some((call) => call.url.endsWith("/git/blobs/headshalock")),
+  );
+});
+
+void test("judge: a lockfile that points temple-bar at another tarball is refused", async () => {
+  const http = github({
+    files: [{ filename: "pnpm-lock.yaml", status: "modified" }],
+    headLockfile: BASE_LOCKFILE.replace(
+      "{integrity: sha512-seven==}",
+      "{integrity: sha512-six==, tarball: https://example.test/temple-bar-0.0.6.tgz}",
+    ),
+  });
+  const { ctx, stderr } = actionsContext(http);
+  assert.equal(await judgeCommand.run([], ctx), 1);
+  assert.match(
+    stderr.lines.join(""),
+    /pnpm-lock\.yaml: temple-bar's entries: packages > @londontypescript\/temple-bar@0\.0\.7 \(changed\)/,
+  );
 });
 
 void test("judge: every page of changed files is read, so a workflow on page 2 is still found", async () => {

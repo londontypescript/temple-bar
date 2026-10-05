@@ -2,6 +2,8 @@
 // needs to require its check. Kept as text in the package, so the copy setup
 // writes is always the one this version of temple-bar was tested with.
 
+import { GUARDED_CHECKS } from "./guarded-checks.ts";
+
 /** Where setup writes the workflow. */
 export const JUDGE_WORKFLOW_PATH = ".github/workflows/temple-bar-judge.yml";
 
@@ -32,13 +34,30 @@ const READ_PIN = `const { readFileSync, appendFileSync } = require("node:fs");
             }
             appendFileSync(process.env.GITHUB_OUTPUT, "version=" + pin + "\\n");`;
 
+/** `text` as YAML comment lines, wrapped by word to fit 78 columns, the way
+ * the workflow's hand-written comments are. */
+function yamlComment(text: string): string {
+  const lines: string[] = [];
+  let line = "#";
+  for (const word of text.split(" ")) {
+    if (line.length + 1 + word.length > 78 && line !== "#") {
+      lines.push(line);
+      line = "#";
+    }
+    line += ` ${word}`;
+  }
+  lines.push(line);
+  return lines.join("\n");
+}
+
 /** The workflow file's full text. */
 export function judgeWorkflow(): string {
-  return `# Written by temple-bar. The judge fails a pull request that changes the
-# checks which judge it: any workflow, the temple-bar version pinned in
-# package.json, the scripts the gate runs, or pnpm's install settings. A
-# pull request runs its own copy of those, so its own CI can't vouch for a
-# change to them. Such a change is the maintainer's to review and merge.
+  return `${yamlComment(
+    "Written by temple-bar. The judge fails a pull request that changes " +
+      `the checks which judge it: ${GUARDED_CHECKS}. A pull request runs ` +
+      "its own copy of those, so its own CI can't vouch for a change to " +
+      "them. Such a change is the maintainer's to review and merge.",
+  )}
 name: ${JUDGE_CHECK}
 
 # pull_request_target, not pull_request: GitHub runs this file as it is on
@@ -87,10 +106,13 @@ jobs:
             ${READ_PIN}
           '
 
-      # Exactly the pinned version, from the npm registry. Nothing else from
-      # the base branch is installed, so no install script runs here.
+      # Exactly the pinned version, from the npm registry. Nothing from the
+      # base branch is installed. npm does install temple-bar's own
+      # dependencies, without a lockfile, while the token is in reach, so
+      # no install script may run: one could tamper with the judge before
+      # it judges. temple-bar has none of its own.
       - name: Judge the pull request
-        run: npm exec --yes --package="@londontypescript/temple-bar@$PIN" -- temple-bar judge
+        run: npm exec --yes --ignore-scripts --package="@londontypescript/temple-bar@$PIN" -- temple-bar judge
         env:
           PIN: \${{ steps.pin.outputs.version }}
           GH_TOKEN: \${{ github.token }}
