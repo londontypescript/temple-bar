@@ -51,10 +51,11 @@ https://github.com/londontypescript/temple-bar#for-ai-agents
 
 ### What happens next
 
-1. Your agent runs temple-bar's setup. If the folder isn't on GitHub yet, **it asks you** before creating the repository.
-2. Setup writes the rules (`AGENTS.md`), installs the git hooks and asks whether to switch on `main`'s protection on GitHub.
-3. Your agent asks you what you're building, then writes a **plan**. Nothing is built until you approve it.
-4. From then on, work happens on branches, every change passes the gate, and you approve every merge to `main`.
+1. **For something new, your agent asks you what you're building** and scaffolds the project first, with the framework's own tool (Vite, Next.js, Astro and the like) using its pnpm option, or by hand. temple-bar comes second, because a scaffolder run afterwards can delete or replace what setup wrote.
+2. Your agent runs temple-bar's setup. If the folder isn't on GitHub yet, **it asks you** before creating the repository.
+3. Setup writes the rules (`AGENTS.md`), installs the git hooks and asks whether to switch on `main`'s protection on GitHub.
+4. Your agent points the gate's four checks at the project's own tools, then writes a **plan**. Nothing is built until you approve it.
+5. From then on, work happens on branches, every change passes the gate, and you approve every merge to `main`.
 
 ### Cloned a repo that already uses temple-bar?
 
@@ -62,24 +63,30 @@ Nothing to do: `pnpm install` switches the hooks on. A fresh clone has no hooks 
 
 ### Doing it yourself
 
+Scaffold the project first, with your framework's tool and its pnpm option (for example `pnpm create vite my-app`), or by hand. Then, in its folder:
+
 ```bash
-mkdir my-app
-cd my-app
 git init
 pnpm create @londontypescript/temple-bar@latest
 ```
 
-In an existing project, run just the last line. Every command takes `--help`, which shows the usage and changes nothing.
+In a project that's already a git repo, run just the last line. Every command takes `--help`, which shows the usage and changes nothing.
+
+Then point the gate's four checks at your project's tools: `typecheck`, `lint`, `format:check` and `test` in `package.json`'s `scripts` (for example `tsc --noEmit`, `eslint .`, `prettier --check .` and `vitest run`). `pnpm gate` runs them all, and fails one that's missing or does nothing (`true`, `echo ok`), so set real commands, even for a small project.
+
+Don't run a scaffolder after setup: some delete or replace `AGENTS.md` and `package.json` (Vite with `--overwrite`, Nuxt with `--force`), others refuse a folder that isn't empty or quietly create a subfolder.
 
 ## For AI agents
 
 You've been asked to set up temple-bar. Follow these steps exactly.
 
-1. Run `pnpm create @londontypescript/temple-bar@latest` in the repo root. If the folder has no git repo yet, run `git init` first.
-2. If setup reports something missing (`gh` not installed or not signed in, no GitHub remote), **stop and tell the user** exactly what it said. Don't install tools globally and don't work around it.
-3. If setup asks to create a GitHub repository or change GitHub settings, **ask the user**. Only if they say yes, run setup again with `--create-repo` or `--create-ruleset` (`pnpm create @londontypescript/temple-bar@latest --create-repo`). Never pass a flag on their behalf.
-4. Don't install the package on its own (`pnpm add -D …`). That leaves the repo unprotected.
-5. When setup finishes, `main` refuses direct commits, so land the setup through a pull request, as setup's output describes. Then read `AGENTS.md` and follow it. For a new project, start by asking the user what they want to build. Then write a plan, and don't scaffold a framework or write code before the user approves it.
+1. **For a new project, scaffold it first.** Ask the user what they want to build, and which framework if it matters to them. Scaffold with that framework's tool, using its pnpm option, in the folder itself rather than a subfolder, or create the files by hand. Never run a scaffolder after setup: it can delete or replace what setup writes. In an existing project, skip this step.
+2. Run `pnpm create @londontypescript/temple-bar@latest` in the repo root. If the folder has no git repo yet, run `git init` first.
+3. If setup reports something missing (`gh` not installed or not signed in, no GitHub remote), **stop and tell the user** exactly what it said. Don't install tools globally and don't work around it.
+4. If setup asks to create a GitHub repository or change GitHub settings, **ask the user**. Only if they say yes, run setup again with `--create-repo` or `--create-ruleset` (`pnpm create @londontypescript/temple-bar@latest --create-repo`). Never pass a flag on their behalf.
+5. Don't install the package on its own (`pnpm add -D …`). That leaves the repo unprotected.
+6. Set the gate's four scripts in `package.json`, `typecheck`, `lint`, `format:check` and `test`, to the right commands for what's in the folder: the framework's own type checker, linter, formatter and test runner where it has them. Never a command that does nothing (`true`, `echo ok`): the gate fails those. If the project has no tool for one of them yet, ask the user which to add.
+7. When setup finishes, `main` refuses direct commits, so land the setup and the scripts through a pull request, as setup's output describes. Then read `AGENTS.md` and follow it: write a plan, and don't write code before the user approves it.
 
 ## Why? Prose != Enforcement
 
