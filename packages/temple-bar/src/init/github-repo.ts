@@ -4,6 +4,7 @@
 // no-commits-yet path all stop `init` before it writes anything.
 
 import type { Context } from "../context.ts";
+import { mainCheckoutName } from "./repo-name.ts";
 import {
   parseGithubOrigin,
   RERUN_INIT,
@@ -82,7 +83,9 @@ export async function offerRepoCreation(
    * --create-repo: answers this question, and only this one. */
   approved = false,
 ): Promise<RepoCreateOutcome> {
-  const name = repoRoot.split(/[/\\]/).filter(Boolean).at(-1) ?? "repo";
+  // Only offered when there is no origin, so the main checkout's folder is
+  // the whole rule.
+  const name = await mainCheckoutName(ctx, repoRoot);
   const answer = approved
     ? "yes"
     : await ctx.prompt.confirm(repoCreateQuestion(name));

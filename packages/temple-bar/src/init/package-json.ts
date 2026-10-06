@@ -1,10 +1,12 @@
-// Creates package.json, or adds the scripts temple-bar needs to an existing
-// one. Like the rest of setup, it only adds: when the project already has one
-// of those scripts with different content, it is reported, never overwritten.
+// Creates package.json, or adds a missing name and the scripts temple-bar
+// needs to an existing one. Like the rest of setup, it only adds: when the
+// project already has one of those scripts with different content, it is
+// reported, never overwritten.
 
 import path from "node:path";
 
 import type { Context } from "../context.ts";
+import { repoName } from "./repo-name.ts";
 import { RERUN_INIT } from "./requirements.ts";
 
 interface PackageJsonShape {
@@ -22,10 +24,6 @@ const REQUIRED_SCRIPTS: Readonly<Record<string, string>> = {
   gate: GATE_SCRIPT,
 };
 
-function folderName(repoRoot: string): string {
-  return repoRoot.split(/[/\\]/).filter(Boolean).at(-1) ?? "app";
-}
-
 function isPackageJsonShape(value: unknown): value is PackageJsonShape {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -39,10 +37,11 @@ export interface PackageJsonOutcome {
 }
 
 /**
- * Creates a minimal package.json if there isn't one, then adds the
- * `prepare`/`gate` scripts if they're absent. A script that already exists
- * with different content is left untouched; its name and expected line come
- * back in `conflicts` so the caller can report it and end non-zero.
+ * Creates a minimal package.json if there isn't one, names it if needed,
+ * then adds the `prepare`/`gate` scripts if they're absent. A script that
+ * already exists with different content is left untouched; its name and
+ * expected line come back in `conflicts` so the caller can report it and
+ * end non-zero.
  */
 export async function ensurePackageJsonScripts(
   ctx: Context,
@@ -54,7 +53,7 @@ export async function ensurePackageJsonScripts(
   let pkg: PackageJsonShape;
   let wrote = false;
   if (existing === undefined) {
-    pkg = { name: folderName(repoRoot), private: true };
+    pkg = { private: true };
     wrote = true;
   } else {
     let parsed: unknown;
@@ -73,6 +72,11 @@ export async function ensurePackageJsonScripts(
       };
     }
     pkg = parsed;
+  }
+
+  if (!Object.hasOwn(pkg, "name")) {
+    pkg = { name: await repoName(ctx, repoRoot), ...pkg };
+    wrote = true;
   }
 
   const scripts: Record<string, unknown> = { ...pkg.scripts };

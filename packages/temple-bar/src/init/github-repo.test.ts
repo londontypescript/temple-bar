@@ -32,6 +32,53 @@ void test("offerRepoCreation: an explicit no prints the command and doesn't touc
   assert.equal(gh.calls.length, 0);
 });
 
+void test("offerRepoCreation suggests and creates with the main checkout's name in a worktree", async () => {
+  for (const answer of ["no-terminal", "no", "yes"] as const) {
+    let created = false;
+    const gh = createFakeGh(() => {
+      created = true;
+      return { code: 0, stdout: "", stderr: "", notFound: false };
+    });
+    const git = createFakeGit((args) => {
+      if (args[0] === "remote") {
+        return {
+          code: created ? 0 : 2,
+          stdout: created ? "git@github.com:acme/widgets.git" : "",
+          stderr: "",
+        };
+      }
+      return {
+        code: 0,
+        stdout: args[1] === "--git-common-dir" ? "/repo/widgets/.git" : "false",
+        stderr: "",
+      };
+    });
+    const ctx = createFakeContext({
+      git,
+      gh,
+      prompt: {
+        isInteractive: () => answer !== "no-terminal",
+        confirm: (question) => {
+          assert.ok(question.includes(repoCreateCommand("widgets")));
+          return Promise.resolve(answer);
+        },
+      },
+    });
+    const outcome = await offerRepoCreation(
+      ctx,
+      "/repo/widgets/.claude/worktrees/setup",
+    );
+    if (answer === "yes") {
+      assert.equal(outcome.kind, "created");
+      assert.equal(gh.calls[0]?.args[2], "widgets");
+    } else {
+      assert.equal(outcome.kind, "declined");
+      assert.ok(outcome.message.includes(repoCreateCommand("widgets")));
+      assert.equal(gh.calls.length, 0);
+    }
+  }
+});
+
 function noCommitGit(commitCode: number, calls: string[]) {
   return createFakeGit((args) => {
     calls.push(`git ${args.join(" ")}`);
