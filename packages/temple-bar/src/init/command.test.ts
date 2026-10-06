@@ -137,9 +137,28 @@ void test("init: a `prepare` script that `&&` can't follow is left alone and the
     scripts: Record<string, string>;
   };
   assert.equal(pkg.scripts.prepare, "husky install # hooks");
+  const stderr = fixture.stderr.lines.join("");
+  assert.match(stderr, /can't safely have temple-bar's command chained/);
+  assert.match(stderr, / && temple-bar hook install/);
+  assert.doesNotMatch(
+    stderr,
+    /Add this yourself/,
+    "must not tell the project to throw away its own prepare command",
+  );
+});
+
+void test("init: a `gate` script that isn't temple-bar's still gets the add-this-yourself message", async () => {
+  const fs = createFakeFs({
+    "/repo/package.json": JSON.stringify({
+      name: "widgets",
+      scripts: { prepare: PREPARE_SCRIPT, gate: "vitest" },
+    }),
+  });
+  const fixture = makeFixture({ fs });
+  assert.equal(await runInitFor(fixture), 1);
   assert.match(
     fixture.stderr.lines.join(""),
-    new RegExp(PREPARE_SCRIPT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    new RegExp(`Add this yourself: "gate": "${GATE_SCRIPT}"`),
   );
 });
 
