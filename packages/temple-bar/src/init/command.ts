@@ -294,7 +294,9 @@ async function currentBranch(
   cwd: string,
 ): Promise<string | undefined> {
   const result = await ctx.git.run(["symbolic-ref", "--quiet", "HEAD"], cwd);
-  const ref = result.code === 0 ? result.stdout.trim() : "";
+  // Only git's line ending is removed: a branch name may end in other
+  // whitespace, such as a non-breaking space.
+  const ref = result.code === 0 ? result.stdout.replace(/\r?\n$/, "") : "";
   const name = ref.startsWith(BRANCH_REF_PREFIX)
     ? ref.slice(BRANCH_REF_PREFIX.length)
     : "";

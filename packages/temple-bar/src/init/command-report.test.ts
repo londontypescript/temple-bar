@@ -218,3 +218,11 @@ void test("init report: a branch name the shell would act on is quoted in the pu
   });
   assert.match(out, /git push -u origin 'chore\/\$USER'\\''s-setup'\n/);
 });
+
+void test("init report: a branch name ending in other whitespace is pushed as it is", async () => {
+  const out = await nextStepsOn({
+    code: 0,
+    stdout: "refs/heads/chore/topic\u00a0\n",
+  });
+  assert.match(out, /git push -u origin 'chore\/topic\u00a0'\n/);
+});
