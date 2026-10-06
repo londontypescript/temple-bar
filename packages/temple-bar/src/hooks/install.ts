@@ -29,6 +29,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 
 import type { Context } from "../context.ts";
+import { findCommonGitDir } from "../init/repo-name.ts";
 import {
   COMMIT_MSG_SHIM,
   POST_CHECKOUT_SHIM,
@@ -113,22 +114,6 @@ function sha256(text: string): string {
 
 function isTempleBarShim(text: string): boolean {
   return text.split("\n", 2)[1]?.startsWith(SHIM_MARKER) === true;
-}
-
-/** The git folder every worktree of this repo shares, as an absolute path. */
-async function findCommonGitDir(
-  ctx: Context,
-  repoRoot: string,
-): Promise<string | undefined> {
-  const result = await ctx.git.run(["rev-parse", "--git-common-dir"], repoRoot);
-  if (result.code !== 0) {
-    return undefined;
-  }
-  // Relative to repoRoot when it is the main worktree (".git"). Joined, not
-  // resolved: path.resolve would put the current drive in front of an
-  // already absolute path on Windows.
-  const dir = result.stdout.trim();
-  return path.isAbsolute(dir) ? dir : path.join(repoRoot, dir);
 }
 
 async function installShim(

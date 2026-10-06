@@ -86,9 +86,12 @@ void test("main: pnpm runs `pnpm add -D` then `pnpm exec temple-bar init`", asyn
   });
 });
 
-void test("main: creates package.json when none exists", async () => {
-  const { run } = makeFakeRunner(() => ({ code: 0 }));
+void test("main: creates a private package.json without a name before installation", async () => {
   const fs = makeFakeFs();
+  const { run } = makeFakeRunner(() => {
+    assert.equal(fs.file("/my-app/package.json"), '{\n  "private": true\n}\n');
+    return { code: 0 };
+  });
   const deps: MainDeps = {
     cwd: "/my-app",
     env: { npm_config_user_agent: userAgents.pnpm },
@@ -104,7 +107,7 @@ void test("main: creates package.json when none exists", async () => {
     name: string;
     private: boolean;
   };
-  assert.equal(written.name, "my-app");
+  assert.equal(Object.hasOwn(written, "name"), false);
   assert.equal(written.private, true);
 });
 

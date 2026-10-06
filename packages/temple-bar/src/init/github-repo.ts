@@ -4,6 +4,7 @@
 // no-commits-yet path all stop `init` before it writes anything.
 
 import type { Context } from "../context.ts";
+import { repoName } from "./repo-name.ts";
 import {
   parseGithubOrigin,
   RERUN_INIT,
@@ -82,7 +83,7 @@ export async function offerRepoCreation(
    * --create-repo: answers this question, and only this one. */
   approved = false,
 ): Promise<RepoCreateOutcome> {
-  const name = repoRoot.split(/[/\\]/).filter(Boolean).at(-1) ?? "repo";
+  const name = await repoName(ctx, repoRoot);
   const answer = approved
     ? "yes"
     : await ctx.prompt.confirm(repoCreateQuestion(name));

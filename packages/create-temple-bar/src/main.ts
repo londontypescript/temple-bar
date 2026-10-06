@@ -53,10 +53,6 @@ export function childEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   );
 }
 
-function folderName(cwd: string): string {
-  return path.basename(cwd) || "app";
-}
-
 async function ensurePackageJson(
   deps: MainDeps,
   existing: string | undefined,
@@ -65,7 +61,7 @@ async function ensurePackageJson(
   if (existing !== undefined) {
     return;
   }
-  const minimal = { name: folderName(deps.cwd), private: true };
+  const minimal = { private: true };
   await deps.fs.writeText(
     packageJsonPath,
     `${JSON.stringify(minimal, null, 2)}\n`,
