@@ -10,8 +10,9 @@ import { COMPANION_FILES } from "./companion-docs.ts";
 import { GITIGNORE_LINES } from "./files.ts";
 import { GATE_SCRIPT, PREPARE_SCRIPT } from "./package-json.ts";
 import { judgeWorkflow } from "../judge/workflow.ts";
-import { createFakeFs } from "../testing/fakes.ts";
+import { createFakeFs, createFakeGit } from "../testing/fakes.ts";
 import {
+  defaultGitScript,
   makeFixture,
   runInitFor,
   unchangedReport,
@@ -118,4 +119,77 @@ void test("init report: a companion file written alone counts as a change to lan
     /Wrote the files AGENTS\.md links to, where missing: docs\/conventions\.md\./,
   );
   assert.match(stdout, /Next: /);
+});
+
+/** A fresh repo whose git answers the two branch questions as given. */
+function fixtureOnBranch(
+  current: { code: number; stdout: string },
+  originHead = "",
+) {
+  return makeFixture({
+    fs: createFakeFs(),
+    git: createFakeGit((args) => {
+      if (args[0] === "symbolic-ref" && args.includes("HEAD")) {
+        return { ...current, stderr: "" };
+      }
+      if (args[0] === "symbolic-ref") {
+        return {
+          code: originHead === "" ? 1 : 0,
+          stdout: originHead,
+          stderr: "",
+        };
+      }
+      return defaultGitScript(args);
+    }),
+  });
+}
+
+async function nextStepsOn(
+  current: { code: number; stdout: string },
+  originHead = "",
+): Promise<string> {
+  const fixture = fixtureOnBranch(current, originHead);
+  assert.equal(await runInitFor(fixture), 0, fixture.stderr.lines.join(""));
+  return fixture.stdout.lines.join("");
+}
+
+void test("init report: on the protected branch the next steps start a new branch and push it", async () => {
+  const out = await nextStepsOn({ code: 0, stdout: "main\n" });
+  assert.match(out, /Next: main now refuses direct commits/);
+  assert.match(out, /git switch -c temple-bar-setup/);
+  assert.match(out, /git push -u origin temple-bar-setup/);
+});
+
+void test("init report: the next steps name the protected branch when it isn't main", async () => {
+  const out = await nextStepsOn(
+    { code: 0, stdout: "trunk\n" },
+    "refs/remotes/origin/trunk\n",
+  );
+  assert.match(out, /Next: trunk now refuses direct commits/);
+  assert.match(out, /git switch -c temple-bar-setup/);
+});
+
+void test("init report: on another branch the next steps skip the switch and push that branch", async () => {
+  const out = await nextStepsOn({
+    code: 0,
+    stdout: "chore/set-up-temple-bar\n",
+  });
+  assert.doesNotMatch(out, /git switch/);
+  assert.match(out, /setup ran on chore\/set-up-temple-bar/);
+  assert.match(out, /git push -u origin chore\/set-up-temple-bar\n/);
+  assert.doesNotMatch(out, /origin temple-bar-setup/);
+  assert.match(out, /git commit -m "chore: set up temple-bar"/);
+  assert.match(out, /gh pr create --fill/);
+});
+
+void test("init report: on a detached HEAD the next steps are the new-branch ones", async () => {
+  const out = await nextStepsOn({ code: 1, stdout: "" });
+  assert.match(out, /git switch -c temple-bar-setup/);
+  assert.match(out, /git push -u origin temple-bar-setup/);
+});
+
+void test("init report: when git can't tell the branch, the next steps are the new-branch ones and setup still succeeds", async () => {
+  const out = await nextStepsOn({ code: 0, stdout: "" });
+  assert.match(out, /git switch -c temple-bar-setup/);
+  assert.match(out, /temple-bar is set up/);
 });
