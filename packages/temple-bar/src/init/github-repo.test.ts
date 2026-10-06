@@ -68,12 +68,13 @@ void test("offerRepoCreation suggests and creates with the main checkout's name 
       ctx,
       "/repo/widgets/.claude/worktrees/setup",
     );
-    if (outcome.kind === "declined") {
-      assert.ok(outcome.message.includes(repoCreateCommand("widgets")));
-      assert.equal(gh.calls.length, 0);
-    } else {
+    if (answer === "yes") {
       assert.equal(outcome.kind, "created");
       assert.equal(gh.calls[0]?.args[2], "widgets");
+    } else {
+      assert.equal(outcome.kind, "declined");
+      assert.ok(outcome.message.includes(repoCreateCommand("widgets")));
+      assert.equal(gh.calls.length, 0);
     }
   }
 });

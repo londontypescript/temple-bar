@@ -29,7 +29,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 
 import type { Context } from "../context.ts";
-import { findCommonGitDir } from "../init/repo-name.ts";
+import { findCommonGitDir } from "../git-common-dir.ts";
 import {
   COMMIT_MSG_SHIM,
   POST_CHECKOUT_SHIM,

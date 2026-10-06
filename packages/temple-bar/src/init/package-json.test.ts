@@ -113,6 +113,28 @@ void test("ensurePackageJsonScripts uses the main checkout folder without a GitH
   }
 });
 
+void test("ensurePackageJsonScripts falls back in a worktree of a bare repository", async () => {
+  // Real git, asked from inside a worktree of a bare repo, says that folder
+  // isn't bare; only the shared git folder knows the repo is.
+  const fs = createFakeFs();
+  const git = createFakeGit((args) => {
+    if (args[0] === "remote") {
+      return { code: 2, stdout: "", stderr: "no origin" };
+    }
+    if (args[1] === "--git-common-dir") {
+      return { code: 0, stdout: "/repos/widgets/.git", stderr: "" };
+    }
+    const askedOfCommonDir =
+      args[0] === "--git-dir" && args[1] === "/repos/widgets/.git";
+    return { code: 0, stdout: askedOfCommonDir ? "true" : "false", stderr: "" };
+  });
+  await ensurePackageJsonScripts(createFakeContext({ fs, git }), "/work/setup");
+  assert.match(
+    fs.files.get("/work/setup/package.json") ?? "",
+    /"name": "setup"/,
+  );
+});
+
 void test("ensurePackageJsonScripts falls back when git cannot identify a main checkout", async () => {
   for (const [common, code, bare] of [
     ["", 1, "false"],
