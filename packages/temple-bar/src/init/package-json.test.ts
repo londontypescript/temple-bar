@@ -193,23 +193,71 @@ void test("ensurePackageJsonScripts adds a missing name first, preserving format
   }
 });
 
-void test("ensurePackageJsonScripts leaves a different `prepare` script alone and reports it", async () => {
+async function runWithPrepare(prepare: unknown) {
   const fs = createFakeFs({
-    "/repo/package.json": JSON.stringify({
-      name: "existing",
-      scripts: { prepare: "husky install" },
-    }),
+    "/repo/package.json": JSON.stringify(
+      { name: "existing", scripts: { prepare } },
+      null,
+      2,
+    ),
   });
-  const ctx = createFakeContext({ fs });
-  const outcome = await ensurePackageJsonScripts(ctx, "/repo");
-  assert.deepEqual(outcome.conflicts, [
-    { name: "prepare", expected: PREPARE_SCRIPT },
-  ]);
+  const outcome = await ensurePackageJsonScripts(
+    createFakeContext({ fs }),
+    "/repo",
+  );
+  const written = JSON.parse(fs.files.get("/repo/package.json") ?? "{}") as {
+    scripts: Record<string, unknown>;
+  };
+  return { fs, outcome, written };
+}
+
+void test("ensurePackageJsonScripts chains onto an existing `prepare` script, project's command first", async () => {
+  for (const existing of ["husky install", "svelte-kit sync || echo ''"]) {
+    const { outcome, written } = await runWithPrepare(existing);
+    assert.deepEqual(outcome.conflicts, []);
+    assert.equal(outcome.wrote, true);
+    assert.equal(written.scripts.prepare, `${existing} && ${PREPARE_SCRIPT}`);
+    assert.equal(written.scripts.gate, GATE_SCRIPT, "gate still gets added");
+  }
+});
+
+void test("ensurePackageJsonScripts does not chain a second time on a rerun", async () => {
+  const chained = `svelte-kit sync || echo '' && ${PREPARE_SCRIPT}`;
+  const { fs, outcome } = await runWithPrepare(chained);
+  assert.equal(outcome.wrote, true, "first run adds the missing gate script");
+  const second = await ensurePackageJsonScripts(
+    createFakeContext({ fs }),
+    "/repo",
+  );
+  assert.equal(second.wrote, false);
+  assert.deepEqual(second.conflicts, []);
   const written = JSON.parse(fs.files.get("/repo/package.json") ?? "{}") as {
     scripts: Record<string, string>;
   };
-  assert.equal(written.scripts.prepare, "husky install", "must not overwrite");
-  assert.equal(written.scripts.gate, GATE_SCRIPT, "gate still gets added");
+  assert.equal(written.scripts.prepare, chained);
+});
+
+void test("ensurePackageJsonScripts leaves a `prepare` script alone when `&&` can't safely follow it", async () => {
+  for (const existing of [
+    "foo # note",
+    "foo &",
+    "foo;",
+    "foo &&",
+    "foo ||",
+    "foo ;  ",
+    "foo # x && temple-bar hook install",
+    "   ",
+    42,
+  ]) {
+    const { outcome, written } = await runWithPrepare(existing);
+    assert.deepEqual(
+      outcome.conflicts,
+      [{ name: "prepare", expected: PREPARE_SCRIPT }],
+      JSON.stringify(existing),
+    );
+    assert.equal(written.scripts.prepare, existing, "must not overwrite");
+    assert.equal(written.scripts.gate, GATE_SCRIPT, "gate still gets added");
+  }
 });
 
 void test("ensurePackageJsonScripts is a no-op the second time (idempotent)", async () => {

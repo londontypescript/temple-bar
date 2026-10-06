@@ -11,7 +11,8 @@
 // - git config: no `core.hooksPath` anywhere (while it is set, git runs no
 //   hook from the shared folder) and `pull.ff` set to `only`;
 // - .gitignore with every line setup keeps there, and the `prepare` and
-//   `gate` scripts in package.json, exactly as setup writes them.
+//   `gate` scripts in package.json, as setup writes them (`prepare` may
+//   also chain after the project's own command).
 //
 // - temple-bar's marked block in AGENTS.md, when the file has one: byte for
 //   byte the block this temple-bar writes, so an edit inside it fails.
@@ -39,7 +40,11 @@ import {
   RESTORE_BLOCK,
 } from "../init/agents-template.ts";
 import { GITIGNORE_LINES } from "../init/files.ts";
-import { GATE_SCRIPT, PREPARE_SCRIPT } from "../init/package-json.ts";
+import {
+  GATE_SCRIPT,
+  isTempleBarPrepare,
+  PREPARE_SCRIPT,
+} from "../init/package-json.ts";
 import { RERUN_INIT } from "../init/requirements.ts";
 import type { CheckOutcome } from "./report.ts";
 
@@ -208,13 +213,19 @@ async function checkScripts(ctx: Context): Promise<CoreProblem[]> {
   const problems: CoreProblem[] = [];
   for (const [name, command] of Object.entries(INSTALLED_SCRIPTS)) {
     const current = scripts[name];
-    if (current !== command) {
+    const right =
+      name === "prepare" ? isTempleBarPrepare(current) : current === command;
+    if (!right) {
       problems.push({
         problem:
           current === undefined
             ? `package.json has no "${name}" script`
             : `package.json's "${name}" script is ${JSON.stringify(current)}`,
-        fix: `set "${name}" in package.json's "scripts" to "${command}"`,
+        fix:
+          name === "prepare"
+            ? `set "prepare" in package.json's "scripts" to "${command}", ` +
+              `or end the existing command with " && ${command}"`
+            : `set "${name}" in package.json's "scripts" to "${command}"`,
       });
     }
   }

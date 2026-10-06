@@ -155,6 +155,43 @@ void test("a changed or missing setup script fails; the project's other scripts 
   ]);
 });
 
+async function prepareProblems(prepare: unknown) {
+  const { ctx } = setUpRepo((files) => {
+    files.set(
+      path.join("/repo", "package.json"),
+      JSON.stringify({ scripts: { prepare, gate: CORE_SCRIPTS.gate } }),
+    );
+  });
+  return findCoreProblems(ctx);
+}
+
+void test("the gate accepts a `prepare` script chained after the project's own command", async () => {
+  for (const ok of [
+    "svelte-kit sync || echo '' && temple-bar hook install",
+    "husky install && temple-bar hook install",
+  ]) {
+    assert.deepEqual(await prepareProblems(ok), [], ok);
+  }
+});
+
+void test("the gate rejects a chained `prepare` that the rule refuses, and says both ways to fix it", async () => {
+  for (const bad of [
+    "foo # x && temple-bar hook install",
+    "foo; && temple-bar hook install",
+    "foo && temple-bar hook install --other",
+    "temple-bar hook install && foo",
+    42,
+  ]) {
+    const problems = await prepareProblems(bad);
+    assert.equal(problems.length, 1, JSON.stringify(bad));
+    assert.equal(
+      problems[0]?.fix,
+      'set "prepare" in package.json\'s "scripts" to "temple-bar hook install", ' +
+        'or end the existing command with " && temple-bar hook install"',
+    );
+  }
+});
+
 void test("runCoreCheck reports a failure with each problem and its fix", async () => {
   const { ctx, stderr } = setUpRepo((files) => {
     files.delete(path.join("/repo", ".git", "hooks", "commit-msg"));

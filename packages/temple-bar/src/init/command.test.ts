@@ -105,7 +105,7 @@ void test("init: repo creation accepted with 'yes' and commits present proceeds 
   assert.ok(fs.files.get("/repo/AGENTS.md"));
 });
 
-void test("init: an existing different `prepare` script is left alone and the run ends non-zero", async () => {
+void test("init: an existing `prepare` script gets temple-bar's command chained after it", async () => {
   const fs = createFakeFs({
     "/repo/package.json": JSON.stringify({
       name: "widgets",
@@ -114,12 +114,29 @@ void test("init: an existing different `prepare` script is left alone and the ru
   });
   const fixture = makeFixture({ fs });
   const code = await runInitFor(fixture);
+  assert.equal(code, 0);
+  const pkg = JSON.parse(fs.files.get("/repo/package.json") ?? "{}") as {
+    scripts: Record<string, string>;
+  };
+  assert.equal(pkg.scripts.prepare, `husky install && ${PREPARE_SCRIPT}`);
+  assert.equal(pkg.scripts.gate, GATE_SCRIPT);
+  assert.match(fixture.stdout.lines.join(""), /Updated package\.json\./);
+});
+
+void test("init: a `prepare` script that `&&` can't follow is left alone and the run ends non-zero", async () => {
+  const fs = createFakeFs({
+    "/repo/package.json": JSON.stringify({
+      name: "widgets",
+      scripts: { prepare: "husky install # hooks" },
+    }),
+  });
+  const fixture = makeFixture({ fs });
+  const code = await runInitFor(fixture);
   assert.equal(code, 1);
   const pkg = JSON.parse(fs.files.get("/repo/package.json") ?? "{}") as {
     scripts: Record<string, string>;
   };
-  assert.equal(pkg.scripts.prepare, "husky install");
-  assert.equal(pkg.scripts.gate, GATE_SCRIPT);
+  assert.equal(pkg.scripts.prepare, "husky install # hooks");
   assert.match(
     fixture.stderr.lines.join(""),
     new RegExp(PREPARE_SCRIPT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),

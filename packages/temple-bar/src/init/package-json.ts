@@ -1,7 +1,8 @@
 // Creates package.json, or adds a missing name and the scripts temple-bar
 // needs to an existing one. Like the rest of setup, it only adds: when the
-// project already has one of those scripts with different content, it is
-// reported, never overwritten.
+// project already has a `gate` script with different content, it is
+// reported, never overwritten. A `prepare` script that is the project's own
+// is kept and temple-bar's command is chained after it, so both run.
 
 import path from "node:path";
 
@@ -19,10 +20,32 @@ interface PackageJsonShape {
 export const PREPARE_SCRIPT = "temple-bar hook install";
 export const GATE_SCRIPT = "temple-bar gate";
 
-const REQUIRED_SCRIPTS: Readonly<Record<string, string>> = {
-  prepare: PREPARE_SCRIPT,
-  gate: GATE_SCRIPT,
-};
+const CHAIN = ` && ${PREPARE_SCRIPT}`;
+
+/** True when `&&` can safely follow `command`: a `#` comment would swallow
+ * whatever is appended, and a trailing `&`, `;` or `||` would turn the
+ * appended command into something else (or a syntax error). */
+function canChainAfter(command: string): boolean {
+  const trimmed = command.trim();
+  return (
+    trimmed !== "" && !trimmed.includes("#") && !/(?:&|;|\|\|)$/.test(trimmed)
+  );
+}
+
+/** The one rule for what counts as temple-bar's `prepare` script, used by
+ * setup and by the gate: exactly `temple-bar hook install`, or the project's
+ * own command followed by ` && temple-bar hook install`, where `&&` can
+ * safely follow that command. Anything else (including a value that isn't a
+ * string) is not temple-bar's. */
+export function isTempleBarPrepare(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const command = value.trim();
+  if (command === PREPARE_SCRIPT) return true;
+  return (
+    command.endsWith(CHAIN) &&
+    canChainAfter(command.slice(0, command.length - CHAIN.length))
+  );
+}
 
 function isPackageJsonShape(value: unknown): value is PackageJsonShape {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -38,10 +61,11 @@ export interface PackageJsonOutcome {
 
 /**
  * Creates a minimal package.json if there isn't one, names it if needed,
- * then adds the `prepare`/`gate` scripts if they're absent. A script that
- * already exists with different content is left untouched; its name and
- * expected line come back in `conflicts` so the caller can report it and
- * end non-zero.
+ * then adds the `prepare`/`gate` scripts if they're absent. An existing
+ * `prepare` script gets temple-bar's command chained after it. Any other
+ * script that already exists with different content (or a `prepare` that
+ * can't be chained onto) is left untouched; its name and expected line come
+ * back in `conflicts` so the caller can report it and end non-zero.
  */
 export async function ensurePackageJsonScripts(
   ctx: Context,
@@ -83,14 +107,25 @@ export async function ensurePackageJsonScripts(
   const conflicts: { name: string; expected: string }[] = [];
   let scriptsChanged = false;
 
-  for (const [name, expected] of Object.entries(REQUIRED_SCRIPTS)) {
-    const current = scripts[name];
-    if (current === undefined) {
-      scripts[name] = expected;
+  const prepare = scripts.prepare;
+  if (prepare === undefined) {
+    scripts.prepare = PREPARE_SCRIPT;
+    scriptsChanged = true;
+  } else if (!isTempleBarPrepare(prepare)) {
+    if (typeof prepare === "string" && canChainAfter(prepare)) {
+      scripts.prepare = `${prepare.trim()}${CHAIN}`;
       scriptsChanged = true;
-    } else if (current !== expected) {
-      conflicts.push({ name, expected });
+    } else {
+      conflicts.push({ name: "prepare", expected: PREPARE_SCRIPT });
     }
+  }
+
+  const gate = scripts.gate;
+  if (gate === undefined) {
+    scripts.gate = GATE_SCRIPT;
+    scriptsChanged = true;
+  } else if (gate !== GATE_SCRIPT) {
+    conflicts.push({ name: "gate", expected: GATE_SCRIPT });
   }
 
   if (wrote || scriptsChanged) {
