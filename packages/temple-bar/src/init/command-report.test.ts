@@ -154,7 +154,7 @@ async function nextStepsOn(
 }
 
 void test("init report: on the protected branch the next steps start a new branch and push it", async () => {
-  const out = await nextStepsOn({ code: 0, stdout: "main\n" });
+  const out = await nextStepsOn({ code: 0, stdout: "refs/heads/main\n" });
   assert.match(out, /Next: main now refuses direct commits/);
   assert.match(out, /git switch -c temple-bar-setup/);
   assert.match(out, /git push -u origin temple-bar-setup/);
@@ -162,7 +162,7 @@ void test("init report: on the protected branch the next steps start a new branc
 
 void test("init report: the next steps name the protected branch when it isn't main", async () => {
   const out = await nextStepsOn(
-    { code: 0, stdout: "trunk\n" },
+    { code: 0, stdout: "refs/heads/trunk\n" },
     "refs/remotes/origin/trunk\n",
   );
   assert.match(out, /Next: trunk now refuses direct commits/);
@@ -172,7 +172,7 @@ void test("init report: the next steps name the protected branch when it isn't m
 void test("init report: on another branch the next steps skip the switch and push that branch", async () => {
   const out = await nextStepsOn({
     code: 0,
-    stdout: "chore/set-up-temple-bar\n",
+    stdout: "refs/heads/chore/set-up-temple-bar\n",
   });
   assert.doesNotMatch(out, /git switch/);
   assert.match(out, /setup ran on chore\/set-up-temple-bar/);
@@ -192,4 +192,29 @@ void test("init report: when git can't tell the branch, the next steps are the n
   const out = await nextStepsOn({ code: 0, stdout: "" });
   assert.match(out, /git switch -c temple-bar-setup/);
   assert.match(out, /temple-bar is set up/);
+});
+
+void test("init report: on the protected branch the switch step stays even when a tag shares its name", async () => {
+  // git's short form says `heads/main` when a tag is also called `main`.
+  const fixture = makeFixture({
+    fs: createFakeFs(),
+    git: createFakeGit((args) => {
+      if (args[0] === "symbolic-ref" && args.includes("HEAD")) {
+        return args.includes("--short")
+          ? { code: 0, stdout: "heads/main\n", stderr: "" }
+          : { code: 0, stdout: "refs/heads/main\n", stderr: "" };
+      }
+      return defaultGitScript(args);
+    }),
+  });
+  assert.equal(await runInitFor(fixture), 0, fixture.stderr.lines.join(""));
+  assert.match(fixture.stdout.lines.join(""), /git switch -c temple-bar-setup/);
+});
+
+void test("init report: a branch name the shell would act on is quoted in the push step", async () => {
+  const out = await nextStepsOn({
+    code: 0,
+    stdout: "refs/heads/chore/$USER's-setup\n",
+  });
+  assert.match(out, /git push -u origin 'chore\/\$USER'\\''s-setup'\n/);
 });

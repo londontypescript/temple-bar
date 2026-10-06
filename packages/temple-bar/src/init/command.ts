@@ -283,18 +283,31 @@ function reportAgentsFiles(ctx: Context, files: SetupFilesOutcome): boolean {
  * commit-msg hook setup has just installed, so it has a conventional prefix. */
 export const SETUP_COMMIT_MESSAGE = "chore: set up temple-bar";
 
+const BRANCH_REF_PREFIX = "refs/heads/";
+
 /** The branch HEAD is on, or undefined on a detached HEAD or when git can't
- * tell. A branch with no commits yet still has a name. */
+ * tell. A branch with no commits yet still has a name. The full ref is read
+ * and its prefix removed, because git's short form turns into `heads/main`
+ * when a tag is also called `main`. */
 async function currentBranch(
   ctx: Context,
   cwd: string,
 ): Promise<string | undefined> {
-  const result = await ctx.git.run(
-    ["symbolic-ref", "--quiet", "--short", "HEAD"],
-    cwd,
-  );
-  const name = result.code === 0 ? result.stdout.trim() : "";
+  const result = await ctx.git.run(["symbolic-ref", "--quiet", "HEAD"], cwd);
+  const ref = result.code === 0 ? result.stdout.trim() : "";
+  const name = ref.startsWith(BRANCH_REF_PREFIX)
+    ? ref.slice(BRANCH_REF_PREFIX.length)
+    : "";
   return name === "" ? undefined : name;
+}
+
+/** A branch name ready to paste into a shell. git allows characters such as
+ * `$`, `;` and backquotes in branch names, and a shell would act on them, so
+ * any name with more than letters, digits and `._/-` goes in single quotes. */
+function shellQuoted(branch: string): string {
+  return /^[\w./-]+$/.test(branch)
+    ? branch
+    : `'${branch.replaceAll("'", `'\\''`)}'`;
 }
 
 /** The setup is uncommitted, and the protected branch now refuses direct
@@ -332,7 +345,7 @@ async function nextSteps(
     (onOther ? "" : `  git switch -c ${SETUP_BRANCH}\n`) +
     `  git add ${paths.join(" ")}  (plus your lockfile)\n` +
     `  git commit -m "${SETUP_COMMIT_MESSAGE}"\n` +
-    `  git push -u origin ${branch}\n` +
+    `  git push -u origin ${shellQuoted(branch)}\n` +
     "  gh pr create --fill\n"
   );
 }
