@@ -9,8 +9,11 @@ export function isLaunchedByPnpm(userAgent: string | undefined): boolean {
   return userAgent?.startsWith("pnpm/") ?? false;
 }
 
-/** Leave malformed manifests to the existing install step; only a string
- * packageManager can tell us the project chose another manager. */
+/** The package.json `packageManager` value when it names a manager other
+ * than pnpm, so setup can explain the field before `pnpm add` fails on it;
+ * otherwise undefined. Only a non-empty string names a manager (pnpm itself
+ * accepts an empty one), and a malformed package.json is left to the install
+ * step, which reports it. */
 export function foreignPackageManager(
   packageJson: string | undefined,
 ): string | undefined {
@@ -31,7 +34,9 @@ export function foreignPackageManager(
     return undefined;
   }
   const value: unknown = manifest.packageManager;
-  return typeof value === "string" && value.split("@")[0] !== "pnpm"
+  return typeof value === "string" &&
+    value !== "" &&
+    value.split("@")[0] !== "pnpm"
     ? value
     : undefined;
 }

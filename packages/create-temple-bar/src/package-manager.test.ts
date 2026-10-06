@@ -12,7 +12,7 @@ import {
 } from "./package-manager.ts";
 
 void test("foreignPackageManager identifies only string values naming another manager", () => {
-  for (const value of ["npm@10.9.2", "yarn@4.1.0", "bun@1.1.0", "npm", ""]) {
+  for (const value of ["npm@10.9.2", "yarn@4.1.0", "bun@1.1.0", "npm"]) {
     assert.equal(
       foreignPackageManager(JSON.stringify({ packageManager: value })),
       value,
@@ -22,6 +22,7 @@ void test("foreignPackageManager identifies only string values naming another ma
     "pnpm@10.34.5",
     "pnpm@10.34.5+sha512.abcdef",
     "pnpm",
+    "",
     undefined,
     null,
     42,

@@ -305,6 +305,7 @@ void test("main: packageManager refuses foreign strings before writes or runs an
     ['{"packageManager":"pnpm@10.34.5"}', undefined],
     ['{"packageManager":"pnpm@10.34.5+sha512.abcdef"}', undefined],
     ["{}", undefined],
+    ['{"packageManager":""}', undefined],
     [undefined, undefined],
     ["{", undefined],
     ['{"packageManager":42}', undefined],
