@@ -24,6 +24,7 @@ import {
 import type { InitDeps } from "./types.ts";
 import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
 import { CLAUDE_MD_PATH } from "./companion-docs.ts";
+import { findProtectedBranch } from "../hooks/protected-branch.ts";
 
 export type { InitDeps } from "./types.ts";
 
@@ -186,10 +187,7 @@ async function runInit(
   }
   if (packageOutcome.conflicts.length > 0) {
     for (const conflict of packageOutcome.conflicts) {
-      ctx.stderr.write(
-        `package.json already has a "${conflict.name}" script that isn't ` +
-          `temple-bar's. Add this yourself: "${conflict.name}": "${conflict.expected}"\n`,
-      );
+      ctx.stderr.write(conflictMessage(conflict.name, conflict.expected));
     }
     exitCode = 1;
   }
@@ -230,10 +228,25 @@ async function runInit(
       packageOutcome.wrote ||
       hooksReport.items.some((item) => item.status === "written");
     if (changed) {
-      ctx.stdout.write(nextSteps(files));
+      ctx.stdout.write(await nextSteps(ctx, repoRoot, files));
     }
   }
   return exitCode;
+}
+
+/** Why a package.json script was left alone, and what to do about it. A
+ * `prepare` script is the project's own command, so replacing it would throw
+ * that away: it has to be changed so temple-bar's command can follow it. */
+function conflictMessage(name: string, expected: string): string {
+  const head = `package.json already has a "${name}" script that isn't temple-bar's.`;
+  if (name === "prepare") {
+    return (
+      `${head} It can't safely have temple-bar's command chained after it, ` +
+      `so change it to end with " && ${expected}" (or set it to ` +
+      `"${expected}" if the project doesn't need its own).\n`
+    );
+  }
+  return `${head} Add this yourself: "${name}": "${expected}"\n`;
 }
 
 /** Reports AGENTS.md and the files beside it; returns true when AGENTS.md
@@ -270,11 +283,47 @@ function reportAgentsFiles(ctx: Context, files: SetupFilesOutcome): boolean {
  * commit-msg hook setup has just installed, so it has a conventional prefix. */
 export const SETUP_COMMIT_MESSAGE = "chore: set up temple-bar";
 
-/** The setup is uncommitted, and main now refuses direct commits: say how
- * to land it. Files are named, not `git add -A` or a whole folder, so
- * unrelated work (in docs/, say) stays out of the setup commit: only the
- * companion files this run wrote are listed. */
-function nextSteps(files: SetupFilesOutcome): string {
+const BRANCH_REF_PREFIX = "refs/heads/";
+
+/** The branch HEAD is on, or undefined on a detached HEAD or when git can't
+ * tell. A branch with no commits yet still has a name. The full ref is read
+ * and its prefix removed, because git's short form turns into `heads/main`
+ * when a tag is also called `main`. */
+async function currentBranch(
+  ctx: Context,
+  cwd: string,
+): Promise<string | undefined> {
+  const result = await ctx.git.run(["symbolic-ref", "--quiet", "HEAD"], cwd);
+  // Only git's line ending is removed: a branch name may end in other
+  // whitespace, such as a non-breaking space.
+  const ref = result.code === 0 ? result.stdout.replace(/\r?\n$/, "") : "";
+  const name = ref.startsWith(BRANCH_REF_PREFIX)
+    ? ref.slice(BRANCH_REF_PREFIX.length)
+    : "";
+  return name === "" ? undefined : name;
+}
+
+/** A branch name ready to paste into a shell. git allows characters such as
+ * `$`, `;` and backquotes in branch names, and a shell would act on them, so
+ * any name with more than letters, digits and `._/-` goes in single quotes. */
+function shellQuoted(branch: string): string {
+  return /^[\w./-]+$/.test(branch)
+    ? branch
+    : `'${branch.replaceAll("'", `'\\''`)}'`;
+}
+
+/** The setup is uncommitted, and the protected branch now refuses direct
+ * commits: say how to land it. On that branch (or when the branch can't be
+ * told) the steps start a new branch; on any other, setup already ran on a
+ * branch worth keeping, so a second one would be needless. Files are named,
+ * not `git add -A` or a whole folder, so unrelated work (in docs/, say)
+ * stays out of the setup commit: only the companion files this run wrote
+ * are listed. The steps are advice, so nothing here may fail the run. */
+async function nextSteps(
+  ctx: Context,
+  repoRoot: string,
+  files: SetupFilesOutcome,
+): Promise<string> {
   const claudeMdUpdated =
     files.claudeMdAdded.length > 0 &&
     !files.wroteCompanions.includes(CLAUDE_MD_PATH);
@@ -286,22 +335,25 @@ function nextSteps(files: SetupFilesOutcome): string {
     ".gitignore",
     JUDGE_WORKFLOW_PATH,
   ];
+  const protectedBranch = await findProtectedBranch(ctx, repoRoot);
+  const current = await currentBranch(ctx, repoRoot);
+  const onOther = current !== undefined && current !== protectedBranch;
+  const branch = onOther ? current : SETUP_BRANCH;
   return (
-    NEXT_STEPS_BEFORE +
+    `Next: ${protectedBranch} now refuses direct commits, so land this ` +
+    "setup through a pull request" +
+    (onOther ? ` (setup ran on ${branch}, so no new branch is needed)` : "") +
+    ":\n" +
+    (onOther ? "" : `  git switch -c ${SETUP_BRANCH}\n`) +
     `  git add ${paths.join(" ")}  (plus your lockfile)\n` +
-    NEXT_STEPS_AFTER
+    `  git commit -m "${SETUP_COMMIT_MESSAGE}"\n` +
+    `  git push -u origin ${shellQuoted(branch)}\n` +
+    "  gh pr create --fill\n"
   );
 }
 
-const NEXT_STEPS_BEFORE =
-  "Next: main now refuses direct commits, so land this setup through a " +
-  "pull request:\n" +
-  "  git switch -c temple-bar-setup\n";
-
-const NEXT_STEPS_AFTER =
-  `  git commit -m "${SETUP_COMMIT_MESSAGE}"\n` +
-  "  git push -u origin temple-bar-setup\n" +
-  "  gh pr create --fill\n";
+/** The branch the next steps suggest when setup ran on the protected one. */
+const SETUP_BRANCH = "temple-bar-setup";
 
 export function createInitCommand(deps: InitDeps): CommandEntry {
   return {
