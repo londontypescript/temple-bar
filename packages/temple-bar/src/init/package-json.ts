@@ -46,10 +46,11 @@ function canChainAfter(command: string): boolean {
  * safely follow that command. Anything else (including a value that isn't a
  * string) is not temple-bar's. */
 export function isTempleBarPrepare(value: unknown): boolean {
-  // Checked before trimming: a line break just before ` && ` would leave
-  // `&&` starting a line, which the shell refuses.
-  if (typeof value !== "string" || /[\r\n]/.test(value)) return false;
+  if (typeof value !== "string") return false;
   const command = value.trim();
+  // A line break left inside, such as one just before ` && `, would leave
+  // `&&` starting a line, which the shell refuses.
+  if (/[\r\n]/.test(command)) return false;
   if (command === PREPARE_SCRIPT) return true;
   return (
     command.endsWith(CHAIN) &&

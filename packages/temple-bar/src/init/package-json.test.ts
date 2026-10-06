@@ -227,6 +227,13 @@ void test("ensurePackageJsonScripts trims a trailing line break before chaining"
   assert.equal(written.scripts.prepare, `husky install && ${PREPARE_SCRIPT}`);
 });
 
+void test("ensurePackageJsonScripts recognises its chained `prepare` with a trailing line break", async () => {
+  const chained = `husky install && ${PREPARE_SCRIPT}\n`;
+  const { outcome, written } = await runWithPrepare(chained);
+  assert.deepEqual(outcome.conflicts, []);
+  assert.equal(written.scripts.prepare, chained, "not chained a second time");
+});
+
 void test("ensurePackageJsonScripts does not chain a second time on a rerun", async () => {
   const { fs } = await runWithPrepare("svelte-kit sync || echo ''");
   const writesAfterFirstRun = fs.writes.length;

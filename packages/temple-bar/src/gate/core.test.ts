@@ -169,6 +169,7 @@ void test("the gate accepts a `prepare` script chained after the project's own c
   for (const ok of [
     "svelte-kit sync || echo '' && temple-bar hook install",
     "husky install && temple-bar hook install",
+    "husky install && temple-bar hook install\n",
   ]) {
     assert.deepEqual(await prepareProblems(ok), [], ok);
   }
