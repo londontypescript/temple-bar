@@ -1,6 +1,6 @@
 // Creates package.json, or adds the scripts temple-bar needs to an existing
-// one. Like the rest of setup, it only adds: a script the project already
-// has is reported, never overwritten.
+// one. Like the rest of setup, it only adds: when the project already has one
+// of those scripts with different content, it is reported, never overwritten.
 
 import path from "node:path";
 
