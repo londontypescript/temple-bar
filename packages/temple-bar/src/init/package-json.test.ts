@@ -221,20 +221,29 @@ void test("ensurePackageJsonScripts chains onto an existing `prepare` script, pr
   }
 });
 
+void test("ensurePackageJsonScripts trims a trailing line break before chaining", async () => {
+  const { outcome, written } = await runWithPrepare("husky install\n");
+  assert.deepEqual(outcome.conflicts, []);
+  assert.equal(written.scripts.prepare, `husky install && ${PREPARE_SCRIPT}`);
+});
+
 void test("ensurePackageJsonScripts does not chain a second time on a rerun", async () => {
-  const chained = `svelte-kit sync || echo '' && ${PREPARE_SCRIPT}`;
-  const { fs, outcome } = await runWithPrepare(chained);
-  assert.equal(outcome.wrote, true, "first run adds the missing gate script");
+  const { fs } = await runWithPrepare("svelte-kit sync || echo ''");
+  const writesAfterFirstRun = fs.writes.length;
   const second = await ensurePackageJsonScripts(
     createFakeContext({ fs }),
     "/repo",
   );
   assert.equal(second.wrote, false);
   assert.deepEqual(second.conflicts, []);
+  assert.equal(fs.writes.length, writesAfterFirstRun, "nothing is written");
   const written = JSON.parse(fs.files.get("/repo/package.json") ?? "{}") as {
     scripts: Record<string, string>;
   };
-  assert.equal(written.scripts.prepare, chained);
+  assert.equal(
+    written.scripts.prepare,
+    `svelte-kit sync || echo '' && ${PREPARE_SCRIPT}`,
+  );
 });
 
 void test("ensurePackageJsonScripts leaves a `prepare` script alone when `&&` can't safely follow it", async () => {
@@ -244,7 +253,10 @@ void test("ensurePackageJsonScripts leaves a `prepare` script alone when `&&` ca
     "foo;",
     "foo &&",
     "foo ||",
+    "foo |",
     "foo ;  ",
+    "foo\nbar",
+    "cat <<'EOF'\nprepared\nEOF\n",
     "foo # x && temple-bar hook install",
     "   ",
     42,

@@ -61,7 +61,9 @@ export const INSTALLED_SHIMS: Readonly<Record<string, string>> = {
   "post-checkout": POST_CHECKOUT_SHIM,
 };
 
-/** The package.json scripts setup writes, with their exact commands. */
+/** The package.json scripts setup writes, with their commands. `gate` must
+ * match exactly; `prepare` may also be chained after the project's own
+ * command (`isTempleBarPrepare` says which forms count). */
 export const INSTALLED_SCRIPTS: Readonly<Record<string, string>> = {
   prepare: PREPARE_SCRIPT,
   gate: GATE_SCRIPT,

@@ -178,6 +178,9 @@ void test("the gate rejects a chained `prepare` that the rule refuses, and says 
   for (const bad of [
     "foo # x && temple-bar hook install",
     "foo; && temple-bar hook install",
+    "foo | && temple-bar hook install",
+    "foo\n && temple-bar hook install",
+    "cat <<'EOF'\nprepared\nEOF && temple-bar hook install",
     "foo && temple-bar hook install --other",
     "temple-bar hook install && foo",
     42,

@@ -2,7 +2,8 @@
 // needs to an existing one. Like the rest of setup, it only adds: when the
 // project already has a `gate` script with different content, it is
 // reported, never overwritten. A `prepare` script that is the project's own
-// is kept and temple-bar's command is chained after it, so both run.
+// is kept and temple-bar's command is chained after it, so both run; one
+// that can't safely be chained onto is reported like a `gate` conflict.
 
 import path from "node:path";
 
@@ -23,12 +24,19 @@ export const GATE_SCRIPT = "temple-bar gate";
 const CHAIN = ` && ${PREPARE_SCRIPT}`;
 
 /** True when `&&` can safely follow `command`: a `#` comment would swallow
- * whatever is appended, and a trailing `&`, `;` or `||` would turn the
- * appended command into something else (or a syntax error). */
+ * whatever is appended, and a trailing `&`, `;` or `|` (so `&&` and `||`
+ * too) would turn the appended command into something else, or a syntax
+ * error. A command over several lines is never chained: the appended text
+ * would join only its last line, which can be the end of a heredoc, and a
+ * line can't start with `&&`. Whitespace around the command doesn't matter,
+ * because setup trims it before chaining. */
 function canChainAfter(command: string): boolean {
   const trimmed = command.trim();
   return (
-    trimmed !== "" && !trimmed.includes("#") && !/(?:&|;|\|\|)$/.test(trimmed)
+    trimmed !== "" &&
+    !trimmed.includes("#") &&
+    !/[\r\n]/.test(trimmed) &&
+    !/[&;|]$/.test(trimmed)
   );
 }
 
@@ -38,7 +46,9 @@ function canChainAfter(command: string): boolean {
  * safely follow that command. Anything else (including a value that isn't a
  * string) is not temple-bar's. */
 export function isTempleBarPrepare(value: unknown): boolean {
-  if (typeof value !== "string") return false;
+  // Checked before trimming: a line break just before ` && ` would leave
+  // `&&` starting a line, which the shell refuses.
+  if (typeof value !== "string" || /[\r\n]/.test(value)) return false;
   const command = value.trim();
   if (command === PREPARE_SCRIPT) return true;
   return (
