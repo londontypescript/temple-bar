@@ -10,7 +10,9 @@ import { HELP_TEXT, wantsHelp } from "./help.ts";
 import {
   addDevDependencyCommand,
   FOREIGN_LOCKFILES,
+  foreignPackageManager,
   isLaunchedByPnpm,
+  packageManagerRequiredMessage,
   pnpmRequiredMessage,
   runInitCommand,
 } from "./package-manager.ts";
@@ -55,9 +57,11 @@ function folderName(cwd: string): string {
   return path.basename(cwd) || "app";
 }
 
-async function ensurePackageJson(deps: MainDeps): Promise<void> {
+async function ensurePackageJson(
+  deps: MainDeps,
+  existing: string | undefined,
+): Promise<void> {
   const packageJsonPath = path.join(deps.cwd, "package.json");
-  const existing = await deps.fs.readText(packageJsonPath);
   if (existing !== undefined) {
     return;
   }
@@ -93,7 +97,15 @@ export async function main(deps: MainDeps): Promise<number> {
     deps.stderr.write(pnpmRequiredMessage(refusal));
     return 1;
   }
-  await ensurePackageJson(deps);
+  const packageJson = await deps.fs.readText(
+    path.join(deps.cwd, "package.json"),
+  );
+  const packageManager = foreignPackageManager(packageJson);
+  if (packageManager !== undefined) {
+    deps.stderr.write(packageManagerRequiredMessage(packageManager));
+    return 1;
+  }
+  await ensurePackageJson(deps, packageJson);
 
   const options: RunOptions = { cwd: deps.cwd, env: childEnv(deps.env) };
 

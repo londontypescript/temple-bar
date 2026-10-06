@@ -9,6 +9,33 @@ export function isLaunchedByPnpm(userAgent: string | undefined): boolean {
   return userAgent?.startsWith("pnpm/") ?? false;
 }
 
+/** Leave malformed manifests to the existing install step; only a string
+ * packageManager can tell us the project chose another manager. */
+export function foreignPackageManager(
+  packageJson: string | undefined,
+): string | undefined {
+  if (packageJson === undefined) {
+    return undefined;
+  }
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(packageJson);
+  } catch {
+    return undefined;
+  }
+  if (
+    typeof manifest !== "object" ||
+    manifest === null ||
+    !("packageManager" in manifest)
+  ) {
+    return undefined;
+  }
+  const value: unknown = manifest.packageManager;
+  return typeof value === "string" && value.split("@")[0] !== "pnpm"
+    ? value
+    : undefined;
+}
+
 /** Lockfiles that show a repo installs with something other than pnpm. */
 export const FOREIGN_LOCKFILES: readonly string[] = [
   "package-lock.json",
@@ -27,6 +54,18 @@ const PACKAGE_NAME = "@londontypescript/temple-bar";
 
 /** The one command setup is run with, and the one every message prints. */
 const LAUNCH_COMMAND = "pnpm create @londontypescript/temple-bar@latest";
+
+/** The caller already uses pnpm, so explain the project's conflicting field. */
+export function packageManagerRequiredMessage(value: string): string {
+  return (
+    `temple-bar needs pnpm, but package.json has "packageManager": ${JSON.stringify(value)}. Nothing was changed.\n` +
+    "\n" +
+    'Set packageManager to pnpm, for example "packageManager": "pnpm@10.34.5",\n' +
+    "or re-scaffold with your framework's pnpm option.\n" +
+    "Then run setup again:\n" +
+    `  ${LAUNCH_COMMAND}\n`
+  );
+}
 
 /**
  * Adds `@londontypescript/temple-bar` as a dev dependency, pinned to
