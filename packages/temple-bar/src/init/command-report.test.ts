@@ -7,7 +7,8 @@ import test from "node:test";
 
 import { BLOCK_BEGIN, freshAgentsMd } from "./agents-template.ts";
 import { COMPANION_FILES } from "./companion-docs.ts";
-import { GATE_SCRIPT, GITIGNORE_LINES, PREPARE_SCRIPT } from "./files.ts";
+import { GITIGNORE_LINES } from "./files.ts";
+import { GATE_SCRIPT, PREPARE_SCRIPT } from "./package-json.ts";
 import { judgeWorkflow } from "../judge/workflow.ts";
 import { createFakeFs } from "../testing/fakes.ts";
 import {

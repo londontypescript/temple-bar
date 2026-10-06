@@ -6,7 +6,8 @@ import { isConventionalSubject } from "../conventional/subject.ts";
 import { createInitCommand, SETUP_COMMIT_MESSAGE } from "./command.ts";
 import { freshAgentsMd, templeBarBlock } from "./agents-template.ts";
 import { COMPANION_FILES } from "./companion-docs.ts";
-import { GATE_SCRIPT, GITIGNORE_LINES, PREPARE_SCRIPT } from "./files.ts";
+import { GITIGNORE_LINES } from "./files.ts";
+import { GATE_SCRIPT, PREPARE_SCRIPT } from "./package-json.ts";
 import { judgeWorkflow } from "../judge/workflow.ts";
 import {
   createFakeContext,

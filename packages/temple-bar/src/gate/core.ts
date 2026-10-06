@@ -38,7 +38,8 @@ import {
   locateTempleBarBlock,
   RESTORE_BLOCK,
 } from "../init/agents-template.ts";
-import { GATE_SCRIPT, GITIGNORE_LINES, PREPARE_SCRIPT } from "../init/files.ts";
+import { GITIGNORE_LINES } from "../init/files.ts";
+import { GATE_SCRIPT, PREPARE_SCRIPT } from "../init/package-json.ts";
 import { RERUN_INIT } from "../init/requirements.ts";
 import type { CheckOutcome } from "./report.ts";
 
