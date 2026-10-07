@@ -1,6 +1,6 @@
 # ADR 0005: Setup, hooks and worktrees
 
-Date: 2026-10-01, updated 2026-10-02, 2026-10-03 and 2026-10-05. Status: accepted (decisions 5, 16, 21,
+Date: 2026-10-01, updated 2026-10-02, 2026-10-03, 2026-10-05 and 2026-10-07. Status: accepted (decisions 5, 16, 21,
 22, 30 and 32; 32 is built and 30's ignore line ships in 0.0.6, while 16's
 checks and 30's detection are decided but not built yet).
 
@@ -21,7 +21,9 @@ sit where the agent reads them. The command is
 launcher `create-temple-bar`. The project is scaffolded first (by a framework
 CLI such as Vite, Next.js or Astro, or by hand), and setup then layers
 temple-bar on top of whatever is there. Setup never chooses or writes the
-project's toolchain: the agent sets the gate's four scripts to the right
+project's toolchain (narrowed by [ADR 0014](0014-setup-writes-fixed-workflows.md):
+setup records the pnpm version already running it when the project names
+none): the agent sets the gate's four scripts to the right
 commands for the project's stack (decision 23), and setup adapts to the
 framework's files instead of replacing them: its rules go into an existing
 AGENTS.md as a marked block, its hook install chains onto an existing

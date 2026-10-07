@@ -71,13 +71,25 @@ type PnpmVersionStep =
   | { readonly kind: "added"; readonly version: string }
   | { readonly kind: "problem"; readonly message: string };
 
+/** One SemVer identifier in a prerelease: a number without leading zeros,
+ * or letters, digits and hyphens with at least one non-digit. */
+const PRERELEASE_ID = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
+
+/** An exact SemVer version: no leading zeros in the three numbers or in a
+ * numeric prerelease identifier; build metadata allowed. */
+const EXACT_SEMVER =
+  String.raw`(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)` +
+  String.raw`(?:-${PRERELEASE_ID}(?:\.${PRERELEASE_ID})*)?` +
+  String.raw`(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?`;
+
+const PNPM_AGENT_VERSION = new RegExp(String.raw`^pnpm\/(${EXACT_SEMVER}) \S`);
+
 /** The exact version in a user agent such as `pnpm/10.34.5 npm/? node/v24.0.0
- * darwin arm64`, which pnpm sets for every script and `pnpm exec`. Anything
- * else, including another package manager, means setup can't tell. */
+ * darwin arm64`, which pnpm sets for every script and `pnpm exec`. Setup
+ * writes this version into package.json, so anything that isn't an exact
+ * SemVer version, or another package manager, means setup can't tell. */
 function runningPnpmVersion(userAgent: string | undefined): string | undefined {
-  return /^pnpm\/(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?) \S/.exec(
-    userAgent ?? "",
-  )?.[1];
+  return PNPM_AGENT_VERSION.exec(userAgent ?? "")?.[1];
 }
 
 /** Whether `value`, from package.json's `field`, names a pnpm version:
@@ -85,22 +97,39 @@ function runningPnpmVersion(userAgent: string | undefined): string | undefined {
  * "<version>" }` in `devEngines.packageManager`. */
 function namesPnpm(field: string, value: unknown): boolean {
   if (field === "packageManager") {
-    return typeof value === "string" && /^pnpm@./.test(value);
+    return typeof value === "string" && /^pnpm@\S+$/.test(value);
   }
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
   const { name, version } = value as Record<string, unknown>;
-  return name === "pnpm" && typeof version === "string" && version !== "";
+  return (
+    name === "pnpm" && typeof version === "string" && version.trim() !== ""
+  );
 }
 
-/** The conflict to report when `field` holds a value setup can't use. */
-function unusablePnpm(field: string, value: unknown): string {
+/** The conflict to report when `field` holds a value setup can't use.
+ * `pnpmNamedIn` is the other field, when that one does name pnpm. */
+function unusablePnpm(
+  field: string,
+  value: unknown,
+  pnpmNamedIn: string | undefined,
+): string {
+  const found = `package.json's ${field} is ${JSON.stringify(value)}`;
+  if (pnpmNamedIn !== undefined) {
+    return (
+      `${found}, but ${pnpmNamedIn} names pnpm, so it was left alone. ` +
+      "pnpm can refuse to run a project whose packageManager names another " +
+      "package manager, which would fail the workflows setup writes. Fix: " +
+      `make ${field} name the same pnpm, or remove it, then run ` +
+      `${RERUN_INIT} again.`
+    );
+  }
   return (
-    `package.json's ${field} is ${JSON.stringify(value)}, which doesn't ` +
-    "name a pnpm version, so it was left alone. The workflows setup writes " +
-    "install the pnpm package.json names, and fail without one. Fix: set " +
-    `it to the pnpm the project uses, then run ${RERUN_INIT} again.`
+    `${found}, which doesn't name a pnpm version, so it was left alone. ` +
+    "The workflows setup writes install the pnpm package.json names, and " +
+    "fail without one. Fix: set it to the pnpm the project uses, then run " +
+    `${RERUN_INIT} again.`
   );
 }
 
@@ -131,9 +160,17 @@ function pnpmVersionStep(
   if (Object.hasOwn(pkg, "packageManager")) {
     fields.push(["packageManager", pkg.packageManager]);
   }
+  // Both fields are checked, even though devEngines wins for action-setup:
+  // pnpm itself can refuse a packageManager naming another tool.
+  const pnpmNamedIn = fields.find(([field, value]) =>
+    namesPnpm(field, value),
+  )?.[0];
   for (const [field, value] of fields) {
     if (!namesPnpm(field, value)) {
-      return { kind: "problem", message: unusablePnpm(field, value) };
+      return {
+        kind: "problem",
+        message: unusablePnpm(field, value, pnpmNamedIn),
+      };
     }
   }
   if (fields.length > 0) return { kind: "named" };

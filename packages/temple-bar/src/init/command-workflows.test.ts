@@ -60,17 +60,18 @@ void test("init workflows: a fresh repo gets both workflows and the running pnpm
   );
 });
 
-void test("init workflows: a different gate workflow is left alone and reported, and the run still succeeds", async () => {
+void test("init workflows: a different gate workflow is left alone and reported, and the run ends non-zero", async () => {
   const edited = gateWorkflow().replace("pnpm gate", "pnpm gate || true");
   const fs = setUpFiles({ [`/repo/${GATE_WORKFLOW_PATH}`]: edited });
   const { code, stdout, stderr } = await rerun(fs);
-  assert.equal(code, 0, stderr);
+  assert.equal(code, 1);
   assert.equal(fs.files.get(`/repo/${GATE_WORKFLOW_PATH}`), edited);
   assert.equal(fs.writes.length, 0);
   assert.match(
-    stdout,
-    /Warning: \.github\/workflows\/temple-bar-gate\.yml differs from the copy this temple-bar writes, from line \d+, so it was left alone, and the gate fails until it matches\. Fix: move the project's own changes into a workflow of their own, delete this file/,
+    stderr,
+    /\.github\/workflows\/temple-bar-gate\.yml differs from the copy this temple-bar writes, from line \d+, so it was left alone, and the gate fails until it matches\. Fix: move the project's own changes into a workflow of their own, delete this file/,
   );
+  assert.doesNotMatch(stdout, /temple-bar is set up/);
   assert.match(
     stdout,
     new RegExp(

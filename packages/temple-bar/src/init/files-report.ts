@@ -53,34 +53,44 @@ function reportAgentsFiles(ctx: Context, files: SetupFilesOutcome): boolean {
   return files.agentsProblem !== undefined;
 }
 
-/** One line for a workflow the gate holds to an exact copy. A copy that
- * differs is a warning, like an oversized AGENTS.md: setup leaves it alone,
- * and the gate names it again until it is put right. */
-function checkedWorkflowLine(outcome: CheckedWorkflowOutcome): string {
+/** Reports one workflow the gate holds to an exact copy; returns true when
+ * the copy differs, which ends the run non-zero. Setup never overwrites it,
+ * but a changed copy may no longer run the gate at all, so setup doesn't
+ * report success beside it. */
+function reportCheckedWorkflow(
+  ctx: Context,
+  outcome: CheckedWorkflowOutcome,
+): boolean {
   const { workflow, state } = outcome;
   if (outcome.wrote) {
-    return `Wrote the ${workflow.label}, ${workflow.path}.\n`;
+    ctx.stdout.write(`Wrote the ${workflow.label}, ${workflow.path}.\n`);
+    return false;
   }
   if (state.kind === "differs") {
-    return (
-      `Warning: ${workflow.path} differs from the copy this temple-bar ` +
-      `writes, from line ${String(state.line)}, so it was left alone, and ` +
-      `the gate fails until it matches. Fix: ${RESTORE_WORKFLOW}.\n`
+    ctx.stderr.write(
+      `${workflow.path} differs from the copy this temple-bar writes, from ` +
+        `line ${String(state.line)}, so it was left alone, and the gate ` +
+        `fails until it matches. Fix: ${RESTORE_WORKFLOW}.\n`,
     );
+    return true;
   }
-  return `${workflow.path} already exists; left it alone.\n`;
+  ctx.stdout.write(`${workflow.path} already exists; left it alone.\n`);
+  return false;
 }
 
-/** Reports the judge, gate and title workflows. */
-function reportWorkflows(ctx: Context, files: SetupFilesOutcome): void {
+/** Reports the judge, gate and title workflows; returns true when the gate
+ * or title workflow differs from its copy. */
+function reportWorkflows(ctx: Context, files: SetupFilesOutcome): boolean {
   ctx.stdout.write(
     files.wroteJudge
       ? `Wrote the judge workflow, ${JUDGE_WORKFLOW_PATH}.\n`
       : `${JUDGE_WORKFLOW_PATH} already exists; left it alone.\n`,
   );
+  let differs = false;
   for (const outcome of files.checkedWorkflows) {
-    ctx.stdout.write(checkedWorkflowLine(outcome));
+    if (reportCheckedWorkflow(ctx, outcome)) differs = true;
   }
+  return differs;
 }
 
 /** Reports package.json; returns true when something in it has to be put
@@ -119,9 +129,9 @@ export function reportSetupFiles(
   files: SetupFilesOutcome,
 ): boolean {
   const agentsFailed = reportAgentsFiles(ctx, files);
-  reportWorkflows(ctx, files);
+  const workflowsFailed = reportWorkflows(ctx, files);
   const packageFailed = reportPackageJson(ctx, files);
-  return agentsFailed || packageFailed;
+  return agentsFailed || workflowsFailed || packageFailed;
 }
 
 /** Whether this run wrote any of setup's files, which leaves something to

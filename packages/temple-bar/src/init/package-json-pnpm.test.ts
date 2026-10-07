@@ -45,12 +45,14 @@ void test("pnpm version: added from the running pnpm when neither field names on
   assert.equal(outcome.pnpmProblem, undefined);
 });
 
-void test("pnpm version: a prerelease pnpm is recorded exactly", async () => {
-  const { written } = await runStep(
-    { name: "widgets", scripts: SCRIPTS },
-    { npm_config_user_agent: "pnpm/11.0.0-rc.2 npm/? node/v24.0.0 linux x64" },
-  );
-  assert.equal(written.packageManager, "pnpm@11.0.0-rc.2");
+void test("pnpm version: a prerelease or build pnpm is recorded exactly", async () => {
+  for (const version of ["11.0.0-rc.2", "12.0.0-rc.1+build.2", "1.0.0-0.3.7"]) {
+    const { written } = await runStep(
+      { name: "widgets", scripts: SCRIPTS },
+      { npm_config_user_agent: `pnpm/${version} npm/? node/v24.0.0 linux x64` },
+    );
+    assert.equal(written.packageManager, `pnpm@${version}`, version);
+  }
 });
 
 void test("pnpm version: a value already naming pnpm is left alone, in either field", async () => {
@@ -77,13 +79,12 @@ void test("pnpm version: a value setup can't use is left alone and reported", as
     { packageManager: 10 },
     { packageManager: "npm@10.9.2" },
     { packageManager: "pnpm" },
+    { packageManager: "pnpm@" },
+    { packageManager: "pnpm@ " },
     { devEngines: { packageManager: { name: "yarn", version: "4.1.0" } } },
     { devEngines: { packageManager: { name: "pnpm" } } },
+    { devEngines: { packageManager: { name: "pnpm", version: "   " } } },
     { devEngines: { packageManager: "pnpm@10.0.0" } },
-    {
-      devEngines: { packageManager: { name: "pnpm", version: "10.0.0" } },
-      packageManager: "npm@10.9.2",
-    },
   ]) {
     const { outcome, unchanged } = await runStep({
       name: "widgets",
@@ -101,6 +102,21 @@ void test("pnpm version: a value setup can't use is left alone and reported", as
   }
 });
 
+void test("pnpm version: a packageManager naming another tool beside a pnpm devEngines is a conflict of its own", async () => {
+  const { outcome, unchanged } = await runStep({
+    name: "widgets",
+    scripts: SCRIPTS,
+    devEngines: { packageManager: { name: "pnpm", version: "10.0.0" } },
+    packageManager: "npm@10.9.2",
+  });
+  assert.ok(unchanged);
+  assert.equal(outcome.addedPnpm, undefined);
+  assert.match(
+    outcome.pnpmProblem ?? "",
+    /package\.json's packageManager is "npm@10\.9\.2", but devEngines\.packageManager names pnpm, so it was left alone\. pnpm can refuse to run a project whose packageManager names another package manager/,
+  );
+});
+
 void test("pnpm version: with no pnpm user agent, or one it can't read, nothing is written and setup says to rerun through pnpm", async () => {
   for (const userAgent of [
     undefined,
@@ -109,6 +125,9 @@ void test("pnpm version: with no pnpm user agent, or one it can't read, nothing 
     "yarn/4.1.0 npm/? node/v24.0.0 darwin arm64",
     "pnpm/10 npm/? node/v24.0.0 darwin arm64",
     "pnpm/latest npm/? node/v24.0.0 darwin arm64",
+    "pnpm/01.2.3 npm/? node/v24.0.0 darwin arm64",
+    "pnpm/10.0.0-01 npm/? node/v24.0.0 darwin arm64",
+    "pnpm/10.0.0-rc..2 npm/? node/v24.0.0 darwin arm64",
     "pnpm/10.34.5",
     " pnpm/10.34.5 npm/? node/v24.0.0 darwin arm64",
   ]) {
