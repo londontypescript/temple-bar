@@ -173,13 +173,15 @@ async function writeCheckedWorkflows(
 ): Promise<readonly CheckedWorkflowOutcome[]> {
   const outcomes: CheckedWorkflowOutcome[] = [];
   for (const workflow of CHECKED_WORKFLOWS) {
-    const wrote = await writeIfMissing(
-      ctx,
-      repoRoot,
-      workflow.path,
-      workflow.content,
-    );
-    const state = await compareWorkflow(ctx, repoRoot, workflow);
+    // Compared first, so a symlink or folder at the path is reported, never
+    // read through or written over.
+    const before = await compareWorkflow(ctx, repoRoot, workflow);
+    const wrote =
+      before.kind === "missing" &&
+      (await writeIfMissing(ctx, repoRoot, workflow.path, workflow.content));
+    const state = wrote
+      ? await compareWorkflow(ctx, repoRoot, workflow)
+      : before;
     outcomes.push({ workflow, wrote, state });
   }
   return outcomes;

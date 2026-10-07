@@ -88,6 +88,28 @@ void test("workflow copies: a missing file fails and says to run setup again", a
   );
 });
 
+void test("workflow copies: a symlink fails, even to the right text, since GitHub doesn't run it", async () => {
+  const fs = createFakeFs(
+    Object.fromEntries(
+      CHECKED_WORKFLOWS.map((workflow) => [
+        `/repo/${workflow.path}`,
+        workflow.content,
+      ]),
+    ),
+  );
+  fs.symlinks.add(`/repo/${GATE_WORKFLOW_PATH}`);
+  const stderr = createFakeWriter();
+  const outcome = await runWorkflowCopiesCheck(
+    createFakeContext({ fs, stderr }),
+  );
+  assert.equal(outcome.status, "failed");
+  assert.equal(outcome.detail, `${GATE_WORKFLOW_PATH} not an ordinary file`);
+  assert.match(
+    stderr.lines.join(""),
+    /temple-bar-gate\.yml is a symlink or folder, not an ordinary file, so GitHub doesn't run it as a workflow\.\n {2}fix: move the project's own changes/,
+  );
+});
+
 void test("workflow copies: an edited line fails, naming that line", async () => {
   const lines = gateLines();
   lines[11] = "    types: [opened, synchronize, reopened, edited]\n";

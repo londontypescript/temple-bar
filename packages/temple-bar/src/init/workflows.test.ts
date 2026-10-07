@@ -73,6 +73,16 @@ void test("workflows: nothing can skip a step or let it fail quietly", () => {
   }
 });
 
+void test("workflows: nothing changes what a step runs: no shell, folder or default overrides, and the checkout is the pull request's own", () => {
+  for (const code of [gate, title]) {
+    // A shell such as `true {0}` would pass every step without running it,
+    // and another folder would run some other project's scripts.
+    assert.doesNotMatch(code, /^\s*(- )?(shell|working-directory|defaults):/m);
+    // Checking out another ref or repository would gate other code.
+    assert.doesNotMatch(code, /^\s*(- )?(ref|repository):/m);
+  }
+});
+
 void test("workflows: one job each, named by the check a ruleset requires, on Node 24", () => {
   for (const [code, check] of [
     [gate, GATE_CHECK],

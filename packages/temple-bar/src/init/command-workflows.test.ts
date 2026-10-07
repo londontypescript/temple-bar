@@ -80,6 +80,19 @@ void test("init workflows: a different gate workflow is left alone and reported,
   );
 });
 
+void test("init workflows: a symlinked gate workflow is left alone and reported, and the run ends non-zero", async () => {
+  const fs = setUpFiles();
+  fs.symlinks.add(`/repo/${GATE_WORKFLOW_PATH}`);
+  const { code, stdout, stderr } = await rerun(fs);
+  assert.equal(code, 1);
+  assert.equal(fs.writes.length, 0);
+  assert.match(
+    stderr,
+    /\.github\/workflows\/temple-bar-gate\.yml is a symlink or folder, not an ordinary file, so it was left alone, and the gate fails until it matches\. Fix: move the project's own changes/,
+  );
+  assert.doesNotMatch(stdout, /temple-bar is set up/);
+});
+
 void test("init workflows: one workflow written alone is a change to land, and the next steps add both", async () => {
   const fs = setUpFiles();
   fs.files.delete(`/repo/${PR_TITLE_WORKFLOW_PATH}`);

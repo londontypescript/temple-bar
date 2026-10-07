@@ -66,11 +66,14 @@ function reportCheckedWorkflow(
     ctx.stdout.write(`Wrote the ${workflow.label}, ${workflow.path}.\n`);
     return false;
   }
-  if (state.kind === "differs") {
+  if (state.kind === "differs" || state.kind === "not-a-file") {
+    const how =
+      state.kind === "differs"
+        ? `differs from the copy this temple-bar writes, from line ${String(state.line)}`
+        : "is a symlink or folder, not an ordinary file";
     ctx.stderr.write(
-      `${workflow.path} differs from the copy this temple-bar writes, from ` +
-        `line ${String(state.line)}, so it was left alone, and the gate ` +
-        `fails until it matches. Fix: ${RESTORE_WORKFLOW}.\n`,
+      `${workflow.path} ${how}, so it was left alone, and the gate fails ` +
+        `until it matches. Fix: ${RESTORE_WORKFLOW}.\n`,
     );
     return true;
   }

@@ -47,21 +47,29 @@ function firstDifferingLine(
 }
 
 /** How a workflow in the repo compares with the copy this temple-bar
- * writes: missing, an exact copy, or different from `line` on. */
+ * writes: missing, not an ordinary file, an exact copy, or different from
+ * `line` on. */
 export type WorkflowState =
   | { readonly kind: "missing" }
+  | { readonly kind: "not-a-file" }
   | { readonly kind: "exact" }
   | { readonly kind: "differs"; readonly line: number };
 
-/** Reads `workflow` under `repoRoot` and compares it with its copy. */
+/** Reads `workflow` under `repoRoot` and compares it with its copy. A
+ * symlink is never a copy, even of the right text: git stores only the path
+ * it points to, and GitHub doesn't run a symlinked workflow. */
 export async function compareWorkflow(
   ctx: Context,
   repoRoot: string,
   workflow: CheckedWorkflow,
 ): Promise<WorkflowState> {
-  const found = await ctx.fs.readText(
-    path.join(repoRoot, ...workflow.path.split("/")),
-  );
+  const file = path.join(repoRoot, ...workflow.path.split("/"));
+  if (!(await ctx.fs.isRegularFile(file))) {
+    return (await ctx.fs.exists(file))
+      ? { kind: "not-a-file" }
+      : { kind: "missing" };
+  }
+  const found = await ctx.fs.readText(file);
   if (found === undefined) {
     return { kind: "missing" };
   }
@@ -83,6 +91,14 @@ export async function runWorkflowCopiesCheck(
         message:
           `gate: ${workflow.path} is missing.\n` +
           `  fix: run ${RERUN_INIT} again: setup writes it.\n`,
+      });
+    } else if (state.kind === "not-a-file") {
+      problems.push({
+        summary: `${workflow.path} not an ordinary file`,
+        message:
+          `gate: ${workflow.path} is a symlink or folder, not an ordinary ` +
+          "file, so GitHub doesn't run it as a workflow.\n" +
+          `  fix: ${RESTORE_WORKFLOW}.\n`,
       });
     } else if (state.kind === "differs") {
       problems.push({
