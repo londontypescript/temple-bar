@@ -92,15 +92,12 @@ export async function makeScaffoldProject(
     try {
       symlinkSync(target, file, "file");
     } catch (error) {
-      if (
-        process.platform !== "win32" ||
-        !(error instanceof Error) ||
-        !("code" in error) ||
-        !["EPERM", "EACCES"].includes(String(error.code))
-      )
-        throw error;
-      // Without link privileges this is what core.symlinks=false checks out.
-      writeFileSync(file, target);
+      // The test proves setup leaves a real link alone, so a plain-file
+      // stand-in would prove something else: fail, never fall back.
+      throw new Error(
+        `${fixture.name}: this machine refused to create the ${relative} link; the test needs real links`,
+        { cause: error },
+      );
     }
     const oid = execFileSync("git", ["hash-object", "-w", "--stdin"], {
       ...options,
@@ -112,8 +109,9 @@ export async function makeScaffoldProject(
       options,
     );
   }
-  // Do not add broadly after the link entries: git on Windows may downgrade
-  // a plain-file checkout to mode 100644.
+  // Do not add broadly after the link entries: with core.symlinks=false
+  // (Git for Windows' usual setting) git may stage the link as an ordinary
+  // file.
   await git(["commit", "-q", "-m", "Initial commit"], options);
   for (const relative of Object.keys(fixture.symlinks)) {
     for (const args of [
@@ -196,19 +194,15 @@ export function assertScaffoldSetup(
     const target = fixture.symlinks[file.path];
     if (target !== undefined) {
       const full = path.join(dir, file.path);
-      if (lstatSync(full).isSymbolicLink()) {
-        assert.equal(
-          readlinkSync(full),
-          target,
-          `${label}: ${file.path} retains its stored link target`,
-        );
-      } else {
-        assert.equal(
-          readFileSync(full, "utf8"),
-          target,
-          `${label}: ${file.path} retains its plain-file checkout`,
-        );
-      }
+      assert.ok(
+        lstatSync(full).isSymbolicLink(),
+        `${label}: ${file.path} is still a link`,
+      );
+      assert.equal(
+        readlinkSync(full),
+        target,
+        `${label}: ${file.path} retains its stored link target`,
+      );
       assert.doesNotMatch(
         agents,
         /^# Claude Code$/m,

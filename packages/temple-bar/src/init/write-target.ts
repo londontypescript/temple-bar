@@ -7,7 +7,7 @@ import path from "node:path";
 
 import type { Context } from "../context.ts";
 import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
-import { COMPANION_FILES } from "./companion-docs.ts";
+import { CLAUDE_MD_PATH, COMPANION_FILES } from "./companion-docs.ts";
 import { reportWriteTarget } from "./files-report.ts";
 import { CHECKED_WORKFLOWS } from "./workflows.ts";
 
@@ -178,7 +178,7 @@ export class WriteTargets {
     let state = await classifyDiskTarget(this.ctx, this.root, relative, index);
     if (
       this.indexPaths !== undefined &&
-      relative === "CLAUDE.md" &&
+      relative === CLAUDE_MD_PATH &&
       state.kind === "refused"
     ) {
       const problem = indexProblem(index?.get(relative), relative);

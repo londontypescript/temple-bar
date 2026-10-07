@@ -1,8 +1,11 @@
 // `temple-bar init`: checks the requirements, offers the GitHub changes
 // (repo creation; the rulesets and CodeQL under one yes) only on an explicit
 // yes, writes AGENTS.md, its companion docs, the workflows and package.json
-// where they're missing, then installs the hooks. Local refusals are reported
-// on discovery, while the remaining safe files and hooks are still installed.
+// where they're missing, then installs the hooks. Every hard stop below
+// happens before any write, so a failed run leaves the repo untouched. A path
+// setup refuses to write through (a symlink) is reported when it's found, and
+// the run still writes every other file and installs the hooks, then ends
+// non-zero.
 
 import type { CommandEntry } from "../registry.ts";
 import type { Context } from "../context.ts";
