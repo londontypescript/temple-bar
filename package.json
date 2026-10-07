@@ -13,6 +13,7 @@
     "format:check": "prettier --check .",
     "test": "node --import ./scripts/isolate-git-config.ts --test",
     "build": "tsc -p packages/temple-bar/tsconfig.build.json && tsc -p packages/create-temple-bar/tsconfig.build.json",
+    "pack:local": "node scripts/pack-local.ts",
     "check": "pnpm run gate",
     "prepare": "temple-bar hook install",
     "gate": "temple-bar gate",

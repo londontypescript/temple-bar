@@ -132,7 +132,7 @@ kept as a familiar local alias.
   not a diagnosis: reproduce and name the cause, or report it as _needs a
   decision_.
 - **Verified means exercised through the real delivery path.** For this repo
-  that is the packed package installed from its tarball, not the source tree.
+  that is installing what `pnpm pack:local <dir>` packs (never `pnpm pack`).
 - **Say "passes locally; CI not yet seen"** until a CI run is green.
 - Write tests that assert behaviour worth protecting. Do not pad the count.
 
