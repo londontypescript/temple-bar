@@ -1,7 +1,7 @@
 // In-memory fakes for every seam, for tests only. Excluded from the built
 // package (tsconfig.build.json).
 
-import { dirname, normalize, resolve } from "node:path";
+import { dirname, isAbsolute, join, normalize } from "node:path";
 
 import type { Context } from "../context.ts";
 import type { ClockSeam } from "../seams/clock.ts";
@@ -144,6 +144,12 @@ class PathSet extends Set<string> {
   }
 }
 
+/** Where a link at `path` points. Joined, not resolved: on Windows
+ * path.resolve adds the drive letter, which the fake's keys don't have. */
+function linkedPath(path: string, target: string): string {
+  return isAbsolute(target) ? target : join(dirname(path), target);
+}
+
 export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
   const files = new PathMap(Object.entries(initial));
   const writes: RecordedWrite[] = [];
@@ -191,13 +197,13 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
       }
       const target = linkTargets.get(path);
       return Promise.resolve(
-        files.get(target === undefined ? path : resolve(dirname(path), target)),
+        files.get(target === undefined ? path : linkedPath(path, target)),
       );
     },
     writeText(path, content) {
       const target = linkTargets.get(path);
       files.set(
-        target === undefined ? path : resolve(dirname(path), target),
+        target === undefined ? path : linkedPath(path, target),
         content,
       );
       writes.push({ path: normalize(path), content });
@@ -206,8 +212,7 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
     exists(path) {
       // A folder exists, as on a real disk, when some file is inside it.
       const target = linkTargets.get(path);
-      const entry =
-        target === undefined ? path : resolve(dirname(path), target);
+      const entry = target === undefined ? path : linkedPath(path, target);
       const folder = normalize(`${entry}/`);
       return Promise.resolve(
         files.has(entry) ||
