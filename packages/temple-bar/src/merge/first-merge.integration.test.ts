@@ -18,6 +18,7 @@ import {
 } from "../hooks/testing/repo-fixture.ts";
 import { createGitSeam } from "../seams/git.ts";
 import { createFakeContext } from "../testing/fakes.ts";
+import { configureTestRepo } from "../testing/git-repo.ts";
 import { cleanUp } from "./local.ts";
 
 void test("first merge: main fast-forwards and the remote branch goes while the worktree's temple-bar still exists", async () => {
@@ -47,16 +48,26 @@ void test("first merge: main fast-forwards and the remote branch goes while the 
     const push = runGit(worktree, ["push", "-q", "origin", "feat/x"]);
     assert.equal(push.code, 0, push.stderr);
 
-    // GitHub's squash merge, and the branch left behind on origin.
-    const squash = runGit(fixture.originDir, [
+    // GitHub's squash merge, and the branch left behind on origin. The bare
+    // origin needs an identity of its own: CI runners have none to fall
+    // back on, so commit-tree would fail there.
+    configureTestRepo(fixture.originDir);
+    const commitTree = runGit(fixture.originDir, [
       "commit-tree",
       `${tip}^{tree}`,
       "-p",
       "refs/heads/main",
       "-m",
       "chore: set up (#1)",
-    ]).stdout.trim();
-    runGit(fixture.originDir, ["update-ref", "refs/heads/main", squash]);
+    ]);
+    assert.equal(commitTree.code, 0, commitTree.stderr);
+    const squash = commitTree.stdout.trim();
+    const moved = runGit(fixture.originDir, [
+      "update-ref",
+      "refs/heads/main",
+      squash,
+    ]);
+    assert.equal(moved.code, 0, moved.stderr);
 
     const ctx = createFakeContext({ git: createGitSeam(), cwd: primary });
     const report = await cleanUp(ctx, {
