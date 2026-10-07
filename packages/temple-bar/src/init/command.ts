@@ -154,7 +154,7 @@ async function runInit(
   }
   await recordDefaultBranch(ctx, repoRoot);
 
-  let exitCode = targets.refusals.size > 0 ? 1 : 0;
+  let exitCode = 0;
 
   // An unprotected main is not "set up": a ruleset or CodeQL that couldn't
   // be set up (no terminal, or the API call failed) ends the run non-zero.

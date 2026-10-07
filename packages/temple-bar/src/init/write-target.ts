@@ -38,23 +38,45 @@ function folders(relative: string): string[] {
     .map((_, index) => parts.slice(0, index + 1).join("/"));
 }
 
-function refused(reason: string, folder?: string): RefusedTarget {
+/** How a refusal names a folder and what to run once it's fixed. Setup's
+ * paths are shown as they are, relative to the repo; the hooks name their
+ * folder in full, since git's folder can be outside the checkout, and are put
+ * back by `temple-bar hook install` as well as by setup. */
+export interface RefusalWording {
+  readonly show: (relative: string) => string;
+  readonly rerun: string;
+}
+
+const SETUP_WORDING: RefusalWording = {
+  show: (relative) => relative,
+  rerun: "run setup again",
+};
+
+function refused(
+  reason: string,
+  wording: RefusalWording,
+  folder?: string,
+): RefusedTarget {
   return {
     kind: "refused",
     reason,
     fix:
       folder === undefined
-        ? "replace it with an ordinary file, or remove it, then run setup again"
-        : `replace ${folder} with an ordinary folder, or remove it, then run setup again`,
+        ? `replace it with an ordinary file, or remove it, then ${wording.rerun}`
+        : `replace ${wording.show(folder)} with an ordinary folder, or remove it, then ${wording.rerun}`,
   };
 }
 
-/** Used by the gate and hooks too: no git index applies to git's hooks folder. */
+/** Checks `relative` and each folder on the way to it below `root`, never
+ * following a link. Setup also passes git's index, so a link git checked out
+ * as a plain file still counts as a link; the gate and the hooks don't (git
+ * doesn't track its own hooks folder). */
 export async function classifyDiskTarget(
   ctx: Context,
   root: string,
   relative: string,
   index?: ReadonlyMap<string, readonly IndexEntry[]>,
+  wording: RefusalWording = SETUP_WORDING,
 ): Promise<WriteTarget> {
   let missingFolder = false;
   for (const folder of folders(relative)) {
@@ -69,10 +91,12 @@ export async function classifyDiskTarget(
       continue;
     }
     if (kind !== "directory") {
+      const shown = wording.show(folder);
       return refused(
         kind === "symlink"
-          ? `is a path through a linked folder ${folder}`
-          : `is a path through ${folder}, which is ${kind === "file" ? "an ordinary file" : "not an ordinary folder"}`,
+          ? `is a path through a linked folder ${shown}`
+          : `is a path through ${shown}, which is ${kind === "file" ? "an ordinary file" : "not an ordinary folder"}`,
+        wording,
         folder,
       );
     }
@@ -88,6 +112,7 @@ export async function classifyDiskTarget(
       : kind === "directory"
         ? "is a folder, not an ordinary file"
         : "is not an ordinary file",
+    wording,
   );
 }
 
@@ -145,6 +170,7 @@ function indexProblem(
       folder
         ? `is a path through a tracked symlink ${relative}`
         : "is a tracked symlink",
+      SETUP_WORDING,
       folder ? relative : undefined,
     );
   }
@@ -152,7 +178,10 @@ function indexProblem(
 }
 
 /** Owns safe reads, writes and chmod, so a writer cannot accidentally treat a
- * refusal as a missing file. No disk or index classification is cached. */
+ * refusal as a missing file. No disk or index classification is cached.
+ * Setup passes its paths, which turns on what only setup does: reading git's
+ * index, the CLAUDE.md exception, and reporting each refusal as it's found.
+ * The hooks pass none and report refusals as hook conflicts instead. */
 export class WriteTargets {
   readonly refusals = new Map<string, RefusedTarget>();
   private readonly announced = new Set<string>();
@@ -160,10 +189,20 @@ export class WriteTargets {
 
   private readonly ctx: Context;
   private readonly root: string;
+  private readonly wording: RefusalWording;
 
-  constructor(ctx: Context, root: string, setupPaths?: readonly string[]) {
+  constructor(
+    ctx: Context,
+    root: string,
+    options: {
+      readonly setupPaths?: readonly string[];
+      readonly wording?: RefusalWording;
+    } = {},
+  ) {
+    const { setupPaths } = options;
     this.ctx = ctx;
     this.root = root;
+    this.wording = options.wording ?? SETUP_WORDING;
     this.indexPaths =
       setupPaths === undefined
         ? undefined
@@ -175,7 +214,13 @@ export class WriteTargets {
       this.indexPaths === undefined
         ? undefined
         : await readIndex(this.ctx, this.root, this.indexPaths);
-    let state = await classifyDiskTarget(this.ctx, this.root, relative, index);
+    let state = await classifyDiskTarget(
+      this.ctx,
+      this.root,
+      relative,
+      index,
+      this.wording,
+    );
     if (
       this.indexPaths !== undefined &&
       relative === CLAUDE_MD_PATH &&
@@ -194,11 +239,18 @@ export class WriteTargets {
             "AGENTS.md",
             index,
           );
-          if (
-            ["AGENTS.md", "./AGENTS.md", ".\\AGENTS.md"].includes(stored) &&
-            agents.kind === "file"
-          ) {
-            state = { kind: "claude-link" };
+          if (["AGENTS.md", "./AGENTS.md", ".\\AGENTS.md"].includes(stored)) {
+            if (agents.kind === "file") {
+              state = { kind: "claude-link" };
+            } else if (agents.kind === "refused") {
+              // The link itself is fine; what it points at isn't, so the
+              // fix is AGENTS.md's, not CLAUDE.md's.
+              state = {
+                kind: "refused",
+                reason: `links to AGENTS.md, which ${agents.reason}`,
+                fix: `fix AGENTS.md first (${agents.fix})`,
+              };
+            }
           }
         } else if (
           problem?.reason === "is a tracked symlink" &&
@@ -232,12 +284,10 @@ export class WriteTargets {
   }
 
   async writeText(relative: string, content: string): Promise<boolean> {
-    let state = await this.inspect(relative);
+    const state = await this.inspect(relative);
     if (state.kind !== "missing" && state.kind !== "file") return false;
     const full = path.join(this.root, ...relative.split("/"));
     await this.ctx.fs.mkdirp(path.dirname(full));
-    state = await this.inspect(relative);
-    if (state.kind !== "missing" && state.kind !== "file") return false;
     await this.ctx.fs.writeText(full, content);
     return true;
   }
@@ -250,5 +300,5 @@ export class WriteTargets {
 }
 
 export function setupWriteTargets(ctx: Context, root: string): WriteTargets {
-  return new WriteTargets(ctx, root, SETUP_PATHS);
+  return new WriteTargets(ctx, root, { setupPaths: SETUP_PATHS });
 }

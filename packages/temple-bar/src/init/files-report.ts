@@ -29,7 +29,7 @@ function conflictMessage(name: string, expected: string): string {
  * temple-bar's until the block is put right. A size warning doesn't: the
  * file is written, and the gate names the overage again until it's fixed. */
 function reportAgentsFiles(ctx: Context, files: SetupFilesOutcome): boolean {
-  const refused = files.refusedPaths?.has("AGENTS.md") ?? false;
+  const refused = files.refusedPaths.has("AGENTS.md");
   if (files.agentsProblem !== undefined) {
     ctx.stderr.write(`${files.agentsProblem}\n`);
   } else if (!refused) {
@@ -86,7 +86,7 @@ function reportCheckedWorkflow(
 /** Reports the judge, gate and title workflows; returns true when the gate
  * or title workflow differs from its copy. */
 function reportWorkflows(ctx: Context, files: SetupFilesOutcome): boolean {
-  if (!files.refusedPaths?.has(JUDGE_WORKFLOW_PATH))
+  if (!files.refusedPaths.has(JUDGE_WORKFLOW_PATH))
     ctx.stdout.write(
       files.wroteJudge
         ? `Wrote the judge workflow, ${JUDGE_WORKFLOW_PATH}.\n`
@@ -95,7 +95,7 @@ function reportWorkflows(ctx: Context, files: SetupFilesOutcome): boolean {
   let differs = false;
   for (const outcome of files.checkedWorkflows) {
     if (
-      files.refusedPaths?.has(outcome.workflow.path) ||
+      files.refusedPaths.has(outcome.workflow.path) ||
       reportCheckedWorkflow(ctx, outcome)
     )
       differs = true;
@@ -106,7 +106,7 @@ function reportWorkflows(ctx: Context, files: SetupFilesOutcome): boolean {
 /** Reports package.json; returns true when something in it has to be put
  * right by hand, which ends the run non-zero. */
 function reportPackageJson(ctx: Context, files: SetupFilesOutcome): boolean {
-  if (files.refusedPaths?.has("package.json")) return true;
+  if (files.refusedPaths.has("package.json")) return true;
   const outcome = files.packageOutcome;
   if (outcome.invalid !== undefined) {
     ctx.stderr.write(`${outcome.invalid}\n`);
@@ -146,7 +146,7 @@ export function reportSetupFiles(
     agentsFailed ||
     workflowsFailed ||
     packageFailed ||
-    (files.refusedPaths?.size ?? 0) > 0
+    files.refusedPaths.size > 0
   );
 }
 

@@ -223,11 +223,19 @@ for (const agents of ["missing", "folder", "symlink", "tracked"]) {
         realLink(path.join(repo.outside, "target"), file);
       if (agents === "tracked") repo.stageLink("AGENTS.md", "elsewhere");
       realLink("AGENTS.md", path.join(repo.root, "CLAUDE.md"));
-      assert.equal(
-        (await setupWriteTargets(repo.ctx, repo.root).inspect("CLAUDE.md"))
-          .kind,
-        "refused",
+      const state = await setupWriteTargets(repo.ctx, repo.root).inspect(
+        "CLAUDE.md",
       );
+      assert.equal(state.kind, "refused");
+      if (agents === "missing") {
+        // Setup writes AGENTS.md before it reaches CLAUDE.md, so this is
+        // only seen when CLAUDE.md is checked on its own.
+        assert.equal(state.reason, "is a symlink");
+      } else {
+        // The link is fine; the fix belongs to what it points at.
+        assert.match(state.reason, /^links to AGENTS\.md, which /);
+        assert.match(state.fix, /^fix AGENTS\.md first \(/);
+      }
     } finally {
       repo.cleanup();
     }

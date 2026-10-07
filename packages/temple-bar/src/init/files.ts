@@ -6,7 +6,11 @@
 // AGENTS.md; everything else is only created or added to.
 
 import type { Context } from "../context.ts";
-import { setupWriteTargets, type RefusedTarget } from "./write-target.ts";
+import {
+  setupWriteTargets,
+  type RefusedTarget,
+  type WriteTargets,
+} from "./write-target.ts";
 import {
   AGENTS_OVERSIZE_FIX,
   describeAgentsOverage,
@@ -37,11 +41,9 @@ import { CHECKED_WORKFLOWS, type CheckedWorkflow } from "./workflows.ts";
  * returns whether it wrote. A copy that differs is left alone: once written,
  * the file is the project's to edit. */
 async function writeIfMissing(
-  ctx: Context,
-  repoRoot: string,
+  targets: WriteTargets,
   relativePath: string,
   content: string,
-  targets = setupWriteTargets(ctx, repoRoot),
 ): Promise<boolean> {
   if ((await targets.readText(relativePath)) !== undefined) {
     return false;
@@ -124,7 +126,7 @@ export async function writeCompanionFiles(
 ): Promise<readonly string[]> {
   const written: string[] = [];
   for (const file of COMPANION_FILES) {
-    if (await writeIfMissing(ctx, repoRoot, file.path, file.content, targets)) {
+    if (await writeIfMissing(targets, file.path, file.content)) {
       written.push(file.path);
     }
   }
@@ -157,13 +159,7 @@ export async function writeJudgeWorkflowIfMissing(
   repoRoot: string,
   targets = setupWriteTargets(ctx, repoRoot),
 ): Promise<boolean> {
-  return writeIfMissing(
-    ctx,
-    repoRoot,
-    JUDGE_WORKFLOW_PATH,
-    judgeWorkflow(),
-    targets,
-  );
+  return writeIfMissing(targets, JUDGE_WORKFLOW_PATH, judgeWorkflow());
 }
 
 /** What setup did with one of the workflows the gate holds to an exact
@@ -194,13 +190,7 @@ async function writeCheckedWorkflows(
         : await compareWorkflow(ctx, repoRoot, workflow);
     const wrote =
       before.kind === "missing" &&
-      (await writeIfMissing(
-        ctx,
-        repoRoot,
-        workflow.path,
-        workflow.content,
-        targets,
-      ));
+      (await writeIfMissing(targets, workflow.path, workflow.content));
     const state = wrote
       ? await compareWorkflow(ctx, repoRoot, workflow)
       : before;
@@ -286,7 +276,8 @@ export async function ensureGitignore(
 }
 
 export interface SetupFilesOutcome {
-  readonly refusedPaths?: ReadonlyMap<string, RefusedTarget>;
+  /** Every path setup refused to write through, with why and its fix. */
+  readonly refusedPaths: ReadonlyMap<string, RefusedTarget>;
   readonly wroteGitignore: boolean;
   readonly wroteAgents: boolean;
   /** Set when setup left AGENTS.md alone; see AgentsMdOutcome. */

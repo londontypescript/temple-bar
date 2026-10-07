@@ -207,7 +207,7 @@ function hookTargetConflict(
     detail:
       state?.kind === "refused"
         ? `${state.reason}. Fix: ${state.fix}`
-        : "is no longer an ordinary file; run hook install again",
+        : "is no longer an ordinary file; run temple-bar hook install again",
   };
 }
 
@@ -308,7 +308,16 @@ export async function installHooks(
     });
   } else {
     const hooksDir = path.join(commonGitDir, "hooks");
-    const targets = new WriteTargets(ctx, commonGitDir);
+    const targets = new WriteTargets(ctx, commonGitDir, {
+      wording: {
+        show: (relative) =>
+          path
+            .relative(repoRoot, path.join(commonGitDir, ...relative.split("/")))
+            .split(path.sep)
+            .join("/"),
+        rerun: "run temple-bar hook install again",
+      },
+    });
     const shimItems: InstallItem[] = [];
     for (const shim of SHIMS) {
       shimItems.push(await installShim(ctx, repoRoot, hooksDir, shim, targets));

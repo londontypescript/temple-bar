@@ -50,7 +50,7 @@ for (const name of hookPaths) {
         );
         assert.match(
           item.detail ?? "",
-          /symlink.*Fix: replace it with an ordinary file, or remove it, then run setup again/,
+          /symlink.*Fix: replace it with an ordinary file, or remove it, then run temple-bar hook install again/,
         );
         assert.equal(
           readlinkSync(file),
@@ -108,7 +108,10 @@ void test("hook write safety: linked hooks folder refuses every shim and writes 
     for (const name of Object.keys(INSTALLED_SHIMS)) {
       const item = report.items.find((item) => item.item.endsWith(`/${name}`));
       assert.equal(item?.status, "conflict");
-      assert.match(item.detail ?? "", /linked folder hooks.*ordinary folder/);
+      assert.match(
+        item.detail ?? "",
+        /linked folder \.git\/hooks\. Fix: replace \.git\/hooks with an ordinary folder, or remove it, then run temple-bar hook install again/,
+      );
     }
     assert.deepEqual(readdirSync(repo.outside), []);
   } finally {
