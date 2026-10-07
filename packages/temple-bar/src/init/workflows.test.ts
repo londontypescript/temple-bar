@@ -68,18 +68,22 @@ void test("workflows: each has its own concurrency group, so a title edit never 
 
 void test("workflows: nothing can skip a step or let it fail quietly", () => {
   for (const code of [gate, title]) {
-    assert.doesNotMatch(code, /^\s*(- )?if:/m);
+    assert.doesNotMatch(code, /^\s*(- )?["']?if["']?:/m);
     assert.doesNotMatch(code, /continue-on-error/);
   }
 });
 
 void test("workflows: nothing changes what a step runs: no shell, folder or default overrides, and the checkout is the pull request's own", () => {
   for (const code of [gate, title]) {
-    // A shell such as `true {0}` would pass every step without running it,
-    // and another folder would run some other project's scripts.
-    assert.doesNotMatch(code, /^\s*(- )?(shell|working-directory|defaults):/m);
+    // Quoted keys too, since YAML accepts them. A shell such as `true {0}`
+    // would pass every step without running it, and another folder would
+    // run some other project's scripts.
+    assert.doesNotMatch(
+      code,
+      /^\s*(- )?["']?(shell|working-directory|defaults)["']?:/m,
+    );
     // Checking out another ref or repository would gate other code.
-    assert.doesNotMatch(code, /^\s*(- )?(ref|repository):/m);
+    assert.doesNotMatch(code, /^\s*(- )?["']?(ref|repository)["']?:/m);
   }
 });
 
