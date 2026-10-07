@@ -46,6 +46,7 @@ import {
   addRequiredChecks,
   checksSummary,
   manualChecksSteps,
+  notSetupsRuleset,
   planRequiredChecks,
   withRequiredChecks,
   type RequiredChecksPlan,
@@ -126,7 +127,7 @@ interface Step {
   readonly run: () => Promise<StepResult>;
 }
 
-function fromCodeScanning(step: { ok: boolean; message: string }): StepResult {
+function fromStep(step: { ok: boolean; message: string }): StepResult {
   return step.ok
     ? { kind: "done", message: step.message }
     : { kind: "failed", message: step.message };
@@ -207,9 +208,7 @@ export async function offerProtection(
   const problems = joined([
     checksPlan.problem,
     checksPlan.checks.length > 0 && checks.length === 0
-      ? "The workflows are on the default branch, but its ruleset isn't one " +
-        "setup created, so setup leaves it alone. To require their checks:\n" +
-        manualChecksSteps(checksPlan.checks)
+      ? notSetupsRuleset(checksPlan.checks)
       : undefined,
     plan.kind === "unreadable" ? unreadableMessage(plan.reason) : undefined,
     plan.kind === "require" && !requireCodeQl
@@ -257,8 +256,7 @@ export async function offerProtection(
   if (work.turnOnCodeQl) {
     steps.push({
       manual: MANUAL_CODEQL_STEPS,
-      run: async () =>
-        fromCodeScanning(await turnOnCodeQl(ctx, repoRoot, origin)),
+      run: async () => fromStep(await turnOnCodeQl(ctx, repoRoot, origin)),
     });
   }
   if (
@@ -272,7 +270,7 @@ export async function offerProtection(
         checks.length > 0 ? manualChecksSteps(checks) : undefined,
       ]),
       run: async () =>
-        fromCodeScanning(
+        fromStep(
           checks.length > 0
             ? await addRequiredChecks(
                 ctx,

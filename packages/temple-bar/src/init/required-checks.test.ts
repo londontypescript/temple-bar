@@ -164,7 +164,7 @@ void test("setup retains project checks, replaces stale contexts and makes their
   );
 });
 
-void test("setup requires only the workflow on the default branch and names the other as still to land", async () => {
+void test("setup requires only the workflow on the default branch and names the other as not landed yet", async () => {
   const t = setup({ title: missing });
   const outcome = await t.run();
   const rule = writtenRules(t).find(
@@ -175,10 +175,13 @@ void test("setup requires only the workflow on the default branch and names the 
   ]);
   assert.match(t.questions[0] ?? "", /the "temple-bar gate" check required/);
   assert.doesNotMatch(t.questions[0] ?? "", /temple-bar pr-title/);
-  assert.match(outcome.message, /temple-bar-pr-title\.yml still to land/);
   assert.match(
     outcome.message,
-    /run `pnpm exec temple-bar init` again to require their checks/,
+    /temple-bar-pr-title\.yml isn't on the default branch yet/,
+  );
+  assert.match(
+    outcome.message,
+    /run `pnpm exec temple-bar init` again to require it\./,
   );
 });
 
@@ -190,7 +193,7 @@ void test("setup waits successfully without a question when neither workflow is 
   assert.deepEqual(writes(t), []);
   assert.match(
     outcome.message,
-    /temple-bar-gate\.yml.*temple-bar-pr-title\.yml.*still to land/,
+    /temple-bar-gate\.yml and .*temple-bar-pr-title\.yml aren't on the default branch yet/,
   );
 });
 
@@ -241,7 +244,10 @@ void test("a ruleset setup did not create is left alone with manual steps for re
   );
   assert.match(outcome.message, /requires branches to be up to date/);
   assert.doesNotMatch(outcome.message, /"temple-bar pr-title"/);
-  assert.match(outcome.message, /temple-bar-pr-title\.yml still to land/);
+  assert.match(
+    outcome.message,
+    /temple-bar-pr-title\.yml isn't on the default branch yet/,
+  );
   assert.deepEqual(writes(t), []);
   assert.deepEqual(t.questions, []);
 });
@@ -341,7 +347,10 @@ void test("declining or having no terminal still names only ready checks in the 
       /requires the status check "temple-bar gate"/,
     );
     assert.doesNotMatch(outcome.message, /"temple-bar pr-title"/);
-    assert.match(outcome.message, /temple-bar-pr-title\.yml still to land/);
+    assert.match(
+      outcome.message,
+      /temple-bar-pr-title\.yml isn't on the default branch yet/,
+    );
     assert.deepEqual(writes(t), []);
   }
 });

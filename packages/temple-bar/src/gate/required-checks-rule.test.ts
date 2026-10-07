@@ -217,7 +217,7 @@ void test("gate and title checks: a workflow only in the checkout is skipped eve
   assert.equal(outcome.status, "skipped");
   assert.match(
     outcome.detail ?? "",
-    /"temple-bar gate".*on its way.*once it has, run setup again/,
+    /"temple-bar gate".*setup's pull request hasn't landed yet; once it has, run setup again/,
   );
   assert.doesNotMatch(outcome.detail ?? "", /"temple-bar pr-title"/);
   assert.deepEqual(t.stderr.lines, []);

@@ -167,7 +167,7 @@ for (const pm of ["pnpm"] as const) {
       assert.match(launch.stdout, /CodeQL isn't required yet/);
       assert.match(
         launch.stdout,
-        /The checks aren't required yet: .*temple-bar-gate\.yml.*temple-bar-pr-title\.yml.*still to land/,
+        /temple-bar-gate\.yml and .*temple-bar-pr-title\.yml aren't on the default branch yet, so their checks aren't required/,
       );
       assert.ok(
         registry.requested.includes(PACKAGE_NAME),

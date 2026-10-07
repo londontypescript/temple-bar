@@ -113,10 +113,12 @@ export function rulesetBody(): RulesetBody {
       },
       { type: "required_linear_history" },
       { type: "required_signatures" },
-      // The judge's ruleset requires up-to-date branches for its check.
-      // CodeQL's rule is added once it has analysed the default branch.
-      // The gate and title checks are added once their workflows land,
-      // with their own up-to-date policy (required-checks.ts).
+      // No required checks here: requiring a check before its workflow is
+      // on the default branch would block every pull request. The gate and
+      // title checks join this ruleset once their workflows have landed,
+      // with branches required up to date (required-checks.ts), and
+      // CodeQL's rule once CodeQL has analysed the default branch
+      // (code-scanning.ts). The judge's check has a ruleset of its own.
     ],
   };
 }

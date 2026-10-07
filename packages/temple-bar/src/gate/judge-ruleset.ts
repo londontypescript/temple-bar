@@ -107,7 +107,7 @@ export type WorkflowLookup =
 
 /** Asks GitHub whether a workflow is on `branch`, and the disk
  * whether this checkout carries it. */
-export async function findJudgeWorkflow(
+export async function findWorkflow(
   ctx: Context,
   repoUrl: string,
   branch: string,

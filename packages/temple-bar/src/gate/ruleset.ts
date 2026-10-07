@@ -22,7 +22,7 @@ import {
   codeScanningOutcome,
 } from "./code-scanning-rule.ts";
 import {
-  findJudgeWorkflow,
+  findWorkflow,
   judgeRulesetOutcome,
   JUDGE_RULESET_CHECK,
   type WorkflowLookup,
@@ -251,7 +251,7 @@ export async function runRulesetChecks(ctx: Context): Promise<CheckOutcome[]> {
   const workflow = (path: string): Promise<WorkflowLookup> => {
     let lookup = lookups.get(path);
     if (lookup === undefined) {
-      lookup = findJudgeWorkflow(
+      lookup = findWorkflow(
         ctx,
         result.repoUrl,
         result.defaultBranch,

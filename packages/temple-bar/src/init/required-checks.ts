@@ -22,15 +22,27 @@ import {
   PR_TITLE_WORKFLOW_PATH,
 } from "./workflows.ts";
 
+/** Each check, the workflow whose job reports it, and what a message calls
+ * it. */
 export const REQUIRED_CHECKS = [
-  { context: GATE_CHECK, path: GATE_WORKFLOW_PATH },
-  { context: PR_TITLE_CHECK, path: PR_TITLE_WORKFLOW_PATH },
+  { context: GATE_CHECK, path: GATE_WORKFLOW_PATH, label: "gate" },
+  {
+    context: PR_TITLE_CHECK,
+    path: PR_TITLE_WORKFLOW_PATH,
+    label: "title check",
+  },
 ] as const;
 
 type RequiredCheck = (typeof REQUIRED_CHECKS)[number];
 
+/** The checks by name: `the "temple-bar gate" check`, or both. */
+function named(checks: readonly RequiredCheck[]): string {
+  const names = checks.map((check) => `"${check.context}"`).join(" and ");
+  return `the ${names} ${checks.length === 1 ? "check" : "checks"}`;
+}
+
 export function checksSummary(checks: readonly RequiredCheck[]): string {
-  return `the ${checks.map((check) => `"${check.context}"`).join(" and ")} ${checks.length === 1 ? "check" : "checks"} required from GitHub Actions, on branches up to date with \`main\``;
+  return `${named(checks)} required from GitHub Actions, on branches up to date with \`main\``;
 }
 
 export function manualChecksSteps(checks: readonly RequiredCheck[]): string {
@@ -38,6 +50,16 @@ export function manualChecksSteps(checks: readonly RequiredCheck[]): string {
     "On GitHub, under Settings > Rules > Rulesets, edit the `main` ruleset so that it:\n" +
     `  - requires the status ${checks.length === 1 ? "check" : "checks"} ${checks.map((check) => `"${check.context}"`).join(" and ")} from GitHub Actions\n` +
     "  - requires branches to be up to date before merging"
+  );
+}
+
+/** When the default branch's ruleset isn't one setup created: setup leaves
+ * it alone, so it says what to add by hand. */
+export function notSetupsRuleset(checks: readonly RequiredCheck[]): string {
+  return (
+    `${checks.map((check) => check.path).join(" and ")} ${checks.length === 1 ? "is" : "are"} on the default branch, ` +
+    "but its ruleset isn't one setup created, so setup leaves it alone. " +
+    `To require ${named(checks)}:\n${manualChecksSteps(checks)}`
   );
 }
 
@@ -148,6 +170,22 @@ async function workflowOnDefaultBranch(
     : { kind: "unreadable", reason: (result.stderr || result.stdout).trim() };
 }
 
+/** Names the workflows by file, so a check that isn't ready is never named
+ * as one to require. */
+function waitingNote(waiting: readonly RequiredCheck[]): string {
+  if (waiting.length === 0) {
+    return "";
+  }
+  const one = waiting.length === 1;
+  return (
+    `${waiting.map((check) => check.path).join(" and ")} ${one ? "isn't" : "aren't"} ` +
+    `on the default branch yet, so ${one ? "its check isn't" : "their checks aren't"} ` +
+    "required: requiring a check that never runs would block every pull " +
+    `request. Once setup's pull request is merged, run ${RERUN_INIT} again ` +
+    `to require ${one ? "it" : "them"}.`
+  );
+}
+
 function unreadableChecks(reason: string): string {
   return (
     "Couldn't read GitHub, so setup didn't require the checks:\n" +
@@ -228,10 +266,7 @@ export async function planRequiredChecks(
   }
   return {
     checks,
-    note:
-      waiting.length === 0
-        ? ""
-        : `The checks aren't required yet: ${waiting.map((check) => check.path).join(" and ")} still to land on the default branch. Once they're on the default branch, run ${RERUN_INIT} again to require their checks.`,
+    note: waitingNote(waiting),
     problem: errors.length === 0 ? "" : unreadableChecks(errors.join("\n")),
     ...(current === undefined ? {} : { current }),
   };
@@ -255,7 +290,7 @@ export async function addRequiredChecks(
       withRequiredChecks(codeQl ? withCodeQl(rules) : rules, plan.checks),
     plan.current,
   );
-  const names = `${codeQl ? "CodeQL's results and " : ""}${plan.checks.map((check) => `"${check.context}"`).join(" and ")} ${plan.checks.length === 1 ? "check" : "checks"}`;
+  const names = `${codeQl ? "CodeQL's results and " : ""}${named(plan.checks)}`;
   return result.ok
     ? { ok: true, message: `Required ${names} in the \`main\` ruleset.` }
     : {

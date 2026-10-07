@@ -1,7 +1,13 @@
-// The gate reads effective rules, which show required checks but no bypass
-// list. It can prove the gate and title checks are required, but cannot
-// prove nobody may bypass them. Offline, workflow-copies.ts checks only
-// the fixed workflow text; live requirements need GitHub's effective rules.
+// The gate's check that the default branch requires the gate and title
+// checks, so a pull request whose gate failed, or never reported, can't
+// merge. Setup adds each one once its workflow is on the default branch
+// (init/required-checks.ts), and this uses setup's own definition of
+// "required", so the two can't drift.
+//
+// What it can't prove: it reads the effective rules, which show what is
+// required but not who may bypass it, so it can't tell the checks are in
+// the ruleset nobody may bypass. Offline, only the workflow text is
+// checked (workflow-copies.ts); this needs GitHub.
 
 import type { Context } from "../context.ts";
 import {
@@ -66,7 +72,7 @@ export async function requiredChecksOutcome(
       fail(
         "missing",
         "rule is missing: a pull request whose " +
-          `${check === REQUIRED_CHECKS[0] ? "gate" : "title check"} failed or never reported can merge.\n` +
+          `${check.label} failed or never reported can merge.\n` +
           `  fix: run ${rerunInit("--create-ruleset")} once the user agrees, or edit it by hand:\n${manual}`,
       );
     }
@@ -82,7 +88,7 @@ export async function requiredChecksOutcome(
     return {
       name: REQUIRED_CHECKS_CHECK,
       status: "skipped",
-      detail: `${waiting.join(" and ")} on its way to the default branch; setup's pull request hasn't landed yet; once it has, run setup again to require the checks`,
+      detail: `${waiting.join(" and ")}: setup's pull request hasn't landed yet; once it has, run setup again to require ${waiting.length === 1 ? "its check" : "their checks"}`,
     };
   }
   return {
