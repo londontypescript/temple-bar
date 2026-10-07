@@ -44,7 +44,7 @@ same pull request as any change to a mechanism.
 | temple-bar.config.json limits unchanged   | the judge, from 0.0.8                                | **Blocked** on GitHub |
 | Bypass merges seen by the maintainer      | `merge` lists the past month's, from 0.0.8           | **Detected** after    |
 | Judge's ruleset still required            | the pinned gate in CI (public repos), from 0.0.7     | **Blocked** via CI    |
-| Gate and title checks required on `main`  | `main` ruleset, checked by the gate from 0.0.9       | **Blocked** on GitHub |
+| Gate and title checks required on `main`  | `main` ruleset, gate (public repos), 0.0.9, not here | **Blocked** on GitHub |
 | Gate and title workflows unchanged        | the pinned gate in CI, from 0.0.9 (not yet here)     | **Blocked** via CI    |
 | Release notes finished before publishing  | `pnpm release:publish` refuses unfinished notes      | **Blocked** locally   |
 | One-line description the same everywhere  | tests; About text by a CI step                       | **Blocked** via CI    |

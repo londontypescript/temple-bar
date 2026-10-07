@@ -1,113 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { GhResult } from "../seams/gh.ts";
-import { createFakeContext, createFakeGh } from "../testing/fakes.ts";
-import { offerProtection } from "./github-protection.ts";
-import { rulesetBody, type RulesetRule } from "./github-ruleset.ts";
-import { JUDGE_RULESET_NAME, judgeRulesetBody } from "./judge-ruleset.ts";
+import { rulesetBody } from "./github-ruleset.ts";
+import { judgeRulesetBody } from "./judge-ruleset.ts";
 import {
   GATE_CHECK,
   GATE_WORKFLOW_PATH,
   PR_TITLE_CHECK,
   PR_TITLE_WORKFLOW_PATH,
 } from "./workflows.ts";
+import { CODEQL_RULE } from "./testing/code-scanning-fake.ts";
 import {
-  CODEQL_RULE,
-  codeScanningAnswer,
-  type CodeQlState,
-} from "./testing/code-scanning-fake.ts";
+  BASE,
+  CHECKS,
+  error,
+  JUDGE,
+  MAIN,
+  missing,
+  ok,
+  OTHER,
+  setup,
+  writes,
+  writtenRules,
+} from "./testing/required-checks-world.ts";
 
-const origin = { owner: "acme", repo: "widgets" };
-const MAIN = { id: 42, target: "branch", name: "main: pull requests only" };
-const JUDGE = { id: 7, target: "branch", name: JUDGE_RULESET_NAME };
-const OTHER = { id: 9, target: "branch", name: "project" };
-const BASE = [{ type: "deletion" }, { type: "required_signatures" }];
-const CHECKS: RulesetRule = {
-  type: "required_status_checks",
-  parameters: {
-    strict_required_status_checks_policy: true,
-    do_not_enforce_on_create: false,
-    required_status_checks: [
-      { context: GATE_CHECK, integration_id: 15368 },
-      { context: PR_TITLE_CHECK, integration_id: 15368 },
-    ],
-  },
-};
-const ok = (body: unknown = {}): GhResult => ({
-  code: 0,
-  stdout: JSON.stringify(body),
-  stderr: "",
-  notFound: false,
-});
-const error = (stderr: string, stdout = ""): GhResult => ({
-  code: 1,
-  stdout,
-  stderr,
-  notFound: false,
-});
-const missing = error("gh: Not Found (HTTP 404)");
-
-function setup(
-  options: {
-    listed?: readonly object[];
-    rules?: readonly RulesetRule[];
-    effective?: readonly RulesetRule[];
-    gate?: GhResult;
-    title?: GhResult;
-    state?: CodeQlState;
-    unreadableRules?: GhResult;
-    put?: GhResult;
-    answer?: "yes" | "no" | "no-terminal";
-  } = {},
-) {
-  const questions: string[] = [];
-  const gh = createFakeGh((args) => {
-    const target = args.find((arg) => arg.startsWith("repos/"));
-    if (args.includes("PUT")) return options.put ?? ok();
-    if (args.includes("POST")) return ok();
-    if (target === "repos/acme/widgets/rulesets")
-      return ok(options.listed ?? [MAIN, JUDGE]);
-    if (target === "repos/acme/widgets/rulesets/42") {
-      return options.unreadableRules ?? ok({ rules: options.rules ?? BASE });
-    }
-    if (target?.includes("/rules/branches/")) {
-      return options.unreadableRules ?? ok(options.effective ?? [CODEQL_RULE]);
-    }
-    if (target?.endsWith(`/contents/${GATE_WORKFLOW_PATH}`))
-      return options.gate ?? ok();
-    if (target?.endsWith(`/contents/${PR_TITLE_WORKFLOW_PATH}`))
-      return options.title ?? ok();
-    return (
-      codeScanningAnswer(args, options.state ?? "required") ??
-      error(`unexpected call: ${String(target)}`)
-    );
-  });
-  const ctx = createFakeContext({
-    gh,
-    prompt: {
-      isInteractive: () => true,
-      confirm: (question) => {
-        questions.push(question);
-        return Promise.resolve(options.answer ?? "yes");
-      },
-    },
-  });
-  return { gh, questions, run: () => offerProtection(ctx, "/repo", origin) };
-}
-
-function writes(t: ReturnType<typeof setup>, method = "PUT") {
-  return t.gh.calls.filter((call) => call.args.includes(method));
-}
-function writtenRules(t: ReturnType<typeof setup>): RulesetRule[] {
-  const calls = writes(t);
-  assert.equal(calls.length, 1, "one PUT applies the entire ruleset addition");
-  assert.equal(calls[0]?.args[3], "repos/acme/widgets/rulesets/42");
-  return (JSON.parse(calls[0].input ?? "null") as { rules: RulesetRule[] })
-    .rules;
-}
-
-void test("setup requires both workflows' checks in its main ruleset, keeping every other rule, with one read and PUT", async () => {
+void test("setup requires both workflows' checks in its main ruleset, keeping every other rule, with one PUT", async () => {
   const t = setup();
   assert.equal((await t.run()).kind, "created");
   assert.deepEqual(writtenRules(t), [...BASE, CHECKS]);
@@ -115,7 +32,8 @@ void test("setup requires both workflows' checks in its main ruleset, keeping ev
     t.gh.calls.filter(
       (call) => call.args[1] === "repos/acme/widgets/rulesets/42",
     ).length,
-    1,
+    2,
+    "one read to plan, and a fresh one just before the write",
   );
   for (const path of [GATE_WORKFLOW_PATH, PR_TITLE_WORKFLOW_PATH]) {
     assert.ok(
@@ -185,8 +103,18 @@ void test("setup requires only the workflow on the default branch and names the 
   );
 });
 
-void test("setup waits successfully without a question when neither workflow is there, even when the 404 is on stdout", async () => {
-  const t = setup({ gate: missing, title: error("", "HTTP 404") });
+void test("a 404 only on stdout is not GitHub's not-found: setup fails rather than wait", async () => {
+  const t = setup({ gate: missing, title: error("HTTP 502", "HTTP 404") });
+  const outcome = await t.run();
+  assert.equal(outcome.kind, "not-created");
+  assert.match(
+    outcome.message,
+    /Couldn't read GitHub.*\n.*temple-bar-pr-title\.yml: HTTP 502/,
+  );
+});
+
+void test("setup waits successfully without a question when neither workflow is there", async () => {
+  const t = setup({ gate: missing, title: missing });
   const outcome = await t.run();
   assert.equal(outcome.kind, "exists");
   assert.deepEqual(t.questions, []);
@@ -270,7 +198,7 @@ void test("a foreign ruleset missing both ready checks gets manual steps and no 
   assert.deepEqual(writes(t), []);
 });
 
-void test("CodeQL and the two checks share one read and PUT, including failure and manual steps for both", async () => {
+void test("CodeQL and the two checks share one PUT, including failure and manual steps for both", async () => {
   for (const put of [ok(), error("HTTP 403: forbidden")]) {
     const t = setup({ state: "analysed", effective: [], put });
     const outcome = await t.run();
@@ -279,7 +207,8 @@ void test("CodeQL and the two checks share one read and PUT, including failure a
       t.gh.calls.filter(
         (call) => call.args[1] === "repos/acme/widgets/rulesets/42",
       ).length,
-      1,
+      2,
+      "one read to plan, and a fresh one just before the write",
     );
     if (put.code === 0) {
       assert.equal(outcome.kind, "created");
@@ -311,7 +240,7 @@ void test("an unreadable workflow is a setup failure, never a waiting success or
   );
   assert.match(
     outcome.message,
-    /Couldn't read GitHub, so setup didn't require the checks/,
+    /Couldn't read GitHub, so setup didn't require any check that depends on this:\n.*temple-bar-gate\.yml: gh: server error \(HTTP 500\)/,
   );
   assert.match(outcome.message, /HTTP 500/);
   assert.match(outcome.message, /again once GitHub answers/);
@@ -353,4 +282,35 @@ void test("declining or having no terminal still names only ready checks in the 
     );
     assert.deepEqual(writes(t), []);
   }
+});
+
+void test("setup's main ruleset not active: checks listed there don't count, and setup says to activate it", async () => {
+  const t = setup({ rules: [...BASE, CHECKS], enforcement: "evaluate" });
+  const outcome = await t.run();
+  assert.equal(outcome.kind, "not-created");
+  assert.match(outcome.message, /enforcement is "evaluate".*Set it to active/s);
+  assert.deepEqual(writes(t), []);
+});
+
+void test("a strict rule with the wrong integration id in setup's ruleset doesn't count as required", async () => {
+  const wrongApp = {
+    ...CHECKS,
+    parameters: {
+      ...CHECKS.parameters,
+      required_status_checks: [
+        { context: GATE_CHECK, integration_id: 1 },
+        { context: PR_TITLE_CHECK },
+      ],
+    },
+  };
+  const t = setup({ rules: [...BASE, wrongApp] });
+  await t.run();
+  assert.deepEqual(writtenRules(t), [...BASE, CHECKS]);
+});
+
+void test("the write reads the ruleset again, keeping an edit made while the question was open", async () => {
+  const edited = [...BASE, { type: "non_fast_forward" }];
+  const t = setup({ rulesLater: edited });
+  await t.run();
+  assert.deepEqual(writtenRules(t), [...edited, CHECKS]);
 });

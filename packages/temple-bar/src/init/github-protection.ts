@@ -280,13 +280,7 @@ export async function offerProtection(
                 checksPlan,
                 requireCodeQl,
               )
-            : await addCodeScanningRule(
-                ctx,
-                repoRoot,
-                origin,
-                mainId,
-                checksPlan.current,
-              ),
+            : await addCodeScanningRule(ctx, repoRoot, origin, mainId),
         ),
     });
   }

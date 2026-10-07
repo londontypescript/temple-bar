@@ -17,12 +17,7 @@
 
 import type { Context } from "../context.ts";
 import type { RulesetRule } from "./github-ruleset.ts";
-import {
-  field,
-  readJson,
-  updateRuleset,
-  type RulesetRead,
-} from "./ruleset-update.ts";
+import { field, readJson, updateRuleset } from "./ruleset-update.ts";
 import { RERUN_INIT, type GithubOrigin } from "./requirements.ts";
 
 /** The rule setup adds: CodeQL's results required, and a merge blocked by
@@ -239,7 +234,6 @@ export async function addCodeScanningRule(
   repoRoot: string,
   origin: GithubOrigin,
   rulesetId: number,
-  current?: RulesetRead,
 ): Promise<CodeScanningStep> {
   const result = await updateRuleset(
     ctx,
@@ -247,7 +241,6 @@ export async function addCodeScanningRule(
     origin,
     rulesetId,
     withCodeQl,
-    current,
   );
   if (!result.ok) {
     return {

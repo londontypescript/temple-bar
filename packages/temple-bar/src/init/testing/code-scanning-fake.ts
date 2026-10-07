@@ -79,6 +79,7 @@ export function codeScanningAnswer(
     return ok({
       id: MAIN_RULESET_ID,
       name: "main: pull requests only",
+      enforcement: "active",
       rules: [
         ...(checksRequired ? [requiredChecksRule(REQUIRED_CHECKS)] : []),
         { type: "deletion" },

@@ -165,7 +165,8 @@ async function workflowOnDefaultBranch(
   if (result.code === 0) {
     return { kind: "present" };
   }
-  return /\b404\b/.test(`${result.stderr}\n${result.stdout}`)
+  // `--silent` keeps the body off stdout; gh reports the status on stderr.
+  return /\bHTTP 404\b/.test(result.stderr)
     ? { kind: "missing" }
     : { kind: "unreadable", reason: (result.stderr || result.stdout).trim() };
 }
@@ -186,10 +187,22 @@ function waitingNote(waiting: readonly RequiredCheck[]): string {
   );
 }
 
-function unreadableChecks(reason: string): string {
+function unreadableChecks(reasons: readonly string[]): string {
   return (
-    "Couldn't read GitHub, so setup didn't require the checks:\n" +
-    `${reason}\nRun ${RERUN_INIT} again once GitHub answers.`
+    "Couldn't read GitHub, so setup didn't require any check that depends " +
+    `on this:\n${reasons.join("\n")}\nRun ${RERUN_INIT} again once GitHub answers.`
+  );
+}
+
+/** Setup's own `main` ruleset, switched off or only evaluating: it enforces
+ * nothing, so checks listed in it don't count, and adding them wouldn't
+ * either. The gate's branch ruleset check fails on this too. */
+function notActive(enforcement: unknown): string {
+  return (
+    `The \`main\` ruleset's enforcement is ${JSON.stringify(enforcement)}, so it ` +
+    "enforces nothing and setup didn't require the gate and title checks in " +
+    "it. Set it to active under Settings > Rules > Rulesets, then run " +
+    `${RERUN_INIT} again.`
   );
 }
 
@@ -197,7 +210,6 @@ export interface RequiredChecksPlan {
   readonly checks: readonly RequiredCheck[];
   readonly note: string;
   readonly problem: string;
-  readonly current?: RulesetRead;
 }
 
 /** Look in setup's ruleset itself when it exists. A bypassable rule in
@@ -240,6 +252,15 @@ export async function planRequiredChecks(
   const checks: RequiredCheck[] = [];
   const waiting: RequiredCheck[] = [];
   const errors: string[] = [];
+  // Setup's own ruleset, read directly, says whether it is active.
+  // Effective rules need no such check: they hold only active rulesets.
+  if (
+    mainId !== undefined &&
+    current?.ok === true &&
+    current.enforcement !== "active"
+  ) {
+    return { checks, note: "", problem: notActive(current.enforcement) };
+  }
   for (const check of REQUIRED_CHECKS) {
     if (
       current?.ok === true &&
@@ -267,8 +288,7 @@ export async function planRequiredChecks(
   return {
     checks,
     note: waitingNote(waiting),
-    problem: errors.length === 0 ? "" : unreadableChecks(errors.join("\n")),
-    ...(current === undefined ? {} : { current }),
+    problem: errors.length === 0 ? "" : unreadableChecks(errors),
   };
 }
 
@@ -281,14 +301,8 @@ export async function addRequiredChecks(
   plan: RequiredChecksPlan,
   codeQl: boolean,
 ): Promise<{ ok: boolean; message: string }> {
-  const result = await updateRuleset(
-    ctx,
-    repoRoot,
-    origin,
-    mainId,
-    (rules) =>
-      withRequiredChecks(codeQl ? withCodeQl(rules) : rules, plan.checks),
-    plan.current,
+  const result = await updateRuleset(ctx, repoRoot, origin, mainId, (rules) =>
+    withRequiredChecks(codeQl ? withCodeQl(rules) : rules, plan.checks),
   );
   const names = `${codeQl ? "CodeQL's results and " : ""}${named(plan.checks)}`;
   return result.ok

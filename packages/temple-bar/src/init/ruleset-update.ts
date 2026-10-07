@@ -52,7 +52,13 @@ export function rulesFrom(value: unknown): RulesetRule[] | undefined {
 }
 
 export type RulesetRead =
-  | { readonly ok: true; readonly rules: RulesetRule[] }
+  | {
+      readonly ok: true;
+      readonly rules: RulesetRule[];
+      /** "active", "evaluate" or "disabled": only an active ruleset
+       * enforces anything. */
+      readonly enforcement?: unknown;
+    }
   | { readonly ok: false; readonly error: string };
 
 function rulesetPath(origin: GithubOrigin, id: number): string {
@@ -72,22 +78,24 @@ export async function readRuleset(
   const rules = rulesFrom(field(current.value, "rules"));
   return rules === undefined
     ? { ok: false, error: "unexpected ruleset reply" }
-    : { ok: true, rules };
+    : { ok: true, rules, enforcement: field(current.value, "enforcement") };
 }
 
 /** Applies all planned additions in one write, keeping the other rules.
- * A planning read can be reused so both offers judge the same settings. */
+ * It reads the ruleset again just before writing, rather than reusing the
+ * read setup planned from: the user may take minutes to answer the
+ * question, and writing back an older copy would undo any edit made
+ * meanwhile. */
 export async function updateRuleset(
   ctx: Context,
   repoRoot: string,
   origin: GithubOrigin,
   id: number,
   change: (rules: readonly RulesetRule[]) => RulesetRule[],
-  current?: RulesetRead,
 ): Promise<
   { readonly ok: true } | { readonly ok: false; readonly error: string }
 > {
-  const read = current ?? (await readRuleset(ctx, repoRoot, origin, id));
+  const read = await readRuleset(ctx, repoRoot, origin, id);
   if (!read.ok) {
     return read;
   }
