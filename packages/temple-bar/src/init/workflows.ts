@@ -11,6 +11,7 @@
 
 import {
   CHECKOUT,
+  githubExpression,
   NODE_VERSION,
   SETUP_NODE,
   SETUP_PNPM,
@@ -85,7 +86,7 @@ permissions:
 
 # A newer push cancels the run for the commit it replaced.
 concurrency:
-  group: temple-bar-gate-\${{ github.ref }}
+  group: temple-bar-gate-${githubExpression("github.ref")}
   cancel-in-progress: true
 
 jobs:
@@ -102,7 +103,7 @@ ${installSteps(`          # The pull request size check measures from the base b
         env:
           # The gate's ruleset check reads GitHub, and fails in Actions
           # without a token rather than hit the anonymous rate limit.
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${githubExpression("github.token")}
 
       # Warns about a large pull request and still passes. It fails only
       # when it can't measure the pull request: a check that quietly does
@@ -131,7 +132,7 @@ permissions:
 # Its own group: a title edit never cancels a gate run. A newer run
 # cancelling an older one is safe, since both check the title as it is now.
 concurrency:
-  group: temple-bar-pr-title-\${{ github.ref }}
+  group: temple-bar-pr-title-${githubExpression("github.ref")}
   cancel-in-progress: true
 
 jobs:

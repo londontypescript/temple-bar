@@ -14,6 +14,13 @@ export const SETUP_PNPM =
 /** The Node major version every workflow setup writes runs on. */
 export const NODE_VERSION = 24;
 
+/** A GitHub Actions expression, `${{ inner }}`. Built here so the workflow
+ * templates never write the `\$` escape, which CodeQL takes for an escape in
+ * a regular expression and flags. */
+export function githubExpression(inner: string): string {
+  return "$" + `{{ ${inner} }}`;
+}
+
 /** `text` as YAML comment lines, wrapped by word to fit 78 columns, the way
  * hand-written workflow comments are. */
 export function yamlComment(text: string): string {

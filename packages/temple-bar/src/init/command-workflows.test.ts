@@ -4,6 +4,7 @@
 // can't name ending the run non-zero.
 
 import assert from "node:assert/strict";
+import { normalize } from "node:path";
 import test from "node:test";
 
 import { createInitCommand } from "./command.ts";
@@ -100,7 +101,7 @@ void test("init workflows: one workflow written alone is a change to land, and t
   assert.equal(code, 0);
   assert.deepEqual(
     fs.writes.map((write) => write.path),
-    [`/repo/${PR_TITLE_WORKFLOW_PATH}`],
+    [normalize(`/repo/${PR_TITLE_WORKFLOW_PATH}`)],
   );
   const addLine = /^ {2}git add .*$/m.exec(stdout)?.[0] ?? "";
   assert.match(addLine, new RegExp(` ${escaped(GATE_WORKFLOW_PATH)}( |$)`));

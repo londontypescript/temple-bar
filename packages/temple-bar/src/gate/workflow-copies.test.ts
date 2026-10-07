@@ -142,7 +142,8 @@ void test("workflow copies: a missing or extra final newline fails", async () =>
 
 void test("workflow copies: a whitespace-only edit fails", async () => {
   const lines = gateLines();
-  lines[5] = lines[5]?.replace("\n", " \n") ?? "";
+  // A space before the line's newline.
+  lines[5] = `${lines[5]?.slice(0, -1) ?? ""} \n`;
   assertDiffersAt(await checkWithGate(lines.join("")), 6);
   assertDiffersAt(await checkWithGate(` ${gateWorkflow()}`), 1);
 });
