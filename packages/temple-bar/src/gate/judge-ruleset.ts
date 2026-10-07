@@ -97,7 +97,7 @@ export function findJudgeRuleProblem(
       };
 }
 
-/** Where the judge workflow is: already on the default branch, only in this
+/** Where a workflow is: already on the default branch, only in this
  * checkout (on its way there), or nowhere yet. */
 type WorkflowPlace = "default-branch" | "this-checkout" | "nowhere";
 
@@ -105,16 +105,17 @@ export type WorkflowLookup =
   | { readonly ok: true; readonly place: WorkflowPlace }
   | { readonly ok: false; readonly reason: string };
 
-/** Asks GitHub whether the judge workflow is on `branch`, and the disk
+/** Asks GitHub whether a workflow is on `branch`, and the disk
  * whether this checkout carries it. */
 export async function findJudgeWorkflow(
   ctx: Context,
   repoUrl: string,
   branch: string,
   token: string | undefined,
+  workflowPath: string,
 ): Promise<WorkflowLookup> {
   const reply = await ctx.http.get(
-    `${repoUrl}/contents/${JUDGE_WORKFLOW_PATH}?ref=${encodeURIComponent(branch)}`,
+    `${repoUrl}/contents/${workflowPath}?ref=${encodeURIComponent(branch)}`,
     token,
   );
   if (reply.kind === "network-error") {
@@ -127,7 +128,7 @@ export async function findJudgeWorkflow(
     return { ok: false, reason: `GitHub answered ${String(reply.status)}` };
   }
   const here = await ctx.fs.exists(
-    path.join(ctx.cwd, ...JUDGE_WORKFLOW_PATH.split("/")),
+    path.join(ctx.cwd, ...workflowPath.split("/")),
   );
   return { ok: true, place: here ? "this-checkout" : "nowhere" };
 }

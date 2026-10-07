@@ -37,12 +37,14 @@ function ghWithNoRulesets(create: GhResult = ok(), judgeOnMain = false) {
     if (args.includes("POST")) {
       return create;
     }
-    const codeScanning = codeScanningAnswer(args, "required");
+    const codeScanning = codeScanningAnswer(args, "required", true);
     if (codeScanning !== undefined) {
       return codeScanning;
     }
     if (isContentsRead(args)) {
-      return judgeOnMain ? ok() : notFound;
+      return args.some((a) => a.endsWith("temple-bar-judge.yml")) && judgeOnMain
+        ? ok()
+        : notFound;
     }
     return ok("[]");
   });
@@ -117,7 +119,7 @@ void test("offerRuleset: no terminal names the flag an agent passes after asking
 void test("offerRuleset: an existing branch ruleset is left alone, no prompt asked", async () => {
   const gh = createFakeGh(
     (args) =>
-      codeScanningAnswer(args, "required") ??
+      codeScanningAnswer(args, "required", true) ??
       (isContentsRead(args)
         ? notFound
         : ok(JSON.stringify([{ target: "branch" }]))),

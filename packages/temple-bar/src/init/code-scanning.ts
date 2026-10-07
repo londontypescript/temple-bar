@@ -17,6 +17,12 @@
 
 import type { Context } from "../context.ts";
 import type { RulesetRule } from "./github-ruleset.ts";
+import {
+  field,
+  readJson,
+  updateRuleset,
+  type RulesetRead,
+} from "./ruleset-update.ts";
 import { RERUN_INIT, type GithubOrigin } from "./requirements.ts";
 
 /** The rule setup adds: CodeQL's results required, and a merge blocked by
@@ -76,31 +82,6 @@ export type CodeScanningPlan =
   /** Analysed: requiring its results needs the user's yes. */
   | { readonly kind: "require" }
   | { readonly kind: "unreadable"; readonly reason: string };
-
-async function readJson(
-  ctx: Context,
-  repoRoot: string,
-  path: string,
-): Promise<
-  | { readonly ok: true; readonly value: unknown }
-  | { readonly ok: false; readonly error: string }
-> {
-  const result = await ctx.gh.run(["api", path], repoRoot);
-  if (result.code !== 0) {
-    return { ok: false, error: (result.stderr || result.stdout).trim() };
-  }
-  try {
-    return { ok: true, value: JSON.parse(result.stdout) as unknown };
-  } catch {
-    return { ok: false, error: `unexpected reply from ${path}` };
-  }
-}
-
-function field(value: unknown, key: string): unknown {
-  return typeof value === "object" && value !== null && key in value
-    ? (value as Record<string, unknown>)[key]
-    : undefined;
-}
 
 /** Whether any rule requires CodeQL's results. How strictly is the gate's
  * question; setup only needs to know whether to offer the rule. */
@@ -223,19 +204,6 @@ export async function turnOnCodeQl(
   return { ok: false, message: `turning on CodeQL failed:\n${error}` };
 }
 
-/** Only what a ruleset update needs from each rule: GitHub's read-back
- * carries extra fields (where the rule came from) that aren't settings. */
-function asRule(rule: unknown): RulesetRule | undefined {
-  const type = field(rule, "type");
-  const parameters = field(rule, "parameters");
-  if (typeof type !== "string") {
-    return undefined;
-  }
-  return typeof parameters === "object" && parameters !== null
-    ? { type, parameters: parameters as Record<string, unknown> }
-    : { type };
-}
-
 function toolsIn(rule: RulesetRule): unknown[] {
   const listed: unknown = rule.parameters?.code_scanning_tools;
   const tools: unknown[] = Array.isArray(listed) ? listed : [];
@@ -245,7 +213,7 @@ function toolsIn(rule: RulesetRule): unknown[] {
 /** The rules with CodeQL required. A ruleset holds one rule of each type,
  * so a code scanning rule already there for another tool gains CodeQL
  * beside that tool rather than a second rule. */
-function withCodeQl(rules: readonly RulesetRule[]): RulesetRule[] {
+export function withCodeQl(rules: readonly RulesetRule[]): RulesetRule[] {
   const wanted = codeScanningRule();
   const existing = rules.find((rule) => rule.type === wanted.type);
   if (existing === undefined) {
@@ -271,30 +239,21 @@ export async function addCodeScanningRule(
   repoRoot: string,
   origin: GithubOrigin,
   rulesetId: number,
+  current?: RulesetRead,
 ): Promise<CodeScanningStep> {
-  const path = `repos/${origin.owner}/${origin.repo}/rulesets/${String(rulesetId)}`;
-  const failed = (error: string): CodeScanningStep => ({
-    ok: false,
-    message: `requiring CodeQL in the \`main\` ruleset failed:\n${error}`,
-  });
-  const current = await readJson(ctx, repoRoot, path);
-  if (!current.ok) {
-    return failed(current.error);
-  }
-  const listed = field(current.value, "rules");
-  const rules = (Array.isArray(listed) ? listed : [])
-    .map(asRule)
-    .filter((rule) => rule !== undefined);
-  if (!Array.isArray(listed) || rules.length !== listed.length) {
-    return failed("unexpected ruleset reply");
-  }
-  const result = await ctx.gh.run(
-    ["api", "--method", "PUT", path, "--input", "-"],
+  const result = await updateRuleset(
+    ctx,
     repoRoot,
-    JSON.stringify({ rules: withCodeQl(rules) }),
+    origin,
+    rulesetId,
+    withCodeQl,
+    current,
   );
-  if (result.code !== 0) {
-    return failed((result.stderr || result.stdout).trim());
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: `requiring CodeQL in the \`main\` ruleset failed:\n${result.error}`,
+    };
   }
   return {
     ok: true,

@@ -1,6 +1,7 @@
 // GitHub's answers about code scanning, for tests that fake `gh`. Excluded
 // from the build (tsconfig.build.json excludes src/**/testing/**).
 
+import { REQUIRED_CHECKS, requiredChecksRule } from "../required-checks.ts";
 import type { GhResult } from "../../seams/gh.ts";
 
 /** Where a repository stands with CodeQL. */
@@ -49,6 +50,7 @@ export const CODEQL_RULE = {
 export function codeScanningAnswer(
   args: readonly string[],
   state: CodeQlState,
+  checksRequired = true,
 ): GhResult | undefined {
   const target = args.find((arg) => arg.startsWith("repos/")) ?? "";
   if (args.includes("PATCH") || args.includes("PUT")) {
@@ -60,7 +62,10 @@ export function codeScanningAnswer(
     return ok({ private: state === "private", default_branch: "main" });
   }
   if (target.includes("/rules/branches/")) {
-    return ok(state === "required" ? [{ ...CODEQL_RULE, ruleset_id: 1 }] : []);
+    return ok([
+      ...(state === "required" ? [{ ...CODEQL_RULE, ruleset_id: 1 }] : []),
+      ...(checksRequired ? [requiredChecksRule(REQUIRED_CHECKS)] : []),
+    ]);
   }
   if (target.endsWith("/code-scanning/default-setup")) {
     return ok({ state: state === "off" ? "not-configured" : "configured" });
@@ -75,6 +80,7 @@ export function codeScanningAnswer(
       id: MAIN_RULESET_ID,
       name: "main: pull requests only",
       rules: [
+        ...(checksRequired ? [requiredChecksRule(REQUIRED_CHECKS)] : []),
         { type: "deletion" },
         {
           type: "pull_request",

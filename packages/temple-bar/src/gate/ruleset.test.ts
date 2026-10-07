@@ -16,7 +16,12 @@ import {
 import type { HttpResult } from "../seams/http.ts";
 import type { Context } from "../context.ts";
 import type { CheckOutcome } from "./report.ts";
-import { codeScanningRule } from "../init/code-scanning.ts";
+import {
+  goodRules,
+  pullRequest,
+  rule,
+  without,
+} from "./testing/rules-fixture.ts";
 import { runRulesetChecks } from "./ruleset.ts";
 import {
   findRulesetProblems,
@@ -25,59 +30,6 @@ import {
 } from "./ruleset-compare.ts";
 import { createFakeWriter } from "../testing/fakes.ts";
 
-// The shape of a real answer from GET /repos/{o}/{r}/rules/branches/main:
-// the rules setup creates plus extras a repo added on its own.
-const SOURCE = {
-  ruleset_source_type: "Repository",
-  ruleset_source: "o/r",
-  ruleset_id: 1,
-};
-function rule(
-  type: string,
-  parameters?: Record<string, unknown>,
-): EffectiveRule {
-  return parameters === undefined
-    ? { type, ...SOURCE }
-    : { type, parameters, ...SOURCE };
-}
-function pullRequest(overrides: Record<string, unknown> = {}): EffectiveRule {
-  return rule("pull_request", {
-    required_approving_review_count: 0,
-    dismiss_stale_reviews_on_push: false,
-    required_reviewers: [],
-    require_code_owner_review: false,
-    require_last_push_approval: false,
-    required_review_thread_resolution: false,
-    allowed_merge_methods: ["squash"],
-    ...overrides,
-  });
-}
-function goodRules(): EffectiveRule[] {
-  return [
-    rule("deletion"),
-    rule("non_fast_forward"),
-    pullRequest(),
-    rule("required_linear_history"),
-    rule("required_signatures"),
-    // Extras a repo may add on top.
-    rule("required_status_checks", {
-      strict_required_status_checks_policy: true,
-      required_status_checks: [{ context: "check" }],
-    }),
-    rule("code_scanning", codeScanningRule().parameters),
-    // The judge's ruleset, reported as a rule of its own.
-    rule("required_status_checks", {
-      strict_required_status_checks_policy: true,
-      do_not_enforce_on_create: false,
-      required_status_checks: [
-        { context: "temple-bar judge", integration_id: 15368 },
-      ],
-    }),
-  ];
-}
-function without(type: string): EffectiveRule[] {
-  return goodRules().filter((entry) => entry.type !== type);
-}
 function withPullRequest(overrides: Record<string, unknown>): EffectiveRule[] {
   return goodRules().map((entry) =>
     entry.type === "pull_request" ? pullRequest(overrides) : entry,
@@ -175,7 +127,7 @@ void test("findRulesetProblems: a loose second copy of a rule is not hidden by a
 
 // --- the check as the gate runs it, with GitHub faked ---
 
-/** The branch ruleset's outcome, the first of the two the read serves; the
+/** The branch ruleset's outcome, the first of the four the read serves; the
  * judge's has its own tests (judge-ruleset.test.ts). */
 async function runRulesetCheck(ctx: Context): Promise<CheckOutcome> {
   const [branch] = await runRulesetChecks(ctx);

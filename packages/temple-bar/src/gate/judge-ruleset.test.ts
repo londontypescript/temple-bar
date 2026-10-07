@@ -14,6 +14,10 @@ import {
   createFakeWriter,
 } from "../testing/fakes.ts";
 import { findJudgeRuleProblem, JUDGE_RULESET_CHECK } from "./judge-ruleset.ts";
+import {
+  REQUIRED_CHECKS,
+  requiredChecksRule,
+} from "../init/required-checks.ts";
 import { runRulesetChecks } from "./ruleset.ts";
 import type { EffectiveRule } from "./ruleset-compare.ts";
 
@@ -99,7 +103,11 @@ function run(options: {
       return options.contents ?? json(404, { message: "Not Found" });
     }
     // CodeQL required too, so only the judge's rule is in question.
-    return json(200, [...options.rules, CODEQL]);
+    return json(200, [
+      ...options.rules,
+      CODEQL,
+      requiredChecksRule(REQUIRED_CHECKS),
+    ]);
   });
   const stderr = createFakeWriter();
   const ctx = createFakeContext({
