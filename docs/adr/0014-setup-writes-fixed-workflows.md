@@ -46,7 +46,7 @@ check.
 
 ### Setup writes the gate workflow when it's missing
 
-- **The file:** `.github/workflows/temple-bar-gate.yml`, beside
+- **The file:** `temple-bar-gate.yml` in `.github/workflows/`, beside
   `temple-bar-judge.yml`. The name says it's temple-bar's, not the
   project's general CI.
 - **Written only when missing,** like the judge workflow. A different file
@@ -99,7 +99,7 @@ it: the title is written on GitHub. The old template checked it inside its
 CI; nothing checks it in a project set up today, and `temple-bar merge`
 doesn't either.
 
-- **The file:** `.github/workflows/temple-bar-pr-title.yml`, written and
+- **The file:** `temple-bar-pr-title.yml` in `.github/workflows/`, written and
   checked exactly like the gate workflow.
 - **Its own workflow,** as in temple-bar's own repo: it runs on `edited`
   too, so a changed title is checked again, and that must not rerun the
