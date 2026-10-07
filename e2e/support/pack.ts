@@ -3,7 +3,7 @@
 // `npm pack` it. The tarballs are what the test installs, so the test sees
 // exactly what npm would publish (the `files` list, the bin, dist only).
 
-import { cpSync, mkdirSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +25,9 @@ async function buildAndPack(
   stageDir: string,
   outDir: string,
 ): Promise<string> {
+  // Emptied first: the compiler never removes output for a source file that
+  // was deleted or renamed, so a reused folder would pack stale code.
+  rmSync(stageDir, { recursive: true, force: true });
   mkdirSync(stageDir, { recursive: true });
   const tsc = path.join(repoRoot, "node_modules", "typescript", "bin", "tsc");
   const build = await run(

@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -44,5 +50,40 @@ void test("pack:local packs both packages into the folder, relative to where it 
     }
   } finally {
     rmSync(startedIn, { recursive: true, force: true });
+  }
+});
+
+void test("pack:local never packs output left in a reused folder", async () => {
+  const workDir = mkdtempSync(path.join(tmpdir(), "temple-bar-pack-local-"));
+  try {
+    // What an earlier pack leaves when a source file has since been removed.
+    const staleDist = path.join(workDir, "stage", "temple-bar", "dist");
+    mkdirSync(staleDist, { recursive: true });
+    writeFileSync(path.join(staleDist, "removed-module.js"), "stale\n");
+    const result = await run(process.execPath, [script, workDir], {
+      cwd: repoRoot,
+      env: process.env,
+    });
+    assert.equal(result.code, 0, describe(result));
+    const tarball = result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) =>
+        path.basename(line).startsWith("londontypescript-temple-bar-"),
+      );
+    assert.ok(tarball, result.stdout);
+    const listing = await run("tar", ["-tzf", tarball], {
+      cwd: workDir,
+      env: process.env,
+    });
+    assert.equal(listing.code, 0, describe(listing));
+    assert.match(listing.stdout, /package\/dist\//, "the tarball holds dist/");
+    assert.doesNotMatch(
+      listing.stdout,
+      /removed-module\.js/,
+      "a file from an earlier pack is not in the tarball",
+    );
+  } finally {
+    rmSync(workDir, { recursive: true, force: true });
   }
 });
