@@ -3,6 +3,8 @@
 // Nothing here can undo the merge, so problems are reported with exit code
 // 1 rather than thrown as refusals.
 
+import path from "node:path";
+
 import type { Context } from "../context.ts";
 import { reportLeftovers } from "../leftovers/report.ts";
 import {
@@ -12,6 +14,31 @@ import {
   type Repository,
 } from "./github.ts";
 import { cleanUp } from "./local.ts";
+import { listWorktrees } from "./worktrees.ts";
+
+/** The first merge on a repo brings temple-bar onto the default branch, but
+ * the only checkout that had it installed was the worktree cleanUp just
+ * removed. Until the primary checkout installs it, the git hooks have no
+ * temple-bar anywhere and refuse, so say so. Reporting only. */
+async function adviseInstall(
+  ctx: Context,
+  root: string,
+  defaultBranch: string,
+): Promise<void> {
+  const primary = (await listWorktrees(ctx, root)).find(
+    (worktree) => worktree.primary,
+  );
+  if (primary?.branch !== defaultBranch) {
+    return;
+  }
+  const bin = path.join(primary.path, "node_modules", ".bin", "temple-bar");
+  if (!(await ctx.fs.exists(bin))) {
+    ctx.stdout.write(
+      `merge: temple-bar is not installed in ${primary.path}: run pnpm install there, ` +
+        "since with the merged worktree gone nothing installs it for the git hooks\n",
+    );
+  }
+}
 
 export async function afterMerge(
   ctx: Context,
@@ -46,6 +73,10 @@ export async function afterMerge(
     ctx.stderr.write(`merge: left behind: ${line}\n`);
     exitCode = 1;
   }
+
+  await adviseInstall(ctx, merged.root, merged.repository.defaultBranch).catch(
+    () => undefined,
+  );
 
   // The analysis of the merge commit itself may still be running, so this
   // reports what's open now rather than waiting for it.

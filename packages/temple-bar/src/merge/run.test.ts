@@ -172,6 +172,22 @@ void test("after merging: removes the worktree, deletes the branch, fast-forward
   assert.match(out, /pr-size: ok/);
 });
 
+void test("after the first merge, advises pnpm install when the primary checkout has no temple-bar of its own", async () => {
+  const h = harness(defaultWorld());
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
+  assert.match(
+    h.out(),
+    /merge: temple-bar is not installed in \/repo: run pnpm install there/,
+  );
+});
+
+void test("no pnpm install advice when the primary checkout already has temple-bar", async () => {
+  const h = harness(defaultWorld());
+  await h.ctx.fs.writeText("/repo/node_modules/.bin/temple-bar", "#!/bin/sh\n");
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
+  assert.doesNotMatch(h.out(), /pnpm install/);
+});
+
 void test("deletes a remote branch gh left behind, and confirms it is gone", async () => {
   const world = defaultWorld();
   world.remoteBranchAfterMerge = true;

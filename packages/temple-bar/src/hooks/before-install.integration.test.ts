@@ -18,7 +18,7 @@ import {
 } from "./testing/repo-fixture.ts";
 
 const INSTALL_THEN_RETRY =
-  /Run pnpm install, then run the same git command again/;
+  /installed in some checkout of this repo whose package\.json lists it: run pnpm install there \(for example in a worktree of the branch that set it up\), then run the same git command again/;
 
 function head(fixture: HookFixture): string {
   return runGit(fixture.repoDir, ["rev-parse", "HEAD"]).stdout.trim();
