@@ -1,6 +1,6 @@
-// Writes AGENTS.md and the docs it links to, the judge workflow and
-// .gitignore, and runs every file step of setup in order (package.json's
-// step lives in package-json.ts).
+// Writes AGENTS.md and the docs it links to, the judge, gate and title
+// workflows and .gitignore, and runs every file step of setup in order
+// (package.json's step lives in package-json.ts).
 // Everything here goes through ctx.fs, which has no delete method: nothing
 // is ever removed. The one thing setup rewrites is its own marked block in
 // AGENTS.md; everything else is only created or added to.
@@ -13,6 +13,10 @@ import {
   describeAgentsOverage,
   measureAgentsFile,
 } from "../gate/agents-size.ts";
+import {
+  compareWorkflow,
+  type WorkflowState,
+} from "../gate/workflow-copies.ts";
 import { JUDGE_WORKFLOW_PATH, judgeWorkflow } from "../judge/workflow.ts";
 import {
   freshAgentsMd,
@@ -28,6 +32,7 @@ import {
   ensurePackageJsonScripts,
   type PackageJsonOutcome,
 } from "./package-json.ts";
+import { CHECKED_WORKFLOWS, type CheckedWorkflow } from "./workflows.ts";
 
 /** Writes `content` at `relativePath` only if nothing is there yet;
  * returns whether it wrote. A copy that differs is left alone: once written,
@@ -150,6 +155,38 @@ export async function writeJudgeWorkflowIfMissing(
   return writeIfMissing(ctx, repoRoot, JUDGE_WORKFLOW_PATH, judgeWorkflow());
 }
 
+/** What setup did with one of the workflows the gate holds to an exact
+ * copy: wrote it, or found it there, as an exact copy or not. */
+export interface CheckedWorkflowOutcome {
+  readonly workflow: CheckedWorkflow;
+  readonly wrote: boolean;
+  /** How the file compares with its copy after this run. */
+  readonly state: WorkflowState;
+}
+
+/** Writes the gate and title workflows where they're missing. One that
+ * differs is left alone, like the judge's, but reported: the gate fails
+ * until it is an exact copy again. */
+async function writeCheckedWorkflows(
+  ctx: Context,
+  repoRoot: string,
+): Promise<readonly CheckedWorkflowOutcome[]> {
+  const outcomes: CheckedWorkflowOutcome[] = [];
+  for (const workflow of CHECKED_WORKFLOWS) {
+    // Compared first, so a symlink or folder at the path is reported, never
+    // read through or written over.
+    const before = await compareWorkflow(ctx, repoRoot, workflow);
+    const wrote =
+      before.kind === "missing" &&
+      (await writeIfMissing(ctx, repoRoot, workflow.path, workflow.content));
+    const state = wrote
+      ? await compareWorkflow(ctx, repoRoot, workflow)
+      : before;
+    outcomes.push({ workflow, wrote, state });
+  }
+  return outcomes;
+}
+
 /** What setup keeps in .gitignore, in commented groups: a sensible default
  * for a TypeScript project on Node. Without it, the first `git add -A`
  * commits node_modules/. Deliberately left out: `build/` (some projects keep
@@ -240,6 +277,8 @@ export interface SetupFilesOutcome {
    * "the AGENTS.md import"); empty when it needed nothing. */
   readonly claudeMdAdded: readonly string[];
   readonly wroteJudge: boolean;
+  /** The gate and title workflows, in the order they were written. */
+  readonly checkedWorkflows: readonly CheckedWorkflowOutcome[];
   readonly packageOutcome: PackageJsonOutcome;
 }
 
@@ -254,6 +293,7 @@ export async function writeSetupFiles(
   const wroteCompanions = await writeCompanionFiles(ctx, repoRoot);
   const claudeMdAdded = await updateClaudeMd(ctx, repoRoot);
   const wroteJudge = await writeJudgeWorkflowIfMissing(ctx, repoRoot);
+  const checkedWorkflows = await writeCheckedWorkflows(ctx, repoRoot);
   const packageOutcome = await ensurePackageJsonScripts(ctx, repoRoot);
   return {
     wroteGitignore,
@@ -265,6 +305,7 @@ export async function writeSetupFiles(
     wroteCompanions,
     claudeMdAdded,
     wroteJudge,
+    checkedWorkflows,
     packageOutcome,
   };
 }

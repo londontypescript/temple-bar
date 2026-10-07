@@ -5,36 +5,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { BLOCK_BEGIN, freshAgentsMd } from "./agents-template.ts";
+import { BLOCK_BEGIN } from "./agents-template.ts";
 import { COMPANION_FILES } from "./companion-docs.ts";
-import { GITIGNORE_LINES } from "./files.ts";
-import { GATE_SCRIPT, PREPARE_SCRIPT } from "./package-json.ts";
-import { judgeWorkflow } from "../judge/workflow.ts";
 import { createFakeFs, createFakeGit } from "../testing/fakes.ts";
 import {
   defaultGitScript,
   makeFixture,
   runInitFor,
+  setUpFiles,
   unchangedReport,
 } from "./testing/command-fixture.ts";
 import { createInitCommand } from "./command.ts";
-
-/** Everything a finished setup leaves, so only what a test changes is new. */
-function setUpFiles(overrides: Record<string, string> = {}) {
-  return createFakeFs({
-    "/repo/AGENTS.md": freshAgentsMd(),
-    ...Object.fromEntries(
-      COMPANION_FILES.map((file) => [`/repo/${file.path}`, file.content]),
-    ),
-    "/repo/.gitignore": `${GITIGNORE_LINES.join("\n")}\n`,
-    "/repo/.github/workflows/temple-bar-judge.yml": judgeWorkflow(),
-    "/repo/package.json": JSON.stringify({
-      name: "widgets",
-      scripts: { prepare: PREPARE_SCRIPT, gate: GATE_SCRIPT },
-    }),
-    ...overrides,
-  });
-}
 
 async function runWithHooksUnchanged(fs: ReturnType<typeof createFakeFs>) {
   const fixture = makeFixture({ fs });

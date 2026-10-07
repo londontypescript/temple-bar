@@ -4,7 +4,7 @@
 // scripts with npm, so these tests don't need pnpm on PATH.
 
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
@@ -30,6 +30,7 @@ import {
 } from "../testing/fakes.ts";
 import { CORE_SCRIPTS } from "../gate/testing/core-fixture.ts";
 import { GITIGNORE_LINES } from "../init/files.ts";
+import { CHECKED_WORKFLOWS } from "../init/workflows.ts";
 import { readyCommand } from "./command.ts";
 
 const PASS = 'node -e "process.exit(0)"';
@@ -70,6 +71,19 @@ function setUp(testScript: string): HookFixture {
     fixture.branch,
   );
   assert.equal(runGit(fixture.repoDir, ["pull", "-q", "--ff-only"]).code, 0);
+  // setup's workflows too, which the gate checks: on the default branch,
+  // pushed before the hooks are installed, as setup's own pull request
+  // would have landed them.
+  for (const workflow of CHECKED_WORKFLOWS) {
+    const file = path.join(fixture.repoDir, ...workflow.path.split("/"));
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, workflow.content, "utf8");
+  }
+  commitAll(fixture.repoDir, "chore: set up temple-bar");
+  assert.equal(
+    runGit(fixture.repoDir, ["push", "-q", "origin", fixture.branch]).code,
+    0,
+  );
   assert.equal(installRealHooks(fixture).code, 0);
   runGit(fixture.repoDir, ["checkout", "-q", "-b", "feature"]);
   writeFileSync(path.join(fixture.repoDir, "test.js"), `${testScript}\n`);

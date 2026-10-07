@@ -21,6 +21,8 @@ import { createInitCommand } from "./command.ts";
 import { COMPANION_FILES } from "./companion-docs.ts";
 import { JUDGE_RULESET_NAME } from "./judge-ruleset.ts";
 import { codeScanningAnswer } from "./testing/code-scanning-fake.ts";
+import { PNPM_USER_AGENT } from "./testing/command-fixture.ts";
+import { CHECKED_WORKFLOWS } from "./workflows.ts";
 import { createRealContext } from "../context.ts";
 import { installHooks } from "../hooks/install.ts";
 import {
@@ -73,6 +75,15 @@ function fakeGhScript(args: readonly string[]): GhResult {
   return { code: 0, stdout: "", stderr: "", notFound: false };
 }
 
+/** The real context, run as `pnpm exec` runs setup, whatever runs the
+ * tests: pnpm's version comes from this, and setup records it. */
+function realContext(): Context {
+  return {
+    ...createRealContext(),
+    env: { ...process.env, npm_config_user_agent: PNPM_USER_AGENT },
+  };
+}
+
 function gitConfig(dir: string, key: string): string {
   return execFileSync("git", ["config", "--local", "--get", key], {
     cwd: dir,
@@ -85,7 +96,7 @@ void test("integration: init sets up a real repo (AGENTS.md, scripts, real hooks
   try {
     const stderr = createFakeWriter();
     const ctx: Context = {
-      ...createRealContext(),
+      ...realContext(),
       fs: createFsSeam(),
       gh: createFakeGh(fakeGhScript),
       prompt: createFakePrompt({ interactive: false, answer: "no-terminal" }),
@@ -111,11 +122,17 @@ void test("integration: init sets up a real repo (AGENTS.md, scripts, real hooks
         file.content,
       );
     }
+    for (const workflow of CHECKED_WORKFLOWS) {
+      const file = path.join(dir, workflow.path);
+      assert.ok(existsSync(file), `the ${workflow.label} is written`);
+      assert.equal(readFileSync(file, "utf8"), workflow.content);
+    }
     const pkg = JSON.parse(
       readFileSync(path.join(dir, "package.json"), "utf8"),
-    ) as { scripts: Record<string, string> };
+    ) as { packageManager: string; scripts: Record<string, string> };
     assert.equal(pkg.scripts.prepare, "temple-bar hook install");
     assert.equal(pkg.scripts.gate, "temple-bar gate");
+    assert.equal(pkg.packageManager, "pnpm@10.34.5");
     assert.ok(existsSync(path.join(dir, ".git", "hooks", "pre-commit")));
     assert.ok(
       existsSync(path.join(dir, ".git", "hooks", "reference-transaction")),
@@ -153,7 +170,7 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
     const ghCalls: string[] = [];
     const stderr = createFakeWriter();
     const ctx: Context = {
-      ...createRealContext(),
+      ...realContext(),
       fs: createFsSeam(),
       // `gh repo create` is faked, but does what the real one does to the
       // local repo: adds origin. The hooks must not exist yet at that point.
@@ -192,7 +209,9 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
       .split("\n")
       .filter(Boolean);
     assert.deepEqual(tracked, [
+      ".github/workflows/temple-bar-gate.yml",
       ".github/workflows/temple-bar-judge.yml",
+      ".github/workflows/temple-bar-pr-title.yml",
       ".gitignore",
       "AGENTS.md",
       "CLAUDE.md",

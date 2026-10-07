@@ -4,11 +4,8 @@ import test from "node:test";
 
 import { isConventionalSubject } from "../conventional/subject.ts";
 import { createInitCommand, SETUP_COMMIT_MESSAGE } from "./command.ts";
-import { freshAgentsMd, templeBarBlock } from "./agents-template.ts";
-import { COMPANION_FILES } from "./companion-docs.ts";
-import { GITIGNORE_LINES } from "./files.ts";
+import { templeBarBlock } from "./agents-template.ts";
 import { GATE_SCRIPT, PREPARE_SCRIPT } from "./package-json.ts";
-import { judgeWorkflow } from "../judge/workflow.ts";
 import {
   createFakeContext,
   createFakeFs,
@@ -22,6 +19,7 @@ import {
   makeFixture,
   noRulesetGhScript,
   runInitFor,
+  setUpFiles,
   unchangedReport,
 } from "./testing/command-fixture.ts";
 
@@ -52,18 +50,7 @@ void test("init: an existing project with other scripts gets AGENTS.md and the t
 });
 
 void test("init: a second run changes nothing", async () => {
-  const fs = createFakeFs({
-    "/repo/AGENTS.md": freshAgentsMd(),
-    ...Object.fromEntries(
-      COMPANION_FILES.map((file) => [`/repo/${file.path}`, file.content]),
-    ),
-    "/repo/.gitignore": `${GITIGNORE_LINES.join("\n")}\n`,
-    "/repo/.github/workflows/temple-bar-judge.yml": judgeWorkflow(),
-    "/repo/package.json": JSON.stringify({
-      name: "widgets",
-      scripts: { prepare: PREPARE_SCRIPT, gate: GATE_SCRIPT },
-    }),
-  });
+  const fs = setUpFiles();
   const installHooks = () => Promise.resolve(unchangedReport);
   const ctx = createFakeContext({
     git: createFakeGit(defaultGitScript),

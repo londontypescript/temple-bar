@@ -3,7 +3,13 @@
 // install reports, and a context builder. Excluded from the build
 // (tsconfig.build.json excludes src/**/testing/**).
 
+import { freshAgentsMd } from "../agents-template.ts";
 import { createInitCommand } from "../command.ts";
+import { COMPANION_FILES } from "../companion-docs.ts";
+import { GITIGNORE_LINES } from "../files.ts";
+import { GATE_SCRIPT, PREPARE_SCRIPT } from "../package-json.ts";
+import { CHECKED_WORKFLOWS } from "../workflows.ts";
+import { JUDGE_WORKFLOW_PATH, judgeWorkflow } from "../../judge/workflow.ts";
 import { JUDGE_RULESET_NAME } from "../judge-ruleset.ts";
 import { codeScanningAnswer } from "./code-scanning-fake.ts";
 import type { InstallReport } from "../../hooks/install.ts";
@@ -89,6 +95,32 @@ export const fakeInstallHooks =
     return Promise.resolve(installedReport);
   };
 
+/** What pnpm sets npm_config_user_agent to for `pnpm exec`, which is how
+ * setup runs. */
+export const PNPM_USER_AGENT = "pnpm/10.34.5 npm/? node/v24.0.0 darwin arm64";
+
+/** Everything a finished setup leaves, so a run over it has nothing to do
+ * and only what a test overrides is new. */
+export function setUpFiles(overrides: Record<string, string> = {}) {
+  return createFakeFs({
+    "/repo/AGENTS.md": freshAgentsMd(),
+    ...Object.fromEntries(
+      COMPANION_FILES.map((file) => [`/repo/${file.path}`, file.content]),
+    ),
+    "/repo/.gitignore": `${GITIGNORE_LINES.join("\n")}\n`,
+    [`/repo/${JUDGE_WORKFLOW_PATH}`]: judgeWorkflow(),
+    ...Object.fromEntries(
+      CHECKED_WORKFLOWS.map((file) => [`/repo/${file.path}`, file.content]),
+    ),
+    "/repo/package.json": JSON.stringify({
+      name: "widgets",
+      packageManager: "pnpm@10.34.5",
+      scripts: { prepare: PREPARE_SCRIPT, gate: GATE_SCRIPT },
+    }),
+    ...overrides,
+  });
+}
+
 export interface Fixture {
   readonly ctx: Context;
   readonly hookCalls: { calls: number };
@@ -111,6 +143,7 @@ export function makeFixture(
       answer: promptAnswer,
     }),
     fs: createFakeFs(),
+    env: { npm_config_user_agent: PNPM_USER_AGENT },
     stdout,
     stderr,
     ...overrides,

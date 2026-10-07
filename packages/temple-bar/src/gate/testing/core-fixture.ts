@@ -10,19 +10,23 @@ import { createGitSeam } from "../../seams/git.ts";
 import type { GitResult } from "../../seams/git.ts";
 import { installHooks } from "../../hooks/install.ts";
 import { GITIGNORE_LINES, writeSetupFiles } from "../../init/files.ts";
+import { CHECKED_WORKFLOWS } from "../../init/workflows.ts";
 import { createFakeContext, createFakeWriter } from "../../testing/fakes.ts";
 import { INSTALLED_SCRIPTS, INSTALLED_SHIMS } from "../core.ts";
 
 /** The scripts setup adds to package.json, to spread into a test's own. */
 export const CORE_SCRIPTS: Readonly<Record<string, string>> = INSTALLED_SCRIPTS;
 
-/** The files the core check reads under `root`, for a fake filesystem: the
- * hooks in `<root>/.git/hooks` and .gitignore. package.json is the test's
- * own; give it CORE_SCRIPTS. */
+/** The files the core and workflow checks read under `root`, for a fake
+ * filesystem: the hooks in `<root>/.git/hooks`, .gitignore and the gate and
+ * title workflows. package.json is the test's own; give it CORE_SCRIPTS. */
 export function coreFiles(root = "/repo"): Record<string, string> {
   const files: Record<string, string> = {
     [path.join(root, ".gitignore")]: `${GITIGNORE_LINES.join("\n")}\n`,
   };
+  for (const workflow of CHECKED_WORKFLOWS) {
+    files[path.join(root, ...workflow.path.split("/"))] = workflow.content;
+  }
   for (const [name, content] of Object.entries(INSTALLED_SHIMS)) {
     files[path.join(root, ".git", "hooks", name)] = content;
   }

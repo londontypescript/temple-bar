@@ -3,6 +3,12 @@
 // writes is always the one this version of temple-bar was tested with.
 
 import { GUARDED_CHECKS } from "./guarded-checks.ts";
+import {
+  CHECKOUT,
+  NODE_VERSION,
+  SETUP_NODE,
+  yamlComment,
+} from "./workflow-text.ts";
 
 /** Where setup writes the workflow. */
 export const JUDGE_WORKFLOW_PATH = ".github/workflows/temple-bar-judge.yml";
@@ -13,13 +19,6 @@ export const JUDGE_CHECK = "temple-bar judge";
 /** GitHub Actions' app id. Requiring the check from this app means a status
  * posted through the API by anything else can't stand in for it. */
 export const GITHUB_ACTIONS_APP_ID = 15368;
-
-// The actions are pinned to full commit hashes, the same ones temple-bar's
-// own CI uses: a tag can be moved to other code, a hash can't.
-const CHECKOUT =
-  "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7";
-const SETUP_NODE =
-  "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7";
 
 // Reads the exact temple-bar version package.json pins. Only an exact
 // version is accepted: a range would let the judge's code change without a
@@ -33,22 +32,6 @@ const READ_PIN = `const { readFileSync, appendFileSync } = require("node:fs");
               process.exit(1);
             }
             appendFileSync(process.env.GITHUB_OUTPUT, "version=" + pin + "\\n");`;
-
-/** `text` as YAML comment lines, wrapped by word to fit 78 columns, the way
- * the workflow's hand-written comments are. */
-function yamlComment(text: string): string {
-  const lines: string[] = [];
-  let line = "#";
-  for (const word of text.split(" ")) {
-    if (line.length + 1 + word.length > 78 && line !== "#") {
-      lines.push(line);
-      line = "#";
-    }
-    line += ` ${word}`;
-  }
-  lines.push(line);
-  return lines.join("\n");
-}
 
 /** The workflow file's full text. */
 export function judgeWorkflow(): string {
@@ -97,7 +80,7 @@ jobs:
       - name: Install Node
         uses: ${SETUP_NODE}
         with:
-          node-version: 24
+          node-version: ${String(NODE_VERSION)}
 
       - name: Read the pinned temple-bar version
         id: pin
