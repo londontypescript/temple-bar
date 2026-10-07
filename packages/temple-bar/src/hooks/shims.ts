@@ -24,7 +24,7 @@
 // contain a single quote; shims.test.ts would catch one.
 const NOT_INSTALLED_MESSAGE =
   "temple-bar is not installed in any checkout of this repo, so its git hooks refuse this change.\n" +
-  "Run pnpm install, then run the same git command again.";
+  "It has to be installed in some checkout of this repo whose package.json lists it: run pnpm install there (for example in a worktree of the branch that set it up), then run the same git command again.";
 
 const NOT_SET_UP_MESSAGE =
   "temple-bar is not installed in any checkout of this repo, so this new worktree was not set up.\n" +

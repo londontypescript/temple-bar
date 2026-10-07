@@ -172,6 +172,42 @@ void test("after merging: removes the worktree, deletes the branch, fast-forward
   assert.match(out, /pr-size: ok/);
 });
 
+void test("after the first merge, advises pnpm install when the primary checkout lists temple-bar but has none installed", async () => {
+  const h = harness(defaultWorld());
+  await h.ctx.fs.writeText(
+    "/repo/package.json",
+    JSON.stringify({
+      devDependencies: { "@londontypescript/temple-bar": "0.0.9" },
+    }),
+  );
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
+  assert.match(
+    h.out(),
+    /merge: temple-bar is not installed in \/repo: run pnpm install there\./,
+  );
+});
+
+void test("when the primary checkout does not list temple-bar yet, advises installing in a new worktree of the default branch", async () => {
+  const h = harness(defaultWorld());
+  await h.ctx.fs.writeText(
+    "/repo/package.json",
+    JSON.stringify({ name: "app" }),
+  );
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
+  assert.match(
+    h.out(),
+    /does not list it yet: run pnpm install in a new worktree of origin\/main/,
+  );
+  assert.doesNotMatch(h.out(), /run pnpm install there/);
+});
+
+void test("no pnpm install advice when the primary checkout already has temple-bar", async () => {
+  const h = harness(defaultWorld());
+  await h.ctx.fs.writeText("/repo/node_modules/.bin/temple-bar", "#!/bin/sh\n");
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
+  assert.doesNotMatch(h.out(), /pnpm install/);
+});
+
 void test("deletes a remote branch gh left behind, and confirms it is gone", async () => {
   const world = defaultWorld();
   world.remoteBranchAfterMerge = true;

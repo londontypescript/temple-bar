@@ -171,32 +171,36 @@ export interface CleanupReport {
   readonly problems: string[];
 }
 
-async function removeWorktreeOrSwitch(
+/** The original clone is never removed; when it holds the merged branch it
+ * goes back to the default branch instead, so the branch can be deleted. */
+async function switchPrimaryToDefault(
   ctx: Context,
-  worktree: Worktree,
-  options: { readonly defaultBranch: string; readonly primaryPath: string },
+  primary: Worktree,
+  defaultBranch: string,
   report: CleanupReport,
 ): Promise<void> {
-  const { defaultBranch } = options;
-  if (worktree.primary) {
-    // The original clone is never removed; it goes back to the default
-    // branch instead, so the merged branch can be deleted.
-    const switched = await git(ctx, ["switch", defaultBranch], worktree.path);
-    if (switched.ok) {
-      report.done.push(`switched ${worktree.path} to ${defaultBranch}`);
-    } else {
-      report.problems.push(
-        `could not switch ${worktree.path} to ${defaultBranch}: ${switched.stderr}`,
-      );
-    }
-    return;
+  const switched = await git(ctx, ["switch", defaultBranch], primary.path);
+  if (switched.ok) {
+    report.done.push(`switched ${primary.path} to ${defaultBranch}`);
+  } else {
+    report.problems.push(
+      `could not switch ${primary.path} to ${defaultBranch}: ${switched.stderr}`,
+    );
   }
+}
+
+async function removeWorktree(
+  ctx: Context,
+  worktree: Worktree,
+  primaryPath: string,
+  report: CleanupReport,
+): Promise<void> {
   // No --force: uncommitted work in the worktree is kept and reported.
   // Run from the primary checkout: git won't remove the worktree it runs in.
   const removed = await git(
     ctx,
     ["worktree", "remove", worktree.path],
-    options.primaryPath,
+    primaryPath,
   );
   if (removed.ok) {
     report.done.push(`removed the worktree at ${worktree.path}`);
@@ -272,9 +276,16 @@ async function confirmRemoteBranchGone(
   }
 }
 
-/** After the merge: the worktree, the local branch and the remote branch go;
- * the default branch catches up. Runs from the primary checkout, because
- * the command may have been started inside the worktree it removes. */
+/** After the merge: the default branch catches up, the remote branch goes,
+ * then the worktree and the local branch. Runs from the primary checkout,
+ * because the command may have been started inside the worktree it removes.
+ *
+ * The order matters. temple-bar's git hooks refuse to run when no checkout
+ * has temple-bar installed, and on a repo's first merge the merged branch's
+ * worktree is the only one that does (the default branch gets temple-bar
+ * from this very merge). So everything that runs a hook, moving the default
+ * branch and deleting the remote branch, happens while that worktree still
+ * exists; removing it and deleting the local branch come last. */
 export async function cleanUp(
   ctx: Context,
   options: {
@@ -294,12 +305,23 @@ export async function cleanUp(
     );
   });
 
-  const worktrees = await listWorktrees(ctx, cwd);
-  const holder = worktrees.find(
+  const holder = (await listWorktrees(ctx, cwd)).find(
     (worktree) => worktree.branch === options.branch,
   );
-  if (holder !== undefined) {
-    await removeWorktreeOrSwitch(ctx, holder, options, report);
+  if (holder?.primary === true) {
+    await switchPrimaryToDefault(ctx, holder, options.defaultBranch, report);
+  }
+
+  const primary = (await listWorktrees(ctx, cwd)).find(
+    (worktree) => worktree.primary,
+  );
+  if (primary !== undefined) {
+    await fastForwardDefault(ctx, primary, options.defaultBranch, report);
+  }
+  await confirmRemoteBranchGone(ctx, options.branch, cwd, report);
+
+  if (holder !== undefined && !holder.primary) {
+    await removeWorktree(ctx, holder, cwd, report);
   }
 
   const tip = await resolveCommit(ctx, `refs/heads/${options.branch}`, cwd);
@@ -320,13 +342,5 @@ export async function cleanUp(
       `kept the local branch ${options.branch}: it is at ${tip}, not the merged ${options.mergedSha}`,
     );
   }
-
-  const primary = (await listWorktrees(ctx, cwd)).find(
-    (worktree) => worktree.primary,
-  );
-  if (primary !== undefined) {
-    await fastForwardDefault(ctx, primary, options.defaultBranch, report);
-  }
-  await confirmRemoteBranchGone(ctx, options.branch, cwd, report);
   return report;
 }
