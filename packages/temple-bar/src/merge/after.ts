@@ -34,8 +34,8 @@ async function adviseInstall(
   const bin = path.join(primary.path, "node_modules", ".bin", "temple-bar");
   if (!(await ctx.fs.exists(bin))) {
     ctx.stdout.write(
-      `merge: temple-bar is not installed in ${primary.path}: run pnpm install there, ` +
-        "since with the merged worktree gone nothing installs it for the git hooks\n",
+      `merge: temple-bar is not installed in ${primary.path}: run pnpm install there. ` +
+        "The git hooks refuse commits and pushes while no checkout of this repo has it installed\n",
     );
   }
 }
