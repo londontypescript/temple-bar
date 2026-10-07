@@ -1,8 +1,8 @@
 // The gate's ruleset check: the default branch must still be protected by
 // the rules `init` sets up (pull request, squash only, linear history, signed
-// commits, no force-push, no deletion; the judge's check and CodeQL's
-// results are checked beside it). GitHub enforces them, but nothing
-// else notices if the ruleset is deleted or loosened later.
+// commits, no force-push, no deletion; the judge's check, CodeQL's results
+// and the gate and title checks are checked beside it). GitHub enforces
+// them, but nothing else notices if the ruleset is deleted or loosened later.
 //
 // How it reads GitHub: Node's built-in fetch against the public API, not
 // `gh`. A token from GH_TOKEN/GITHUB_TOKEN is sent when present. Locally an
@@ -22,12 +22,17 @@ import {
   codeScanningOutcome,
 } from "./code-scanning-rule.ts";
 import {
-  findJudgeWorkflow,
+  findWorkflow,
   judgeRulesetOutcome,
   JUDGE_RULESET_CHECK,
   type WorkflowLookup,
 } from "./judge-ruleset.ts";
 import type { CheckOutcome } from "./report.ts";
+import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
+import {
+  REQUIRED_CHECKS_CHECK,
+  requiredChecksOutcome,
+} from "./required-checks-rule.ts";
 import {
   findRulesetProblems,
   isEffectiveRuleList,
@@ -196,12 +201,12 @@ function every(outcome: Omit<CheckOutcome, "name">): CheckOutcome[] {
     { ...outcome, name: RULESET_CHECK },
     { ...outcome, name: JUDGE_RULESET_CHECK },
     { ...outcome, name: CODE_SCANNING_CHECK },
+    { ...outcome, name: REQUIRED_CHECKS_CHECK },
   ];
 }
 
-/** The branch ruleset check, then the judge's (judge-ruleset.ts) and
- * CodeQL's (code-scanning-rule.ts): one read of GitHub serves all three,
- * and the question about the judge workflow is asked at most once. */
+/** One effective-rules read serves all four checks. A missing rule asks
+ * about its workflow only when needed, at most once per path. */
 export async function runRulesetChecks(ctx: Context): Promise<CheckOutcome[]> {
   const result = await readRuleset(ctx);
   if (result.kind === "needs-token") {
@@ -242,15 +247,28 @@ export async function runRulesetChecks(ctx: Context): Promise<CheckOutcome[]> {
       detail: "the default branch has every rule setup creates",
     };
   }
-  let lookup: Promise<WorkflowLookup> | undefined;
-  const workflow = (): Promise<WorkflowLookup> =>
-    (lookup ??= findJudgeWorkflow(
-      ctx,
-      result.repoUrl,
-      result.defaultBranch,
-      result.token,
-    ));
-  const judge = await judgeRulesetOutcome(ctx, result.rules, workflow);
-  const codeScanning = await codeScanningOutcome(ctx, result.rules, workflow);
-  return [branch, judge, codeScanning];
+  const lookups = new Map<string, Promise<WorkflowLookup>>();
+  const workflow = (path: string): Promise<WorkflowLookup> => {
+    let lookup = lookups.get(path);
+    if (lookup === undefined) {
+      lookup = findWorkflow(
+        ctx,
+        result.repoUrl,
+        result.defaultBranch,
+        result.token,
+        path,
+      );
+      lookups.set(path, lookup);
+    }
+    return lookup;
+  };
+  const judgeWorkflow = () => workflow(JUDGE_WORKFLOW_PATH);
+  const judge = await judgeRulesetOutcome(ctx, result.rules, judgeWorkflow);
+  const codeScanning = await codeScanningOutcome(
+    ctx,
+    result.rules,
+    judgeWorkflow,
+  );
+  const checks = await requiredChecksOutcome(ctx, result.rules, workflow);
+  return [branch, judge, codeScanning, checks];
 }

@@ -243,7 +243,7 @@ export function createGateCommand(tools: GateTools): CommandEntry {
   return {
     name: "gate",
     summary:
-      "Run the merge gate: stack checks, setup's core, the gate and title workflows, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code, the branch ruleset and the judge's ruleset.",
+      "Run the merge gate: stack checks, setup's core, the gate and title workflows, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code, the branch ruleset, the judge's ruleset and the gate and title checks rule.",
     details: [
       "Once the repo has files of its own (beyond package.json, the lockfile,",
       "AGENTS.md, .gitignore, README.md, LICENSE, temple-bar.config.json and",

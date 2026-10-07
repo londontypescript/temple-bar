@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { REQUIRED_CHECKS } from "./required-checks.ts";
 import { codeScanningRule } from "./code-scanning.ts";
 import { offerProtection, protectionQuestion } from "./github-protection.ts";
 import { rulesetBody } from "./github-ruleset.ts";
@@ -44,9 +45,17 @@ function github(
 ) {
   return createFakeGh(
     (args) =>
+      (args.some((a) => /contents\/.*temple-bar-(gate|pr-title)\.yml$/.test(a))
+        ? {
+            code: 1,
+            stdout: "",
+            stderr: "gh: Not Found (HTTP 404)",
+            notFound: false,
+          }
+        : undefined) ??
       override(args) ??
       (args.includes("POST") ? ok() : undefined) ??
-      codeScanningAnswer(args, state) ??
+      codeScanningAnswer(args, state, false) ??
       (args.some((a) => a.includes("/contents/"))
         ? ok()
         : ok(JSON.stringify(listed))),
@@ -328,4 +337,19 @@ void test("CodeQL analysed and the `main` ruleset already scans with another too
       },
     ],
   });
+});
+
+void test("the combined existing-main question has one addition naming CodeQL and the ready checks", () => {
+  const question = protectionQuestion({
+    main: false,
+    judge: false,
+    turnOnCodeQl: false,
+    requireCodeQl: true,
+    checks: REQUIRED_CHECKS,
+  });
+  assert.equal(question.match(/add to the `main` ruleset:/g)?.length, 1);
+  assert.match(
+    question,
+    /CodeQL's results required.*the "temple-bar gate" and "temple-bar pr-title" checks required from GitHub Actions, on branches up to date with `main`/,
+  );
 });

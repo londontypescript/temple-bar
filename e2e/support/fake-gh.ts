@@ -26,6 +26,13 @@ if (path.basename(process.execPath).replace(/\\.exe$/i, "") === "gh") {
     process.stdout.write('[{"target":"branch"}]');
     process.exit(0);
   }
+  if (args[0] === "api" && [
+    "repos/acme/widgets/contents/.github/workflows/temple-bar-gate.yml",
+    "repos/acme/widgets/contents/.github/workflows/temple-bar-pr-title.yml",
+  ].includes(args[1])) {
+    process.stderr.write("gh: Not Found (HTTP 404)\\n");
+    process.exit(1);
+  }
   if (args[0] === "api" && args[1] === "repos/acme/widgets") {
     process.stdout.write('{"private":false,"default_branch":"main"}');
     process.exit(0);

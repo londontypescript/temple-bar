@@ -5,7 +5,9 @@
 //   (judge-ruleset.ts);
 // - CodeQL code scanning: turned on first, and its results required in the
 //   `main` ruleset on a later run, once CodeQL has analysed the default
-//   branch (code-scanning.ts).
+//   branch (code-scanning.ts);
+// - the gate and title checks, once their workflows are on the default
+//   branch (required-checks.ts).
 //
 // Only an explicit yes (the prompt, or the --create-ruleset flag an agent
 // passes after the user said yes in chat) changes anything, and the question
@@ -18,12 +20,12 @@ import {
   addCodeScanningRule,
   CODEQL_PRIVATE,
   CODEQL_WAITING,
-  codeScanningRule,
   MANUAL_CODE_SCANNING_RULE_STEPS,
   MANUAL_CODEQL_STEPS,
   planCodeScanning,
   turnOnCodeQl,
   unreadableMessage,
+  withCodeQl,
 } from "./code-scanning.ts";
 import {
   hasBranchRuleset,
@@ -40,6 +42,15 @@ import {
   JUDGE_WAITING,
   MANUAL_JUDGE_RULESET_STEPS,
 } from "./judge-ruleset.ts";
+import {
+  addRequiredChecks,
+  checksSummary,
+  manualChecksSteps,
+  notSetupsRuleset,
+  planRequiredChecks,
+  withRequiredChecks,
+  type RequiredChecksPlan,
+} from "./required-checks.ts";
 import { rerunInit, type GithubOrigin } from "./requirements.ts";
 
 const MAIN_SUMMARY =
@@ -62,16 +73,23 @@ export interface ProtectionWork {
   /** Require CodeQL's results: inside a `main` ruleset created now, or
    * added to the existing one. */
   readonly requireCodeQl: boolean;
+  readonly checks?: RequiredChecksPlan["checks"];
 }
 
 /** The one question, naming everything the yes covers. */
 export function protectionQuestion(work: ProtectionWork): string {
   const parts: string[] = [];
+  const checks = work.checks ?? [];
+  const additions = [
+    ...(work.requireCodeQl ? [CODEQL_RESULTS] : []),
+    ...(checks.length > 0 ? [checksSummary(checks)] : []),
+  ].join(", and ");
   if (work.main) {
-    const codeQl = work.requireCodeQl ? `, ${CODEQL_RESULTS}` : "";
-    parts.push(`create the \`main\` ruleset (${MAIN_SUMMARY}${codeQl})`);
-  } else if (work.requireCodeQl) {
-    parts.push(`add to the \`main\` ruleset: ${CODEQL_RESULTS}`);
+    parts.push(
+      `create the \`main\` ruleset (${MAIN_SUMMARY}${additions === "" ? "" : `, ${additions}`})`,
+    );
+  } else if (additions !== "") {
+    parts.push(`add to the \`main\` ruleset: ${additions}`);
   }
   if (work.judge) {
     parts.push(`create the judge's ruleset (${JUDGE_SUMMARY})`);
@@ -109,7 +127,7 @@ interface Step {
   readonly run: () => Promise<StepResult>;
 }
 
-function fromCodeScanning(step: { ok: boolean; message: string }): StepResult {
+function fromStep(step: { ok: boolean; message: string }): StepResult {
   return step.ok
     ? { kind: "done", message: step.message }
     : { kind: "failed", message: step.message };
@@ -160,6 +178,14 @@ export async function offerProtection(
     judgeMissing && (await judgeIsOnDefaultBranch(ctx, repoRoot, origin));
   const plan = await planCodeScanning(ctx, repoRoot, origin);
   const mainId = mainRulesetId(existing);
+  const checksPlan = await planRequiredChecks(
+    ctx,
+    repoRoot,
+    origin,
+    needMain,
+    mainId,
+  );
+  const checks = needMain || mainId !== undefined ? checksPlan.checks : [];
 
   const requireCodeQl =
     plan.kind === "require" && (needMain || mainId !== undefined);
@@ -168,6 +194,7 @@ export async function offerProtection(
     judge: judgeMissing && judgeReady,
     turnOnCodeQl: plan.kind === "turn-on",
     requireCodeQl,
+    checks,
   };
 
   // Said after the outcome, whatever it is.
@@ -175,9 +202,14 @@ export async function offerProtection(
     judgeMissing && !judgeReady ? JUDGE_WAITING : undefined,
     plan.kind === "waiting" ? CODEQL_WAITING : undefined,
     plan.kind === "private" ? CODEQL_PRIVATE : undefined,
+    checksPlan.note,
   ]);
   // Left undone whatever the answer, so `init` ends non-zero.
   const problems = joined([
+    checksPlan.problem,
+    checksPlan.checks.length > 0 && checks.length === 0
+      ? notSetupsRuleset(checksPlan.checks)
+      : undefined,
     plan.kind === "unreadable" ? unreadableMessage(plan.reason) : undefined,
     plan.kind === "require" && !requireCodeQl
       ? "CodeQL has analysed the default branch, but its ruleset isn't one " +
@@ -194,12 +226,19 @@ export async function offerProtection(
         ctx,
         repoRoot,
         path,
-        requireCodeQl
-          ? { ...body, rules: [...body.rules, codeScanningRule()] }
-          : body,
-        requireCodeQl
-          ? `${MANUAL_RULESET_STEPS}\n  - requires code scanning results from CodeQL`
-          : MANUAL_RULESET_STEPS,
+        {
+          ...body,
+          rules: withRequiredChecks(
+            requireCodeQl ? withCodeQl(body.rules) : body.rules,
+            checks,
+          ),
+        },
+        joined([
+          requireCodeQl
+            ? `${MANUAL_RULESET_STEPS}\n  - requires code scanning results from CodeQL`
+            : MANUAL_RULESET_STEPS,
+          checks.length > 0 ? manualChecksSteps(checks) : undefined,
+        ]),
       ),
     );
   }
@@ -217,16 +256,31 @@ export async function offerProtection(
   if (work.turnOnCodeQl) {
     steps.push({
       manual: MANUAL_CODEQL_STEPS,
-      run: async () =>
-        fromCodeScanning(await turnOnCodeQl(ctx, repoRoot, origin)),
+      run: async () => fromStep(await turnOnCodeQl(ctx, repoRoot, origin)),
     });
   }
-  if (requireCodeQl && !needMain && mainId !== undefined) {
+  if (
+    (requireCodeQl || checks.length > 0) &&
+    !needMain &&
+    mainId !== undefined
+  ) {
     steps.push({
-      manual: MANUAL_CODE_SCANNING_RULE_STEPS,
+      manual: joined([
+        requireCodeQl ? MANUAL_CODE_SCANNING_RULE_STEPS : undefined,
+        checks.length > 0 ? manualChecksSteps(checks) : undefined,
+      ]),
       run: async () =>
-        fromCodeScanning(
-          await addCodeScanningRule(ctx, repoRoot, origin, mainId),
+        fromStep(
+          checks.length > 0
+            ? await addRequiredChecks(
+                ctx,
+                repoRoot,
+                origin,
+                mainId,
+                checksPlan,
+                requireCodeQl,
+              )
+            : await addCodeScanningRule(ctx, repoRoot, origin, mainId),
         ),
     });
   }

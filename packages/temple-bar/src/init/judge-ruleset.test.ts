@@ -41,12 +41,14 @@ function github(listed: readonly object[], judgeOnMain: boolean) {
     if (args.includes("POST")) {
       return ok();
     }
-    const codeScanning = codeScanningAnswer(args, "required");
+    const codeScanning = codeScanningAnswer(args, "required", true);
     if (codeScanning !== undefined) {
       return codeScanning;
     }
     if (isContentsRead(args)) {
-      return judgeOnMain ? ok() : notFound;
+      return args.some((a) => a.endsWith("temple-bar-judge.yml")) && judgeOnMain
+        ? ok()
+        : notFound;
     }
     return ok(JSON.stringify(listed));
   });
@@ -168,8 +170,12 @@ void test("offerRuleset: the judge's ruleset failing to create says what was cre
       return posts === 2 ? notFound : ok();
     }
     return (
-      codeScanningAnswer(args, "required") ??
-      (isContentsRead(args) ? ok() : ok("[]"))
+      codeScanningAnswer(args, "required", true) ??
+      (isContentsRead(args)
+        ? args.some((a) => a.endsWith("temple-bar-judge.yml"))
+          ? ok()
+          : notFound
+        : ok("[]"))
     );
   });
   const outcome = await offerRuleset(

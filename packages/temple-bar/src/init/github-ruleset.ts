@@ -113,10 +113,12 @@ export function rulesetBody(): RulesetBody {
       },
       { type: "required_linear_history" },
       { type: "required_signatures" },
-      // "Branches up to date" lives in the judge's ruleset: GitHub's rule
-      // only acts on named required checks, and the judge's is the one
-      // check setup knows every repo has. CodeQL's rule is added on a later
-      // run, once CodeQL has analysed the default branch (code-scanning.ts).
+      // No required checks here: requiring a check before its workflow is
+      // on the default branch would block every pull request. The gate and
+      // title checks join this ruleset once their workflows have landed,
+      // with branches required up to date (required-checks.ts), and
+      // CodeQL's rule once CodeQL has analysed the default branch
+      // (code-scanning.ts). The judge's check has a ruleset of its own.
     ],
   };
 }

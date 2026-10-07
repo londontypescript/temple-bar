@@ -44,10 +44,26 @@ same pull request as any change to a mechanism.
 | temple-bar.config.json limits unchanged   | the judge, from 0.0.8                                | **Blocked** on GitHub |
 | Bypass merges seen by the maintainer      | `merge` lists the past month's, from 0.0.8           | **Detected** after    |
 | Judge's ruleset still required            | the pinned gate in CI (public repos), from 0.0.7     | **Blocked** via CI    |
+| Gate and title checks required on `main`  | `main` ruleset, gate (public repos), 0.0.9, not here | **Blocked** on GitHub |
 | Gate and title workflows unchanged        | the pinned gate in CI, from 0.0.9 (not yet here)     | **Blocked** via CI    |
 | Release notes finished before publishing  | `pnpm release:publish` refuses unfinished notes      | **Blocked** locally   |
 | One-line description the same everywhere  | tests; About text by a CI step                       | **Blocked** via CI    |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
+
+Known limits of the required gate and title checks: the gate reads the rules
+GitHub enforces on `main`, which don't show who may bypass them, so it can say
+the checks are required, not that nobody can bypass them. And GitHub knows a
+required check only by its name and the app that reports it, not by the
+workflow that runs it. A pull request that deletes `temple-bar-gate.yml` and
+adds a job of its own named `temple-bar gate` satisfies the rule; the judge
+fails it, but an admin bypass of the judge's ruleset merges it, and from then
+on CI never runs the real gate. That one bypass is visible only in `merge`'s
+list of bypass merges, for a month. Agents use the maintainer's account, so
+the bypass needn't be the maintainer's own act: the fix is agents with their
+own GitHub identity
+([#145](https://github.com/londontypescript/temple-bar/issues/145)), and until
+then, noticing the removal on every later pull request
+([#293](https://github.com/londontypescript/temple-bar/issues/293)).
 
 Known limits of push-once ([ADR 0012](adr/0012-push-once-with-ready.md)):
 `git push --no-verify` skips the `pre-push` hook, so CI and the ruleset stay

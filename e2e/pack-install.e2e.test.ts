@@ -165,6 +165,10 @@ for (const pm of ["pnpm"] as const) {
       // CodeQL hasn't analysed the default branch yet, so setup doesn't
       // require it and says to run again.
       assert.match(launch.stdout, /CodeQL isn't required yet/);
+      assert.match(
+        launch.stdout,
+        /temple-bar-gate\.yml and .*temple-bar-pr-title\.yml aren't on the default branch yet, so their checks aren't required/,
+      );
       assert.ok(
         registry.requested.includes(PACKAGE_NAME),
         "added from the registry",

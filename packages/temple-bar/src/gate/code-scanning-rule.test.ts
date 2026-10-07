@@ -17,6 +17,10 @@ import {
   CODE_SCANNING_CHECK,
   findCodeScanningProblem,
 } from "./code-scanning-rule.ts";
+import {
+  REQUIRED_CHECKS,
+  requiredChecksRule,
+} from "../init/required-checks.ts";
 import { runRulesetChecks } from "./ruleset.ts";
 import type { EffectiveRule } from "./ruleset-compare.ts";
 
@@ -119,7 +123,7 @@ function run(options: {
         ? json(200, { name: "x" })
         : json(404, { message: "Not Found" });
     }
-    return json(200, options.rules);
+    return json(200, [...options.rules, requiredChecksRule(REQUIRED_CHECKS)]);
   });
   const stderr = createFakeWriter();
   const ctx = createFakeContext({
@@ -191,7 +195,8 @@ void test("code scanning rule: setup's own pull request, still on its way, is sk
   assert.doesNotMatch(t.stderr.lines.join(""), /CodeQL/);
   // The judge's check and this one share one question about the workflow.
   assert.equal(
-    t.http.calls.filter((call) => call.url.includes("/contents/")).length,
+    t.http.calls.filter((call) => call.url.includes(`/contents/${WORKFLOW}?`))
+      .length,
     1,
   );
 });
