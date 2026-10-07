@@ -45,6 +45,7 @@ void test("init without the flag and with no terminal: no ruleset, exit 1, names
 /** No origin until `gh repo create` has run, then github. */
 function noOriginGit() {
   return createFakeGit((args) => {
+    if (args[0] === "ls-files") return { code: 0, stdout: "", stderr: "" };
     if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
       return { code: 0, stdout: "/repo\n", stderr: "" };
     }
@@ -74,6 +75,7 @@ void test("init --create-repo alone creates the repo but does not answer the rul
     return noRulesetGhScript(args);
   });
   const git = createFakeGit((args) => {
+    if (args[0] === "ls-files") return { code: 0, stdout: "", stderr: "" };
     if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
       return { code: 0, stdout: "/repo\n", stderr: "" };
     }

@@ -12,6 +12,7 @@
 import path from "node:path";
 
 import type { Context } from "../context.ts";
+import { classifyDiskTarget } from "../init/write-target.ts";
 import {
   CHECKED_WORKFLOWS,
   RESTORE_WORKFLOW,
@@ -64,11 +65,9 @@ export async function compareWorkflow(
   workflow: CheckedWorkflow,
 ): Promise<WorkflowState> {
   const file = path.join(repoRoot, ...workflow.path.split("/"));
-  if (!(await ctx.fs.isRegularFile(file))) {
-    return (await ctx.fs.exists(file))
-      ? { kind: "not-a-file" }
-      : { kind: "missing" };
-  }
+  const target = await classifyDiskTarget(ctx, repoRoot, workflow.path);
+  if (target.kind === "missing") return { kind: "missing" };
+  if (target.kind !== "file") return { kind: "not-a-file" };
   const found = await ctx.fs.readText(file);
   if (found === undefined) {
     return { kind: "missing" };

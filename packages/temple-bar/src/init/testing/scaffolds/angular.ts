@@ -10,6 +10,7 @@ export const angular = {
   command:
     "pnpm dlx @angular/cli@latest new ng-app --defaults --skip-install --skip-git",
   recordedOn: "2026-10-07",
+  symlinks: {},
   files: {
     ".editorconfig":
       "# Editor configuration, see https://editorconfig.org\nroot = true\n\n[*]\ncharset = utf-8\nindent_style = space\nindent_size = 2\ninsert_final_newline = true\ntrim_trailing_whitespace = true\n\n[*.ts]\nquote_type = single\nij_typescript_use_double_quotes = false\n\n[*.md]\nmax_line_length = off\ntrim_trailing_whitespace = false\n",

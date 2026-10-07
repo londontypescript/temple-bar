@@ -5,9 +5,12 @@
 // is ever removed. The one thing setup rewrites is its own marked block in
 // AGENTS.md; everything else is only created or added to.
 
-import path from "node:path";
-
 import type { Context } from "../context.ts";
+import {
+  setupWriteTargets,
+  type RefusedTarget,
+  type WriteTargets,
+} from "./write-target.ts";
 import {
   AGENTS_OVERSIZE_FIX,
   describeAgentsOverage,
@@ -38,18 +41,14 @@ import { CHECKED_WORKFLOWS, type CheckedWorkflow } from "./workflows.ts";
  * returns whether it wrote. A copy that differs is left alone: once written,
  * the file is the project's to edit. */
 async function writeIfMissing(
-  ctx: Context,
-  repoRoot: string,
+  targets: WriteTargets,
   relativePath: string,
   content: string,
 ): Promise<boolean> {
-  const filePath = path.join(repoRoot, ...relativePath.split("/"));
-  if ((await ctx.fs.readText(filePath)) !== undefined) {
+  if ((await targets.readText(relativePath)) !== undefined) {
     return false;
   }
-  await ctx.fs.mkdirp(path.dirname(filePath));
-  await ctx.fs.writeText(filePath, content);
-  return true;
+  return targets.writeText(relativePath, content);
 }
 
 export interface AgentsMdOutcome {
@@ -91,13 +90,16 @@ function withSizeCheck(wrote: boolean, content: string): AgentsMdOutcome {
 export async function writeAgentsMd(
   ctx: Context,
   repoRoot: string,
+  targets = setupWriteTargets(ctx, repoRoot),
 ): Promise<AgentsMdOutcome> {
-  const filePath = path.join(repoRoot, "AGENTS.md");
-  const existing = await ctx.fs.readText(filePath);
+  const existing = await targets.readText("AGENTS.md");
+  if (targets.refusals.has("AGENTS.md")) return { wrote: false };
   if (existing === undefined) {
     const content = freshAgentsMd();
-    await ctx.fs.writeText(filePath, content);
-    return withSizeCheck(true, content);
+    return withSizeCheck(
+      await targets.writeText("AGENTS.md", content),
+      content,
+    );
   }
   const update = withTempleBarBlock(existing);
   if (update.kind === "refused") {
@@ -109,8 +111,10 @@ export async function writeAgentsMd(
   if (update.kind === "unchanged") {
     return withSizeCheck(false, existing);
   }
-  await ctx.fs.writeText(filePath, update.content);
-  return withSizeCheck(true, update.content);
+  return withSizeCheck(
+    await targets.writeText("AGENTS.md", update.content),
+    update.content,
+  );
 }
 
 /** Writes each file AGENTS.md links to (and CLAUDE.md) where the project
@@ -118,10 +122,11 @@ export async function writeAgentsMd(
 export async function writeCompanionFiles(
   ctx: Context,
   repoRoot: string,
+  targets = setupWriteTargets(ctx, repoRoot),
 ): Promise<readonly string[]> {
   const written: string[] = [];
   for (const file of COMPANION_FILES) {
-    if (await writeIfMissing(ctx, repoRoot, file.path, file.content)) {
+    if (await writeIfMissing(targets, file.path, file.content)) {
       written.push(file.path);
     }
   }
@@ -134,15 +139,16 @@ export async function writeCompanionFiles(
 export async function updateClaudeMd(
   ctx: Context,
   repoRoot: string,
+  targets = setupWriteTargets(ctx, repoRoot),
 ): Promise<readonly string[]> {
-  const filePath = path.join(repoRoot, CLAUDE_MD_PATH);
-  const existing = await ctx.fs.readText(filePath);
+  const existing = await targets.readText(CLAUDE_MD_PATH);
   const fix = existing === undefined ? undefined : fixClaudeMd(existing);
   if (fix === undefined) {
     return [];
   }
-  await ctx.fs.writeText(filePath, fix.content);
-  return fix.added;
+  return (await targets.writeText(CLAUDE_MD_PATH, fix.content))
+    ? fix.added
+    : [];
 }
 
 /** Writes the judge workflow only if none exists yet; returns whether it
@@ -151,8 +157,9 @@ export async function updateClaudeMd(
 export async function writeJudgeWorkflowIfMissing(
   ctx: Context,
   repoRoot: string,
+  targets = setupWriteTargets(ctx, repoRoot),
 ): Promise<boolean> {
-  return writeIfMissing(ctx, repoRoot, JUDGE_WORKFLOW_PATH, judgeWorkflow());
+  return writeIfMissing(targets, JUDGE_WORKFLOW_PATH, judgeWorkflow());
 }
 
 /** What setup did with one of the workflows the gate holds to an exact
@@ -170,15 +177,20 @@ export interface CheckedWorkflowOutcome {
 async function writeCheckedWorkflows(
   ctx: Context,
   repoRoot: string,
+  targets = setupWriteTargets(ctx, repoRoot),
 ): Promise<readonly CheckedWorkflowOutcome[]> {
   const outcomes: CheckedWorkflowOutcome[] = [];
   for (const workflow of CHECKED_WORKFLOWS) {
     // Compared first, so a symlink or folder at the path is reported, never
     // read through or written over.
-    const before = await compareWorkflow(ctx, repoRoot, workflow);
+    const target = await targets.inspect(workflow.path);
+    const before: WorkflowState =
+      target.kind === "refused"
+        ? { kind: "not-a-file" }
+        : await compareWorkflow(ctx, repoRoot, workflow);
     const wrote =
       before.kind === "missing" &&
-      (await writeIfMissing(ctx, repoRoot, workflow.path, workflow.content));
+      (await writeIfMissing(targets, workflow.path, workflow.content));
     const state = wrote
       ? await compareWorkflow(ctx, repoRoot, workflow)
       : before;
@@ -244,27 +256,28 @@ function freshGitignore(): string {
 export async function ensureGitignore(
   ctx: Context,
   repoRoot: string,
+  targets = setupWriteTargets(ctx, repoRoot),
 ): Promise<boolean> {
-  const filePath = path.join(repoRoot, ".gitignore");
-  const existing = await ctx.fs.readText(filePath);
+  const existing = await targets.readText(".gitignore");
+  if (targets.refusals.has(".gitignore")) return false;
   const present = new Set((existing ?? "").split(/\r?\n/).map((l) => l.trim()));
   const missing = GITIGNORE_LINES.filter((line) => !present.has(line));
   if (missing.length === 0) {
     return false;
   }
   if (existing === undefined || existing.trim() === "") {
-    await ctx.fs.writeText(filePath, freshGitignore());
-    return true;
+    return targets.writeText(".gitignore", freshGitignore());
   }
   const separator = existing.endsWith("\n") ? "\n" : "\n\n";
-  await ctx.fs.writeText(
-    filePath,
+  return targets.writeText(
+    ".gitignore",
     `${existing}${separator}# Added by temple-bar\n${missing.join("\n")}\n`,
   );
-  return true;
 }
 
 export interface SetupFilesOutcome {
+  /** Every path setup refused to write through, with why and its fix. */
+  readonly refusedPaths: ReadonlyMap<string, RefusedTarget>;
   readonly wroteGitignore: boolean;
   readonly wroteAgents: boolean;
   /** Set when setup left AGENTS.md alone; see AgentsMdOutcome. */
@@ -287,15 +300,17 @@ export interface SetupFilesOutcome {
 export async function writeSetupFiles(
   ctx: Context,
   repoRoot: string,
+  targets = setupWriteTargets(ctx, repoRoot),
 ): Promise<SetupFilesOutcome> {
-  const wroteGitignore = await ensureGitignore(ctx, repoRoot);
-  const agents = await writeAgentsMd(ctx, repoRoot);
-  const wroteCompanions = await writeCompanionFiles(ctx, repoRoot);
-  const claudeMdAdded = await updateClaudeMd(ctx, repoRoot);
-  const wroteJudge = await writeJudgeWorkflowIfMissing(ctx, repoRoot);
-  const checkedWorkflows = await writeCheckedWorkflows(ctx, repoRoot);
-  const packageOutcome = await ensurePackageJsonScripts(ctx, repoRoot);
+  const wroteGitignore = await ensureGitignore(ctx, repoRoot, targets);
+  const agents = await writeAgentsMd(ctx, repoRoot, targets);
+  const wroteCompanions = await writeCompanionFiles(ctx, repoRoot, targets);
+  const claudeMdAdded = await updateClaudeMd(ctx, repoRoot, targets);
+  const wroteJudge = await writeJudgeWorkflowIfMissing(ctx, repoRoot, targets);
+  const checkedWorkflows = await writeCheckedWorkflows(ctx, repoRoot, targets);
+  const packageOutcome = await ensurePackageJsonScripts(ctx, repoRoot, targets);
   return {
+    refusedPaths: targets.refusals,
     wroteGitignore,
     wroteAgents: agents.wrote,
     ...(agents.problem === undefined ? {} : { agentsProblem: agents.problem }),

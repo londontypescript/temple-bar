@@ -1,10 +1,15 @@
 // The only place domain code touches the filesystem. Deliberately small and
-// missing a delete method: setup (1.7) never deletes anything (N6/N9), so
+// missing a delete method: setup never deletes anything, so
 // there is no method that would let it.
 
 import { constants, promises as fsp } from "node:fs";
 
+type PathKind = "missing" | "file" | "directory" | "symlink" | "other";
+
 export interface FsSeam {
+  /** Classifies the entry itself, never following links. Only ENOENT is missing. */
+  classify(path: string): Promise<PathKind>;
+  readlink(path: string): Promise<string>;
   /** Reads a file as UTF-8 text, or returns undefined if it doesn't exist. */
   readText(path: string): Promise<string | undefined>;
   /** True only for an ordinary file. A symlink (to a file, a directory, or
@@ -27,6 +32,20 @@ function isErrnoException(value: unknown): value is NodeJS.ErrnoException {
 
 export function createFsSeam(): FsSeam {
   return {
+    async classify(path) {
+      try {
+        const entry = await fsp.lstat(path);
+        if (entry.isSymbolicLink()) return "symlink";
+        if (entry.isFile()) return "file";
+        if (entry.isDirectory()) return "directory";
+        return "other";
+      } catch (error) {
+        if (isErrnoException(error) && error.code === "ENOENT")
+          return "missing";
+        throw error;
+      }
+    },
+    readlink: (path) => fsp.readlink(path),
     async readText(path) {
       try {
         return await fsp.readFile(path, "utf8");

@@ -3,10 +3,13 @@
 // GitHub answers separate from the machine running the suite.
 
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import {
   appendFileSync,
   existsSync,
   mkdirSync,
+  lstatSync,
+  readlinkSync,
   readFileSync,
   symlinkSync,
   writeFileSync,
@@ -84,7 +87,45 @@ export async function makeScaffoldProject(
   }
   const options = { cwd, env };
   await git(["add", "-A"], options);
+  for (const [relative, target] of Object.entries(fixture.symlinks)) {
+    const file = path.join(cwd, relative);
+    try {
+      symlinkSync(target, file, "file");
+    } catch (error) {
+      // The test proves setup leaves a real link alone, so a plain-file
+      // stand-in would prove something else: fail, never fall back.
+      throw new Error(
+        `${fixture.name}: this machine refused to create the ${relative} link; the test needs real links`,
+        { cause: error },
+      );
+    }
+    const oid = execFileSync("git", ["hash-object", "-w", "--stdin"], {
+      ...options,
+      input: target,
+      encoding: "utf8",
+    }).trim();
+    await git(
+      ["update-index", "--add", "--cacheinfo", `120000,${oid},${relative}`],
+      options,
+    );
+  }
+  // Do not add broadly after the link entries: with core.symlinks=false
+  // (Git for Windows' usual setting) git may stage the link as an ordinary
+  // file.
   await git(["commit", "-q", "-m", "Initial commit"], options);
+  for (const relative of Object.keys(fixture.symlinks)) {
+    for (const args of [
+      ["ls-files", "-s", "--", relative],
+      ["ls-tree", "HEAD", "--", relative],
+    ]) {
+      const entry = await git(args, options);
+      assert.match(
+        entry.stdout,
+        /^120000 /,
+        `${fixture.name}: ${relative} is committed and indexed as a symlink`,
+      );
+    }
+  }
   await git(
     ["remote", "add", "origin", "git@github.com:acme/widgets.git"],
     options,
@@ -150,6 +191,30 @@ export function assertScaffoldSetup(
   }
 
   for (const file of COMPANION_FILES) {
+    const target = fixture.symlinks[file.path];
+    if (target !== undefined) {
+      const full = path.join(dir, file.path);
+      assert.ok(
+        lstatSync(full).isSymbolicLink(),
+        `${label}: ${file.path} is still a link`,
+      );
+      assert.equal(
+        readlinkSync(full),
+        target,
+        `${label}: ${file.path} retains its stored link target`,
+      );
+      assert.doesNotMatch(
+        agents,
+        /^# Claude Code$/m,
+        `${label}: no Claude heading written through the link`,
+      );
+      assert.doesNotMatch(
+        agents,
+        /^@AGENTS\.md$/m,
+        `${label}: no self import written through the link`,
+      );
+      continue;
+    }
     // Setup adds to an existing CLAUDE.md, so a scaffold that ships one
     // needs assertions written for it; none of these recordings does.
     assert.equal(

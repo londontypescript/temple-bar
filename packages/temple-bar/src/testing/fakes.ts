@@ -1,7 +1,7 @@
 // In-memory fakes for every seam, for tests only. Excluded from the built
 // package (tsconfig.build.json).
 
-import { normalize } from "node:path";
+import { dirname, isAbsolute, join, normalize } from "node:path";
 
 import type { Context } from "../context.ts";
 import type { ClockSeam } from "../seams/clock.ts";
@@ -104,6 +104,11 @@ export interface FakeFs extends FsSeam {
   /** Paths that are symlinks. Reading one throws, like a symlink to a
    * directory does on a real disk (EISDIR). */
   readonly symlinks: Set<string>;
+  /** Stored targets for links that should behave like real links. The older
+   * symlinks set keeps its existing read-error behaviour. */
+  readonly linkTargets: Map<string, string>;
+  readonly directories: Set<string>;
+  readonly classificationErrors: Map<string, Error>;
 }
 
 /** A Map whose keys are paths normalised the way the real filesystem
@@ -139,38 +144,89 @@ class PathSet extends Set<string> {
   }
 }
 
+/** Where a link at `path` points. Joined, not resolved: on Windows
+ * path.resolve adds the drive letter, which the fake's keys don't have. */
+function linkedPath(path: string, target: string): string {
+  return isAbsolute(target) ? target : join(dirname(path), target);
+}
+
 export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
   const files = new PathMap(Object.entries(initial));
   const writes: RecordedWrite[] = [];
   const symlinks = new PathSet();
+  const linkTargets = new PathMap();
+  const directories = new PathSet();
+  const classificationErrors = new Map<string, Error>();
   return {
     files,
     writes,
     symlinks,
+    linkTargets,
+    directories,
+    classificationErrors,
+    classify(path) {
+      const error = classificationErrors.get(normalize(path));
+      if (error !== undefined) return Promise.reject(error);
+      if (symlinks.has(path) || linkTargets.has(path))
+        return Promise.resolve("symlink");
+      if (files.has(path)) return Promise.resolve("file");
+      const prefix = normalize(`${path}/`);
+      return Promise.resolve(
+        directories.has(path) ||
+          [
+            ...files.keys(),
+            ...linkTargets.keys(),
+            ...symlinks,
+            ...directories,
+          ].some((file) => file.startsWith(prefix))
+          ? "directory"
+          : "missing",
+      );
+    },
+    readlink(path) {
+      const target = linkTargets.get(path);
+      return target === undefined
+        ? Promise.reject(new Error(`No stored link target for '${path}'`))
+        : Promise.resolve(target);
+    },
     readText(path) {
       if (symlinks.has(path)) {
         return Promise.reject(
           new Error(`EISDIR: illegal operation on a directory, read '${path}'`),
         );
       }
-      return Promise.resolve(files.get(path));
+      const target = linkTargets.get(path);
+      return Promise.resolve(
+        files.get(target === undefined ? path : linkedPath(path, target)),
+      );
     },
     writeText(path, content) {
-      files.set(path, content);
+      const target = linkTargets.get(path);
+      files.set(
+        target === undefined ? path : linkedPath(path, target),
+        content,
+      );
       writes.push({ path: normalize(path), content });
       return Promise.resolve();
     },
     exists(path) {
       // A folder exists, as on a real disk, when some file is inside it.
-      const folder = normalize(`${path}/`);
+      const target = linkTargets.get(path);
+      const entry = target === undefined ? path : linkedPath(path, target);
+      const folder = normalize(`${entry}/`);
       return Promise.resolve(
-        files.has(path) || [...files.keys()].some((f) => f.startsWith(folder)),
+        files.has(entry) ||
+          directories.has(entry) ||
+          [...files.keys(), ...directories].some((f) => f.startsWith(folder)),
       );
     },
     isRegularFile(path) {
-      return Promise.resolve(files.has(path) && !symlinks.has(path));
+      return Promise.resolve(
+        files.has(path) && !symlinks.has(path) && !linkTargets.has(path),
+      );
     },
-    mkdirp() {
+    mkdirp(path) {
+      directories.add(path);
       return Promise.resolve();
     },
     chmod() {

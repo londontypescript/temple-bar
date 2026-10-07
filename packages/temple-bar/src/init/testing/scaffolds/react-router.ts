@@ -10,6 +10,7 @@ export const reactRouter = {
   command:
     "pnpm create react-router@latest rr-app --yes --no-install --no-git-init",
   recordedOn: "2026-10-07",
+  symlinks: {},
   files: {
     ".gitignore":
       ".DS_Store\n.env\n/node_modules/\n\n# React Router\n/.react-router/\n/build/\n",

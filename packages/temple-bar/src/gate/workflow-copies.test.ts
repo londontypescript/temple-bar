@@ -4,6 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import path from "node:path";
 
 import {
   CHECKED_WORKFLOWS,
@@ -16,7 +17,41 @@ import {
   createFakeFs,
   createFakeWriter,
 } from "../testing/fakes.ts";
-import { runWorkflowCopiesCheck } from "./workflow-copies.ts";
+import { compareWorkflow, runWorkflowCopiesCheck } from "./workflow-copies.ts";
+import {
+  realLink,
+  writeTargetRepo,
+} from "../init/testing/write-target-repo.ts";
+
+void test("workflow copies: dangling workflow link is not-a-file, never missing", async () => {
+  const repo = writeTargetRepo();
+  try {
+    const workflow = CHECKED_WORKFLOWS[0];
+    assert.ok(workflow !== undefined);
+    realLink(
+      path.join(repo.outside, "missing"),
+      path.join(repo.root, workflow.path),
+    );
+    assert.deepEqual(await compareWorkflow(repo.ctx, repo.root, workflow), {
+      kind: "not-a-file",
+    });
+  } finally {
+    repo.cleanup();
+  }
+});
+
+void test("workflow copies: linked workflow folder is not-a-file, even with missing children", async () => {
+  const repo = writeTargetRepo();
+  try {
+    realLink(repo.outside, path.join(repo.root, ".github/workflows"), true);
+    for (const workflow of CHECKED_WORKFLOWS)
+      assert.deepEqual(await compareWorkflow(repo.ctx, repo.root, workflow), {
+        kind: "not-a-file",
+      });
+  } finally {
+    repo.cleanup();
+  }
+});
 
 /** Runs the check over a repo holding both workflows as setup writes them,
  * with `gate` in place of the gate workflow (undefined: no such file). */

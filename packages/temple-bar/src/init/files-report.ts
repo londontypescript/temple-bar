@@ -4,6 +4,7 @@
 // the order of setup's steps.
 
 import type { Context } from "../context.ts";
+import type { WriteTarget } from "./write-target.ts";
 import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
 import type { CheckedWorkflowOutcome, SetupFilesOutcome } from "./files.ts";
 import { RESTORE_WORKFLOW } from "./workflows.ts";
@@ -28,9 +29,10 @@ function conflictMessage(name: string, expected: string): string {
  * temple-bar's until the block is put right. A size warning doesn't: the
  * file is written, and the gate names the overage again until it's fixed. */
 function reportAgentsFiles(ctx: Context, files: SetupFilesOutcome): boolean {
+  const refused = files.refusedPaths.has("AGENTS.md");
   if (files.agentsProblem !== undefined) {
     ctx.stderr.write(`${files.agentsProblem}\n`);
-  } else {
+  } else if (!refused) {
     ctx.stdout.write(
       files.wroteAgents
         ? "Wrote temple-bar's rules into AGENTS.md.\n"
@@ -50,7 +52,7 @@ function reportAgentsFiles(ctx: Context, files: SetupFilesOutcome): boolean {
       `Added to CLAUDE.md: ${files.claudeMdAdded.join(" and ")}.\n`,
     );
   }
-  return files.agentsProblem !== undefined;
+  return refused || files.agentsProblem !== undefined;
 }
 
 /** Reports one workflow the gate holds to an exact copy; returns true when
@@ -84,14 +86,19 @@ function reportCheckedWorkflow(
 /** Reports the judge, gate and title workflows; returns true when the gate
  * or title workflow differs from its copy. */
 function reportWorkflows(ctx: Context, files: SetupFilesOutcome): boolean {
-  ctx.stdout.write(
-    files.wroteJudge
-      ? `Wrote the judge workflow, ${JUDGE_WORKFLOW_PATH}.\n`
-      : `${JUDGE_WORKFLOW_PATH} already exists; left it alone.\n`,
-  );
+  if (!files.refusedPaths.has(JUDGE_WORKFLOW_PATH))
+    ctx.stdout.write(
+      files.wroteJudge
+        ? `Wrote the judge workflow, ${JUDGE_WORKFLOW_PATH}.\n`
+        : `${JUDGE_WORKFLOW_PATH} already exists; left it alone.\n`,
+    );
   let differs = false;
   for (const outcome of files.checkedWorkflows) {
-    if (reportCheckedWorkflow(ctx, outcome)) differs = true;
+    if (
+      files.refusedPaths.has(outcome.workflow.path) ||
+      reportCheckedWorkflow(ctx, outcome)
+    )
+      differs = true;
   }
   return differs;
 }
@@ -99,6 +106,7 @@ function reportWorkflows(ctx: Context, files: SetupFilesOutcome): boolean {
 /** Reports package.json; returns true when something in it has to be put
  * right by hand, which ends the run non-zero. */
 function reportPackageJson(ctx: Context, files: SetupFilesOutcome): boolean {
+  if (files.refusedPaths.has("package.json")) return true;
   const outcome = files.packageOutcome;
   if (outcome.invalid !== undefined) {
     ctx.stderr.write(`${outcome.invalid}\n`);
@@ -134,7 +142,12 @@ export function reportSetupFiles(
   const agentsFailed = reportAgentsFiles(ctx, files);
   const workflowsFailed = reportWorkflows(ctx, files);
   const packageFailed = reportPackageJson(ctx, files);
-  return agentsFailed || workflowsFailed || packageFailed;
+  return (
+    agentsFailed ||
+    workflowsFailed ||
+    packageFailed ||
+    files.refusedPaths.size > 0
+  );
 }
 
 /** Whether this run wrote any of setup's files, which leaves something to
@@ -149,4 +162,19 @@ export function wroteSetupFiles(files: SetupFilesOutcome): boolean {
     files.checkedWorkflows.some((outcome) => outcome.wrote) ||
     files.packageOutcome.wrote
   );
+}
+
+/** Called on discovery, including before setup stops at a GitHub question. */
+export function reportWriteTarget(
+  ctx: Context,
+  relative: string,
+  state: WriteTarget,
+): void {
+  if (state.kind === "refused") {
+    ctx.stderr.write(
+      `${relative} ${state.reason}; left it alone. Fix: ${state.fix}.\n`,
+    );
+  } else if (state.kind === "claude-link") {
+    ctx.stdout.write("CLAUDE.md links to AGENTS.md and was left alone.\n");
+  }
 }
