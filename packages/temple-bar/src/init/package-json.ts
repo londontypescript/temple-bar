@@ -4,6 +4,8 @@
 // reported, never overwritten. A `prepare` script that is the project's own
 // is kept and temple-bar's command is chained after it, so both run; one
 // that can't safely be chained onto is reported like a `gate` conflict.
+// When nothing names the project's pnpm version, it records the one running
+// setup (see pnpmVersionStep).
 
 import path from "node:path";
 
@@ -62,12 +64,103 @@ function isPackageJsonShape(value: unknown): value is PackageJsonShape {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** What setup did about the project's pnpm version: found it named, added
+ * the running pnpm's, or left it alone with a problem to report. */
+type PnpmVersionStep =
+  | { readonly kind: "named" }
+  | { readonly kind: "added"; readonly version: string }
+  | { readonly kind: "problem"; readonly message: string };
+
+/** The exact version in a user agent such as `pnpm/10.34.5 npm/? node/v24.0.0
+ * darwin arm64`, which pnpm sets for every script and `pnpm exec`. Anything
+ * else, including another package manager, means setup can't tell. */
+function runningPnpmVersion(userAgent: string | undefined): string | undefined {
+  return /^pnpm\/(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?) \S/.exec(
+    userAgent ?? "",
+  )?.[1];
+}
+
+/** Whether `value`, from package.json's `field`, names a pnpm version:
+ * `"pnpm@<version>"` in `packageManager`, or `{ "name": "pnpm", "version":
+ * "<version>" }` in `devEngines.packageManager`. */
+function namesPnpm(field: string, value: unknown): boolean {
+  if (field === "packageManager") {
+    return typeof value === "string" && /^pnpm@./.test(value);
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const { name, version } = value as Record<string, unknown>;
+  return name === "pnpm" && typeof version === "string" && version !== "";
+}
+
+/** The conflict to report when `field` holds a value setup can't use. */
+function unusablePnpm(field: string, value: unknown): string {
+  return (
+    `package.json's ${field} is ${JSON.stringify(value)}, which doesn't ` +
+    "name a pnpm version, so it was left alone. The workflows setup writes " +
+    "install the pnpm package.json names, and fail without one. Fix: set " +
+    `it to the pnpm the project uses, then run ${RERUN_INIT} again.`
+  );
+}
+
+/**
+ * pnpm/action-setup, in the workflows setup writes, installs the pnpm
+ * version package.json names (`devEngines.packageManager` wins over
+ * `packageManager`), and fails when nothing names one. So when neither field
+ * is there, this adds `packageManager` set to the pnpm running setup: the
+ * version the project was just installed with. One already there is never
+ * changed, and setup never guesses a version it can't read.
+ */
+function pnpmVersionStep(
+  pkg: PackageJsonShape,
+  userAgent: string | undefined,
+): PnpmVersionStep {
+  const devEngines = pkg.devEngines;
+  const fields: [string, unknown][] = [];
+  if (
+    typeof devEngines === "object" &&
+    devEngines !== null &&
+    Object.hasOwn(devEngines, "packageManager")
+  ) {
+    fields.push([
+      "devEngines.packageManager",
+      (devEngines as Record<string, unknown>).packageManager,
+    ]);
+  }
+  if (Object.hasOwn(pkg, "packageManager")) {
+    fields.push(["packageManager", pkg.packageManager]);
+  }
+  for (const [field, value] of fields) {
+    if (!namesPnpm(field, value)) {
+      return { kind: "problem", message: unusablePnpm(field, value) };
+    }
+  }
+  if (fields.length > 0) return { kind: "named" };
+  const version = runningPnpmVersion(userAgent);
+  if (version === undefined) {
+    return {
+      kind: "problem",
+      message:
+        "Couldn't tell which pnpm is running setup, so package.json's " +
+        `"packageManager" was left out. The workflows setup writes need it. ` +
+        `Fix: run ${RERUN_INIT} again, so pnpm tells setup its version.`,
+    };
+  }
+  return { kind: "added", version };
+}
+
 export interface PackageJsonOutcome {
   readonly wrote: boolean;
   readonly conflicts: readonly { name: string; expected: string }[];
   /** Set when package.json exists but isn't a JSON object: the exact fix.
    * Nothing is written in that case. */
   readonly invalid?: string;
+  /** The pnpm version this run added as `packageManager`, if it added one. */
+  readonly addedPnpm?: string;
+  /** Set when the project's pnpm version isn't named and setup couldn't
+   * name it: what is wrong and the fix. The run ends non-zero. */
+  readonly pnpmProblem?: string;
 }
 
 /**
@@ -141,10 +234,22 @@ export async function ensurePackageJsonScripts(
 
   if (wrote || scriptsChanged) {
     pkg.scripts = scripts;
+  }
+  const pnpm = pnpmVersionStep(pkg, ctx.env.npm_config_user_agent);
+  if (pnpm.kind === "added") {
+    pkg.packageManager = `pnpm@${pnpm.version}`;
+  }
+  const changed = wrote || scriptsChanged || pnpm.kind === "added";
+  if (changed) {
     await ctx.fs.writeText(filePath, formatLike(existing, pkg));
   }
 
-  return { wrote: wrote || scriptsChanged, conflicts };
+  return {
+    wrote: changed,
+    conflicts,
+    ...(pnpm.kind === "added" ? { addedPnpm: pnpm.version } : {}),
+    ...(pnpm.kind === "problem" ? { pnpmProblem: pnpm.message } : {}),
+  };
 }
 
 /** Serialises `value` the way `original` was laid out: the same indent (tabs

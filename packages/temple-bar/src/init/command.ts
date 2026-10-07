@@ -1,8 +1,8 @@
 // `temple-bar init`: checks the requirements, offers the GitHub changes
 // (repo creation; the rulesets and CodeQL under one yes) only on an explicit
-// yes, writes AGENTS.md, its companion docs and package.json where they're
-// missing, then installs the hooks. Every hard stop below happens before any
-// write, so a failed run leaves the repo untouched.
+// yes, writes AGENTS.md, its companion docs, the workflows and package.json
+// where they're missing, then installs the hooks. Every hard stop below
+// happens before any write, so a failed run leaves the repo untouched.
 
 import type { CommandEntry } from "../registry.ts";
 import type { Context } from "../context.ts";
@@ -21,8 +21,10 @@ import {
   writeSetupFiles,
   type SetupFilesOutcome,
 } from "./files.ts";
+import { reportSetupFiles, wroteSetupFiles } from "./files-report.ts";
 import type { InitDeps } from "./types.ts";
 import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
+import { CHECKED_WORKFLOWS } from "./workflows.ts";
 import { CLAUDE_MD_PATH } from "./companion-docs.ts";
 import { findProtectedBranch } from "../hooks/protected-branch.ts";
 
@@ -166,37 +168,13 @@ async function runInit(
   }
 
   const files = await writeFiles();
-  const { wroteGitignore, wroteJudge, packageOutcome } = files;
   ctx.stdout.write(
-    gitignoreFirst || wroteGitignore
+    gitignoreFirst || files.wroteGitignore
       ? "Updated .gitignore.\n"
       : ".gitignore already has the required lines; left it alone.\n",
   );
-  if (reportAgentsFiles(ctx, files)) {
+  if (reportSetupFiles(ctx, files)) {
     exitCode = 1;
-  }
-  ctx.stdout.write(
-    wroteJudge
-      ? `Wrote the judge workflow, ${JUDGE_WORKFLOW_PATH}.\n`
-      : `${JUDGE_WORKFLOW_PATH} already exists; left it alone.\n`,
-  );
-
-  if (packageOutcome.invalid !== undefined) {
-    ctx.stderr.write(`${packageOutcome.invalid}\n`);
-    exitCode = 1;
-  }
-  if (packageOutcome.conflicts.length > 0) {
-    for (const conflict of packageOutcome.conflicts) {
-      ctx.stderr.write(conflictMessage(conflict.name, conflict.expected));
-    }
-    exitCode = 1;
-  }
-  if (packageOutcome.invalid === undefined) {
-    ctx.stdout.write(
-      packageOutcome.wrote
-        ? "Updated package.json.\n"
-        : "package.json already has the required scripts; left it alone.\n",
-    );
   }
 
   const hooksReport = await deps.installHooks(ctx, repoRoot);
@@ -220,63 +198,13 @@ async function runInit(
     ctx.stdout.write("temple-bar is set up.\n");
     const changed =
       gitignoreFirst ||
-      wroteGitignore ||
-      files.wroteAgents ||
-      files.wroteCompanions.length > 0 ||
-      files.claudeMdAdded.length > 0 ||
-      wroteJudge ||
-      packageOutcome.wrote ||
+      wroteSetupFiles(files) ||
       hooksReport.items.some((item) => item.status === "written");
     if (changed) {
       ctx.stdout.write(await nextSteps(ctx, repoRoot, files));
     }
   }
   return exitCode;
-}
-
-/** Why a package.json script was left alone, and what to do about it. A
- * `prepare` script is the project's own command, so replacing it would throw
- * that away: it has to be changed so temple-bar's command can follow it. */
-function conflictMessage(name: string, expected: string): string {
-  const head = `package.json already has a "${name}" script that isn't temple-bar's.`;
-  if (name === "prepare") {
-    return (
-      `${head} It can't safely have temple-bar's command chained after it, ` +
-      `so change it to end with " && ${expected}" (or set it to ` +
-      `"${expected}" if the project doesn't need its own).\n`
-    );
-  }
-  return `${head} Add this yourself: "${name}": "${expected}"\n`;
-}
-
-/** Reports AGENTS.md and the files beside it; returns true when AGENTS.md
- * was refused, which ends the run non-zero: the rules agents read aren't
- * temple-bar's until the block is put right. A size warning doesn't: the
- * file is written, and the gate names the overage again until it's fixed. */
-function reportAgentsFiles(ctx: Context, files: SetupFilesOutcome): boolean {
-  if (files.agentsProblem !== undefined) {
-    ctx.stderr.write(`${files.agentsProblem}\n`);
-  } else {
-    ctx.stdout.write(
-      files.wroteAgents
-        ? "Wrote temple-bar's rules into AGENTS.md.\n"
-        : "AGENTS.md already has temple-bar's rules; left it alone.\n",
-    );
-  }
-  if (files.agentsSizeWarning !== undefined) {
-    ctx.stdout.write(`Warning: ${files.agentsSizeWarning}\n`);
-  }
-  if (files.wroteCompanions.length > 0) {
-    ctx.stdout.write(
-      `Wrote the files AGENTS.md links to, where missing: ${files.wroteCompanions.join(", ")}.\n`,
-    );
-  }
-  if (files.claudeMdAdded.length > 0) {
-    ctx.stdout.write(
-      `Added to CLAUDE.md: ${files.claudeMdAdded.join(" and ")}.\n`,
-    );
-  }
-  return files.agentsProblem !== undefined;
 }
 
 /** The commit message setup's next steps suggest. It must pass the
@@ -334,6 +262,7 @@ async function nextSteps(
     "package.json",
     ".gitignore",
     JUDGE_WORKFLOW_PATH,
+    ...CHECKED_WORKFLOWS.map((workflow) => workflow.path),
   ];
   const protectedBranch = await findProtectedBranch(ctx, repoRoot);
   const current = await currentBranch(ctx, repoRoot);

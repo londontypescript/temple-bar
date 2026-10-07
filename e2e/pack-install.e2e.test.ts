@@ -21,6 +21,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
+import {
+  CHECKED_WORKFLOWS,
+  GATE_WORKFLOW_PATH,
+  gateWorkflow,
+} from "../packages/temple-bar/src/init/workflows.ts";
 import { initTestRepo } from "../packages/temple-bar/src/testing/git-repo.ts";
 import { createFakeGh } from "./support/fake-gh.ts";
 import { serveFakeGithubApi } from "./support/fake-github-api.ts";
@@ -169,6 +174,7 @@ for (const pm of ["pnpm"] as const) {
         readFileSync(path.join(dir, "package.json"), "utf8"),
       ) as {
         devDependencies?: Record<string, string>;
+        packageManager?: string;
         scripts?: Record<string, string>;
       };
       // Exact, not a ^ range, so a later install can't drift.
@@ -182,6 +188,14 @@ for (const pm of ["pnpm"] as const) {
         ),
         "the judge workflow is written",
       );
+      for (const workflow of CHECKED_WORKFLOWS) {
+        const file = path.join(dir, workflow.path);
+        assert.ok(existsSync(file), `the ${workflow.label} is written`);
+        assert.equal(readFileSync(file, "utf8"), workflow.content);
+      }
+      // The workflows install the pnpm package.json names, so setup names
+      // the one running it.
+      assert.match(pkg.packageManager ?? "", /^pnpm@\d+\.\d+\.\d+/);
       assert.ok(existsSync(path.join(dir, ".git", "hooks", "pre-commit")));
       assert.match(
         readFileSync(path.join(dir, ".gitignore"), "utf8"),
@@ -227,6 +241,24 @@ for (const pm of ["pnpm"] as const) {
         gate.stdout,
         /skipped +branch ruleset \(origin is not on GitHub\)/,
       );
+      assert.match(gate.stdout, /passed +gate and title workflows/);
+
+      // An edited gate workflow fails the installed gate, which names the
+      // file and the line.
+      const gatePath = path.join(dir, GATE_WORKFLOW_PATH);
+      const lines = gateWorkflow().split("\n");
+      const gateStep = lines.indexOf("        run: pnpm gate");
+      lines[gateStep] = "        run: pnpm gate || true";
+      writeFileSync(gatePath, lines.join("\n"));
+      const editedGate = await run(pm, ["run", "gate"], inDir);
+      assert.equal(editedGate.code, 1, describe(editedGate));
+      assert.match(
+        editedGate.stderr,
+        new RegExp(
+          `\\.github/workflows/temple-bar-gate\\.yml differs from the copy this temple-bar writes, from line ${String(gateStep + 1)}\\.`,
+        ),
+      );
+      writeFileSync(gatePath, gateWorkflow());
 
       // The judge the workflow runs is the installed one: it passes a pull
       // request that leaves the checks alone and fails one that edits CI.

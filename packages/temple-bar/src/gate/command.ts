@@ -35,6 +35,7 @@ import {
 import { runLinkCheck, runMarkdownLint } from "./markdown.ts";
 import { runRulesetChecks } from "./ruleset.ts";
 import { runUnusedCheck } from "./unused.ts";
+import { runWorkflowCopiesCheck } from "./workflow-copies.ts";
 import { createRealGateTools, type GateTools } from "./tools.ts";
 import { writeReport, type CheckOutcome } from "./report.ts";
 import {
@@ -209,6 +210,7 @@ async function runGate(ctx: Context, tools: GateTools): Promise<number> {
   const outcomes = [
     ...stack.outcomes,
     await runCoreCheck(ctx),
+    await runWorkflowCopiesCheck(ctx),
     await runLengthCheck(ctx),
     await runAgentsSizeCheck(ctx),
     await runMarkdownLint(ctx, tools, listed),
@@ -241,17 +243,21 @@ export function createGateCommand(tools: GateTools): CommandEntry {
   return {
     name: "gate",
     summary:
-      "Run the merge gate: stack checks, setup's core, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code, the branch ruleset and the judge's ruleset.",
+      "Run the merge gate: stack checks, setup's core, the gate and title workflows, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code, the branch ruleset and the judge's ruleset.",
     details: [
       "Once the repo has files of its own (beyond package.json, the lockfile,",
       "AGENTS.md, .gitignore, README.md, LICENSE, temple-bar.config.json and",
-      "the docs, CLAUDE.md and judge workflow setup writes),",
+      "the docs, CLAUDE.md and workflows setup writes),",
       "requires these package.json scripts and runs every one that exists:",
       `${REQUIRED_SCRIPTS.join(", ")}. A script that does nothing (such as`,
       "`true` or a bare `echo`) fails. Checks that what setup installs is",
       "still in place: the git hooks (unchanged, by SHA-256), core.hooksPath",
       "unset, pull.ff=only, setup's .gitignore lines and its prepare and gate",
       "scripts, and AGENTS.md's temple-bar block, when it has one, unchanged.",
+      "Checks the gate and title workflows setup writes",
+      "(.github/workflows/temple-bar-gate.yml and temple-bar-pr-title.yml) are",
+      "exact copies of the ones this temple-bar writes, CRLF line endings",
+      "aside; a missing or edited one fails, naming the first line that differs.",
       "Then checks every tracked text file",
       "against the file-length cap (maxFileLines in temple-bar.config.json).",
       "Also checks AGENTS.md stays within 200 lines and 32 KiB (skipped when",

@@ -184,6 +184,7 @@ void test("gate: a pass lists every check that ran, each passed, on stdout", asy
       "  passed   format:check",
       "  passed   test",
       "  passed   core setup (5 hooks unchanged, git config, .gitignore, package.json scripts)",
+      "  passed   gate and title workflows (2 exact copies)",
       `  passed   file-length cap (all 2 tracked text file(s) are within the ${String(DEFAULT_MAX_FILE_LINES)}-line cap)`,
       "  skipped  AGENTS.md size (no AGENTS.md)",
       "  skipped  markdown lint (no markdown files)",
