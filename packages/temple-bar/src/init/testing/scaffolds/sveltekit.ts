@@ -10,6 +10,7 @@ export const sveltekit = {
   command:
     "pnpm dlx sv@latest create svelte-app --template minimal --types ts --no-add-ons --no-install",
   recordedOn: "2026-10-07",
+  symlinks: {},
   files: {
     ".gitignore":
       "node_modules\n\n# Output\n.output\n.vercel\n.netlify\n.wrangler\n/.svelte-kit\n/build\n\n# OS\n.DS_Store\nThumbs.db\n\n# Env\n.env\n.env.*\n!.env.example\n!.env.test\n\n# Vite\nvite.config.js.timestamp-*\nvite.config.ts.timestamp-*\n",

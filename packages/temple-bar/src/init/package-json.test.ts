@@ -40,9 +40,10 @@ void test("ensurePackageJsonScripts adds the scripts to an existing package.json
   });
   const ctx = createFakeContext({
     fs,
-    git: createFakeGit(() => ({
+    git: createFakeGit((args) => ({
       code: 0,
-      stdout: "git@github.com:acme/different.git\n",
+      stdout:
+        args[0] === "ls-files" ? "" : "git@github.com:acme/different.git\n",
       stderr: "",
     })),
   });
@@ -67,6 +68,7 @@ void test("ensurePackageJsonScripts names a new package from GitHub origin", asy
   ]) {
     const fs = createFakeFs();
     const git = createFakeGit((args, cwd) => {
+      if (args[0] === "ls-files") return { code: 0, stdout: "", stderr: "" };
       assert.equal(cwd, "/repo/setup");
       assert.deepEqual(args, ["remote", "get-url", "origin"]);
       return { code: 0, stdout: `${origin}\n`, stderr: "" };
@@ -95,6 +97,7 @@ void test("ensurePackageJsonScripts uses the main checkout folder without a GitH
   ] as const) {
     const fs = createFakeFs();
     const git = createFakeGit((args, cwd) => {
+      if (args[0] === "ls-files") return { code: 0, stdout: "", stderr: "" };
       assert.equal(cwd, root);
       if (args[0] === "remote") {
         return { code: origin === "" ? 2 : 0, stdout: origin, stderr: "" };
@@ -118,6 +121,7 @@ void test("ensurePackageJsonScripts falls back in a worktree of a bare repositor
   // isn't bare; only the shared git folder knows the repo is.
   const fs = createFakeFs();
   const git = createFakeGit((args) => {
+    if (args[0] === "ls-files") return { code: 0, stdout: "", stderr: "" };
     if (args[0] === "remote") {
       return { code: 2, stdout: "", stderr: "no origin" };
     }
@@ -144,6 +148,7 @@ void test("ensurePackageJsonScripts falls back when git cannot identify a main c
   ] as const) {
     const fs = createFakeFs();
     const git = createFakeGit((args) => {
+      if (args[0] === "ls-files") return { code: 0, stdout: "", stderr: "" };
       if (args[0] === "remote") {
         return { code: 2, stdout: "", stderr: "no origin" };
       }
@@ -177,9 +182,9 @@ void test("ensurePackageJsonScripts adds a missing name first, preserving format
     const fs = createFakeFs({
       "/repo/package.json": `${JSON.stringify(pkg, null, indent)}${newline}`,
     });
-    const git = createFakeGit(() => ({
+    const git = createFakeGit((args) => ({
       code: 0,
-      stdout: "git@github.com:acme/widgets.git",
+      stdout: args[0] === "ls-files" ? "" : "git@github.com:acme/widgets.git",
       stderr: "",
     }));
     const ctx = createFakeContext({ fs, git });

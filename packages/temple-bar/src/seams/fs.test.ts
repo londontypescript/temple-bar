@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  promises as fsp,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -11,6 +12,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { createFsSeam } from "./fs.ts";
+import { realLink } from "../init/testing/write-target-repo.ts";
 
 void test("fs seam: readText returns undefined for a missing file", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-fs-seam-"));
@@ -18,6 +20,41 @@ void test("fs seam: readText returns undefined for a missing file", async () => 
     const fs = createFsSeam();
     const result = await fs.readText(path.join(dir, "missing.txt"));
     assert.equal(result, undefined);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("fs seam: no-follow classification distinguishes files, folders, live and dangling links", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-fs-classify-"));
+  try {
+    const fs = createFsSeam();
+    writeFileSync(path.join(dir, "file"), "bytes");
+    realLink("file", path.join(dir, "live"));
+    realLink("missing", path.join(dir, "dangling"));
+    realLink(dir, path.join(dir, "folder-link"), true);
+    assert.equal(await fs.classify(dir), "directory");
+    assert.equal(await fs.classify(path.join(dir, "file")), "file");
+    assert.equal(await fs.classify(path.join(dir, "missing")), "missing");
+    for (const name of ["live", "dangling", "folder-link"])
+      assert.equal(await fs.classify(path.join(dir, name)), "symlink");
+    assert.equal(await fs.readlink(path.join(dir, "dangling")), "missing");
+    const child = path.join(dir, "file", "child");
+    let code: unknown;
+    try {
+      await fsp.lstat(child);
+    } catch (error) {
+      code = error instanceof Error && "code" in error ? error.code : undefined;
+    }
+    assert.equal(
+      typeof code,
+      "string",
+      "the filesystem refuses a file's child",
+    );
+    // Filesystems differ on this errno. Only ENOENT may become missing;
+    // every other error must keep the filesystem's own code.
+    if (code === "ENOENT") assert.equal(await fs.classify(child), "missing");
+    else await assert.rejects(fs.classify(child), { code });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -29,6 +29,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 
 import type { Context } from "../context.ts";
+import { WriteTargets } from "../init/write-target.ts";
 import { findCommonGitDir } from "../git-common-dir.ts";
 import {
   COMMIT_MSG_SHIM,
@@ -121,28 +122,35 @@ async function installShim(
   repoRoot: string,
   hooksDir: string,
   shim: Shim,
+  targets: WriteTargets,
 ): Promise<InstallItem> {
   const { name, content } = shim;
   const fullPath = path.join(hooksDir, name);
   const item = path.relative(repoRoot, fullPath).split(path.sep).join("/");
-  const existing = await ctx.fs.readText(fullPath);
+  const relative = `hooks/${name}`;
+  const conflict = (): InstallItem =>
+    hookTargetConflict(targets, relative, item);
+  const existing = await targets.readText(relative);
+  if (targets.refusals.has(relative)) return conflict();
 
   if (existing === undefined) {
-    await ctx.fs.mkdirp(hooksDir);
-    await ctx.fs.writeText(fullPath, content);
-    await ctx.fs.chmod(fullPath, EXECUTABLE_MODE);
+    if (
+      !(await targets.writeText(relative, content)) ||
+      !(await targets.chmod(relative, EXECUTABLE_MODE))
+    )
+      return conflict();
     return { item, status: "written" };
   }
 
   if (existing === content) {
     // A second run still makes sure the shim is executable.
-    await ctx.fs.chmod(fullPath, EXECUTABLE_MODE);
+    if (!(await targets.chmod(relative, EXECUTABLE_MODE))) return conflict();
     return { item, status: "unchanged" };
   }
 
   if (shim.earlierReleases.includes(sha256(existing))) {
-    await ctx.fs.writeText(fullPath, content);
-    await ctx.fs.chmod(fullPath, EXECUTABLE_MODE);
+    if (!(await targets.writeText(relative, content))) return conflict();
+    if (!(await targets.chmod(relative, EXECUTABLE_MODE))) return conflict();
     return {
       item,
       status: "written",
@@ -172,12 +180,35 @@ async function recordInstalledCheckout(
   ctx: Context,
   repoRoot: string,
   hooksDir: string,
-): Promise<void> {
+  targets: WriteTargets,
+): Promise<InstallItem | undefined> {
   const file = path.join(hooksDir, INSTALLED_CHECKOUT_FILE);
   const content = `${repoRoot.split(path.sep).join("/")}\n`;
-  if ((await ctx.fs.readText(file)) !== content) {
-    await ctx.fs.writeText(file, content);
+  const relative = `hooks/${INSTALLED_CHECKOUT_FILE}`;
+  const item = path.relative(repoRoot, file).split(path.sep).join("/");
+  const existing = await targets.readText(relative);
+  if (targets.refusals.has(relative))
+    return hookTargetConflict(targets, relative, item);
+  if (existing !== content && !(await targets.writeText(relative, content))) {
+    return hookTargetConflict(targets, relative, item);
   }
+  return undefined;
+}
+
+function hookTargetConflict(
+  targets: WriteTargets,
+  relative: string,
+  item: string,
+): InstallItem {
+  const state = targets.refusals.get(relative);
+  return {
+    item,
+    status: "conflict",
+    detail:
+      state?.kind === "refused"
+        ? `${state.reason}. Fix: ${state.fix}`
+        : "is no longer an ordinary file; run hook install again",
+  };
 }
 
 async function readLocalConfig(
@@ -277,9 +308,10 @@ export async function installHooks(
     });
   } else {
     const hooksDir = path.join(commonGitDir, "hooks");
+    const targets = new WriteTargets(ctx, commonGitDir);
     const shimItems: InstallItem[] = [];
     for (const shim of SHIMS) {
-      shimItems.push(await installShim(ctx, repoRoot, hooksDir, shim));
+      shimItems.push(await installShim(ctx, repoRoot, hooksDir, shim, targets));
     }
     items.push(...shimItems);
     if (
@@ -287,7 +319,13 @@ export async function installHooks(
         (item) => item.status !== "conflict" && item.detail !== KEPT_DETAIL,
       )
     ) {
-      await recordInstalledCheckout(ctx, repoRoot, hooksDir);
+      const marker = await recordInstalledCheckout(
+        ctx,
+        repoRoot,
+        hooksDir,
+        targets,
+      );
+      if (marker !== undefined) items.push(marker);
     }
   }
   items.push(await clearHooksPath(ctx, repoRoot));

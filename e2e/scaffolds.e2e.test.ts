@@ -33,6 +33,7 @@ import {
 const MISSING_SCRIPTS: Readonly<Record<string, readonly string[]>> = {
   vite: ["typecheck", "format:check", "test"],
   next: ["typecheck", "format:check", "test"],
+  astro: ["typecheck", "lint", "format:check", "test"],
   sveltekit: ["typecheck", "lint", "format:check", "test"],
   "react-router": ["lint", "format:check", "test"],
   nuxt: ["typecheck", "lint", "format:check", "test"],
@@ -149,6 +150,22 @@ for (const fixture of scaffolds) {
         `${fixture.name}: SSH is blocked and setup reports protection of main`,
       );
       assertScaffoldSetup(dir, fixture, pnpmVersion);
+      if (fixture.name === "astro") {
+        assert.match(
+          setup.stdout,
+          /CLAUDE\.md links to AGENTS\.md and was left alone/,
+        );
+        const entry = await git(["ls-files", "-s", "--", "CLAUDE.md"], options);
+        const committed = await git(
+          ["ls-tree", "HEAD", "--", "CLAUDE.md"],
+          options,
+        );
+        assert.equal(
+          entry.stdout.split("\t")[0]?.replace(/ 0$/, ""),
+          committed.stdout.split("\t")[0]?.replace(" blob", ""),
+          "astro: setup preserves the link index entry and object",
+        );
+      }
 
       for (const [name, content] of Object.entries(INSTALLED_SHIMS)) {
         const hook = path.join(hooksDir, name);

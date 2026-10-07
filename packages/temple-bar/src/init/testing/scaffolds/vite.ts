@@ -10,6 +10,7 @@ export const vite = {
   command:
     "pnpm create vite@latest vite-app --template react-ts --no-interactive",
   recordedOn: "2026-10-07",
+  symlinks: {},
   files: {
     ".gitignore":
       "# Logs\nlogs\n*.log\nnpm-debug.log*\nyarn-debug.log*\nyarn-error.log*\npnpm-debug.log*\nlerna-debug.log*\n\nnode_modules\ndist\ndist-ssr\n*.local\n\n# Editor directories and files\n.vscode/*\n!.vscode/extensions.json\n.idea\n.DS_Store\n*.suo\n*.ntvs*\n*.njsproj\n*.sln\n*.sw?\n",

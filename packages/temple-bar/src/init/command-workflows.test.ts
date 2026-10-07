@@ -89,7 +89,7 @@ void test("init workflows: a symlinked gate workflow is left alone and reported,
   assert.equal(fs.writes.length, 0);
   assert.match(
     stderr,
-    /\.github\/workflows\/temple-bar-gate\.yml is a symlink or folder, not an ordinary file, so it was left alone, and the gate fails until it matches\. Fix: move the project's own changes/,
+    /\.github\/workflows\/temple-bar-gate\.yml is a symlink; left it alone\. Fix: replace it with an ordinary file, or remove it, then run setup again/,
   );
   assert.doesNotMatch(stdout, /temple-bar is set up/);
 });

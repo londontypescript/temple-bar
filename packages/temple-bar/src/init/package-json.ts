@@ -7,9 +7,8 @@
 // When nothing names the project's pnpm version, it records the one running
 // setup (see pnpmVersionStep).
 
-import path from "node:path";
-
 import type { Context } from "../context.ts";
+import { setupWriteTargets } from "./write-target.ts";
 import { repoName } from "./repo-name.ts";
 import { RERUN_INIT } from "./requirements.ts";
 
@@ -211,9 +210,11 @@ export interface PackageJsonOutcome {
 export async function ensurePackageJsonScripts(
   ctx: Context,
   repoRoot: string,
+  targets = setupWriteTargets(ctx, repoRoot),
 ): Promise<PackageJsonOutcome> {
-  const filePath = path.join(repoRoot, "package.json");
-  const existing = await ctx.fs.readText(filePath);
+  const existing = await targets.readText("package.json");
+  if (targets.refusals.has("package.json"))
+    return { wrote: false, conflicts: [] };
 
   let pkg: PackageJsonShape;
   let wrote = false;
@@ -276,9 +277,12 @@ export async function ensurePackageJsonScripts(
   if (pnpm.kind === "added") {
     pkg.packageManager = `pnpm@${pnpm.version}`;
   }
-  const changed = wrote || scriptsChanged || pnpm.kind === "added";
+  let changed = wrote || scriptsChanged || pnpm.kind === "added";
   if (changed) {
-    await ctx.fs.writeText(filePath, formatLike(existing, pkg));
+    changed = await targets.writeText(
+      "package.json",
+      formatLike(existing, pkg),
+    );
   }
 
   return {

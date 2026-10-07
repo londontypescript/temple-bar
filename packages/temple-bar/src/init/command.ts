@@ -1,8 +1,8 @@
 // `temple-bar init`: checks the requirements, offers the GitHub changes
 // (repo creation; the rulesets and CodeQL under one yes) only on an explicit
 // yes, writes AGENTS.md, its companion docs, the workflows and package.json
-// where they're missing, then installs the hooks. Every hard stop below
-// happens before any write, so a failed run leaves the repo untouched.
+// where they're missing, then installs the hooks. Local refusals are reported
+// on discovery, while the remaining safe files and hooks are still installed.
 
 import type { CommandEntry } from "../registry.ts";
 import type { Context } from "../context.ts";
@@ -22,6 +22,7 @@ import {
   type SetupFilesOutcome,
 } from "./files.ts";
 import { reportSetupFiles, wroteSetupFiles } from "./files-report.ts";
+import { setupWriteTargets } from "./write-target.ts";
 import type { InitDeps } from "./types.ts";
 import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
 import { CHECKED_WORKFLOWS } from "./workflows.ts";
@@ -130,13 +131,14 @@ async function runInit(
   // By now the launcher has installed temple-bar into node_modules/, so
   // .gitignore has to cover it even if the run stops at a GitHub question:
   // otherwise the user's next `git add -A` commits node_modules/.
-  const gitignoreFirst = await ensureGitignore(ctx, repoRoot);
+  const targets = setupWriteTargets(ctx, repoRoot);
+  const gitignoreFirst = await ensureGitignore(ctx, repoRoot, targets);
 
   // Written once, whether that happens before the first commit or after the
   // GitHub steps.
   let written: SetupFilesOutcome | undefined;
   const writeFiles = async (): Promise<SetupFilesOutcome> =>
-    (written ??= await writeSetupFiles(ctx, repoRoot));
+    (written ??= await writeSetupFiles(ctx, repoRoot, targets));
 
   const origin = await resolveOrigin(
     ctx,
@@ -149,7 +151,7 @@ async function runInit(
   }
   await recordDefaultBranch(ctx, repoRoot);
 
-  let exitCode = 0;
+  let exitCode = targets.refusals.size > 0 ? 1 : 0;
 
   // An unprotected main is not "set up": a ruleset or CodeQL that couldn't
   // be set up (no terminal, or the API call failed) ends the run non-zero.
@@ -168,11 +170,12 @@ async function runInit(
   }
 
   const files = await writeFiles();
-  ctx.stdout.write(
-    gitignoreFirst || files.wroteGitignore
-      ? "Updated .gitignore.\n"
-      : ".gitignore already has the required lines; left it alone.\n",
-  );
+  if (!targets.refusals.has(".gitignore"))
+    ctx.stdout.write(
+      gitignoreFirst || files.wroteGitignore
+        ? "Updated .gitignore.\n"
+        : ".gitignore already has the required lines; left it alone.\n",
+    );
   if (reportSetupFiles(ctx, files)) {
     exitCode = 1;
   }

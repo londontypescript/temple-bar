@@ -10,6 +10,7 @@ export const nuxt = {
   command:
     "pnpm create nuxt@latest nuxt-app --template minimal --no-install --gitInit=false --packageManager pnpm --no-modules",
   recordedOn: "2026-10-07",
+  symlinks: {},
   files: {
     ".gitignore":
       "# Nuxt dev/build outputs\n.output\n.data\n.nuxt\n.nitro\n.cache\ndist\n\n# Node dependencies\nnode_modules\n\n# Logs\nlogs\n*.log\n\n# Misc\n.DS_Store\n.fleet\n.idea\n\n# Local env files\n.env\n.env.*\n!.env.example\n",
