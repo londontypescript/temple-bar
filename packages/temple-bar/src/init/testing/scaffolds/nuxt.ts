@@ -1,6 +1,6 @@
-// Recorded on 2026-10-07 from create-nuxt 4.0.0, without installing
+// Recorded on 2026-10-08 from create-nuxt 4.0.0, without installing
 // dependencies, under pnpm 10.34.5 and Node 24.21.0:
-// pnpm create nuxt@latest nuxt-app --template minimal --no-install --gitInit=false --packageManager pnpm --no-modules
+// pnpm create nuxt@4.0.0 nuxt-app --template minimal --no-install --gitInit=false --packageManager pnpm --no-modules
 // Re-recording replaces these strings wholesale; never edit their content.
 
 export const nuxt = {
@@ -8,8 +8,17 @@ export const nuxt = {
   scaffolder: "create-nuxt",
   version: "4.0.0",
   command:
-    "pnpm create nuxt@latest nuxt-app --template minimal --no-install --gitInit=false --packageManager pnpm --no-modules",
-  recordedOn: "2026-10-07",
+    "pnpm create nuxt@4.0.0 nuxt-app --template minimal --no-install --gitInit=false --packageManager pnpm --no-modules",
+  recordedOn: "2026-10-08",
+  rootEntries: [
+    ".gitignore",
+    "README.md",
+    "app",
+    "nuxt.config.ts",
+    "package.json",
+    "public",
+    "tsconfig.json",
+  ],
   symlinks: {},
   files: {
     ".gitignore":

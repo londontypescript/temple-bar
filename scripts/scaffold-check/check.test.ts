@@ -26,7 +26,8 @@ void test("recipes cover exactly the recorded scaffolders and resolve Astro's ve
     const resolved = scaffoldArgs(recipe, "99.0.1");
     assert.equal(
       ["pnpm", ...resolved].join(" "),
-      data.command.replace(/@(?:latest|5\.2\.5)(?= )/, "@99.0.1"),
+      // A recording names the exact version that ran; older ones said latest.
+      data.command.replace(/@(?:latest|\d+\.\d+\.\d+)(?= )/, "@99.0.1"),
       `${data.name}: recorded flags with resolved version`,
     );
   }

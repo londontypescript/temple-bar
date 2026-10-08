@@ -1,6 +1,6 @@
-// Recorded on 2026-10-07 from create-next-app 16.4.0, without installing
+// Recorded on 2026-10-08 from create-next-app 16.4.0, without installing
 // dependencies, under pnpm 10.34.5 and Node 24.21.0:
-// pnpm create next-app@latest next-app --yes --skip-install --disable-git --use-pnpm
+// pnpm create next-app@16.4.0 next-app --yes --skip-install --disable-git --use-pnpm
 // Re-recording replaces these strings wholesale; never edit their content.
 
 export const next = {
@@ -8,8 +8,21 @@ export const next = {
   scaffolder: "create-next-app",
   version: "16.4.0",
   command:
-    "pnpm create next-app@latest next-app --yes --skip-install --disable-git --use-pnpm",
-  recordedOn: "2026-10-07",
+    "pnpm create next-app@16.4.0 next-app --yes --skip-install --disable-git --use-pnpm",
+  recordedOn: "2026-10-08",
+  rootEntries: [
+    ".gitignore",
+    "AGENTS.md",
+    "README.md",
+    "app",
+    "eslint.config.mjs",
+    "next-env.d.ts",
+    "next.config.ts",
+    "package.json",
+    "pnpm-workspace.yaml",
+    "public",
+    "tsconfig.json",
+  ],
   symlinks: {},
   files: {
     ".gitignore":

@@ -1,6 +1,6 @@
-// Recorded on 2026-10-07 from sv 1.1.1, without installing
+// Recorded on 2026-10-08 from sv 1.1.1, without installing
 // dependencies, under pnpm 10.34.5 and Node 24.21.0:
-// pnpm dlx sv@latest create svelte-app --template minimal --types ts --no-add-ons --no-install
+// pnpm dlx sv@1.1.1 create svelte-app --template minimal --types ts --no-add-ons --no-install
 // Re-recording replaces these strings wholesale; never edit their content.
 
 export const sveltekit = {
@@ -8,8 +8,19 @@ export const sveltekit = {
   scaffolder: "sv",
   version: "1.1.1",
   command:
-    "pnpm dlx sv@latest create svelte-app --template minimal --types ts --no-add-ons --no-install",
-  recordedOn: "2026-10-07",
+    "pnpm dlx sv@1.1.1 create svelte-app --template minimal --types ts --no-add-ons --no-install",
+  recordedOn: "2026-10-08",
+  rootEntries: [
+    ".gitignore",
+    ".npmrc",
+    ".vscode",
+    "README.md",
+    "package.json",
+    "src",
+    "static",
+    "tsconfig.json",
+    "vite.config.ts",
+  ],
   symlinks: {},
   files: {
     ".gitignore":

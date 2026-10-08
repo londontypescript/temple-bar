@@ -1,6 +1,6 @@
-// Recorded on 2026-10-07 from @angular/cli 22.2.2, without installing
+// Recorded on 2026-10-08 from @angular/cli 22.2.2, without installing
 // dependencies, under pnpm 10.34.5 and Node 24.21.0:
-// pnpm dlx @angular/cli@latest new ng-app --defaults --skip-install --skip-git
+// pnpm dlx @angular/cli@22.2.2 new ng-app --defaults --skip-install --skip-git
 // Re-recording replaces these strings wholesale; never edit their content.
 
 export const angular = {
@@ -8,8 +8,22 @@ export const angular = {
   scaffolder: "@angular/cli",
   version: "22.2.2",
   command:
-    "pnpm dlx @angular/cli@latest new ng-app --defaults --skip-install --skip-git",
-  recordedOn: "2026-10-07",
+    "pnpm dlx @angular/cli@22.2.2 new ng-app --defaults --skip-install --skip-git",
+  recordedOn: "2026-10-08",
+  rootEntries: [
+    ".editorconfig",
+    ".gitignore",
+    ".prettierrc",
+    ".vscode",
+    "README.md",
+    "angular.json",
+    "package.json",
+    "public",
+    "src",
+    "tsconfig.app.json",
+    "tsconfig.json",
+    "tsconfig.spec.json",
+  ],
   symlinks: {},
   files: {
     ".editorconfig":

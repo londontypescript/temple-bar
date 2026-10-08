@@ -1,6 +1,6 @@
-// Recorded on 2026-10-07 from create-vite 9.2.1, without installing
+// Recorded on 2026-10-08 from create-vite 9.2.1, without installing
 // dependencies, under pnpm 10.34.5 and Node 24.21.0:
-// pnpm create vite@latest vite-app --template react-ts --no-interactive
+// pnpm create vite@9.2.1 vite-app --template react-ts --no-interactive
 // Re-recording replaces these strings wholesale; never edit their content.
 
 export const vite = {
@@ -8,8 +8,21 @@ export const vite = {
   scaffolder: "create-vite",
   version: "9.2.1",
   command:
-    "pnpm create vite@latest vite-app --template react-ts --no-interactive",
-  recordedOn: "2026-10-07",
+    "pnpm create vite@9.2.1 vite-app --template react-ts --no-interactive",
+  recordedOn: "2026-10-08",
+  rootEntries: [
+    ".gitignore",
+    ".oxlintrc.json",
+    "README.md",
+    "index.html",
+    "package.json",
+    "public",
+    "src",
+    "tsconfig.app.json",
+    "tsconfig.json",
+    "tsconfig.node.json",
+    "vite.config.ts",
+  ],
   symlinks: {},
   files: {
     ".gitignore":
