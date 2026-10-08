@@ -88,7 +88,7 @@ export function install(dir: string, registry = FAKE_REGISTRY): void {
     }
   })();
   writeProject(dir, {
-    "pnpm-lock.yaml": `packages:\n  '@londontypescript/temple-bar@0.0.9':\n    resolution: {integrity: sha512-fake, tarball: ${registry}tarball.tgz}\n`,
+    "pnpm-lock.yaml": `importers:\n\n  .:\n    devDependencies:\n      '@londontypescript/temple-bar':\n        specifier: 0.0.9\n        version: 0.0.9\n\npackages:\n\n  '@londontypescript/temple-bar@0.0.9':\n    resolution: {integrity: sha512-fake, tarball: ${registry}tarball.tgz}\n`,
     "package.json": `${JSON.stringify(pkg, null, 2)}\n`,
     "AGENTS.md":
       agents === undefined

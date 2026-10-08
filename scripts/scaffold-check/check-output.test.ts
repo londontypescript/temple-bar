@@ -42,9 +42,14 @@ void test("a version lookup reads only standard output, so npm's warnings don't 
   }
 });
 
-void test("progress names each stage as it starts", async () => {
+void test("progress names each stage before the stage's command runs", async () => {
   const fake = world();
   const lines: string[] = [];
+  const latest: string[] = [];
+  fake.override = (call) => {
+    latest.push(lines.at(-1) ?? "");
+    return undefined;
+  };
   try {
     await check({
       update: false,
@@ -60,6 +65,23 @@ void test("progress names each stage as it starts", async () => {
       "vite: pnpm create vite@1.0.0 vite-app --template react-ts --no-interactive",
       "vite: installing the packed temple-bar and checking setup",
     ]);
+    const at = (match: (args: readonly string[]) => boolean) =>
+      latest[fake.calls.findIndex((call) => match(call.args))];
+    assert.equal(
+      at((args) => args[0] === "view"),
+      "vite: pnpm view create-vite version",
+      "the lookup is announced before it runs",
+    );
+    assert.equal(
+      at((args) => args[0] === "create"),
+      "vite: pnpm create vite@1.0.0 vite-app --template react-ts --no-interactive",
+      "the scaffolder is announced before it runs",
+    );
+    assert.equal(
+      at((args) => args.includes("create-temple-bar")),
+      "vite: installing the packed temple-bar and checking setup",
+      "the install is announced before it runs",
+    );
   } finally {
     fake.close();
   }
@@ -84,7 +106,7 @@ void test("an install that didn't use the packed tarball fails setup", async () 
     assert.deepEqual(result.results[0]?.statuses, ["setup failed"]);
     assert.match(
       result.report,
-      /finding: install: temple-bar didn't come from the packed tarball at http:\/\/registry\.invalid\//,
+      /finding: install: temple-bar 0\.0\.9 didn't come from the packed tarball at http:\/\/registry\.invalid\//,
     );
   } finally {
     fake.close();

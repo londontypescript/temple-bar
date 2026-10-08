@@ -108,7 +108,7 @@ export async function setup(
   );
   findings.push(
     ...pkg.findings,
-    ...validateSource(project, resources.registry),
+    ...validateSource(project, resources.registry, resources.version),
     ...validateFiles(project, snapshot),
   );
   information.push(...pkg.information);

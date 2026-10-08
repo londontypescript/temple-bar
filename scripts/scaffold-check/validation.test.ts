@@ -306,27 +306,82 @@ void test("commit validator requires the hook's own refusal, not just a failing 
     );
 });
 
-void test("source validator requires the lockfile to name the packed tarball", () => {
+// Trimmed from a real pnpm 10.34.5 lockfile written by the first live run
+// (2026-10-08); only the registry's port differs between runs.
+const realLockfile = (
+  registry: string,
+  version = "0.0.8",
+) => `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    devDependencies:
+      '@londontypescript/temple-bar':
+        specifier: ${version}
+        version: ${version}
+      oxlint:
+        specifier: ^1.87.0
+        version: 1.87.0
+
+packages:
+
+  '@londontypescript/temple-bar@${version}':
+    resolution: {integrity: sha512-1VedUNo9LjgnEf06JlKy9PXeVH3s0zNugN/DJkzhGJ/ycNSKRQulMKYAZlxqcX6An56JhCiN6ebP8snk3wdBPQ==, tarball: ${registry}tarball.tgz}
+    engines: {node: '>=24'}
+`;
+
+const LOCAL = "http://127.0.0.1:50540/";
+
+void test("source validator requires temple-bar's own lockfile entries to name the packed tarball", () => {
   const project = tempProject(minimalFiles);
+  const lockfile = path.join(project.dir, "pnpm-lock.yaml");
+  const finding = (version: string) => [
+    `install: temple-bar ${version} didn't come from the packed tarball at ${LOCAL}`,
+  ];
   try {
     assert.deepEqual(
-      validateSource(project.dir, FAKE_REGISTRY),
+      validateSource(project.dir, LOCAL, "0.0.8"),
       ["install: no pnpm-lock.yaml to show where temple-bar came from"],
       "no lockfile is a finding",
     );
-    install(project.dir, "https://registry.npmjs.org/");
+    writeFileSync(lockfile, realLockfile(LOCAL));
     assert.deepEqual(
-      validateSource(project.dir, FAKE_REGISTRY),
-      [
-        `install: temple-bar didn't come from the packed tarball at ${FAKE_REGISTRY}`,
-      ],
+      validateSource(project.dir, LOCAL, "0.0.8"),
+      [],
+      "a real lockfile naming the packed tarball passes",
+    );
+    writeFileSync(
+      lockfile,
+      realLockfile(
+        "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.0.8.tgz#",
+      ),
+    );
+    assert.deepEqual(
+      validateSource(project.dir, LOCAL, "0.0.8"),
+      finding("0.0.8"),
       "a tarball from npm is a finding",
+    );
+    writeFileSync(
+      lockfile,
+      `${realLockfile("https://registry.npmjs.org/x/")}\n  other@1.0.0:\n    resolution: {integrity: sha512-x, tarball: ${LOCAL}tarball.tgz}\n# ${LOCAL}tarball.tgz\n`,
+    );
+    assert.deepEqual(
+      validateSource(project.dir, LOCAL, "0.0.8"),
+      finding("0.0.8"),
+      "the packed address on another entry or in a comment proves nothing",
+    );
+    writeFileSync(lockfile, realLockfile(LOCAL));
+    assert.deepEqual(
+      validateSource(project.dir, LOCAL, "0.0.9"),
+      finding("0.0.9"),
+      "the project must use the packed version",
     );
     install(project.dir);
     assert.deepEqual(
-      validateSource(project.dir, FAKE_REGISTRY),
+      validateSource(project.dir, FAKE_REGISTRY, "0.0.9"),
       [],
-      "the packed tarball passes",
+      "the fake install's lockfile passes, so orchestration tests mean something",
     );
   } finally {
     project.close();
