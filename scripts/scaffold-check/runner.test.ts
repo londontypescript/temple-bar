@@ -49,12 +49,16 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
     const dir = mkdtempSync(path.join(tmpdir(), "scaffold-runner-group-"));
     const marker = path.join(dir, "grandchild-survived");
     const controller = new AbortController();
-    const grandchild = `setTimeout(() => require("node:fs").writeFileSync(${JSON.stringify(marker)}, "survived"), 800);`;
-    const parent = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(grandchild)}], {stdio: "ignore"}); setInterval(() => {}, 1000);`;
+    // Fixed scripts, with the marker path passed as an argument: no code is
+    // built from a value.
+    const grandchild =
+      'setTimeout(() => require("node:fs").writeFileSync(process.argv[1], "survived"), 800);';
+    const parent =
+      'const [marker, grandchild] = process.argv.slice(1); require("node:child_process").spawn(process.execPath, ["-e", grandchild, marker], {stdio: "ignore"}); setInterval(() => {}, 1000);';
     try {
       const pending = runProcess({
         command: process.execPath,
-        args: ["-e", parent],
+        args: ["-e", parent, marker, grandchild],
         cwd: dir,
         env: process.env,
         deadline: stop === "deadline" ? 200 : 5000,
