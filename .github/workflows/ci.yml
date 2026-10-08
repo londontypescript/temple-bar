@@ -3,7 +3,7 @@ name: CI
 on:
   # Not on "edited": GitHub sends it for a description change too, and the
   # full matrix gains nothing from rerunning on the same commit. The title
-  # is checked by pr-title.yml, which does run on "edited".
+  # is checked by temple-bar-pr-title.yml, which does run on "edited".
   pull_request:
     types: [opened, synchronize, reopened]
   # No run on pushes to main: the ruleset requires these checks and an
