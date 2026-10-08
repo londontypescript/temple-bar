@@ -14,6 +14,7 @@
     "test": "node --import ./scripts/isolate-git-config.ts --test",
     "build": "tsc -p packages/temple-bar/tsconfig.build.json && tsc -p packages/create-temple-bar/tsconfig.build.json",
     "pack:local": "node scripts/pack-local.ts",
+    "scaffold-check": "node scripts/scaffold-check.ts",
     "check": "pnpm run gate",
     "prepare": "temple-bar hook install",
     "gate": "temple-bar gate",
