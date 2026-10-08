@@ -31,15 +31,19 @@ export const runProcess: Runner = (request) =>
       return;
     }
     const windows = process.platform === "win32";
+    // npm and pnpm are `.cmd` shims on Windows, which start only through a
+    // shell. A real executable (node) starts directly, so its arguments keep
+    // Node's own quoting: cmd.exe's `""` would garble a `\"` inside one.
+    const shell = windows && !/\.exe$/i.test(request.command);
     const child = spawn(
       request.command,
-      windows
+      shell
         ? request.args.map((arg) => `"${arg.replaceAll('"', '""')}"`)
         : [...request.args],
       {
         cwd: request.cwd,
         env: request.env,
-        shell: windows,
+        shell,
         detached: !windows,
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],

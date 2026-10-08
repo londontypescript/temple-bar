@@ -94,7 +94,7 @@ void test("snapshot reads the agreed paths once, records all root names and neve
 void test("comparison names link addition and removal and the first differing line", () => {
   const project = tempProject(
     { "package.json": "{}\n", ".npmrc": "first\nsecond\n" },
-    { "new-link": "./target" },
+    { "new-link": "new-target" },
   );
   try {
     const result = compare(
@@ -107,7 +107,7 @@ void test("comparison names link addition and removal and the first differing li
       "1.0.0",
     );
     assert.ok(
-      result.differences.includes('link added: new-link -> "./target"'),
+      result.differences.includes('link added: new-link -> "new-target"'),
       "added link named",
     );
     assert.ok(
