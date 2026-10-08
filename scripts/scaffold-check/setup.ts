@@ -11,6 +11,7 @@ import {
   validateCommit,
   validateGate,
   validateRefusal,
+  validateSource,
 } from "./validation.ts";
 
 export const DEADLINES = {
@@ -105,7 +106,11 @@ export async function setup(
     resources.version,
     pnpmVersion,
   );
-  findings.push(...pkg.findings, ...validateFiles(project, snapshot));
+  findings.push(
+    ...pkg.findings,
+    ...validateSource(project, resources.registry, resources.version),
+    ...validateFiles(project, snapshot),
+  );
   information.push(...pkg.information);
   // A deadlined install may leave an incomplete project. Don't run more of it.
   if (launch.timedOut) return { findings, unknown: [], information };

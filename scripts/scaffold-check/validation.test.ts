@@ -8,9 +8,18 @@ import {
   validateCommit,
   validateGate,
   validateRefusal,
+  validateSource,
 } from "./validation.ts";
 import { check } from "./check.ts";
-import { fixture, minimalFiles, ok, tempProject, world } from "./testing.ts";
+import {
+  FAKE_REGISTRY,
+  fixture,
+  install,
+  minimalFiles,
+  ok,
+  tempProject,
+  world,
+} from "./testing.ts";
 
 for (const manager of ["npm@99.1.0", "yarn@4.3.0"]) {
   void test(`real orchestration judges the launcher's ${manager} refusal using the snapshot value`, async () => {
@@ -74,6 +83,7 @@ void test("real orchestration keeps no expectation separate from setup failure a
           ? {
               code: 0,
               output: "fake gh: unexpected call: []\n",
+              stdout: "",
               timedOut: false,
             }
           : undefined;
@@ -124,6 +134,7 @@ for (const foreign of [
       const launch = {
         code: 1,
         output: `${expected.refusal}\n`,
+        stdout: "",
         timedOut: false,
       };
       assert.deepEqual(
@@ -164,6 +175,7 @@ for (const kind of [
           kind === "message"
             ? "pnpm: This project is configured to use npm\n"
             : `${message}\n`,
+        stdout: "",
         timedOut: kind === "deadline",
       };
       if (kind === "config")
@@ -200,6 +212,7 @@ void test("gate judges exact missing scripts in gate order, exit and deadline wh
       validateGate(project.snapshot, {
         code: 2,
         output: report,
+        stdout: "",
         timedOut: false,
       }),
       [],
@@ -217,6 +230,7 @@ void test("gate judges exact missing scripts in gate order, exit and deadline wh
         validateGate(project.snapshot, {
           code: 2,
           output: changed,
+          stdout: "",
           timedOut: false,
         }).some((finding) =>
           finding.startsWith("gate: expected missing script(s):"),
@@ -227,6 +241,7 @@ void test("gate judges exact missing scripts in gate order, exit and deadline wh
       validateGate(project.snapshot, {
         code: 1,
         output: report,
+        stdout: "",
         timedOut: false,
       }).some((finding) => finding.startsWith("gate: unexpected exit")),
       "missing scripts require gate exit 2",
@@ -235,6 +250,7 @@ void test("gate judges exact missing scripts in gate order, exit and deadline wh
       validateGate(project.snapshot, {
         code: 2,
         output: report,
+        stdout: "",
         timedOut: true,
       }).some((finding) => finding.includes("deadline")),
       "deadlined gate is not accepted",
@@ -252,6 +268,7 @@ void test("gate judges exact missing scripts in gate order, exit and deadline wh
         validateGate(all.snapshot, {
           code,
           output: "framework report\n",
+          stdout: "",
           timedOut: false,
         }),
         [],
@@ -267,16 +284,18 @@ void test("commit validator requires the hook's own refusal, not just a failing 
     validateCommit({
       code: 1,
       output: "refusing to commit directly to main\n",
+      stdout: "",
       timedOut: false,
     }),
     [],
   );
   for (const result of [
     ok(),
-    { code: 1, output: "git failed\n", timedOut: false },
+    { code: 1, output: "git failed\n", stdout: "", timedOut: false },
     {
       code: 1,
       output: "refusing to commit directly to main\n",
+      stdout: "",
       timedOut: true,
     },
   ])
@@ -285,4 +304,86 @@ void test("commit validator requires the hook's own refusal, not just a failing 
       ["hooks: direct commit to main did not refuse with the hook's message"],
       "bad commit result gets own hook finding",
     );
+});
+
+// Trimmed from a real pnpm 10.34.5 lockfile written by the first live run
+// (2026-10-08); only the registry's port differs between runs.
+const realLockfile = (
+  registry: string,
+  version = "0.0.8",
+) => `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    devDependencies:
+      '@londontypescript/temple-bar':
+        specifier: ${version}
+        version: ${version}
+      oxlint:
+        specifier: ^1.87.0
+        version: 1.87.0
+
+packages:
+
+  '@londontypescript/temple-bar@${version}':
+    resolution: {integrity: sha512-1VedUNo9LjgnEf06JlKy9PXeVH3s0zNugN/DJkzhGJ/ycNSKRQulMKYAZlxqcX6An56JhCiN6ebP8snk3wdBPQ==, tarball: ${registry}tarball.tgz}
+    engines: {node: '>=24'}
+`;
+
+const LOCAL = "http://127.0.0.1:50540/";
+
+void test("source validator requires temple-bar's own lockfile entries to name the packed tarball", () => {
+  const project = tempProject(minimalFiles);
+  const lockfile = path.join(project.dir, "pnpm-lock.yaml");
+  const finding = (version: string) => [
+    `install: temple-bar ${version} didn't come from the packed tarball at ${LOCAL}`,
+  ];
+  try {
+    assert.deepEqual(
+      validateSource(project.dir, LOCAL, "0.0.8"),
+      ["install: no pnpm-lock.yaml to show where temple-bar came from"],
+      "no lockfile is a finding",
+    );
+    writeFileSync(lockfile, realLockfile(LOCAL));
+    assert.deepEqual(
+      validateSource(project.dir, LOCAL, "0.0.8"),
+      [],
+      "a real lockfile naming the packed tarball passes",
+    );
+    writeFileSync(
+      lockfile,
+      realLockfile(
+        "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.0.8.tgz#",
+      ),
+    );
+    assert.deepEqual(
+      validateSource(project.dir, LOCAL, "0.0.8"),
+      finding("0.0.8"),
+      "a tarball from npm is a finding",
+    );
+    writeFileSync(
+      lockfile,
+      `${realLockfile("https://registry.npmjs.org/x/")}\n  other@1.0.0:\n    resolution: {integrity: sha512-x, tarball: ${LOCAL}tarball.tgz}\n# ${LOCAL}tarball.tgz\n`,
+    );
+    assert.deepEqual(
+      validateSource(project.dir, LOCAL, "0.0.8"),
+      finding("0.0.8"),
+      "the packed address on another entry or in a comment proves nothing",
+    );
+    writeFileSync(lockfile, realLockfile(LOCAL));
+    assert.deepEqual(
+      validateSource(project.dir, LOCAL, "0.0.9"),
+      finding("0.0.9"),
+      "the project must use the packed version",
+    );
+    install(project.dir);
+    assert.deepEqual(
+      validateSource(project.dir, FAKE_REGISTRY, "0.0.9"),
+      [],
+      "the fake install's lockfile passes, so orchestration tests mean something",
+    );
+  } finally {
+    project.close();
+  }
 });

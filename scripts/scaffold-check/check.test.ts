@@ -244,6 +244,7 @@ for (const stage of ["version", "scaffold", "missing folder"] as const) {
               { length: 50 },
               (_, i) => `output-${String(i)}`,
             ).join("\n"),
+            stdout: "",
             timedOut: timeout,
           };
         }

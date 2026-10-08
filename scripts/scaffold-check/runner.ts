@@ -12,6 +12,10 @@ export interface Command {
 export interface RunResult {
   readonly code: number;
   readonly output: string;
+  /** Standard output alone, bounded the same way. Parse values from this,
+   * never from `output`: npm prints warnings on the other stream, and the
+   * two arrive mixed. */
+  readonly stdout: string;
   readonly timedOut: boolean;
 }
 
@@ -50,6 +54,7 @@ export const runProcess: Runner = (request) =>
       },
     );
     let tail = Buffer.alloc(0);
+    let stdoutTail = Buffer.alloc(0);
     let timedOut = false;
     let interrupted = false;
     const append = (chunk: Buffer) => {
@@ -94,7 +99,10 @@ export const runProcess: Runner = (request) =>
       timedOut = true;
       killGroup();
     }, request.deadline);
-    child.stdout.on("data", append);
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdoutTail = Buffer.concat([stdoutTail, chunk]).subarray(-64 * 1024);
+      append(chunk);
+    });
     child.stderr.on("data", append);
     const clean = () => {
       clearTimeout(timer);
@@ -103,12 +111,22 @@ export const runProcess: Runner = (request) =>
     child.on("error", (error) => {
       clean();
       append(Buffer.from(`${error.message}\n`));
-      resolve({ code: 127, output: tail.toString("utf8"), timedOut });
+      resolve({
+        code: 127,
+        output: tail.toString("utf8"),
+        stdout: stdoutTail.toString("utf8"),
+        timedOut,
+      });
     });
     child.on("close", (code) => {
       clean();
       if (interrupted) reject(new Interrupted());
       else
-        resolve({ code: code ?? 1, output: tail.toString("utf8"), timedOut });
+        resolve({
+          code: code ?? 1,
+          output: tail.toString("utf8"),
+          stdout: stdoutTail.toString("utf8"),
+          timedOut,
+        });
     });
   });

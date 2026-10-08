@@ -43,6 +43,47 @@ export function validateRefusal(
   return findings;
 }
 
+/** The packed temple-bar carries the version in this checkout's source,
+ * which until a release bump is also the published version. pnpm resolves
+ * either one under the same name and version, so only the lockfile's
+ * tarball address shows whether the install tested this checkout's code or
+ * the package already on npm. */
+export function validateSource(
+  dir: string,
+  registry: string,
+  version: string,
+): string[] {
+  let lockfile: string;
+  try {
+    lockfile = readFileSync(path.join(dir, "pnpm-lock.yaml"), "utf8");
+  } catch {
+    return ["install: no pnpm-lock.yaml to show where temple-bar came from"];
+  }
+  const name = escape(TEMPLE_BAR);
+  // The project's own entry must use this version, and that version's
+  // package entry must resolve to the packed tarball: the address appearing
+  // anywhere else in the file proves nothing.
+  const imported = new RegExp(
+    `^ +'${name}':\\r?\\n +specifier: [^\\r\\n]*\\r?\\n +version: ${escape(version)}\\r?$`,
+    "m",
+  ).test(lockfile);
+  const resolved = new RegExp(
+    `^  '${name}@${escape(version)}':\\r?\\n    resolution: \\{[^}\\r\\n]*\\btarball: ${escape(`${registry}tarball.tgz`)}\\}`,
+    "m",
+  ).test(lockfile);
+  return imported && resolved
+    ? []
+    : [
+        `install: temple-bar ${version} didn't come from the packed tarball at ${registry}`,
+      ];
+}
+
+const TEMPLE_BAR = "@londontypescript/temple-bar";
+
+function escape(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function validateCommit(result: RunResult): string[] {
   return result.code !== 0 &&
     !result.timedOut &&
