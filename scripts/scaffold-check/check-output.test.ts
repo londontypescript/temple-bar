@@ -46,7 +46,8 @@ void test("progress names each stage before the stage's command runs", async () 
   const fake = world();
   const lines: string[] = [];
   const latest: string[] = [];
-  fake.override = (call) => {
+  let atPacking = "";
+  fake.override = () => {
     latest.push(lines.at(-1) ?? "");
     return undefined;
   };
@@ -54,7 +55,10 @@ void test("progress names each stage before the stage's command runs", async () 
     await check({
       update: false,
       runner: fake.runner,
-      resources: fake.resources,
+      resources: (folder) => {
+        atPacking = lines.at(-1) ?? "";
+        return fake.resources(folder);
+      },
       fixtures: fake.fixtures,
       tempRoot: fake.root,
       progress: (line) => lines.push(line),
@@ -65,6 +69,11 @@ void test("progress names each stage before the stage's command runs", async () 
       "vite: pnpm create vite@1.0.0 vite-app --template react-ts --no-interactive",
       "vite: installing the packed temple-bar and checking setup",
     ]);
+    assert.equal(
+      atPacking,
+      "scaffold-check: building and packing temple-bar from this checkout",
+      "packing is announced before it starts",
+    );
     const at = (match: (args: readonly string[]) => boolean) =>
       latest[fake.calls.findIndex((call) => match(call.args))];
     assert.equal(
@@ -78,9 +87,9 @@ void test("progress names each stage before the stage's command runs", async () 
       "the scaffolder is announced before it runs",
     );
     assert.equal(
-      at((args) => args.includes("create-temple-bar")),
+      at((args) => args[0] === "init"),
       "vite: installing the packed temple-bar and checking setup",
-      "the install is announced before it runs",
+      "setup is announced before its first command runs",
     );
   } finally {
     fake.close();
