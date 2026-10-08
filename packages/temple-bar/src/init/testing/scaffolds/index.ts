@@ -15,6 +15,7 @@ export interface ScaffoldFixture {
   readonly version: string;
   readonly command: string;
   readonly recordedOn: string;
+  readonly rootEntries?: readonly string[];
   readonly symlinks: Readonly<Record<string, string>>;
   readonly files: Readonly<Record<string, string>>;
 }
