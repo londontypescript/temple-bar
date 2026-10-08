@@ -46,7 +46,12 @@ void test("--update uses the pre-setup snapshot even when setup fails and writes
   let launches = 0;
   fake.override = (call) => {
     if (call.args[0] === "view" && path.basename(call.cwd) === "astro")
-      return { code: 1, output: "cannot run astro", timedOut: false };
+      return {
+        code: 1,
+        output: "cannot run astro",
+        stdout: "",
+        timedOut: false,
+      };
     if (call.args[0] === "create") {
       const name = path.basename(call.cwd);
       writeProject(path.join(call.cwd, recipes[name]?.project ?? ""), {
@@ -65,7 +70,7 @@ void test("--update uses the pre-setup snapshot even when setup fails and writes
       );
       install(call.cwd);
       writeFileSync(path.join(call.cwd, ".npmrc"), "changed by setup\n");
-      return { code: 1, output: "install failed", timedOut: false };
+      return { code: 1, output: "install failed", stdout: "", timedOut: false };
     }
     if (call.args[1] === "prettier") {
       assert.equal(launches, 2, "formatter runs only after every scaffold");

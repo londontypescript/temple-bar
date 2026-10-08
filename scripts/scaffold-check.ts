@@ -47,6 +47,7 @@ async function main(args: readonly string[]): Promise<void> {
     const result = await check({
       update: mode === "update",
       signal: controller.signal,
+      progress: (line) => process.stderr.write(`${line}\n`),
     });
     process.stdout.write(result.report);
     process.exitCode = result.code;

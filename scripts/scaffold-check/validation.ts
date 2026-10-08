@@ -43,6 +43,25 @@ export function validateRefusal(
   return findings;
 }
 
+/** The packed temple-bar carries the version in this checkout's source,
+ * which until a release bump is also the published version. pnpm resolves
+ * either one under the same name and version, so only the lockfile's
+ * tarball address shows whether the install tested this checkout's code or
+ * the package already on npm. */
+export function validateSource(dir: string, registry: string): string[] {
+  let lockfile: string;
+  try {
+    lockfile = readFileSync(path.join(dir, "pnpm-lock.yaml"), "utf8");
+  } catch {
+    return ["install: no pnpm-lock.yaml to show where temple-bar came from"];
+  }
+  return lockfile.includes(`tarball: ${registry}tarball.tgz`)
+    ? []
+    : [
+        `install: temple-bar didn't come from the packed tarball at ${registry}`,
+      ];
+}
+
 export function validateCommit(result: RunResult): string[] {
   return result.code !== 0 &&
     !result.timedOut &&

@@ -34,6 +34,9 @@ export interface CheckOptions {
   readonly fixtureDirectory?: string;
   readonly now?: () => Date;
   readonly signal?: AbortSignal;
+  /** Told as each stage starts: a run takes minutes and prints its report
+   * only at the end, so without this a working run looks like a dead one. */
+  readonly progress?: (line: string) => void;
 }
 
 interface ScaffoldResult {
@@ -54,6 +57,7 @@ export async function check(options: CheckOptions): Promise<CheckResult> {
     path.join(options.tempRoot ?? tmpdir(), "temple-bar-scaffold-check-"),
   );
   const runner = options.runner ?? runProcess;
+  const progress = options.progress ?? (() => undefined);
   const results: ScaffoldResult[] = [];
   const recordings: Recording[] = [];
   const globalDetails: string[] = [];
@@ -78,6 +82,9 @@ export async function check(options: CheckOptions): Promise<CheckResult> {
   };
   try {
     // No scaffolder starts unless both delivery artifacts were built and packed.
+    progress(
+      "scaffold-check: building and packing temple-bar from this checkout",
+    );
     resources = await (options.resources ?? prepareResources)(folder);
     if (options.signal?.aborted) throw new Interrupted();
     const env = environments(
@@ -95,12 +102,12 @@ export async function check(options: CheckOptions): Promise<CheckResult> {
     if (
       pnpm.code !== 0 ||
       pnpm.timedOut ||
-      !/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(pnpm.output.trim())
+      !/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(pnpm.stdout.trim())
     )
       throw new Error(
         `Couldn't resolve running pnpm version: ${failure(pnpm)}`,
       );
-    const pnpmVersion = pnpm.output.trim();
+    const pnpmVersion = pnpm.stdout.trim();
     for (const fixture of options.fixtures ?? scaffolds) {
       const recipe = recipes[fixture.name];
       const details: string[] = [];
@@ -111,6 +118,7 @@ export async function check(options: CheckOptions): Promise<CheckResult> {
       let snapshot;
       let version = "";
       let command = commandText("pnpm", ["view", recipe.package, "version"]);
+      progress(`${fixture.name}: ${command}`);
       try {
         const lookup = await run(
           "pnpm",
@@ -122,12 +130,13 @@ export async function check(options: CheckOptions): Promise<CheckResult> {
         if (
           lookup.code !== 0 ||
           lookup.timedOut ||
-          !/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(lookup.output.trim())
+          !/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(lookup.stdout.trim())
         )
           throw new Error(`${command}: ${failure(lookup)}`);
-        version = lookup.output.trim();
+        version = lookup.stdout.trim();
         const args = scaffoldArgs(recipe, version);
         command = commandText("pnpm", args);
+        progress(`${fixture.name}: ${command}`);
         const scaffold = await run(
           "pnpm",
           args,
@@ -161,6 +170,9 @@ export async function check(options: CheckOptions): Promise<CheckResult> {
       if (options.update && comparison.differences.length > 0)
         recordings.push({ fixture, recipe, snapshot, version, command });
       try {
+        progress(
+          `${fixture.name}: installing the packed temple-bar and checking setup`,
+        );
         const installed = await setup(
           path.join(cwd, recipe.project),
           snapshot,
@@ -191,6 +203,9 @@ export async function check(options: CheckOptions): Promise<CheckResult> {
       results.push({ name: fixture.name, statuses, details });
     }
     if (recordings.length > 0) {
+      progress(
+        `scaffold-check: recording ${String(recordings.length)} fixture(s)`,
+      );
       const written = writeRecordings(
         recordings,
         options.fixtureDirectory ??

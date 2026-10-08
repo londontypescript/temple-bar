@@ -24,6 +24,7 @@ import { capture, type Snapshot } from "./snapshot.ts";
 export const ok = (output = ""): RunResult => ({
   code: 0,
   output,
+  stdout: output,
   timedOut: false,
 });
 
@@ -48,8 +49,12 @@ function gitFiles(dir: string): void {
   writeFileSync(path.join(dir, ".git/config"), "initial config\n");
 }
 
-/** Fake output is built independently of the validator's predictions. */
-export function install(dir: string): void {
+export const FAKE_REGISTRY = "http://registry.invalid/";
+
+/** Fake output is built independently of the validator's predictions. The
+ * lockfile names the packed tarball, as a real install from the local
+ * registry does. */
+export function install(dir: string, registry = FAKE_REGISTRY): void {
   const pkg =
     manifest(readFileSync(path.join(dir, "package.json"), "utf8")) ?? {};
   const scripts = object(pkg.scripts) ?? {};
@@ -83,6 +88,7 @@ export function install(dir: string): void {
     }
   })();
   writeProject(dir, {
+    "pnpm-lock.yaml": `packages:\n  '@londontypescript/temple-bar@0.0.9':\n    resolution: {integrity: sha512-fake, tarball: ${registry}tarball.tgz}\n`,
     "package.json": `${JSON.stringify(pkg, null, 2)}\n`,
     "AGENTS.md":
       agents === undefined
@@ -186,7 +192,7 @@ export function world(
       state.packed++;
       return Promise.resolve({
         version: "0.0.9",
-        registry: "http://registry.invalid/",
+        registry: FAKE_REGISTRY,
         tarballs: {
           templeBar: path.join(folder, "temple-bar.tgz"),
           createTempleBar: path.join(folder, "create-temple-bar.tgz"),
@@ -229,6 +235,7 @@ export function world(
           return {
             code: 1,
             output: "refusing to commit directly to main\n",
+            stdout: "",
             timedOut: false,
           };
         return ok();
@@ -239,9 +246,14 @@ export function world(
           throw new Error("fake: no original snapshot");
         const expected = expectation(snapshot);
         if (expected.refusal !== undefined)
-          return { code: 1, output: `${expected.refusal}\n`, timedOut: false };
+          return {
+            code: 1,
+            output: `${expected.refusal}\n`,
+            stdout: "",
+            timedOut: false,
+          };
         if (expected.unknown.length > 0)
-          return { code: 1, output: "conflict\n", timedOut: false };
+          return { code: 1, output: "conflict\n", stdout: "", timedOut: false };
         install(command.cwd);
         return ok("setup passed\n");
       }
@@ -257,6 +269,7 @@ export function world(
         return {
           code: missing.length > 0 ? 2 : 1,
           output: `${missing.length > 0 ? `gate: repo missing script(s): ${missing.join(", ")}\n` : ""}framework's own lint failed\n`,
+          stdout: "",
           timedOut: false,
         };
       }

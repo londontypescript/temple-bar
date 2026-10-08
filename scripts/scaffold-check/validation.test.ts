@@ -8,9 +8,18 @@ import {
   validateCommit,
   validateGate,
   validateRefusal,
+  validateSource,
 } from "./validation.ts";
 import { check } from "./check.ts";
-import { fixture, minimalFiles, ok, tempProject, world } from "./testing.ts";
+import {
+  FAKE_REGISTRY,
+  fixture,
+  install,
+  minimalFiles,
+  ok,
+  tempProject,
+  world,
+} from "./testing.ts";
 
 for (const manager of ["npm@99.1.0", "yarn@4.3.0"]) {
   void test(`real orchestration judges the launcher's ${manager} refusal using the snapshot value`, async () => {
@@ -74,6 +83,7 @@ void test("real orchestration keeps no expectation separate from setup failure a
           ? {
               code: 0,
               output: "fake gh: unexpected call: []\n",
+              stdout: "",
               timedOut: false,
             }
           : undefined;
@@ -124,6 +134,7 @@ for (const foreign of [
       const launch = {
         code: 1,
         output: `${expected.refusal}\n`,
+        stdout: "",
         timedOut: false,
       };
       assert.deepEqual(
@@ -164,6 +175,7 @@ for (const kind of [
           kind === "message"
             ? "pnpm: This project is configured to use npm\n"
             : `${message}\n`,
+        stdout: "",
         timedOut: kind === "deadline",
       };
       if (kind === "config")
@@ -200,6 +212,7 @@ void test("gate judges exact missing scripts in gate order, exit and deadline wh
       validateGate(project.snapshot, {
         code: 2,
         output: report,
+        stdout: "",
         timedOut: false,
       }),
       [],
@@ -217,6 +230,7 @@ void test("gate judges exact missing scripts in gate order, exit and deadline wh
         validateGate(project.snapshot, {
           code: 2,
           output: changed,
+          stdout: "",
           timedOut: false,
         }).some((finding) =>
           finding.startsWith("gate: expected missing script(s):"),
@@ -227,6 +241,7 @@ void test("gate judges exact missing scripts in gate order, exit and deadline wh
       validateGate(project.snapshot, {
         code: 1,
         output: report,
+        stdout: "",
         timedOut: false,
       }).some((finding) => finding.startsWith("gate: unexpected exit")),
       "missing scripts require gate exit 2",
@@ -235,6 +250,7 @@ void test("gate judges exact missing scripts in gate order, exit and deadline wh
       validateGate(project.snapshot, {
         code: 2,
         output: report,
+        stdout: "",
         timedOut: true,
       }).some((finding) => finding.includes("deadline")),
       "deadlined gate is not accepted",
@@ -252,6 +268,7 @@ void test("gate judges exact missing scripts in gate order, exit and deadline wh
         validateGate(all.snapshot, {
           code,
           output: "framework report\n",
+          stdout: "",
           timedOut: false,
         }),
         [],
@@ -267,16 +284,18 @@ void test("commit validator requires the hook's own refusal, not just a failing 
     validateCommit({
       code: 1,
       output: "refusing to commit directly to main\n",
+      stdout: "",
       timedOut: false,
     }),
     [],
   );
   for (const result of [
     ok(),
-    { code: 1, output: "git failed\n", timedOut: false },
+    { code: 1, output: "git failed\n", stdout: "", timedOut: false },
     {
       code: 1,
       output: "refusing to commit directly to main\n",
+      stdout: "",
       timedOut: true,
     },
   ])
@@ -285,4 +304,31 @@ void test("commit validator requires the hook's own refusal, not just a failing 
       ["hooks: direct commit to main did not refuse with the hook's message"],
       "bad commit result gets own hook finding",
     );
+});
+
+void test("source validator requires the lockfile to name the packed tarball", () => {
+  const project = tempProject(minimalFiles);
+  try {
+    assert.deepEqual(
+      validateSource(project.dir, FAKE_REGISTRY),
+      ["install: no pnpm-lock.yaml to show where temple-bar came from"],
+      "no lockfile is a finding",
+    );
+    install(project.dir, "https://registry.npmjs.org/");
+    assert.deepEqual(
+      validateSource(project.dir, FAKE_REGISTRY),
+      [
+        `install: temple-bar didn't come from the packed tarball at ${FAKE_REGISTRY}`,
+      ],
+      "a tarball from npm is a finding",
+    );
+    install(project.dir);
+    assert.deepEqual(
+      validateSource(project.dir, FAKE_REGISTRY),
+      [],
+      "the packed tarball passes",
+    );
+  } finally {
+    project.close();
+  }
 });

@@ -30,6 +30,11 @@ void test("runner closes stdin, keeps the last 64 KiB across both streams and re
       result.output.includes("|stdout|") && result.output.includes("|stderr|"),
       "both output streams contribute to the tail",
     );
+    assert.equal(
+      result.stdout,
+      `${"a".repeat(40000)}|stdout|`,
+      "standard output is kept on its own, without the other stream",
+    );
     const missing = await runProcess({
       command: path.join(dir, "no-command"),
       args: [],
