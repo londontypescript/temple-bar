@@ -1,6 +1,6 @@
-// Recorded on 2026-10-07 from create-react-router 8.4.0, without installing
+// Recorded on 2026-10-08 from create-react-router 8.4.0, without installing
 // dependencies, under pnpm 10.34.5 and Node 24.21.0:
-// pnpm create react-router@latest rr-app --yes --no-install --no-git-init
+// pnpm create react-router@8.4.0 rr-app --yes --no-install --no-git-init
 // Re-recording replaces these strings wholesale; never edit their content.
 
 export const reactRouter = {
@@ -8,8 +8,21 @@ export const reactRouter = {
   scaffolder: "create-react-router",
   version: "8.4.0",
   command:
-    "pnpm create react-router@latest rr-app --yes --no-install --no-git-init",
-  recordedOn: "2026-10-07",
+    "pnpm create react-router@8.4.0 rr-app --yes --no-install --no-git-init",
+  recordedOn: "2026-10-08",
+  rootEntries: [
+    ".agents",
+    ".dockerignore",
+    ".gitignore",
+    "Dockerfile",
+    "README.md",
+    "app",
+    "package.json",
+    "public",
+    "react-router.config.ts",
+    "tsconfig.json",
+    "vite.config.ts",
+  ],
   symlinks: {},
   files: {
     ".gitignore":
