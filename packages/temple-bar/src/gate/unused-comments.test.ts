@@ -14,6 +14,10 @@ void test("ordinary comments and whitespace qualify; directives and every code t
   ])
     assert.equal(containsOnlyComments(text), true, text);
   for (const text of [
+    "// @ts-nocheck",
+    "/** @typedef {string} Name */",
+    "/** @import {Name} from './types' */",
+    "//# sourceMappingURL=code.js.map",
     "/// <reference types='node' />",
     "#!node\n",
     "/* open",

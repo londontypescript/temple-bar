@@ -31,12 +31,18 @@ export default data => { writeFileSync('processor-ran', 'yes'); return data; };
       describe(configured),
     );
     assert.match(configured.stdout, /accepted 1 comment-only unused file/);
-    assert.match(configured.stderr, /package-entry/);
+    assert.match(
+      configured.stdout + configured.stderr,
+      /passed +unused code \(knip\)/,
+    );
+    assert.match(configured.stderr, /Package entry file not found/);
     rmSync(config);
     rmSync(processor);
     rmSync(path.join(options.cwd, "processor-ran"));
     for (const contents of [
       "export const unused = 1;\n",
+      "/** @typedef {string} Name */\n",
+      "// @ts-nocheck\n",
       "export {};\n",
       "'/* string */';\n",
       "/// <reference types='node' />\n",
@@ -68,6 +74,10 @@ export default data => { writeFileSync('processor-ran', 'yes'); return data; };
       route,
       `<script lang="ts">import {used} from '#lib';import {helper} from '#lib/helper.ts';</script>\n<p>{used + helper}</p>\n`,
     );
+    writeFileSync(
+      path.join(options.cwd, "src/lib/placeholder.ts"),
+      "// unrelated empty file\n",
+    );
     const negative = await gate();
     assert.match(
       negative.stderr,
@@ -87,6 +97,7 @@ export default data => { writeFileSync('processor-ran', 'yes'); return data; };
     for (const relative of [
       "src/lib/helper.ts",
       "src/lib/unreachable.ts",
+      "src/lib/placeholder.ts",
       "knip.json",
       "processor.mjs",
       "processor-ran",

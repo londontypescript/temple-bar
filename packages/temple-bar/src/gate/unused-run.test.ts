@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { tmpdir } from "node:os";
 import test from "node:test";
 
 import { createFakeContext } from "../testing/fakes.ts";
+import { createUnusedReport } from "./testing/unused-report.ts";
 import { runKnip } from "./unused-run.ts";
 
 void test("missing or malformed capture keeps the analyzer result and removes the temporary report", async () => {
@@ -43,5 +45,55 @@ void test("missing or malformed capture keeps the analyzer result and removes th
         code: "ENOENT",
       });
     }
+  }
+});
+
+void test("valid capture passes only at exit 1 when every file qualifies", async () => {
+  const root = await fs.realpath(
+    await fs.mkdtemp(path.join(tmpdir(), "temple-bar-knip-positive-")),
+  );
+  try {
+    const file = path.join(root, "empty.ts");
+    await fs.writeFile(file, "// placeholder");
+    const evidence = createUnusedReport();
+    evidence.issues.files = {
+      [file]: { [file]: { type: "files", filePath: file } },
+    };
+    const invoke = (code: number, body: string) =>
+      runKnip(
+        {
+          ...createFakeContext({ cwd: root }),
+          proc: {
+            async run(_command, args) {
+              const parsed = JSON.parse(args.at(-1) ?? "{}") as {
+                outputPath: string;
+              };
+              await fs.writeFile(parsed.outputPath, body);
+              return code;
+            },
+          },
+        },
+        [],
+        "/knip.js",
+      );
+    for (const code of [0, 1, 2, 127]) {
+      assert.deepEqual(
+        await invoke(code, JSON.stringify(evidence)),
+        code === 1 ? { code, commentOnlyFiles: [file] } : { code },
+      );
+    }
+    assert.deepEqual(
+      await invoke(1, JSON.stringify(evidence) + " ".repeat(8_388_609)),
+      { code: 1 },
+    );
+    const other = path.join(root, "code.ts");
+    await fs.writeFile(other, "export {};");
+    evidence.issues.files[other] = {
+      [other]: { type: "files", filePath: other },
+    };
+    evidence.counters.files = 2;
+    assert.deepEqual(await invoke(1, JSON.stringify(evidence)), { code: 1 });
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
   }
 });

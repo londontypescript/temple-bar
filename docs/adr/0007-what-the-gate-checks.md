@@ -84,7 +84,8 @@ only when its complete nonempty report consists entirely of verified unused
 files containing whitespace and ordinary valid comments. The exception is
 independent of path and framework: commented-out code has no syntactic tokens
 and qualifies, but imports, declarations, exports, strings, hashbangs,
-triple-slash directives and incomplete comments do not.
+triple-slash directives, compiler pragmas, JSDoc declarations and incomplete
+comments do not. Ordinary license and explanatory comments still qualify.
 
 Eligible files are regular `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`
 or `.cts` files inside the project after resolving paths. Symlinks, unknown

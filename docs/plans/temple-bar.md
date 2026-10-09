@@ -27,68 +27,67 @@ Settled before this session:
 
 Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), after the judge's trial on 2026-10-03 (46–54), while planning 0.0.8 on 2026-10-04 (55), and while building it on 2026-10-05 (56–58). Decision 38 was revised on 2026-10-05: incidents are titled, not labelled. Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds, and 28 again on 2026-10-04, when 0.0.10 was added:
 
-| #   | Decision                                                                            | ADR                                                       |
-| --- | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| 1   | The README opens with a plain two-sentence intro, then setup, then the background   | [0009](../adr/0009-readme-and-agents-md.md)               |
-| 2   | Public but highly opinionated: the maintainer's defaults, 0.x versions              | [0002](../adr/0002-what-temple-bar-is-for.md)             |
-| 3   | GitHub only: a git repo, `gh` signed in, `origin` on GitHub                         | [0002](../adr/0002-what-temple-bar-is-for.md)             |
-| 4   | `main` changes only through merged pull requests; hooks guard local `main`          | [0003](../adr/0003-how-a-change-reaches-main.md)          |
-| 5   | Scaffold first, then setup through `pnpm create` layers on top; pnpm only           | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
-| 6   | Stage0: plain checks, 3-OS CI and GitHub protection before the first release        | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
-| 7   | temple-bar's repo is gated by its last published release, never its source          | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
-| 8   | Only CI publishes, through npm trusted publishing with provenance                   | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
-| 9   | pnpm workspaces, Node 24+, CI on 3 OSes; strict ESLint and Prettier                 | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
-| 10  | Base-check tools: pinned tools; Markdown integrity, with style owned by projects    | [0007](../adr/0007-what-the-gate-checks.md)               |
-| 11  | No timebox: the first real release is defined by scope                              | [0002](../adr/0002-what-temple-bar-is-for.md)             |
-| 12  | No TypeScript logo, a capital S, and no disclaimer in temple-bar itself             | [0009](../adr/0009-readme-and-agents-md.md)               |
-| 13  | No `doctor` command: hooks and the gate keep status truthful                        | [0008](../adr/0008-status-without-doctor.md)              |
-| 14  | Status is a published, versioned contract with a live log per worktree              | [0008](../adr/0008-status-without-doctor.md)              |
-| 15  | Each project declares delivery paths with end-to-end checks the gate runs           | [0007](../adr/0007-what-the-gate-checks.md)               |
-| 16  | Worktrees go where the harness puts them; temple-bar checks the harms               | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
-| 17  | Squash merges only; one pull request per phase; linear, signed history on `main`    | [0003](../adr/0003-how-a-change-reaches-main.md)          |
-| 18  | The orchestrator merges when green, except changes that need the maintainer's yes   | [0003](../adr/0003-how-a-change-reaches-main.md)          |
-| 19  | Agents keep the README accurate; a rewrite or new structure is the maintainer's     | [0009](../adr/0009-readme-and-agents-md.md)               |
-| 20  | `--help` runs nothing; a passing gate lists the checks that ran                     | [0007](../adr/0007-what-the-gate-checks.md)               |
-| 21  | The README says hooks arrive with the install; nothing more for fresh clones        | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
-| 22  | Hooks fail closed where temple-bar isn't installed yet                              | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
-| 23  | The gate requires the four scripts once a repo has content, never as no-ops         | [0007](../adr/0007-what-the-gate-checks.md)               |
-| 24  | Conventional, proportional commit messages, also for pull request titles            | [0003](../adr/0003-how-a-change-reaches-main.md)          |
-| 25  | CodeQL is a required check on the `main` ruleset                                    | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
-| 26  | The test suite runs shut off from the machine's git config                          | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
-| 27  | _Superseded by 37._ A gitignored `planning/` folder held progress and the handoff   | [0010](../adr/0010-plans-progress-and-incidents.md)       |
-| 28  | grand-union starts once temple-bar 0.0.10 ships; other themes continue alongside    | [0002](../adr/0002-what-temple-bar-is-for.md)             |
-| 29  | Working, standards-following code first; a showcase for TypeScript devs second      | [0002](../adr/0002-what-temple-bar-is-for.md)             |
-| 30  | Worktree location stays each harness's choice; one inside the repo is made safe     | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
-| 31  | Built for every London TypeScript repo; GitHub, `gh` and pnpm required              | [0002](../adr/0002-what-temple-bar-is-for.md)             |
-| 32  | A `post-checkout` hook sets up every new worktree                                   | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
-| 33  | `temple-bar merge` does the whole merge, cleanup included                           | [0003](../adr/0003-how-a-change-reaches-main.md)          |
-| 34  | The same GitHub rulesets on every London TypeScript repo, signed commits included   | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
-| 35  | Push once, when the work is finished                                                | [0003](../adr/0003-how-a-change-reaches-main.md)          |
-| 36  | AGENTS.md stays within 200 lines and 32 KiB                                         | [0009](../adr/0009-readme-and-agents-md.md)               |
-| 37  | GitHub issues are the tracker (supersedes 27)                                       | [0010](../adr/0010-plans-progress-and-incidents.md)       |
-| 38  | Incidents improve temple-bar only, filed as its issues with no private details      | [0010](../adr/0010-plans-progress-and-incidents.md)       |
-| 39  | No project board until grand-union, which then gets its own                         | [0010](../adr/0010-plans-progress-and-incidents.md)       |
-| 40  | temple-bar applies a short fixed list of GitHub settings, not all of them           | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
-| 41  | A judge run from `main` refuses changes to workflows, the pin or gate scripts       | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-| 42  | The maintainer bypass-merges check changes; `temple-bar merge` never bypasses       | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-| 43  | The gate's ruleset check supports public repos only for now                         | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
-| 44  | A repo without AGENTS.md skips the size check rather than failing                   | [0007](../adr/0007-what-the-gate-checks.md)               |
-| 45  | Hooks live in git's shared hooks folder, so every worktree has them                 | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
-| 46  | Repository admins merge check changes past the judge, through a pull request only   | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-| 47  | `merge` refuses check changes; it and the judge both say to ask for the admin merge | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-| 48  | `ready` warns about exactly the files the judge guards, from the judge's own list   | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-| 49  | Bypass merges are detected and reported from rule-suite history (from 0.0.8)        | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-| 50  | The gate fails without the judge's ruleset, except while its workflow is on its way | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-| 51  | One maintainer yes creates both rulesets                                            | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-| 52  | The judge runs the pinned temple-bar with `npm exec`                                | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-| 53  | temple-bar's own judge is switched on in the 0.0.7 release, before the pin bump     | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-| 54  | Merge refuses 2+ closed issues without a `One concern:` line                        | [rationale](../agents-rationale.md)                       |
-| 55  | Work is planned by milestone across the org; agents phase a milestone's issues      | [rationale](../agents-rationale.md)                       |
-| 56  | temple-bar's AGENTS.md block is never trimmed to make room; a project's text moves  | [0009](../adr/0009-readme-and-agents-md.md)               |
-| 57  | One short plan file per milestone; decisions live in ADRs (for the template)        | [0010](../adr/0010-plans-progress-and-incidents.md)       |
-| 58  | Of the tool configs, the judge guards only temple-bar.config.json                   | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
-
-| 59 | Comment-only JavaScript/TypeScript unused files may pass; all code and analyzer failures remain blocking | [0007](../adr/0007-what-the-gate-checks.md) |
+| #   | Decision                                                                                                 | ADR                                                       |
+| --- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 1   | The README opens with a plain two-sentence intro, then setup, then the background                        | [0009](../adr/0009-readme-and-agents-md.md)               |
+| 2   | Public but highly opinionated: the maintainer's defaults, 0.x versions                                   | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 3   | GitHub only: a git repo, `gh` signed in, `origin` on GitHub                                              | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 4   | `main` changes only through merged pull requests; hooks guard local `main`                               | [0003](../adr/0003-how-a-change-reaches-main.md)          |
+| 5   | Scaffold first, then setup through `pnpm create` layers on top; pnpm only                                | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 6   | Stage0: plain checks, 3-OS CI and GitHub protection before the first release                             | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
+| 7   | temple-bar's repo is gated by its last published release, never its source                               | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
+| 8   | Only CI publishes, through npm trusted publishing with provenance                                        | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
+| 9   | pnpm workspaces, Node 24+, CI on 3 OSes; strict ESLint and Prettier                                      | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
+| 10  | Base-check tools: pinned tools; Markdown integrity, with style owned by projects                         | [0007](../adr/0007-what-the-gate-checks.md)               |
+| 11  | No timebox: the first real release is defined by scope                                                   | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 12  | No TypeScript logo, a capital S, and no disclaimer in temple-bar itself                                  | [0009](../adr/0009-readme-and-agents-md.md)               |
+| 13  | No `doctor` command: hooks and the gate keep status truthful                                             | [0008](../adr/0008-status-without-doctor.md)              |
+| 14  | Status is a published, versioned contract with a live log per worktree                                   | [0008](../adr/0008-status-without-doctor.md)              |
+| 15  | Each project declares delivery paths with end-to-end checks the gate runs                                | [0007](../adr/0007-what-the-gate-checks.md)               |
+| 16  | Worktrees go where the harness puts them; temple-bar checks the harms                                    | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 17  | Squash merges only; one pull request per phase; linear, signed history on `main`                         | [0003](../adr/0003-how-a-change-reaches-main.md)          |
+| 18  | The orchestrator merges when green, except changes that need the maintainer's yes                        | [0003](../adr/0003-how-a-change-reaches-main.md)          |
+| 19  | Agents keep the README accurate; a rewrite or new structure is the maintainer's                          | [0009](../adr/0009-readme-and-agents-md.md)               |
+| 20  | `--help` runs nothing; a passing gate lists the checks that ran                                          | [0007](../adr/0007-what-the-gate-checks.md)               |
+| 21  | The README says hooks arrive with the install; nothing more for fresh clones                             | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 22  | Hooks fail closed where temple-bar isn't installed yet                                                   | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 23  | The gate requires the four scripts once a repo has content, never as no-ops                              | [0007](../adr/0007-what-the-gate-checks.md)               |
+| 24  | Conventional, proportional commit messages, also for pull request titles                                 | [0003](../adr/0003-how-a-change-reaches-main.md)          |
+| 25  | CodeQL is a required check on the `main` ruleset                                                         | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
+| 26  | The test suite runs shut off from the machine's git config                                               | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
+| 27  | _Superseded by 37._ A gitignored `planning/` folder held progress and the handoff                        | [0010](../adr/0010-plans-progress-and-incidents.md)       |
+| 28  | grand-union starts once temple-bar 0.0.10 ships; other themes continue alongside                         | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 29  | Working, standards-following code first; a showcase for TypeScript devs second                           | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 30  | Worktree location stays each harness's choice; one inside the repo is made safe                          | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 31  | Built for every London TypeScript repo; GitHub, `gh` and pnpm required                                   | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 32  | A `post-checkout` hook sets up every new worktree                                                        | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 33  | `temple-bar merge` does the whole merge, cleanup included                                                | [0003](../adr/0003-how-a-change-reaches-main.md)          |
+| 34  | The same GitHub rulesets on every London TypeScript repo, signed commits included                        | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
+| 35  | Push once, when the work is finished                                                                     | [0003](../adr/0003-how-a-change-reaches-main.md)          |
+| 36  | AGENTS.md stays within 200 lines and 32 KiB                                                              | [0009](../adr/0009-readme-and-agents-md.md)               |
+| 37  | GitHub issues are the tracker (supersedes 27)                                                            | [0010](../adr/0010-plans-progress-and-incidents.md)       |
+| 38  | Incidents improve temple-bar only, filed as its issues with no private details                           | [0010](../adr/0010-plans-progress-and-incidents.md)       |
+| 39  | No project board until grand-union, which then gets its own                                              | [0010](../adr/0010-plans-progress-and-incidents.md)       |
+| 40  | temple-bar applies a short fixed list of GitHub settings, not all of them                                | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
+| 41  | A judge run from `main` refuses changes to workflows, the pin or gate scripts                            | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 42  | The maintainer bypass-merges check changes; `temple-bar merge` never bypasses                            | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 43  | The gate's ruleset check supports public repos only for now                                              | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
+| 44  | A repo without AGENTS.md skips the size check rather than failing                                        | [0007](../adr/0007-what-the-gate-checks.md)               |
+| 45  | Hooks live in git's shared hooks folder, so every worktree has them                                      | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 46  | Repository admins merge check changes past the judge, through a pull request only                        | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 47  | `merge` refuses check changes; it and the judge both say to ask for the admin merge                      | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 48  | `ready` warns about exactly the files the judge guards, from the judge's own list                        | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 49  | Bypass merges are detected and reported from rule-suite history (from 0.0.8)                             | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 50  | The gate fails without the judge's ruleset, except while its workflow is on its way                      | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 51  | One maintainer yes creates both rulesets                                                                 | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 52  | The judge runs the pinned temple-bar with `npm exec`                                                     | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 53  | temple-bar's own judge is switched on in the 0.0.7 release, before the pin bump                          | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 54  | Merge refuses 2+ closed issues without a `One concern:` line                                             | [rationale](../agents-rationale.md)                       |
+| 55  | Work is planned by milestone across the org; agents phase a milestone's issues                           | [rationale](../agents-rationale.md)                       |
+| 56  | temple-bar's AGENTS.md block is never trimmed to make room; a project's text moves                       | [0009](../adr/0009-readme-and-agents-md.md)               |
+| 57  | One short plan file per milestone; decisions live in ADRs (for the template)                             | [0010](../adr/0010-plans-progress-and-incidents.md)       |
+| 58  | Of the tool configs, the judge guards only temple-bar.config.json                                        | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+| 59  | Comment-only JavaScript/TypeScript unused files may pass; all code and analyzer failures remain blocking | [0007](../adr/0007-what-the-gate-checks.md)               |
 
 Decision 59 was approved on 2026-10-09 after Claude Sonnet reviewed the precise content-only contract.
 

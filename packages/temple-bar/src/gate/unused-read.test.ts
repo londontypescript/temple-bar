@@ -39,6 +39,18 @@ void test("file boundary rejects code, unknown extensions, bad encoding, large f
       await fs.writeFile(file, contents);
       assert.equal(await isCommentOnlyFile(root, file), false, name);
     }
+    const boundary = path.join(root, "boundary.ts");
+    await fs.writeFile(boundary, " ".repeat(1_048_576));
+    assert.equal(await isCommentOnlyFile(root, boundary), true);
+    const bom = path.join(root, "bom.ts");
+    await fs.writeFile(
+      bom,
+      Buffer.concat([
+        Buffer.from([0xef, 0xbb, 0xbf]),
+        Buffer.from("// license"),
+      ]),
+    );
+    assert.equal(await isCommentOnlyFile(root, bom), true);
     const outside = path.join(folder, "outside.ts");
     await fs.writeFile(outside, "//outside");
     assert.equal(await isCommentOnlyFile(root, outside), false);
@@ -54,6 +66,28 @@ void test("file boundary rejects code, unknown extensions, bad encoding, large f
     );
     // Windows file symlinks require privileges not granted on all runners.
     if (process.platform !== "win32") {
+      const realRoot = await fs.realpath(root);
+      const alias = path.join(folder, "alias");
+      await fs.symlink(root, alias, "dir");
+      assert.equal(
+        await isCommentOnlyFile(alias, path.join(realRoot, "empty.ts")),
+        true,
+      );
+      assert.equal(
+        await isCommentOnlyFile(realRoot, path.join(alias, "empty.ts")),
+        false,
+      );
+      assert.equal(
+        await isCommentOnlyFile(alias, path.join(alias, "empty.ts")),
+        true,
+      );
+      const intermediate = path.join(root, "linked");
+      await fs.symlink(root, intermediate, "dir");
+      assert.equal(
+        await isCommentOnlyFile(root, path.join(intermediate, "empty.ts")),
+        false,
+      );
+
       for (const [name, target] of [
         ["inside.ts", path.join(root, "empty.ts")],
         ["outside-link.ts", outside],

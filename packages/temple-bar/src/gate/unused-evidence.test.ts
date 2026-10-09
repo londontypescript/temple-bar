@@ -6,67 +6,9 @@ import test from "node:test";
 
 import type { ReporterOptions } from "knip";
 
+import { createUnusedReport as evidence } from "./testing/unused-report.ts";
 import { reportedFilePaths } from "./unused-evidence.ts";
 import captureUnusedReport from "./unused-reporter.ts";
-
-const groups = [
-  "files",
-  "dependencies",
-  "devDependencies",
-  "optionalPeerDependencies",
-  "unlisted",
-  "binaries",
-  "unresolved",
-  "exports",
-  "nsExports",
-  "types",
-  "nsTypes",
-  "enumMembers",
-  "namespaceMembers",
-  "duplicates",
-  "catalog",
-  "catalogReferences",
-  "cycles",
-];
-function evidence(): {
-  report: Record<string, boolean>;
-  issues: Record<
-    string,
-    Record<string, Record<string, { type: string; filePath: string }>>
-  >;
-  counters: Record<string, number>;
-  hasConfigLoadErrors: boolean;
-  configurationHintCount: number;
-  tagHintCount: number;
-  isTreatConfigHintsAsErrors: boolean;
-  isTreatTagHintsAsErrors: boolean;
-} {
-  return {
-    report: Object.fromEntries(
-      groups.map((key) => [key, ["files", "exports", "types"].includes(key)]),
-    ),
-    issues: Object.fromEntries(
-      groups.map((key) => [
-        key,
-        key === "files"
-          ? {
-              "empty.ts": {
-                "empty.ts": { type: "files", filePath: "/repo/empty.ts" },
-              },
-            }
-          : {},
-      ]),
-    ),
-    counters: Object.fromEntries(
-      groups.map((key) => [key, key === "files" ? 1 : 0]),
-    ),
-    hasConfigLoadErrors: false,
-    configurationHintCount: 1,
-    tagHintCount: 0,
-    isTreatConfigHintsAsErrors: false,
-    isTreatTagHintsAsErrors: false,
-  };
-}
 
 void test("only complete nonempty file findings without other failure causes qualify", () => {
   assert.deepEqual(reportedFilePaths(evidence()), ["/repo/empty.ts"]);
@@ -83,6 +25,7 @@ void test("only complete nonempty file findings without other failure causes qua
   changed.issues.exports = {
     "code.ts": { x: { type: "exports", filePath: "/repo/code.ts" } },
   };
+  changed.counters.exports = 1;
   assert.equal(reportedFilePaths(changed), undefined);
   const empty = evidence();
   empty.issues.files = {};
