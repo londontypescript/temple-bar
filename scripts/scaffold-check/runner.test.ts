@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -52,12 +52,12 @@ void test("runner closes stdin, keeps the last 64 KiB across both streams and re
 for (const stop of ["deadline", "Ctrl-C"] as const) {
   void test(`runner kills the whole child group on ${stop}`, async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "scaffold-runner-group-"));
-    const marker = path.join(dir, "grandchild-survived");
+    const marker = path.join(dir, "grandchild-heartbeat");
     const controller = new AbortController();
     // Fixed scripts, with the marker path passed as an argument: no code is
     // built from a value.
     const grandchild =
-      'setTimeout(() => require("node:fs").writeFileSync(process.argv[1], "survived"), 800);';
+      'const fs = require("node:fs"); const beat = () => fs.appendFileSync(process.argv[1], "tick"); beat(); setInterval(beat, 50); setTimeout(() => process.exit(0), 10000);';
     const parent =
       'const [marker, grandchild] = process.argv.slice(1); require("node:child_process").spawn(process.execPath, ["-e", grandchild, marker], {stdio: "ignore"}); setInterval(() => {}, 1000);';
     try {
@@ -66,11 +66,13 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
         args: ["-e", parent, marker, grandchild],
         cwd: dir,
         env: process.env,
-        deadline: stop === "deadline" ? 200 : 5000,
+        deadline: 5000,
         signal: controller.signal,
       });
       if (stop === "Ctrl-C") {
-        await setTimeout(200);
+        for (let attempt = 0; !existsSync(marker) && attempt < 200; attempt++)
+          await setTimeout(20);
+        assert.ok(existsSync(marker), "grandchild started before interruption");
         controller.abort();
         await assert.rejects(
           pending,
@@ -82,13 +84,19 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
         assert.equal(result.timedOut, true, "deadline is recorded");
         assert.notEqual(result.code, 0);
       }
+      assert.ok(existsSync(marker), "grandchild ran before the group stopped");
+      // A loaded host can deliver the stopping timer late. Writes before
+      // termination say nothing about cleanup; further writes do.
+      const stoppedSize = statSync(marker).size;
+      assert.ok(stoppedSize > 0, "the grandchild heartbeat was exercised");
       await setTimeout(1000);
       assert.equal(
-        existsSync(marker),
-        false,
-        "grandchild was killed with its parent",
+        statSync(marker).size,
+        stoppedSize,
+        "grandchild kept writing after the process group stopped",
       );
     } finally {
+      controller.abort();
       rmSync(dir, { recursive: true, force: true });
     }
   });

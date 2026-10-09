@@ -126,3 +126,7 @@ reports fail compatibility. Authentic scaffold Markdown is recorded and its
 bytes must survive setup; compatibility with missing scripts is not full gate
 success. `pnpm scaffold-check` exercises all seven live scaffolders before a
 release; it is an on-demand release check, not a required CI job.
+The scaffold process runner waits for the Windows tree-stop command to finish
+before returning a stopped-process result, and reports command failures. Tests
+verify command completion ordering and that descendants stop writing after
+termination, including when the stopping timer is delivered late.
