@@ -1,0 +1,109 @@
+[
+  {
+    "version": "0.0.1",
+    "tarball": "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.0.1.tgz",
+    "integrity": "sha512-3xyaaycz9gFZEeORccb3gWRBcQKw6h4GQyrw5BhEkKKgdGya2gKAsdpjFcspnU24900/0us7v1A77EbH+/Lxng==",
+    "gitHead": "fa232c762cd31632df7143e9fbade507ddcc8bd0",
+    "artifacts": ["hooks/pre-commit", "hooks/reference-transaction"],
+    "tagCommit": "fa232c762cd31632df7143e9fbade507ddcc8bd0"
+  },
+  {
+    "version": "0.0.2",
+    "tarball": "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.0.2.tgz",
+    "integrity": "sha512-q7e7CcOQdzLeDXW3uPJjOYDOQRsBHddPNGxChWpRsPXFZQqJccR3k4cTKwbVqU/18ezbqvE4ZHhR+lx7uItcGQ==",
+    "gitHead": "58ed035346f5c3f7e71ae58020b4e8c76fff3bc1",
+    "artifacts": ["hooks/pre-commit", "hooks/reference-transaction"],
+    "tagCommit": "d262541c445ee9ebc4b91b87815facb3f7a334a3"
+  },
+  {
+    "version": "0.0.3",
+    "tarball": "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.0.3.tgz",
+    "integrity": "sha512-8+R4hsNG6Iyl3Gx2X0CRziTvnRHOIOHwHl3xYl37P/eGxGnyw0BHrdzNxYhRlPbSHeTFRIJT8FTF4uwvYqAymA==",
+    "gitHead": "2031da10bfe9f9efcac7725dc698ee8b0e157817",
+    "artifacts": ["hooks/pre-commit", "hooks/reference-transaction"],
+    "tagCommit": "2031da10bfe9f9efcac7725dc698ee8b0e157817"
+  },
+  {
+    "version": "0.0.4",
+    "tarball": "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.0.4.tgz",
+    "integrity": "sha512-5Eci2/g+WWt+IWRLQRN1onQ6kZd4BIwCfwvBY4SegdFnytxe9dapOB9hcmlApPMM7WlZsjWqjlrTAnfhfKiVRg==",
+    "gitHead": "26063f2461f126e8cbc27e2d66c48fd88fdda4e2",
+    "artifacts": ["hooks/pre-commit", "hooks/reference-transaction"],
+    "tagCommit": "26063f2461f126e8cbc27e2d66c48fd88fdda4e2"
+  },
+  {
+    "version": "0.0.5",
+    "tarball": "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.0.5.tgz",
+    "integrity": "sha512-lFfSzBw8oWYXk9SN76X6xLSJN6n8o/48TTT30S9bzleRuNMW7CrBzuO3axrrIWfYbuMuCYxCdHUKJ7DW6RLzKQ==",
+    "gitHead": "22645f1c947d76a6acc7c46e91f567e089162cc8",
+    "artifacts": [
+      "hooks/pre-commit",
+      "hooks/commit-msg",
+      "hooks/pre-push",
+      "hooks/reference-transaction",
+      "hooks/post-checkout"
+    ],
+    "tagCommit": "22645f1c947d76a6acc7c46e91f567e089162cc8"
+  },
+  {
+    "version": "0.0.6",
+    "tarball": "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.0.6.tgz",
+    "integrity": "sha512-y+ZO+p6xqul7jKudq1vZV1VRLV1mGULvs1UnULrMKSIDjcNt66ZboutF65egWBqRGZvCqfQH8YDq7UHvaNGibg==",
+    "gitHead": "5ac47d68d054a9008b1f6f1e7a4f061fabe15c30",
+    "artifacts": [
+      "hooks/pre-commit",
+      "hooks/commit-msg",
+      "hooks/pre-push",
+      "hooks/reference-transaction",
+      "hooks/post-checkout"
+    ],
+    "tagCommit": "5ac47d68d054a9008b1f6f1e7a4f061fabe15c30"
+  },
+  {
+    "version": "0.0.7",
+    "tarball": "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.0.7.tgz",
+    "integrity": "sha512-jjP8Id+dsk7p8INzGne+3ElGWSEgR/1Q//HzY8a9nXekfbLzThH/cpTdbWCGlZSknpEXCpDjtOFlASx2wcheoQ==",
+    "gitHead": "c75ebdd8805c683c2b24714cd3ea6762edc450e3",
+    "artifacts": [
+      "hooks/pre-commit",
+      "hooks/commit-msg",
+      "hooks/pre-push",
+      "hooks/reference-transaction",
+      "hooks/post-checkout",
+      ".github/workflows/temple-bar-judge.yml"
+    ],
+    "tagCommit": "c75ebdd8805c683c2b24714cd3ea6762edc450e3"
+  },
+  {
+    "version": "0.0.8",
+    "tarball": "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.0.8.tgz",
+    "integrity": "sha512-dFiq6u2vkoHh3w83z+dIoBi+PMgI//dN+YiBNaAUz128KMbkneGIb7KGzN9/m3tQp3LeHZIYrjkh6PoBJUtQpA==",
+    "gitHead": "f7079ca63557dd17dc17ec2ea26e4f64f3e65790",
+    "artifacts": [
+      "hooks/pre-commit",
+      "hooks/commit-msg",
+      "hooks/pre-push",
+      "hooks/reference-transaction",
+      "hooks/post-checkout",
+      ".github/workflows/temple-bar-judge.yml"
+    ],
+    "tagCommit": "f7079ca63557dd17dc17ec2ea26e4f64f3e65790"
+  },
+  {
+    "version": "0.0.9",
+    "tarball": "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.0.9.tgz",
+    "integrity": "sha512-UUfu06mMCH/n599Ko+mkeGOLPykpyWp4RsJLws05O3wkURQUBq9khFwXWbcKeW80eoqtTsj6Lhb5LZjKXVT2lA==",
+    "gitHead": "9ff903b07d300d39477c2ec837b3b0bd7c13258d",
+    "artifacts": [
+      "hooks/post-checkout",
+      ".github/workflows/temple-bar-judge.yml",
+      "hooks/pre-commit",
+      "hooks/commit-msg",
+      "hooks/pre-push",
+      "hooks/reference-transaction",
+      ".github/workflows/temple-bar-gate.yml",
+      ".github/workflows/temple-bar-pr-title.yml"
+    ],
+    "tagCommit": "9ff903b07d300d39477c2ec837b3b0bd7c13258d"
+  }
+]

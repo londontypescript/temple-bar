@@ -1,0 +1,11 @@
+# Published output baseline
+
+These files are frozen output from the exact npm packages in [releases.json](releases.json), extracted after verifying their SHA-512 tarball integrity. [outputs.json](outputs.json) maps each distinct artifact to its originating releases, SHA-256 and byte fixture. Identical output across releases shares a fixture.
+
+Never regenerate these fixtures from the working tree. When a release has been published, download its recorded npm tarball, verify integrity, and extract the generated hook constants and workflow functions from that package. Add its metadata and previously unseen output; retain every earlier fixture. Register a previous published output in the production catalog whenever its current template changes.
+
+The regression compares every frozen output with the current template or historical catalog. A template change that forgets the previous published hash fails. A second regression checks that every reachable release tag on an earlier commit has frozen tag provenance matching that tag. This catches a stale baseline after later releases even while the source package version is unchanged. Run the repository suite with full Git history and release tags, as CI does. Only the matching package-version tag at the exact tested commit, with GitHub Actions running that tag ref, is excluded because release CI runs before npm publishes it. Each release also records its artifact inventory, so refreshing metadata alone cannot leave its output fixtures missing.
+
+The installed delivery regression downloads the recorded 0.0.9 tarball and verifies its fixed integrity before installing it. Distinct 0.0.8 hook and 0.0.7 judge output is also exercised so replacement happens even while 0.0.10 keeps the 0.0.9 hook bytes.
+
+The registry's `gitHead` and the peeled release `tagCommit` are recorded separately. They match for every captured release except 0.0.2: its [tag](https://github.com/londontypescript/temple-bar/tree/v0.0.2) precedes the [staged-publishing repair](https://github.com/londontypescript/temple-bar/commit/58ed035346f5c3f7e71ae58020b4e8c76fff3bc1) from which npm actually published it. The hook source and package manifest match between those commits. The frozen bytes come from npm, and neither historical identity is rewritten to make them agree.

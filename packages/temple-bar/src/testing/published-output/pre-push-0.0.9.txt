@@ -1,0 +1,29 @@
+#!/bin/sh
+# Installed by `temple-bar hook install`. Do not edit by hand.
+bin=""
+common=$(git rev-parse --git-common-dir 2>/dev/null)
+if [ -n "$common" ] && [ -f "$common/hooks/temple-bar-checkout" ]; then
+  IFS= read -r installed < "$common/hooks/temple-bar-checkout"
+  bin="$installed/node_modules/.bin/temple-bar"
+fi
+if [ ! -x "$bin" ]; then
+  root=$(git rev-parse --show-toplevel 2>/dev/null)
+  if [ -n "$root" ]; then
+    bin="$root/node_modules/.bin/temple-bar"
+  fi
+fi
+if [ ! -x "$bin" ]; then
+  bin=$(git worktree list --porcelain | while IFS= read -r line; do
+    candidate="${line#worktree }/node_modules/.bin/temple-bar"
+    if [ "${line#worktree }" != "$line" ] && [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      break
+    fi
+  done)
+fi
+if [ -z "$bin" ]; then
+  echo 'temple-bar is not installed in any checkout of this repo, so its git hooks refuse this change.
+It has to be installed in some checkout of this repo whose package.json lists it: run pnpm install there (for example in a worktree of the branch that set it up), then run the same git command again.' >&2
+  exit 1
+fi
+exec "$bin" hook pre-push "$1" "$2"

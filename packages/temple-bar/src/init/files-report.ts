@@ -5,8 +5,8 @@
 
 import type { Context } from "../context.ts";
 import type { WriteTarget } from "./write-target.ts";
-import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
-import type { CheckedWorkflowOutcome, SetupFilesOutcome } from "./files.ts";
+import type { SetupFilesOutcome } from "./files.ts";
+import type { WorkflowOutcome } from "./workflow-update.ts";
 import { RESTORE_WORKFLOW } from "./workflows.ts";
 
 /** Why a package.json script was left alone, and what to do about it. A
@@ -55,17 +55,18 @@ function reportAgentsFiles(ctx: Context, files: SetupFilesOutcome): boolean {
   return refused || files.agentsProblem !== undefined;
 }
 
-/** Reports one workflow the gate holds to an exact copy; returns true when
- * the copy differs, which ends the run non-zero. Setup never overwrites it,
- * but a changed copy may no longer run the gate at all, so setup doesn't
- * report success beside it. */
-function reportCheckedWorkflow(
-  ctx: Context,
-  outcome: CheckedWorkflowOutcome,
-): boolean {
+/** Reports every generated workflow, including a preserved judge conflict.
+ * Setup only reports success alongside an exact current copy. */
+function reportWorkflow(ctx: Context, outcome: WorkflowOutcome): boolean {
   const { workflow, state } = outcome;
-  if (outcome.wrote) {
-    ctx.stdout.write(`Wrote the ${workflow.label}, ${workflow.path}.\n`);
+  if (outcome.wrote && state.kind === "exact") {
+    const action = outcome.upgraded ? "Updated" : "Wrote";
+    const why = outcome.upgraded
+      ? " (recognized an earlier temple-bar release)"
+      : "";
+    ctx.stdout.write(
+      `${action} the ${workflow.label}, ${workflow.path}${why}.\n`,
+    );
     return false;
   }
   if (state.kind === "differs" || state.kind === "not-a-file") {
@@ -74,8 +75,11 @@ function reportCheckedWorkflow(
         ? `differs from the copy this temple-bar writes, from line ${String(state.line)}`
         : "is a symlink or folder, not an ordinary file";
     ctx.stderr.write(
-      `${workflow.path} ${how}, so it was left alone, and the gate fails ` +
-        `until it matches. Fix: ${RESTORE_WORKFLOW}.\n`,
+      `${workflow.path} ${how}, so it was left alone` +
+        (workflow.checkedByGate
+          ? ", and the gate fails until it matches"
+          : "; setup cannot complete until it matches") +
+        `. Fix: ${RESTORE_WORKFLOW}.\n`,
     );
     return true;
   }
@@ -83,20 +87,13 @@ function reportCheckedWorkflow(
   return false;
 }
 
-/** Reports the judge, gate and title workflows; returns true when the gate
- * or title workflow differs from its copy. */
+/** Reports all three workflows; every preserved differing copy is a conflict. */
 function reportWorkflows(ctx: Context, files: SetupFilesOutcome): boolean {
-  if (!files.refusedPaths.has(JUDGE_WORKFLOW_PATH))
-    ctx.stdout.write(
-      files.wroteJudge
-        ? `Wrote the judge workflow, ${JUDGE_WORKFLOW_PATH}.\n`
-        : `${JUDGE_WORKFLOW_PATH} already exists; left it alone.\n`,
-    );
   let differs = false;
-  for (const outcome of files.checkedWorkflows) {
+  for (const outcome of files.workflows) {
     if (
       files.refusedPaths.has(outcome.workflow.path) ||
-      reportCheckedWorkflow(ctx, outcome)
+      reportWorkflow(ctx, outcome)
     )
       differs = true;
   }
@@ -158,8 +155,7 @@ export function wroteSetupFiles(files: SetupFilesOutcome): boolean {
     files.wroteAgents ||
     files.wroteCompanions.length > 0 ||
     files.claudeMdAdded.length > 0 ||
-    files.wroteJudge ||
-    files.checkedWorkflows.some((outcome) => outcome.wrote) ||
+    files.workflows.some((outcome) => outcome.wrote) ||
     files.packageOutcome.wrote
   );
 }

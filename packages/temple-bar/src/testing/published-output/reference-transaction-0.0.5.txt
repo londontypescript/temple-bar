@@ -1,0 +1,76 @@
+#!/bin/sh
+# Installed by `temple-bar hook install`. Do not edit by hand.
+#
+# git runs this on every ref change, so it stays cheap: Node starts only when
+# the change moves the protected branch. That branch is origin's default
+# (refs/remotes/origin/HEAD), or main when that isn't known; temple-bar's
+# protected-branch.ts holds the same rule.
+state=$1
+if [ "$state" != "prepared" ]; then
+  exit 0
+fi
+input=$(cat)
+# A fetch only touches remote-tracking refs and tags: no local branch, no
+# ORIG_HEAD. Let it through without starting even git.
+case "$input" in
+  *" refs/heads/"*|*" ORIG_HEAD"*) ;;
+  *) exit 0 ;;
+esac
+target=$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null)
+case "$target" in
+  refs/remotes/origin/HEAD) branch=main ;;
+  refs/remotes/origin/?*) branch=${target#refs/remotes/origin/} ;;
+  *) branch=main ;;
+esac
+moves=no
+orig_head=no
+while read -r old new ref; do
+  if [ "$ref" = "refs/heads/$branch" ]; then
+    moves=yes
+  fi
+  if [ "$ref" = "ORIG_HEAD" ]; then
+    orig_head=yes
+  fi
+done <<EOF
+$input
+EOF
+if [ "$moves" = no ] && [ "$orig_head" = no ]; then
+  exit 0
+fi
+bin=""
+common=$(git rev-parse --git-common-dir 2>/dev/null)
+if [ -n "$common" ] && [ -f "$common/hooks/temple-bar-checkout" ]; then
+  IFS= read -r installed < "$common/hooks/temple-bar-checkout"
+  bin="$installed/node_modules/.bin/temple-bar"
+fi
+if [ ! -x "$bin" ]; then
+  root=$(git rev-parse --show-toplevel 2>/dev/null)
+  if [ -n "$root" ]; then
+    bin="$root/node_modules/.bin/temple-bar"
+  fi
+fi
+if [ ! -x "$bin" ]; then
+  bin=$(git worktree list --porcelain | while IFS= read -r line; do
+    candidate="${line#worktree }/node_modules/.bin/temple-bar"
+    if [ "${line#worktree }" != "$line" ] && [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      break
+    fi
+  done)
+fi
+if [ -z "$bin" ]; then
+  # A pull, merge, rebase or reset records ORIG_HEAD before it touches any
+  # file. Refusing there, while the protected branch is checked out, stops a
+  # fast-forward before git rewrites the working tree.
+  if [ "$moves" = no ] && [ "$(git symbolic-ref --quiet HEAD)" != "refs/heads/$branch" ]; then
+    exit 0
+  fi
+  echo 'temple-bar is not installed in any checkout of this repo, so its git hooks refuse this change.
+Run pnpm install, then run the same git command again.' >&2
+  echo 'If git already updated your files, running the command again finishes it.' >&2
+  exit 1
+fi
+if [ "$moves" = no ]; then
+  exit 0
+fi
+printf '%s\n' "$input" | exec "$bin" hook reference-transaction "$state"

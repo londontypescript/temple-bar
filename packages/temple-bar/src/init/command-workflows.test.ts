@@ -8,6 +8,8 @@ import { normalize } from "node:path";
 import test from "node:test";
 
 import { createInitCommand } from "./command.ts";
+import { JUDGE_WORKFLOW_PATH, judgeWorkflow } from "../judge/workflow.ts";
+import { outputFromRelease } from "../testing/published-output.ts";
 import {
   GATE_WORKFLOW_PATH,
   gateWorkflow,
@@ -136,4 +138,39 @@ void test("init workflows: when it can't tell which pnpm runs it, setup writes n
     /Couldn't tell which pnpm is running setup.*run `pnpm exec temple-bar init` again/,
   );
   assert.doesNotMatch(stdout, /temple-bar is set up/);
+});
+
+void test("init workflows: an edited judge is preserved and reported as a setup conflict", async () => {
+  const edited = `${outputFromRelease(JUDGE_WORKFLOW_PATH, "0.0.7")}# our edit\n`;
+  const fs = setUpFiles({ [`/repo/${JUDGE_WORKFLOW_PATH}`]: edited });
+  const { code, stdout, stderr } = await rerun(fs);
+  assert.equal(code, 1);
+  assert.equal(fs.files.get(`/repo/${JUDGE_WORKFLOW_PATH}`), edited);
+  assert.equal(fs.writes.length, 0);
+  assert.match(
+    stderr,
+    /temple-bar-judge\.yml differs from the copy this temple-bar writes, from line \d+, so it was left alone; setup cannot complete until it matches\. Fix:/,
+  );
+  assert.doesNotMatch(stderr, /judge\.yml.*gate fails/);
+  assert.doesNotMatch(stdout, /temple-bar is set up/);
+});
+
+void test("init workflows: a recognized old judge upgrades and is a change to land", async () => {
+  const fs = setUpFiles({
+    [`/repo/${JUDGE_WORKFLOW_PATH}`]: outputFromRelease(
+      JUDGE_WORKFLOW_PATH,
+      "0.0.7",
+    ),
+  });
+  const { code, stdout, stderr } = await rerun(fs);
+  assert.equal(code, 0, stderr);
+  assert.equal(fs.files.get(`/repo/${JUDGE_WORKFLOW_PATH}`), judgeWorkflow());
+  assert.match(
+    stdout,
+    /Updated the judge workflow.*recognized an earlier temple-bar release/,
+  );
+  assert.match(stdout, /git add .*temple-bar-judge\.yml/);
+  const again = await rerun(fs);
+  assert.equal(again.code, 0, again.stderr);
+  assert.doesNotMatch(again.stdout, /Updated the judge/);
 });

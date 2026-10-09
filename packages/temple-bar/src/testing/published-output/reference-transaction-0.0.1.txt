@@ -1,0 +1,23 @@
+#!/bin/sh
+# Installed by `temple-bar hook install`. Do not edit by hand: a second
+# install run only reports a conflict if this content has changed.
+#
+# Must stay fast on ordinary fetches: only starts Node when the "prepared"
+# state's stdin mentions refs/heads/main. Everything else exits 0 without
+# touching Node.
+state=$1
+if [ "$state" != "prepared" ]; then
+  exit 0
+fi
+input=$(cat)
+case "$input" in
+  *refs/heads/main*) ;;
+  *) exit 0 ;;
+esac
+root=$(git rev-parse --show-toplevel) || exit 1
+bin="$root/node_modules/.bin/temple-bar"
+if [ ! -x "$bin" ]; then
+  echo "temple-bar isn't installed here: run your package manager's install" >&2
+  exit 1
+fi
+printf '%s\n' "$input" | exec "$bin" hook reference-transaction "$state"

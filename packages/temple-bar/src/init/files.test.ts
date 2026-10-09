@@ -12,35 +12,29 @@ import {
   GITIGNORE_LINES,
   writeAgentsMd,
   writeCompanionFiles,
-  writeJudgeWorkflowIfMissing,
   writeSetupFiles,
 } from "./files.ts";
 import { judgeWorkflow } from "../judge/workflow.ts";
+import { writeWorkflows } from "./workflow-update.ts";
 import { createFakeContext, createFakeFs } from "../testing/fakes.ts";
 
-void test("writeJudgeWorkflowIfMissing writes the judge workflow when there is none", async () => {
+void test("writeWorkflows writes the judge workflow when there is none", async () => {
   const fs = createFakeFs();
-  const wrote = await writeJudgeWorkflowIfMissing(
-    createFakeContext({ fs }),
-    "/repo",
-  );
-  assert.equal(wrote, true);
+  const outcomes = await writeWorkflows(createFakeContext({ fs }), "/repo");
+  assert.equal(outcomes[0]?.wrote, true);
   assert.equal(
     fs.files.get("/repo/.github/workflows/temple-bar-judge.yml"),
     judgeWorkflow(),
   );
 });
 
-void test("writeJudgeWorkflowIfMissing leaves a copy that differs alone", async () => {
+void test("writeWorkflows leaves a copy that differs alone", async () => {
   const path = "/repo/.github/workflows/temple-bar-judge.yml";
   const fs = createFakeFs({ [path]: "# reviewed by the maintainer\n" });
-  const wrote = await writeJudgeWorkflowIfMissing(
-    createFakeContext({ fs }),
-    "/repo",
-  );
-  assert.equal(wrote, false);
+  const outcomes = await writeWorkflows(createFakeContext({ fs }), "/repo");
+  assert.equal(outcomes[0]?.wrote, false);
   assert.equal(fs.files.get(path), "# reviewed by the maintainer\n");
-  assert.equal(fs.writes.length, 0);
+  assert.equal(fs.writes.filter((write) => write.path === path).length, 0);
 });
 
 void test("writeAgentsMd writes the full template when there is none, and a second run writes nothing", async () => {
