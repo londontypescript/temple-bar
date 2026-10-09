@@ -1,6 +1,6 @@
 # ADR 0005: Setup, hooks and worktrees
 
-Date: 2026-10-01, updated 2026-10-02, 2026-10-03, 2026-10-05 and 2026-10-07. Status: accepted (decisions 5, 16, 21,
+Date: 2026-10-01, updated 2026-10-02, 2026-10-03, 2026-10-05, 2026-10-07 and 2026-10-09. Status: accepted (decisions 5, 16, 21,
 22, 30 and 32; 32 is built and 30's ignore line ships in 0.0.6, while 16's
 checks and 30's detection are decided but not built yet).
 
@@ -162,6 +162,23 @@ checkout it stays quiet. In the new worktree the hook:
 
 Env files come before the install, so they are in place even when the
 install fails.
+
+### Approved historical-upgrade repair (0.0.10, not implemented yet)
+
+Recognize authentic published earlier hook and workflow outputs, upgrade
+only those unchanged copies, create missing copies, and preserve edits or
+unknown newer content. Workflows retain the existing CRLF normalization;
+hooks use exact bytes. A marker alone does not establish ownership or
+compatibility. Unknown marked shared hooks retain the existing installer
+behavior with an ambiguity warning; the gate remains strict. Known workflow
+conflicts, including the judge workflow, are reported rather than overwritten.
+
+Preservation is not a promise that an older gate accepts future shim bytes.
+Published older gates cannot learn later hashes. Keep current shim bytes
+where possible; a forward-compatibility protocol is outside this repair.
+Authentic historical regression data must exercise replacement and guard
+against omitting the previous output when a shipped template changes.
+See the approved [0.0.10 phases](../plans/0.0.10.md).
 
 ## What would end it
 
