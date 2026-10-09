@@ -1,6 +1,6 @@
 # ADR 0007: What the gate checks
 
-Date: 2026-10-01, updated 2026-10-03. Status: accepted (decisions 10, 15, 20, 23, 36 and 43; 10 and 15
+Date: 2026-10-01, updated 2026-10-03 and 2026-10-09. Status: accepted (decisions 10, 15, 20, 23, 36 and 43; 10 and 15
 are decided but not built yet).
 
 ## Context
@@ -55,8 +55,23 @@ four scripts; found in the scaffolder trials.
 lockfile. The library rather than the markdownlint-cli2 command: the gate
 already lists the files, and the command's file matching brought in a
 dependency with an unpatched flaw (Dependabot, 2026-10-03). A
-built-in link check covers local links and cited paths only, so the gate
-never depends on the network for links. Not built yet (theme B).
+built-in Markdown integrity checks cover actual local links and images,
+including supported HTML references, and undefined explicit full/collapsed
+reference labels. They do not require files mentioned only in inline code
+to exist. Markdown style belongs to the project's `lint` and `format:check`.
+The mandatory integrity set neither reads project Markdown style settings
+nor honors generic markdownlint-disable directives. Escaped prose and code
+examples are not interpreted as navigable links. Checks use Git-listed
+targets and do not depend on the network for links.
+
+This revised contract is approved for [0.0.10](../plans/0.0.10.md), not yet
+implemented. The current gate still runs broad Markdown lint and cited-path
+checks. Fresh framework documents exposed the conflict between preserving
+upstream instructions and enforcing universal style. Parsing corrections
+precede the policy change so comments and code examples do not create false
+link failures. Section anchors, empty links, table-cell checks, duplicate
+reference-label checks and MDX support are deferred; they need an explicit
+rendering contract or evidence before becoming universal blockers.
 
 **Decision 15: the target matrix.** Each project declares its delivery paths,
 each with an end-to-end check. The gate runs them all, won't accept the

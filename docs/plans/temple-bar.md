@@ -38,7 +38,7 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 7   | temple-bar's repo is gated by its last published release, never its source          | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
 | 8   | Only CI publishes, through npm trusted publishing with provenance                   | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
 | 9   | pnpm workspaces, Node 24+, CI on 3 OSes; strict ESLint and Prettier                 | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
-| 10  | Base-check tools: gitleaks by verified download, npm tools pinned, local links      | [0007](../adr/0007-what-the-gate-checks.md)               |
+| 10  | Base-check tools: pinned tools; Markdown integrity, with style owned by projects    | [0007](../adr/0007-what-the-gate-checks.md)               |
 | 11  | No timebox: the first real release is defined by scope                              | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 12  | No TypeScript logo, a capital S, and no disclaimer in temple-bar itself             | [0009](../adr/0009-readme-and-agents-md.md)               |
 | 13  | No `doctor` command: hooks and the gate keep status truthful                        | [0008](../adr/0008-status-without-doctor.md)              |
@@ -87,6 +87,10 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 56  | temple-bar's AGENTS.md block is never trimmed to make room; a project's text moves  | [0009](../adr/0009-readme-and-agents-md.md)               |
 | 57  | One short plan file per milestone; decisions live in ADRs (for the template)        | [0010](../adr/0010-plans-progress-and-incidents.md)       |
 | 58  | Of the tool configs, the judge guards only temple-bar.config.json                   | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
+
+Decision 10 was revised on 2026-10-09 for the approved
+[0.0.10 plan](0.0.10.md): Markdown integrity is mandatory; style and code-path
+citations are not universal blockers. The implementation is still planned.
 
 ---
 
