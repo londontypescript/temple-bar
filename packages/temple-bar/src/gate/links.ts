@@ -21,6 +21,9 @@
 import path from "node:path";
 
 import type { Context } from "../context.ts";
+import { extractLocalTargets } from "./links-parse.ts";
+
+export { extractLocalTargets } from "./links-parse.ts";
 
 export const LINKS_CHECK = "local links";
 
@@ -41,63 +44,6 @@ const MARKDOWN = /\.(?:md|markdown)$/i;
 
 export function isMarkdownPath(relativePath: string): boolean {
   return MARKDOWN.test(relativePath);
-}
-
-const FENCE = /^ {0,3}(`{3,}|~{3,})/;
-const CODE_SPAN = /`([^`\n]+)`/g;
-const INLINE_LINK = /!?\[[^\]\n]*\]\(\s*(<[^>\n]*>|[^)\s]+)[^)\n]*\)/g;
-const REFERENCE_DEFINITION = /^ {0,3}\[[^\]\n]+\]:\s*(<[^>\n]*>|\S+)/;
-const HTML_ATTRIBUTE = /\s(?:href|src)\s*=\s*["']([^"'\n]+)["']/gi;
-// A URL scheme (https:, mailto:, ...) or a protocol-relative URL: not local.
-const NOT_LOCAL = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
-// Letters, digits and the punctuation real paths use. Anything else (a
-// space, *, <, $, ~, :) means a command, a glob or a placeholder.
-const CITED_PATH = /^(?:\.{1,2}\/)*[\w@.-]+(?:\/[\w@.-]+)*\/?$/;
-
-/** Every local link and cited path in one markdown document, with its line
- * number. Text inside fenced code blocks is an example, not a link, so it
- * is skipped. */
-export function extractLocalTargets(markdown: string): LocalTarget[] {
-  const targets: LocalTarget[] = [];
-  let fence: string | undefined;
-  markdown.split(/\r?\n/).forEach((text, index) => {
-    const line = index + 1;
-    const fenceMatch = FENCE.exec(text);
-    if (fenceMatch?.[1] !== undefined) {
-      const marker = fenceMatch[1];
-      if (fence === undefined) {
-        fence = marker;
-      } else if (marker.startsWith(fence)) {
-        fence = undefined;
-      }
-      return;
-    }
-    if (fence !== undefined) {
-      return;
-    }
-
-    for (const match of text.matchAll(CODE_SPAN)) {
-      const span = match[1]?.trim() ?? "";
-      if (span.includes("/") && CITED_PATH.test(span)) {
-        targets.push({ line, target: span, kind: "cited path" });
-      }
-    }
-
-    // Link syntax inside a code span is an example of the syntax.
-    const prose = text.replace(CODE_SPAN, (span) => " ".repeat(span.length));
-    const links = [
-      ...[...prose.matchAll(INLINE_LINK)].map((match) => match[1]),
-      REFERENCE_DEFINITION.exec(prose)?.[1],
-      ...[...prose.matchAll(HTML_ATTRIBUTE)].map((match) => match[1]),
-    ];
-    for (const raw of links) {
-      const target = raw?.replace(/^<|>$/g, "").trim();
-      if (target !== undefined && target !== "" && !NOT_LOCAL.test(target)) {
-        targets.push({ line, target, kind: "link" });
-      }
-    }
-  });
-  return targets;
 }
 
 /** Every path git lists, plus every folder above one, so a link to a folder

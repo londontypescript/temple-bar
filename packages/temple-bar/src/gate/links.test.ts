@@ -30,7 +30,9 @@ void test("finds inline links, images, reference definitions and HTML links, but
   const targets = extractLocalTargets(
     [
       "See [the guide](docs/guide.md) and ![logo](img/logo.png).",
+      "",
       "[ref]: ./docs/adr/0001-first.md",
+      "",
       '<a href="docs/missing.md">x</a>',
       "[web](https://example.com/a.md) [mail](mailto:a@b.c) [top](#intro)",
       '[spaced](<docs/a b.md> "title")',
@@ -39,10 +41,10 @@ void test("finds inline links, images, reference definitions and HTML links, but
   assert.deepEqual(targets, [
     "1 docs/guide.md",
     "1 img/logo.png",
-    "2 ./docs/adr/0001-first.md",
-    "3 docs/missing.md",
-    "4 #intro",
-    "5 docs/a b.md",
+    "3 ./docs/adr/0001-first.md",
+    "5 docs/missing.md",
+    "6 #intro",
+    "7 docs/a b.md",
   ]);
 });
 
