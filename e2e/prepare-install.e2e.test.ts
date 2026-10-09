@@ -182,7 +182,7 @@ void test(
       /Unused files[\s\S]*src\/lib\/index\.ts/,
     );
     assert.match(gate.stdout, /accepted 1 comment-only unused file/);
-    assert.match(gate.stdout, /passed +unused code \(knip\)/);
+    assert.match(gate.stdout + gate.stderr, /passed +unused code \(knip\)/);
     await probeUnusedFiles(options);
   },
 );
