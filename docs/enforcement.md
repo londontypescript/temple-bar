@@ -110,3 +110,10 @@ is seen only by reading that history directly.
 A rule that exists only as prose is a rule that will eventually be violated. If
 you find one drifting, the fix is a mechanism, not stronger wording. When a
 mechanism ships, shrink its rule in AGENTS.md to one line.
+
+The forthcoming 0.0.10 source gate accepts only verified comment-only unused
+JavaScript/TypeScript file findings (decision 59). A public Knip capture
+reporter and bounded strict file reader preserve native diagnostics and all
+real unused code, exports, types and analyzer failures. Packed SvelteKit
+regressions exercise the exception and retained failures. This repository's
+published 0.0.9 pin still has the earlier unused-file behavior.

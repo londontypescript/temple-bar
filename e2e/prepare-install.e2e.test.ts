@@ -20,6 +20,7 @@ import { initTestRepo } from "../packages/temple-bar/src/testing/git-repo.ts";
 import { environments } from "../scripts/scaffold-check/environment.ts";
 import { packBoth, type Tarballs } from "./support/pack.ts";
 import { serveTarball, type LocalRegistry } from "./support/registry.ts";
+import { probeUnusedFiles } from "./support/unused-probes.ts";
 import { describe, run, type RunOptions } from "./support/run.ts";
 
 let folder = "";
@@ -176,12 +177,14 @@ void test(
       gate.stdout + gate.stderr,
       /Error loading|could not run|File '\$app\/tsconfig' not found/,
     );
-    // The placeholder policy is a separate repair, so this fixture documents it
-    // without declaring whole-scaffold compatibility or accepting it in G.
+    // Native findings remain visible; the gate explains the accepted exception.
     assert.match(
       gate.stdout + gate.stderr,
       /Unused files[\s\S]*src\/lib\/index\.ts/,
     );
+    assert.match(gate.stdout, /accepted 1 comment-only unused file/);
+    assert.match(gate.stdout + gate.stderr, /passed +unused code \(knip\)/);
+    await probeUnusedFiles(options);
   },
 );
 

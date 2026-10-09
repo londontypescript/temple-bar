@@ -1,6 +1,6 @@
 # ADR 0007: What the gate checks
 
-Date: 2026-10-01, updated 2026-10-03 and 2026-10-09. Status: accepted (decisions 10, 15, 20, 23, 36 and 43; 10 and 15
+Date: 2026-10-01, updated 2026-10-03 and 2026-10-09. Status: accepted (decisions 10, 15, 20, 23, 36, 43 and 59; 10 and 15
 are recorded below with their implementation status).
 
 ## Context
@@ -77,6 +77,30 @@ container prefixes. Packed delivery proves both genuine failures and
 framework-document preservation. Section anchors, empty links, table-cell checks, duplicate
 reference-label checks and MDX support are deferred; they need an explicit
 rendering contract or evidence before becoming universal blockers.
+
+**Decision 59: unused files without code.** Knip still reports unused files,
+exports and types. Only an observed finding exit (1) may become a pass, and
+only when its complete nonempty report consists entirely of verified unused
+files containing whitespace and ordinary valid comments. The exception is
+independent of path and framework: commented-out code has no syntactic tokens
+and qualifies, but imports, declarations, exports, strings, hashbangs,
+triple-slash directives, compiler pragmas, JSDoc declarations and incomplete
+comments do not. Ordinary license and explanatory comments still qualify.
+
+Eligible files are regular `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`
+or `.cts` files inside the project after resolving paths. Symlinks, unknown
+extensions, unreadable files, invalid UTF-8 and files over the bounded read
+limit retain their findings. A leading UTF-8 BOM is allowed. Every unused
+export or type, malformed or unknown report, configuration error, fatal hint,
+and runtime failure remains blocking. Exit 0 and runtime exits are unchanged.
+
+A public capture reporter runs alongside Knip's native reporter without
+replacing project preprocessors or mutating counters. Native findings and
+hints remain visible; the gate explicitly states when it accepts only
+comment-only file findings. This policy ends the earlier choice to treat an
+untouched SvelteKit library placeholder as dead code that must be deleted.
+Mapping it to an entry would also hide future unused exports. The exception
+is implemented for 0.0.10; the repository's published pin remains unchanged.
 
 **Decision 15: the target matrix.** Each project declares its delivery paths,
 each with an end-to-end check. The gate runs them all, won't accept the

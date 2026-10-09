@@ -25,7 +25,7 @@ export function createFakeTools(
     linted,
     knip(_ctx, args) {
       knipRuns.push(args);
-      return Promise.resolve(exitCodes.knip ?? 0);
+      return Promise.resolve({ code: exitCodes.knip ?? 0 });
     },
     markdownlint(_ctx, files) {
       linted.push(files);

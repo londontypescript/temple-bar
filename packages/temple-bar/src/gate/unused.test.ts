@@ -61,3 +61,26 @@ void test("without a package.json there is no project for knip, so it is skipped
 void test("knip's entry point is found in the copy temple-bar depends on", () => {
   assert.ok(existsSync(knipBinPath()), knipBinPath());
 });
+
+void test("verified comment-only findings pass only with Knip's finding exit", async () => {
+  for (const code of [0, 1, 2]) {
+    const tools = createFakeTools();
+    const outcome = await runUnusedCheck(
+      createFakeContext({ fs: WITH_PACKAGE }),
+      {
+        ...tools,
+        knip: () =>
+          Promise.resolve({ code, commentOnlyFiles: ["/repo/empty.ts"] }),
+      },
+    );
+    assert.equal(outcome.status, code === 2 ? "failed" : "passed");
+  }
+  const outcome = await runUnusedCheck(
+    createFakeContext({ fs: WITH_PACKAGE }),
+    {
+      ...createFakeTools(),
+      knip: () => Promise.resolve({ code: 1, commentOnlyFiles: [] }),
+    },
+  );
+  assert.equal(outcome.status, "failed");
+});
