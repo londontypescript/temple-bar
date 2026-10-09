@@ -32,7 +32,22 @@ export async function runUnusedCheck(
   if (!(await ctx.fs.isRegularFile(path.join(ctx.cwd, "package.json")))) {
     return { name: UNUSED_CHECK, status: "skipped", detail: "no package.json" };
   }
-  const code = await tools.knip(ctx, KNIP_ARGS);
+  const result = await tools.knip(ctx, KNIP_ARGS);
+  const { code } = result;
+  if (
+    code === 1 &&
+    result.commentOnlyFiles !== undefined &&
+    result.commentOnlyFiles.length > 0
+  ) {
+    ctx.stdout.write(
+      `gate: accepted ${String(result.commentOnlyFiles.length)} comment-only unused file(s); no code, exports or types were exempted\n`,
+    );
+    return {
+      name: UNUSED_CHECK,
+      status: "passed",
+      detail: "only comment-only unused files",
+    };
+  }
   if (code === 0) {
     return { name: UNUSED_CHECK, status: "passed" };
   }

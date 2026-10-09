@@ -12,12 +12,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { Context } from "../context.ts";
+import { runKnip, type KnipResult } from "./unused-run.ts";
 import { runMarkdownlint } from "./markdownlint-run.ts";
 
 export interface GateTools {
-  /** Runs knip in ctx.cwd. Resolves its exit code: 0 clean, 1 it found
-   * unused code, anything else it couldn't run. */
-  readonly knip: (ctx: Context, args: readonly string[]) => Promise<number>;
+  /** Runs knip in ctx.cwd. Returns its exit code and independently verified comment-only evidence.
+   * Native diagnostics are streamed without replacing project preprocessors. */
+  readonly knip: (ctx: Context, args: readonly string[]) => Promise<KnipResult>;
   /** Lints `files` (relative to ctx.cwd) with markdownlint, using the
    * gate's fixed integrity configuration. Project style settings and inline
    * directives cannot change it. Resolves 0 clean, 1 lint errors, 2 couldn't run. */
@@ -39,15 +40,7 @@ export function knipBinPath(): string {
 export function createRealGateTools(): GateTools {
   return {
     knip(ctx, args) {
-      // knip runs in its own process, on the Node running the gate: it is a
-      // whole program with its own config loading, and its output streams
-      // through the context's writers like any other check's.
-      return ctx.proc.run(process.execPath, [knipBinPath(), ...args], {
-        cwd: ctx.cwd,
-        env: { ...ctx.env, CI: "true" },
-        stdout: ctx.stdout,
-        stderr: ctx.stderr,
-      });
+      return runKnip(ctx, args, knipBinPath());
     },
     markdownlint: runMarkdownlint,
   };

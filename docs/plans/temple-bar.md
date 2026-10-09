@@ -88,6 +88,10 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 57  | One short plan file per milestone; decisions live in ADRs (for the template)        | [0010](../adr/0010-plans-progress-and-incidents.md)       |
 | 58  | Of the tool configs, the judge guards only temple-bar.config.json                   | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
 
+| 59 | Comment-only JavaScript/TypeScript unused files may pass; all code and analyzer failures remain blocking | [0007](../adr/0007-what-the-gate-checks.md) |
+
+Decision 59 was approved on 2026-10-09 after Claude Sonnet reviewed the precise content-only contract.
+
 Decision 10 was revised on 2026-10-09 for the approved
 [0.0.10 plan](0.0.10.md): Markdown integrity is mandatory; style and code-path
 citations are not universal blockers. This contract is implemented in source
