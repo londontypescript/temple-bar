@@ -163,7 +163,7 @@ checkout it stays quiet. In the new worktree the hook:
 Env files come before the install, so they are in place even when the
 install fails.
 
-### Approved historical-upgrade repair (0.0.10, not implemented yet)
+### Historical upgrades (implemented for the forthcoming 0.0.10 release)
 
 Recognize authentic published earlier hook and workflow outputs, upgrade
 only those unchanged copies, create missing copies, and preserve edits or
@@ -176,8 +176,11 @@ conflicts, including the judge workflow, are reported rather than overwritten.
 Preservation is not a promise that an older gate accepts future shim bytes.
 Published older gates cannot learn later hashes. Keep current shim bytes
 where possible; a forward-compatibility protocol is outside this repair.
-Authentic historical regression data must exercise replacement and guard
-against omitting the previous output when a shipped template changes.
+Independent frozen output from integrity-verified published npm packages
+exercises replacement and guards against omitting the previous output
+when a shipped template changes. Release-tag and artifact-inventory checks
+reject a stale baseline; installed packed delivery covers preservation and
+shared-worktree install order.
 See the approved [0.0.10 phases](../plans/0.0.10.md).
 
 ## What would end it

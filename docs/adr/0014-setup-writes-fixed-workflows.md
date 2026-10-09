@@ -44,17 +44,19 @@ fails a new job and a deleted gate step alike.
 **Option 2,** for two workflows: the gate, and the pull request title
 check.
 
-### Setup writes the gate workflow when it's missing
+### Setup creates missing workflows and upgrades authentic earlier output
 
 - **The file:** `temple-bar-gate.yml` in `.github/workflows/`, beside
   `temple-bar-judge.yml`. The name says it's temple-bar's, not the
   project's general CI.
-- **Written only when missing,** like the judge workflow. A different file
-  at that path is left alone, never overwritten: setup names the first
-  line that differs and the fix, and the run ends non-zero, so setup never
-  reports success beside a gate workflow that may not run the gate. The
-  gate then fails until it matches. No other workflow is touched, and a
-  project's own `ci.yml` stays its own.
+- **Create missing copies and upgrade authentic earlier output.** The
+  approved 0.0.10 repair recognizes exact published hook and workflow
+  identities ([ADR 0005](0005-setup-hooks-and-worktrees.md)). An edited or
+  unrecognized workflow is preserved: setup names the first differing line
+  and the fix, then ends non-zero. That includes a conflicting judge copy,
+  without adding a new judge-copy gate check. The gate and title copies
+  still fail their existing exact-copy check until they match. No other
+  workflow is touched, and a project's own `ci.yml` stays its own.
 - **Its text lives in the package** as one function beside
   `judgeWorkflow()`, so the copy setup writes is the one this version was
   tested with. It opens with a comment saying it's written by temple-bar,
@@ -174,8 +176,13 @@ judge doesn't yet guard these fields
 
 - **Other workflows** (release, deploy). Incident #109's "every publishing
   job needs the full CI first" applies to workflows setup doesn't write.
-- **Updating a gate workflow an earlier temple-bar wrote.** Nothing uses
-  temple-bar yet.
+
+The original 0.0.9 decision deferred updating earlier generated workflows.
+The approved 0.0.10 historical-upgrade repair above ends that deferral:
+genuine published copies can be replaced without licensing edits or unknown
+newer content. The workflow templates and gate's exact-copy policy remain
+unchanged. The repository continues to use its pinned 0.0.9 until a separate
+release pin update.
 
 ## What would end it
 
