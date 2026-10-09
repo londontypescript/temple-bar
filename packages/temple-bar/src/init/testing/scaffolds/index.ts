@@ -1,5 +1,5 @@
-// Only the files setup reads, kept as data so the repo's tools cannot
-// rewrite scaffolder output or treat its package.json as a workspace.
+// Setup inputs and authentic Markdown documents, kept as data so the repo's
+// tools cannot rewrite scaffolder output or treat its package.json as a workspace.
 
 import { vite } from "./vite.ts";
 import { next } from "./next.ts";

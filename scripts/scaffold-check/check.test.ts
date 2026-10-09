@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { parseArgs, USAGE } from "../scaffold-check.ts";
 import { scaffolds } from "../../packages/temple-bar/src/init/testing/scaffolds/index.ts";
 import { check } from "./check.ts";
+import { manifest, object } from "./expectation.ts";
 import { recipes, scaffoldArgs } from "./recipes.ts";
 import { DEADLINES } from "./setup.ts";
 import { fixture, ok, world, writeProject } from "./testing.ts";
@@ -18,6 +19,14 @@ void test("recipes cover exactly the recorded scaffolders and resolve Astro's ve
   for (const data of scaffolds) {
     const recipe = recipes[data.name];
     assert.ok(recipe, `${data.name}: recipe exists`);
+    const scripts = object(manifest(data.files["package.json"])?.scripts) ?? {};
+    assert.deepEqual(
+      recipe.missingScripts,
+      ["typecheck", "lint", "format:check", "test"].filter(
+        (name) => !Object.hasOwn(scripts, name),
+      ),
+      `${data.name}: expected missing scripts match the authentic recording`,
+    );
     assert.equal(
       recipe.package,
       data.scaffolder,
@@ -160,8 +169,8 @@ void test("real orchestration passes an identical scaffold, isolates both enviro
     assert.equal(launch.env.pnpm_config_registry, "http://registry.invalid/");
     assert.match(
       result.report,
-      /framework's own lint failed/,
-      "framework script failures remain informational",
+      /gate report:/,
+      "the complete judged gate report remains visible",
     );
   } finally {
     fake.close();

@@ -117,3 +117,12 @@ reporter and bounded strict file reader preserve native diagnostics and all
 real unused code, exports, types and analyzer failures. Packed SvelteKit
 regressions exercise the exception and retained failures. This repository's
 published 0.0.9 pin still has the earlier unused-file behavior.
+
+The release scaffold checker validates the packed gate's complete check report,
+exact per-framework missing-script expectations, verdict and exit code. Every
+other local check must pass; only the four GitHub-rule checks may be skipped,
+with the explicit isolated-origin reason. Missing, malformed or unexpected
+reports fail compatibility. Authentic scaffold Markdown is recorded and its
+bytes must survive setup; compatibility with missing scripts is not full gate
+success. `pnpm scaffold-check` exercises all seven live scaffolders before a
+release; it is an on-demand release check, not a required CI job.

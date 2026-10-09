@@ -39,17 +39,14 @@ export function capture(project: string): Snapshot {
     const selected =
       all ||
       READ_PATHS.has(relative) ||
+      /\.(?:md|markdown)$/i.test(relative) ||
       (!relative.includes("/") && CONFIG.test(relative));
     if (stat.isSymbolicLink()) {
       if (selected || !relative.includes("/"))
         symlinks[relative] = readlinkSync(full);
     } else if (stat.isDirectory()) {
       directories.push(relative);
-      if (
-        all ||
-        relative === ".github" ||
-        [...READ_PATHS].some((file) => file.startsWith(`${relative}/`))
-      ) {
+      if (![".git", "node_modules"].includes(path.basename(relative))) {
         for (const name of readdirSync(full).sort())
           visit(`${relative}/${name}`, all || relative === ".github");
       }

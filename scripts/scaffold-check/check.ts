@@ -180,6 +180,7 @@ export async function check(options: CheckOptions): Promise<CheckResult> {
           runner,
           resources,
           pnpmVersion,
+          recipe.missingScripts,
           options.signal,
         );
         details.push(
