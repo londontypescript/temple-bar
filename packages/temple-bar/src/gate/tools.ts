@@ -19,12 +19,12 @@ export interface GateTools {
    * unused code, anything else it couldn't run. */
   readonly knip: (ctx: Context, args: readonly string[]) => Promise<number>;
   /** Lints `files` (relative to ctx.cwd) with markdownlint, using the
-   * project's own markdownlint config when it has one and `defaultConfig`
-   * when it doesn't. Resolves 0 clean, 1 lint errors, 2 couldn't run. */
+   * gate's fixed integrity configuration. Project style settings and inline
+   * directives cannot change it. Resolves 0 clean, 1 lint errors, 2 couldn't run. */
   readonly markdownlint: (
     ctx: Context,
     files: readonly string[],
-    defaultConfig: Readonly<Record<string, unknown>>,
+    integrityConfig: Readonly<Record<string, unknown>>,
   ) => Promise<number>;
 }
 

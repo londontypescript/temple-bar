@@ -29,7 +29,7 @@ function broken(file: string, content: string): string[] {
 void test("finds inline links, images, reference definitions and HTML links, but not web links", () => {
   const targets = extractLocalTargets(
     [
-      "See [the guide](docs/guide.md) and ![logo](img/logo.png).",
+      "See [the guide](docs/guide.md), ![logo](img/logo.png), and [an ADR][ref].",
       "",
       "[ref]: ./docs/adr/0001-first.md",
       "",
@@ -97,41 +97,24 @@ void test("a bare #fragment and percent-encoded names are handled", () => {
   );
 });
 
-void test("a cited path whose first folder exists must exist; from the repo root or the document's folder", () => {
+void test("inline code never asserts that a mentioned file exists", () => {
   assert.deepEqual(
     broken(
       "docs/guide.md",
-      "Read `docs/adr/0001-first.md`, `adr/0001-first.md` and `src/gone.ts`.",
-    ),
-    ["1 cited path src/gone.ts"],
-  );
-});
-
-void test("a document in a folder doesn't make `owner/repo` a path by its own folder existing", () => {
-  assert.deepEqual(
-    broken(
-      "docs/adr/0001-first.md",
-      "`londontypescript/temple-bar` `origin/main` `docs/gone.md` `../guide.md`",
-    ),
-    ["1 cited path docs/gone.md"],
-  );
-});
-
-void test("things that only look like paths are not cited paths", () => {
-  assert.deepEqual(
-    broken(
-      "README.md",
-      [
-        "`@scope/name` `owner/repo` `refs/heads/main` `node_modules/.bin/x`",
-        "`src/**/*.ts` `<dir>/hooks/` `pnpm run gate` `~/x/y` `a:b/c`",
-        "`index.ts` (no folder, so not a cited path)",
-      ].join("\n"),
+      "`docs/gone.md` `src/gone.ts` `../guide.md` `node_modules/.bin/x`",
     ),
     [],
   );
 });
 
-void test("checkLocalLinks reads the markdown git lists and leaves out cited paths git ignores", async () => {
+void test("missing actual links fail even when inline citations name the same path", () => {
+  assert.deepEqual(
+    broken("README.md", "`docs/gone.md` [read it](docs/gone.md)"),
+    ["1 link docs/gone.md"],
+  );
+});
+
+void test("checkLocalLinks reads Git-listed Markdown without citation ignore queries", async () => {
   const git = createFakeGit((args) =>
     args[0] === "check-ignore"
       ? { code: 0, stdout: "docs/drafts/plan.md\n", stderr: "" }
@@ -149,13 +132,7 @@ void test("checkLocalLinks reads the markdown git lists and leaves out cited pat
   assert.equal(result.documents, 2);
   assert.deepEqual(
     result.broken.map((target) => `${target.kind} ${target.target}`),
-    ["cited path docs/old.md", "link gone.md"],
+    ["link gone.md"],
   );
-  assert.deepEqual(git.calls[0]?.args, [
-    "check-ignore",
-    "--no-index",
-    "--",
-    "docs/drafts/plan.md",
-    "docs/old.md",
-  ]);
+  assert.deepEqual(git.calls, []);
 });

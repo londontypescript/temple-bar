@@ -6,8 +6,8 @@
 
 /** Claude Code reads CLAUDE.md, and falls back to AGENTS.md only in recent
  * versions, with the fallback switched on, and not on every cloud provider.
- * An import works in all of them. The heading is there because the gate's
- * markdown lint wants every file to start with one. */
+ * An import works in all of them. The heading identifies the instructions
+ * when a reader opens the file. */
 export const CLAUDE_MD_PATH = "CLAUDE.md";
 const CLAUDE_HEADING = "# Claude Code";
 const AGENTS_IMPORT = "@AGENTS.md";
@@ -189,8 +189,8 @@ export interface ClaudeMdFix {
 
 /**
  * What an existing CLAUDE.md, written by the project or a framework (Next.js
- * ships a one-line `@AGENTS.md`), needs added: a heading at the top, which
- * the gate's markdown lint asks of every file, and the AGENTS.md import,
+ * ships a one-line `@AGENTS.md`), needs added: a heading at the top to
+ * identify the instructions, and the AGENTS.md import,
  * without which Claude Code may never read the rules. Nothing is removed or
  * reordered. Returns undefined when nothing is missing, so a second run
  * changes nothing.
