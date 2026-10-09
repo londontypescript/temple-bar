@@ -69,34 +69,47 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
         deadline: 5000,
         signal: controller.signal,
       });
-      if (stop === "Ctrl-C") {
-        for (let attempt = 0; !existsSync(marker) && attempt < 200; attempt++)
-          await setTimeout(20);
-        assert.ok(existsSync(marker), "grandchild started before interruption");
-        controller.abort();
-        await assert.rejects(
-          pending,
-          Interrupted,
-          "interrupt stops the runner",
+      // Observe rejection immediately, and await cleanup even when an earlier
+      // assertion fails, so interruption cannot hide the original failure.
+      const stopped = pending.catch(() => undefined);
+      try {
+        if (stop === "Ctrl-C") {
+          for (let attempt = 0; !existsSync(marker) && attempt < 200; attempt++)
+            await setTimeout(20);
+          assert.ok(
+            existsSync(marker),
+            "grandchild started before interruption",
+          );
+          controller.abort();
+          await assert.rejects(
+            pending,
+            Interrupted,
+            "interrupt stops the runner",
+          );
+        } else {
+          const result = await pending;
+          assert.equal(result.timedOut, true, "deadline is recorded");
+          assert.notEqual(result.code, 0);
+        }
+        assert.ok(
+          existsSync(marker),
+          "grandchild ran before the group stopped",
         );
-      } else {
-        const result = await pending;
-        assert.equal(result.timedOut, true, "deadline is recorded");
-        assert.notEqual(result.code, 0);
+        // A loaded host can deliver the stopping timer late. Writes before
+        // termination say nothing about cleanup; further writes do.
+        const stoppedSize = statSync(marker).size;
+        assert.ok(stoppedSize > 0, "the grandchild heartbeat was exercised");
+        await setTimeout(1000);
+        assert.equal(
+          statSync(marker).size,
+          stoppedSize,
+          "grandchild kept writing after the process group stopped",
+        );
+      } finally {
+        controller.abort();
+        await stopped;
       }
-      assert.ok(existsSync(marker), "grandchild ran before the group stopped");
-      // A loaded host can deliver the stopping timer late. Writes before
-      // termination say nothing about cleanup; further writes do.
-      const stoppedSize = statSync(marker).size;
-      assert.ok(stoppedSize > 0, "the grandchild heartbeat was exercised");
-      await setTimeout(1000);
-      assert.equal(
-        statSync(marker).size,
-        stoppedSize,
-        "grandchild kept writing after the process group stopped",
-      );
     } finally {
-      controller.abort();
       rmSync(dir, { recursive: true, force: true });
     }
   });

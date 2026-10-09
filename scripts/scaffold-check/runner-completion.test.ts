@@ -92,8 +92,7 @@ for (const stop of ["deadline", "interrupt"] as const) {
       if (!existsSync(release)) writeFileSync(release, "finish");
       controller.abort();
       await observed;
-      if (killer !== undefined && killer.exitCode === null)
-        await once(killer, "close");
+      if (killer?.exitCode === null) await once(killer, "close");
       rmSync(directory, { recursive: true, force: true });
     }
   });
