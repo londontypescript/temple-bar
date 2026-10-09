@@ -1,7 +1,7 @@
 # ADR 0007: What the gate checks
 
 Date: 2026-10-01, updated 2026-10-03 and 2026-10-09. Status: accepted (decisions 10, 15, 20, 23, 36 and 43; 10 and 15
-are decided but not built yet).
+are recorded below with their implementation status).
 
 ## Context
 
@@ -54,8 +54,8 @@ four scripts; found in the scaffolder trials.
 (markdownlint's library, knip) are package dependencies, pinned by the
 lockfile. The library rather than the markdownlint-cli2 command: the gate
 already lists the files, and the command's file matching brought in a
-dependency with an unpatched flaw (Dependabot, 2026-10-03). A
-built-in Markdown integrity checks cover actual local links and images,
+dependency with an unpatched flaw (Dependabot, 2026-10-03).
+Built-in Markdown integrity checks cover actual local links and images,
 including supported HTML references, and undefined explicit full/collapsed
 reference labels. They do not require files mentioned only in inline code
 to exist. Markdown style belongs to the project's `lint` and `format:check`.
@@ -64,12 +64,17 @@ nor honors generic markdownlint-disable directives. Escaped prose and code
 examples are not interpreted as navigable links. Checks use Git-listed
 targets and do not depend on the network for links.
 
-This revised contract is approved for [0.0.10](../plans/0.0.10.md), not yet
-implemented. The current gate still runs broad Markdown lint and cited-path
-checks. Fresh framework documents exposed the conflict between preserving
+This revised contract is implemented in source for the forthcoming
+[0.0.10](../plans/0.0.10.md). The published 0.0.9 gate pinned in this
+repository still runs broad Markdown lint and cited-path checks until a
+separately approved release pin update. Fresh framework documents exposed the conflict between preserving
 upstream instructions and enforcing universal style. Parsing corrections
-precede the policy change so comments and code examples do not create false
-link failures. Section anchors, empty links, table-cell checks, duplicate
+preceded the policy change so comments and code examples do not create false
+link failures. A custom rule reads the library's public structural tokens
+for explicit references, sharing the interpretation used by local links.
+This avoids stock reference-rule false positives for Unicode labels and
+container prefixes. Packed delivery proves both genuine failures and
+framework-document preservation. Section anchors, empty links, table-cell checks, duplicate
 reference-label checks and MDX support are deferred; they need an explicit
 rendering contract or evidence before becoming universal blockers.
 

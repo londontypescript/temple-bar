@@ -90,7 +90,9 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 
 Decision 10 was revised on 2026-10-09 for the approved
 [0.0.10 plan](0.0.10.md): Markdown integrity is mandatory; style and code-path
-citations are not universal blockers. The implementation is still planned.
+citations are not universal blockers. This contract is implemented in source
+for the forthcoming release; updating this repository's published gate pin
+remains a separate approval.
 
 ---
 

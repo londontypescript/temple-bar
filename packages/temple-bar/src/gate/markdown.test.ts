@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createFakeContext, createFakeWriter } from "../testing/fakes.ts";
-import { DEFAULT_MARKDOWNLINT_CONFIG, runMarkdownLint } from "./markdown.ts";
+import { MARKDOWN_INTEGRITY_CONFIG, runMarkdownLint } from "./markdown.ts";
 import { createFakeTools } from "./testing/fake-tools.ts";
 
 void test("markdown lint gets only the markdown files git lists, never a nested worktree", async () => {
@@ -42,8 +42,9 @@ void test("a markdownlint that can't run fails the check instead of passing it",
   assert.match(stderr.lines.join(""), /markdown lint could not run/);
 });
 
-void test("the default config keeps markdownlint's rules and turns off only layout", () => {
-  assert.equal(DEFAULT_MARKDOWNLINT_CONFIG.default, true);
-  assert.equal(DEFAULT_MARKDOWNLINT_CONFIG["line-length"], false);
-  assert.equal(DEFAULT_MARKDOWNLINT_CONFIG["heading-increment"], undefined);
+void test("the fixed config enables only explicit undefined reference labels", () => {
+  assert.deepEqual(MARKDOWN_INTEGRITY_CONFIG, {
+    default: false,
+    "temple-bar-reference-labels": true,
+  });
 });
