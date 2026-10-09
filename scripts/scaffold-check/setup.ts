@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { expectation } from "./expectation.ts";
+import { validateGate } from "./gate-validation.ts";
 import type { Resources } from "./resources.ts";
 import type { Runner, RunResult } from "./runner.ts";
 import type { Snapshot } from "./snapshot.ts";
@@ -9,7 +10,6 @@ import { validateManifest } from "./validate-manifest.ts";
 import {
   gitState,
   validateCommit,
-  validateGate,
   validateRefusal,
   validateSource,
 } from "./validation.ts";
@@ -42,6 +42,7 @@ export async function setup(
   runner: Runner,
   resources: Resources,
   pnpmVersion: string,
+  expectedMissing: readonly string[],
   signal?: AbortSignal,
 ): Promise<SetupResult> {
   const expected = expectation(snapshot);
@@ -127,7 +128,7 @@ export async function setup(
     "https://git.example.invalid/acme/widgets.git",
   ]);
   const gate = await run("pnpm", ["run", "gate"]);
-  findings.push(...validateGate(snapshot, gate));
-  information.push(`gate report (information):\n${report(gate)}`);
+  findings.push(...validateGate(snapshot, gate, expectedMissing));
+  information.push(`gate report:\n${report(gate)}`);
   return { findings, unknown: [], information };
 }

@@ -1,9 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { REQUIRED_SCRIPTS } from "../../packages/temple-bar/src/gate/stack.ts";
-import { manifest, object } from "./expectation.ts";
 import type { RunResult } from "./runner.ts";
-import type { Snapshot } from "./snapshot.ts";
 
 export interface GitState {
   readonly config: string;
@@ -90,29 +87,4 @@ export function validateCommit(result: RunResult): string[] {
     result.output.includes("refusing to commit directly to main")
     ? []
     : ["hooks: direct commit to main did not refuse with the hook's message"];
-}
-
-export function validateGate(snapshot: Snapshot, result: RunResult): string[] {
-  const scripts =
-    object(manifest(snapshot.files["package.json"])?.scripts) ?? {};
-  const missing = REQUIRED_SCRIPTS.filter(
-    (name) => !Object.hasOwn(scripts, name),
-  );
-  const reported = [
-    ...result.output.matchAll(/^gate: .*missing script\(s\): ([^\r\n]+)\r?$/gm),
-  ].map((match) => match[1]);
-  const expected = missing.length > 0 ? [missing.join(", ")] : [];
-  const findings: string[] = [];
-  if (JSON.stringify(reported) !== JSON.stringify(expected))
-    findings.push(
-      `gate: expected missing script(s): ${missing.join(", ") || "none"}; got ${JSON.stringify(reported)}`,
-    );
-  if (
-    result.timedOut ||
-    (missing.length > 0 ? result.code !== 2 : ![0, 1].includes(result.code))
-  )
-    findings.push(
-      `gate: unexpected exit ${String(result.code)}${result.timedOut ? " (deadline)" : ""}`,
-    );
-  return findings;
 }

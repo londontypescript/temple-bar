@@ -44,11 +44,14 @@ async function passThrough(
       new URL(encodeURIComponent(name), PUBLIC_REGISTRY),
       { headers: accept === undefined ? {} : { accept } },
     );
+    // Finish the download before committing headers: a failed body must
+    // return one 502 response, not throw while writing a second header.
+    const body = Buffer.from(await upstream.arrayBuffer());
     res.writeHead(upstream.status, {
       "content-type":
         upstream.headers.get("content-type") ?? "application/json",
     });
-    res.end(Buffer.from(await upstream.arrayBuffer()));
+    res.end(body);
   } catch {
     res.writeHead(502, { "content-type": "application/json" });
     res.end('{"error":"the public registry could not be reached"}');

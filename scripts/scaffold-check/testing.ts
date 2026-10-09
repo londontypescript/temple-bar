@@ -266,9 +266,31 @@ export function world(
         const missing = ["typecheck", "lint", "format:check", "test"].filter(
           (name) => !(name in scripts),
         );
+        const outcomes = [
+          ...["typecheck", "lint", "format:check", "test"].map((name) =>
+            missing.includes(name)
+              ? `  missing  ${name} (not in package.json)`
+              : `  passed   ${name}`,
+          ),
+          ...[
+            "core setup",
+            "gate and title workflows",
+            "file-length cap",
+            "AGENTS.md size",
+            "markdown lint",
+            "local links",
+            "unused code (knip)",
+          ].map((name) => `  passed   ${name}`),
+          ...[
+            "branch ruleset",
+            "judge ruleset",
+            "code scanning rule",
+            "gate and title checks rule",
+          ].map((name) => `  skipped  ${name} (origin is not on GitHub)`),
+        ];
         return {
-          code: missing.length > 0 ? 2 : 1,
-          output: `${missing.length > 0 ? `gate: repo missing script(s): ${missing.join(", ")}\n` : ""}framework's own lint failed\n`,
+          code: missing.length > 0 ? 2 : 0,
+          output: `${missing.length > 0 ? `gate: repo missing script(s): ${missing.join(", ")}\n` : ""}gate: checks:\n${outcomes.join("\n")}\n${missing.length > 0 ? `gate: failed: ${missing.join(", ")}` : "gate: passed"}\n`,
           stdout: "",
           timedOut: false,
         };

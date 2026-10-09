@@ -17,6 +17,9 @@ export const USAGE = `Usage: pnpm scaffold-check [--update]
 
 Runs the latest scaffolders and a real packed temple-bar install against the
 public registry only (registry.npmjs.org). Run on demand and before a release.
+Compatibility allows only each scaffold's recorded missing project scripts;
+every other gate check must pass. GitHub rules are skipped for the isolated origin.
+Compatibility does not mean a scaffold with missing scripts passes the gate.
 --update records differing snapshots after all scaffolders have run.
 Clean runs delete their temporary folder; other runs print the retained path.
 HOME and caches are isolated; scaffolders are not sandboxed.

@@ -6,7 +6,6 @@ import { expectation } from "./expectation.ts";
 import {
   gitState,
   validateCommit,
-  validateGate,
   validateRefusal,
   validateSource,
 } from "./validation.ts";
@@ -202,82 +201,6 @@ for (const kind of [
     }
   });
 }
-
-void test("gate judges exact missing scripts in gate order, exit and deadline while framework results remain informational", () => {
-  const project = tempProject(minimalFiles);
-  try {
-    const report =
-      "gate: repo missing script(s): typecheck, format:check, test\nframework lint failed\n";
-    assert.deepEqual(
-      validateGate(project.snapshot, {
-        code: 2,
-        output: report,
-        stdout: "",
-        timedOut: false,
-      }),
-      [],
-      "correct missing script report accepted",
-    );
-    for (const changed of [
-      report.replace(
-        "typecheck, format:check, test",
-        "test, typecheck, format:check",
-      ),
-      report.replace(", test", ""),
-      `${report}${report}`,
-    ])
-      assert.ok(
-        validateGate(project.snapshot, {
-          code: 2,
-          output: changed,
-          stdout: "",
-          timedOut: false,
-        }).some((finding) =>
-          finding.startsWith("gate: expected missing script(s):"),
-        ),
-        "wrong list, order or duplicate line gets own finding",
-      );
-    assert.ok(
-      validateGate(project.snapshot, {
-        code: 1,
-        output: report,
-        stdout: "",
-        timedOut: false,
-      }).some((finding) => finding.startsWith("gate: unexpected exit")),
-      "missing scripts require gate exit 2",
-    );
-    assert.ok(
-      validateGate(project.snapshot, {
-        code: 2,
-        output: report,
-        stdout: "",
-        timedOut: true,
-      }).some((finding) => finding.includes("deadline")),
-      "deadlined gate is not accepted",
-    );
-  } finally {
-    project.close();
-  }
-  const all = tempProject({
-    "package.json":
-      '{"scripts":{"typecheck":"tsc","lint":"eslint","format:check":"prettier","test":"node --test"}}',
-  });
-  try {
-    for (const code of [0, 1])
-      assert.deepEqual(
-        validateGate(all.snapshot, {
-          code,
-          output: "framework report\n",
-          stdout: "",
-          timedOut: false,
-        }),
-        [],
-        "with no missing scripts framework success or failure accepted",
-      );
-  } finally {
-    all.close();
-  }
-});
 
 void test("commit validator requires the hook's own refusal, not just a failing git", () => {
   assert.deepEqual(
