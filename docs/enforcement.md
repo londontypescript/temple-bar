@@ -50,6 +50,13 @@ same pull request as any change to a mechanism.
 | One-line description the same everywhere  | tests; About text by a CI step                       | **Blocked** via CI    |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
 
+Markdown parser correction for the forthcoming 0.0.10 release: local link
+extraction uses markdownlint's structural tokens so comments and code examples
+are not destinations, and balanced parentheses are preserved. Packed delivery
+regressions show genuine missing targets still fail. This repo's pinned 0.0.9
+gate remains unchanged until a separate release pin update. The Markdown
+policy change is a later phase of the [approved plan](plans/0.0.10.md).
+
 Known limits of the required gate and title checks: the gate reads the rules
 GitHub enforces on `main`, which don't show who may bypass them, so it can say
 the checks are required, not that nobody can bypass them. And GitHub knows a
