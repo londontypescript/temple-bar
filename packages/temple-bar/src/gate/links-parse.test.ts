@@ -119,20 +119,12 @@ void test("HTML targets come from real attributes, including multiline quoted va
   );
 });
 
-void test("cited paths remain blocking and directives cannot hide missing actual links", () => {
+void test("citations create no targets and directives cannot hide missing actual links", () => {
   const content =
     "<!-- markdownlint-disable -->\nRead ``docs/gone.md`` and [gone](docs/gone(a).md).";
   assert.deepEqual(
     findBrokenTargets([{ file: "README.md", content }], ["docs/kept.md"]),
-    [
-      {
-        file: "README.md",
-        line: 2,
-        target: "docs/gone.md",
-        kind: "cited path",
-      },
-      { file: "README.md", line: 2, target: "docs/gone(a).md", kind: "link" },
-    ],
+    [{ file: "README.md", line: 2, target: "docs/gone(a).md", kind: "link" }],
   );
 });
 
@@ -166,4 +158,80 @@ void test("HTML URL boundary whitespace is trimmed while internal filename space
     ),
     [{ line: 1, target: "docs/a b.md", kind: "link" }],
   );
+});
+
+void test("only referenced effective definitions create targets, with Markdown label normalization", () => {
+  const content = [
+    "[full][multi LABEL] ![collapsed][] [shortcut] [SS] [constructor]",
+    "",
+    "[multi   label]: docs/full.md",
+    "[MULTI LABEL]: docs/ignored.md",
+    "[collapsed]: images/collapsed.png",
+    "[shortcut]: docs/shortcut.md",
+    "[ß]: docs/unicode.md",
+    "[constructor]: docs/safe.md",
+    "[unused]: docs/unused.md",
+  ].join("\n");
+  assert.deepEqual(
+    extractLocalTargets(content).map((target) => target.target),
+    [
+      "docs/full.md",
+      "images/collapsed.png",
+      "docs/shortcut.md",
+      "docs/unicode.md",
+      "docs/safe.md",
+    ],
+  );
+  assert.deepEqual(
+    findBrokenTargets(
+      [{ file: "README.md", content }],
+      [
+        "docs/full.md",
+        "images/collapsed.png",
+        "docs/shortcut.md",
+        "docs/unicode.md",
+        "docs/safe.md",
+      ],
+    ),
+    [],
+  );
+  assert.equal(
+    findBrokenTargets([{ file: "README.md", content }], [])[0]?.target,
+    "docs/full.md",
+  );
+});
+
+void test("a reference link containing a reference image checks both effective destinations", () => {
+  const content = [
+    "[outer ![nested][image]][outer]",
+    "",
+    "[image]: images/nested.png",
+    "[outer]: docs/outer.md",
+  ].join("\n");
+  assert.deepEqual(extractLocalTargets(content), [
+    { line: 3, target: "images/nested.png", kind: "link" },
+    { line: 4, target: "docs/outer.md", kind: "link" },
+  ]);
+  assert.deepEqual(
+    findBrokenTargets([{ file: "README.md", content }], ["images/nested.png"]),
+    [{ file: "README.md", line: 4, target: "docs/outer.md", kind: "link" }],
+  );
+});
+
+void test("container multiline labels, escaped punctuation and entities retain reference identity", () => {
+  const content = [
+    "> [full][multi",
+    "> label] [a\\*] [a&amp;b]",
+    ">",
+    "> [multi",
+    "> label]: docs/multi.md",
+    "",
+    "[a\\*]: docs/escaped.md",
+    "[a&amp;b]: docs/entity.md",
+  ].join("\n");
+  assert.deepEqual(extractLocalTargets(content), [
+    { line: 5, target: "docs/multi.md", kind: "link" },
+    { line: 7, target: "docs/escaped.md", kind: "link" },
+    { line: 8, target: "docs/entity.md", kind: "link" },
+  ]);
 });

@@ -93,16 +93,16 @@ void test("markdown e2e: setup's own files and a long-lined README pass both che
 
 void test("markdown e2e: a lint error fails the gate, and the fixed file passes", async () => {
   const { dir, write } = await docsRepo({
-    "README.md": "# Sample\n\n### Skipped a level\n",
+    "README.md": "# Sample\n\n[guide][missing]\n",
   });
   try {
     const failing = await runGate(dir);
     assert.equal(failing.code, 1);
-    assert.match(failing.err, /README\.md:3.* MD001/);
+    assert.match(failing.err, /README\.md:3.* temple-bar-reference-labels/);
     assert.match(failing.err, /^ {2}failed {3}markdown lint \(lint errors\)$/m);
     assert.match(failing.err, /fix each one in the file it names/);
 
-    write("README.md", "# Sample\n\n## One level down\n");
+    write("README.md", "# Sample\n\n[guide](#guide)\n");
     assert.equal((await runGate(dir)).code, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -110,7 +110,7 @@ void test("markdown e2e: a lint error fails the gate, and the fixed file passes"
 });
 
 void test("markdown e2e: Next.js's one-line CLAUDE.md passes straight after setup", async () => {
-  // Without setup's heading, markdown lint fails it (first-line-heading).
+  // A framework import does not assert a Markdown style convention.
   const { dir } = await docsRepo({ "CLAUDE.md": "@AGENTS.md\n" });
   try {
     const result = await runGate(dir);
@@ -121,11 +121,11 @@ void test("markdown e2e: Next.js's one-line CLAUDE.md passes straight after setu
   }
 });
 
-void test("markdown e2e: a project's own markdownlint config replaces the default", async () => {
+void test("markdown e2e: project Markdown style settings cannot add universal gate rules", async () => {
   const { dir } = await docsRepo({
     "README.md": "# Sample\n\n### Skipped a level\n",
     ".markdownlint.jsonc":
-      '{\n  // off for this project\n  "heading-increment": false,\n}\n',
+      '{\n  // style belongs to the project\n  "heading-increment": true,\n}\n',
   });
   try {
     const result = await runGate(dir);

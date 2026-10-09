@@ -15,37 +15,12 @@ import type { GateTools } from "./tools.ts";
 
 const MARKDOWN_LINT_CHECK = "markdown lint";
 
-/** markdownlint's own rules, minus the ones about layout: line length,
- * spacing, list indents and marker styles. Layout is the format:check
- * script's job, and these rules disagree with Prettier, so linting them too
- * would fail files the formatter just wrote. The list is markdownlint's own
- * "prettier" style. A project with its own markdownlint config file uses
- * that instead. */
-export const DEFAULT_MARKDOWNLINT_CONFIG: Readonly<Record<string, unknown>> = {
-  default: true,
-  "blanks-around-fences": false,
-  "blanks-around-headings": false,
-  "blanks-around-lists": false,
-  "code-fence-style": false,
-  "emphasis-style": false,
-  "heading-start-left": false,
-  "heading-style": false,
-  "hr-style": false,
-  "line-length": false,
-  "list-indent": false,
-  "list-marker-space": false,
-  "no-blanks-blockquote": false,
-  "no-hard-tabs": false,
-  "no-missing-space-atx": false,
-  "no-missing-space-closed-atx": false,
-  "no-multiple-blanks": false,
-  "no-multiple-space-atx": false,
-  "no-multiple-space-blockquote": false,
-  "no-multiple-space-closed-atx": false,
-  "no-trailing-spaces": false,
-  "ol-prefix": false,
-  "strong-style": false,
-  "ul-indent": false,
+/** Only explicit undefined reference labels are universally invalid. Style
+ * belongs to project scripts; configuration and lint directives cannot
+ * suppress this fixed integrity rule. */
+export const MARKDOWN_INTEGRITY_CONFIG: Readonly<Record<string, unknown>> = {
+  default: false,
+  "temple-bar-reference-labels": true,
 };
 
 function markdownFiles(listed: readonly string[]): string[] {
@@ -65,11 +40,7 @@ export async function runMarkdownLint(
       detail: "no markdown files",
     };
   }
-  const code = await tools.markdownlint(
-    ctx,
-    files,
-    DEFAULT_MARKDOWNLINT_CONFIG,
-  );
+  const code = await tools.markdownlint(ctx, files, MARKDOWN_INTEGRITY_CONFIG);
   if (code === 0) {
     return {
       name: MARKDOWN_LINT_CHECK,
