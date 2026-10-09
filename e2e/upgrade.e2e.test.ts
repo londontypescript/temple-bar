@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
@@ -32,7 +38,11 @@ const workflows = [
 ];
 
 before(async () => {
-  workDir = mkdtempSync(path.join(tmpdir(), "temple-bar-upgrade-"));
+  // Git expands Windows short temp paths before the post-checkout install.
+  // Later pnpm commands and their caches must use the same canonical spelling.
+  workDir = realpathSync.native(
+    mkdtempSync(path.join(tmpdir(), "temple-bar-upgrade-")),
+  );
   env = upgradeEnv(workDir);
   packed = await packedTarball(workDir, env);
   published = await publishedTarball(workDir, "0.0.9");
