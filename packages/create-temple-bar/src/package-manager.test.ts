@@ -6,6 +6,7 @@ import {
   FOREIGN_LOCKFILES,
   foreignPackageManager,
   isLaunchedByPnpm,
+  installCommand,
   packageManagerRequiredMessage,
   pnpmRequiredMessage,
   runInitCommand,
@@ -100,4 +101,11 @@ void test("runInitCommand passes on only the two approval flags", () => {
     runInitCommand(["--create-repo", "--evil", "--create-ruleset"]).args,
     ["exec", "temple-bar", "init", "--create-repo", "--create-ruleset"],
   );
+});
+
+void test("installCommand runs normal project installation with a frozen lockfile", () => {
+  assert.deepEqual(installCommand(), {
+    command: "pnpm",
+    args: ["install", "--frozen-lockfile"],
+  });
 });

@@ -6,8 +6,12 @@ export const HELP_TEXT = `Usage: pnpm create @londontypescript/temple-bar@latest
 temple-bar needs pnpm: https://pnpm.io/installation
 
 Sets up temple-bar in the current project: adds @londontypescript/temple-bar
-as a dev dependency, pinned to this launcher's own version, then runs
-\`temple-bar init\`.
+as a dev dependency, pinned to this launcher's own version, runs
+\`pnpm install --frozen-lockfile\`, then \`temple-bar init\`.
+
+Installation runs project lifecycle scripts, including framework preparation,
+unless your pnpm settings disable them. In a workspace, pnpm installs the
+workspace and runs its lifecycle scripts.
 
 Run it from your project's root folder.
 

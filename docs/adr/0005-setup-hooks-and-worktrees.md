@@ -35,6 +35,13 @@ was installed, and the hooks go in through the project's own `prepare` script,
 in plain view. The rules it installs make "ask the user what they're building"
 the first step for a new project.
 
+The launcher finishes `pnpm install --frozen-lockfile` after adding the
+pinned dependency and before running `init`. Adding a dependency alone does
+not run root preparation; frameworks need that step to generate configuration.
+Normal installation runs project lifecycle scripts under the project's pnpm
+settings, including workspace lifecycle scripts when pnpm installs a workspace.
+A failed install stops before `init`; setup never overrides disabled scripts.
+
 Until 2026-10-01 this decision said the command worked with every package
 manager; it now says pnpm only, as decisions 9 and 31 require. Until
 2026-10-03 it said temple-bar came first and scaffolding followed. Trying

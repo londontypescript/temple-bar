@@ -1,6 +1,7 @@
 // The launcher's whole job: make sure this is pnpm, create package.json if
 // there isn't one, add @londontypescript/temple-bar as a pinned dev
-// dependency, then run `temple-bar init` through pnpm and exit with its code.
+// dependency, finish a normal install (including project lifecycle scripts),
+// then run `temple-bar init` through pnpm and exit with its code.
 // Everything that touches the outside world (fs, process spawning) is
 // injected, so this orchestration is testable with a fake of each.
 
@@ -12,6 +13,7 @@ import {
   FOREIGN_LOCKFILES,
   foreignPackageManager,
   isLaunchedByPnpm,
+  installCommand,
   packageManagerRequiredMessage,
   pnpmRequiredMessage,
   runInitCommand,
@@ -113,6 +115,17 @@ export async function main(deps: MainDeps): Promise<number> {
         `(ran: ${addDep.command} ${addDep.args.join(" ")}).\n`,
     );
     return addResult.code ?? 1;
+  }
+
+  // Adding a dependency does not run the project's root prepare script.
+  // Frameworks use it to generate configuration needed by their checks.
+  const install = installCommand();
+  const installResult = await deps.run(install.command, install.args, options);
+  if (installResult.code !== 0) {
+    deps.stderr.write(
+      `Failed to install the project (ran: ${install.command} ${install.args.join(" ")}).\n`,
+    );
+    return installResult.code ?? 1;
   }
 
   const init = runInitCommand(deps.argv);
