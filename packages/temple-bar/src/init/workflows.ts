@@ -170,9 +170,9 @@ export const CHECKED_WORKFLOWS: readonly CheckedWorkflow[] = [
   },
 ];
 
-/** How to put a changed copy right: setup never overwrites a file, so the
- * changed one has to go before setup can write it again. */
+/** Preserve edits before asking setup to restore a copy it cannot recognize.
+ * Authentic earlier output upgrades automatically; edits never do. */
 export const RESTORE_WORKFLOW =
   "move the project's own changes into a workflow of their own, delete " +
-  `this file, and run ${RERUN_INIT} again (setup never overwrites an ` +
-  "existing file)";
+  `this file, and run ${RERUN_INIT} again (setup preserves edited or ` +
+  "unrecognized files)";

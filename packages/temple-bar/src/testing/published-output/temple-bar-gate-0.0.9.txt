@@ -1,0 +1,60 @@
+# Written by temple-bar. The gate checks this file is an exact copy of the one
+# temple-bar writes, so any edit fails it. The project's own jobs go in a
+# workflow of their own. The job name "temple-bar gate" is reserved for
+# temple-bar: a project's own jobs use other names.
+name: temple-bar gate
+
+# Not on "edited": GitHub sends it for a description change too, and the
+# gate gains nothing from rerunning on the same commit. The title is checked
+# by temple-bar-pr-title.yml, which does run on "edited".
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+# A newer push cancels the run for the commit it replaced.
+concurrency:
+  group: temple-bar-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    # A ruleset requires a check with exactly this name.
+    name: temple-bar gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # The pull request size check measures from the base branch.
+          fetch-depth: 0
+
+      # No version here: pnpm/action-setup installs the one package.json
+      # names, and fails if this named a different one.
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Gate
+        run: pnpm gate
+        env:
+          # The gate's ruleset check reads GitHub, and fails in Actions
+          # without a token rather than hit the anonymous rate limit.
+          GH_TOKEN: ${{ github.token }}
+
+      # Warns about a large pull request and still passes. It fails only
+      # when it can't measure the pull request: a check that quietly does
+      # nothing is worse than a red one.
+      - name: Pull request size
+        run: pnpm exec temple-bar pr-size

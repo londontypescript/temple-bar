@@ -1,0 +1,32 @@
+#!/bin/sh
+# Installed by `temple-bar hook install`. Do not edit by hand.
+case "$1" in
+  ""|*[!0]*) exit 0 ;;
+esac
+bin=""
+common=$(git rev-parse --git-common-dir 2>/dev/null)
+if [ -n "$common" ] && [ -f "$common/hooks/temple-bar-checkout" ]; then
+  IFS= read -r installed < "$common/hooks/temple-bar-checkout"
+  bin="$installed/node_modules/.bin/temple-bar"
+fi
+if [ ! -x "$bin" ]; then
+  root=$(git rev-parse --show-toplevel 2>/dev/null)
+  if [ -n "$root" ]; then
+    bin="$root/node_modules/.bin/temple-bar"
+  fi
+fi
+if [ ! -x "$bin" ]; then
+  bin=$(git worktree list --porcelain | while IFS= read -r line; do
+    candidate="${line#worktree }/node_modules/.bin/temple-bar"
+    if [ "${line#worktree }" != "$line" ] && [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      break
+    fi
+  done)
+fi
+if [ -z "$bin" ]; then
+  echo 'temple-bar is not installed in any checkout of this repo, so this new worktree was not set up.
+Run pnpm install in it.' >&2
+  exit 1
+fi
+exec "$bin" hook post-checkout "$1" "$2" "$3"

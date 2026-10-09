@@ -25,10 +25,10 @@
 // - `core.hooksPath` set to `.githooks`, the folder earlier releases used,
 //   is removed: while it is set, git runs no hook from the shared folder.
 
-import { createHash } from "node:crypto";
 import path from "node:path";
 
 import type { Context } from "../context.ts";
+import { isEarlierOutput } from "../generated-history.ts";
 import { WriteTargets } from "../init/write-target.ts";
 import { findCommonGitDir } from "../git-common-dir.ts";
 import {
@@ -64,54 +64,21 @@ const EARLIER_HOOKS_PATH = ".githooks";
 interface Shim {
   readonly name: string;
   readonly content: string;
-  /** SHA-256 of this shim's content as earlier releases wrote it. */
-  readonly earlierReleases: readonly string[];
 }
 
 const SHIMS: readonly Shim[] = [
-  {
-    name: "pre-commit",
-    content: PRE_COMMIT_SHIM,
-    // 0.0.1 to 0.0.3
-    earlierReleases: [
-      "c8516a24ea300186603b86e8e5f1fe758774796a76248657fa5e5600346ae729",
-    ],
-  },
-  {
-    name: "commit-msg",
-    content: COMMIT_MSG_SHIM,
-    earlierReleases: [],
-  },
-  {
-    name: "pre-push",
-    content: PRE_PUSH_SHIM,
-    earlierReleases: [],
-  },
-  {
-    name: "reference-transaction",
-    content: REFERENCE_TRANSACTION_SHIM,
-    // 0.0.1 to 0.0.3
-    earlierReleases: [
-      "75971844b8a72064af9970d8bd01f61fc4b094315b4f847542860ba8e7de2590",
-    ],
-  },
-  {
-    name: "post-checkout",
-    content: POST_CHECKOUT_SHIM,
-    // 0.0.5 to 0.0.7, which only set up new worktrees
-    earlierReleases: [
-      "2917b58cc9b7791b577edfc77514c49c29bd56d6fc447f57ac691c3e8a54ce43",
-    ],
-  },
+  { name: "pre-commit", content: PRE_COMMIT_SHIM },
+  { name: "commit-msg", content: COMMIT_MSG_SHIM },
+  { name: "pre-push", content: PRE_PUSH_SHIM },
+  { name: "reference-transaction", content: REFERENCE_TRANSACTION_SHIM },
+  { name: "post-checkout", content: POST_CHECKOUT_SHIM },
 ];
 
 const EXECUTABLE_MODE = 0o755;
 
-const KEPT_DETAIL = "kept another temple-bar version's shim";
-
-function sha256(text: string): string {
-  return createHash("sha256").update(text, "utf8").digest("hex");
-}
+const KEPT_DETAIL =
+  "Warning: unrecognized temple-bar-marked shim retained; it may be edited " +
+  "or from a newer release. This version's gate requires its own exact shim";
 
 function isTempleBarShim(text: string): boolean {
   return text.split("\n", 2)[1]?.startsWith(SHIM_MARKER) === true;
@@ -148,7 +115,7 @@ async function installShim(
     return { item, status: "unchanged" };
   }
 
-  if (shim.earlierReleases.includes(sha256(existing))) {
+  if (isEarlierOutput(relative, existing)) {
     if (!(await targets.writeText(relative, content))) return conflict();
     if (!(await targets.chmod(relative, EXECUTABLE_MODE))) return conflict();
     return {

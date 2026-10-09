@@ -226,7 +226,7 @@ void test("install: any other core.hooksPath is a conflict and is left as it is"
   }
 });
 
-void test("install: a shim another temple-bar version wrote is kept without a conflict, so an older branch's install still passes", () => {
+void test("install: an unrecognized marked shim is retained with an ambiguity warning and no writer claim", () => {
   const fixture = createHookFixture();
   try {
     const hooksDir = path.join(fixture.repoDir, ".git", "hooks");
@@ -242,7 +242,7 @@ void test("install: a shim another temple-bar version wrote is kept without a co
     assert.equal(result.code, 0, result.stdout);
     assert.match(
       result.stdout,
-      /unchanged: \.git\/hooks\/pre-commit \(kept another temple-bar version's shim\)/,
+      /unchanged: \.git\/hooks\/pre-commit \(Warning: unrecognized temple-bar-marked shim retained; it may be edited or from a newer release/,
     );
     assert.equal(
       readFileSync(path.join(hooksDir, "pre-commit"), "utf8"),

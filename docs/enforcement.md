@@ -60,6 +60,13 @@ delivery regressions preserve framework documents and show genuine missing
 targets and labels still fail. This repo's pinned 0.0.9 gate remains unchanged
 until a separate release pin update: see the [approved plan](plans/0.0.10.md).
 
+Historical generated-output upgrades are implemented for the forthcoming
+0.0.10 release: setup replaces authentic published older hooks/workflows,
+preserves edited or unrecognized content, and reports workflow conflicts.
+Independent frozen npm output, release inventories and installed packed
+regressions defend ownership and preservation. Existing shim/workflow bytes
+and exact gate policy are unchanged; pinned 0.0.9 still judges this repo.
+
 Known limits of the required gate and title checks: the gate reads the rules
 GitHub enforces on `main`, which don't show who may bypass them, so it can say
 the checks are required, not that nobody can bypass them. And GitHub knows a

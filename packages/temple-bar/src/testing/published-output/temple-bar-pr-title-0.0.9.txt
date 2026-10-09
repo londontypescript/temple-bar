@@ -1,0 +1,53 @@
+# Written by temple-bar. The gate checks this file is an exact copy of the one
+# temple-bar writes, so any edit fails it. The project's own jobs go in a
+# workflow of their own. The job name "temple-bar pr-title" is reserved for
+# temple-bar: a project's own jobs use other names.
+name: temple-bar pr-title
+
+# Its own workflow, so a changed title is checked again without rerunning
+# the whole gate. It runs on every edit, even one that left the title alone:
+# a skipped check counts as passed, so skipping would let a description edit
+# clear a failed title.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+# Its own group: a title edit never cancels a gate run. A newer run
+# cancelling an older one is safe, since both check the title as it is now.
+concurrency:
+  group: temple-bar-pr-title-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    # A ruleset requires a check with exactly this name.
+    name: temple-bar pr-title
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # No version here: pnpm/action-setup installs the one package.json
+      # names, and fails if this named a different one.
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Reads the title from the event payload, never from the command line,
+      # so a title can't run code.
+      - name: Pull request title
+        run: pnpm exec temple-bar pr-title

@@ -56,6 +56,17 @@ export type WorkflowState =
   | { readonly kind: "exact" }
   | { readonly kind: "differs"; readonly line: number };
 
+/** The setup writer and gate use the same equality and line diagnostic.
+ * Setup compares the bytes it read for ownership instead of reading a
+ * second, potentially different file before deciding whether to upgrade. */
+export function compareWorkflowText(
+  found: string,
+  expected: string,
+): WorkflowState {
+  const line = firstDifferingLine(found, expected);
+  return line === undefined ? { kind: "exact" } : { kind: "differs", line };
+}
+
 /** Reads `workflow` under `repoRoot` and compares it with its copy. A
  * symlink is never a copy, even of the right text: git stores only the path
  * it points to, and GitHub doesn't run a symlinked workflow. */
@@ -72,8 +83,7 @@ export async function compareWorkflow(
   if (found === undefined) {
     return { kind: "missing" };
   }
-  const line = firstDifferingLine(found, workflow.content);
-  return line === undefined ? { kind: "exact" } : { kind: "differs", line };
+  return compareWorkflowText(found, workflow.content);
 }
 
 /** Every workflow that isn't an exact copy, each named, with its fix. Both
