@@ -41,12 +41,19 @@ before(async () => {
   ) as { name: string; version: string };
   registry = await serveTarball(manifest, tarballs.templeBar);
   env = environments(folder, process.env, registry.url).setup;
-  // A missing fixture dependency must not resolve to this checkout's bin.
+  // Exclude inherited project tools, but keep pnpm's own install directory:
+  // CI's package-manager setup also puts its executable in node_modules/.bin.
   const pathKey =
     Object.keys(env).find((key) => key.toUpperCase() === "PATH") ?? "PATH";
   env[pathKey] = (env[pathKey] ?? "")
     .split(path.delimiter)
-    .filter((entry) => !/[\\/]node_modules[\\/]\.bin(?:[\\/]|$)/.test(entry))
+    .filter(
+      (entry) =>
+        !/[\\/]node_modules[\\/]\.bin(?:[\\/]|$)/.test(entry) ||
+        ["pnpm", "pnpm.cmd", "pnpm.exe"].some((name) =>
+          existsSync(path.join(entry, name)),
+        ),
+    )
     .join(path.delimiter);
 });
 
