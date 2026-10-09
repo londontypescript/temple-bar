@@ -44,28 +44,28 @@ same pull request as any change to a mechanism.
 | temple-bar.config.json limits unchanged   | the judge, from 0.0.8                                | **Blocked** on GitHub |
 | Bypass merges seen by the maintainer      | `merge` lists the past month's, from 0.0.8           | **Detected** after    |
 | Judge's ruleset still required            | the pinned gate in CI (public repos), from 0.0.7     | **Blocked** via CI    |
-| Gate and title checks required on `main`  | `main` ruleset, gate (public repos), 0.0.9, not here | **Blocked** on GitHub |
-| Gate and title workflows unchanged        | the pinned gate in CI, from 0.0.9 (not yet here)     | **Blocked** via CI    |
+| Gate and title checks required on `main`  | `main` ruleset, gate (public repos), from 0.0.9      | **Blocked** on GitHub |
+| Gate and title workflows unchanged        | the pinned gate in CI, from 0.0.9                    | **Blocked** via CI    |
 | Release notes finished before publishing  | `pnpm release:publish` refuses unfinished notes      | **Blocked** locally   |
 | One-line description the same everywhere  | tests; About text by a CI step                       | **Blocked** via CI    |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
 
-Markdown integrity for the forthcoming 0.0.10 release uses markdownlint's
+Markdown integrity in the pinned 0.0.10 gate uses markdownlint's
 public structural tokens for actual local links/images and undefined explicit
 full/collapsed reference labels. Comments, code and HTML raw-text examples do
 not create references; balanced destinations are preserved. The fixed set
 reads no project style configuration and cannot be disabled by generic lint
 directives. Inline-code path mentions are not existence assertions. Packed
 delivery regressions preserve framework documents and show genuine missing
-targets and labels still fail. This repo's pinned 0.0.9 gate remains unchanged
-until a separate release pin update: see the [approved plan](plans/0.0.10.md).
+targets and labels still fail. This repo now pins the published 0.0.10 gate;
+see the [approved plan](plans/0.0.10.md).
 
-Historical generated-output upgrades are implemented for the forthcoming
-0.0.10 release: setup replaces authentic published older hooks/workflows,
+Historical generated-output upgrades are provided by published 0.0.10:
+setup replaces authentic published older hooks/workflows,
 preserves edited or unrecognized content, and reports workflow conflicts.
 Independent frozen npm output, release inventories and installed packed
 regressions defend ownership and preservation. Existing shim/workflow bytes
-and exact gate policy are unchanged; pinned 0.0.9 still judges this repo.
+and exact hook/workflow policy are unchanged; published 0.0.10 judges this repo.
 
 Known limits of the required gate and title checks: the gate reads the rules
 GitHub enforces on `main`, which don't show who may bypass them, so it can say
@@ -111,12 +111,11 @@ A rule that exists only as prose is a rule that will eventually be violated. If
 you find one drifting, the fix is a mechanism, not stronger wording. When a
 mechanism ships, shrink its rule in AGENTS.md to one line.
 
-The forthcoming 0.0.10 source gate accepts only verified comment-only unused
+The pinned 0.0.10 gate accepts only verified comment-only unused
 JavaScript/TypeScript file findings (decision 59). A public Knip capture
 reporter and bounded strict file reader preserve native diagnostics and all
 real unused code, exports, types and analyzer failures. Packed SvelteKit
-regressions exercise the exception and retained failures. This repository's
-published 0.0.9 pin still has the earlier unused-file behavior.
+regressions exercise the exception and retained failures.
 
 The release scaffold checker validates the packed gate's complete check report,
 exact per-framework missing-script expectations, verdict and exit code. Every
