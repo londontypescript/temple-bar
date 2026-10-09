@@ -104,11 +104,11 @@ void test(
       ),
       describe(result),
     );
-    assert.ok(
-      result.stdout.indexOf("svelte-kit sync") <
-        result.stdout.indexOf("Wrote temple-bar's rules into AGENTS.md"),
-      describe(result),
+    const prepareAt = result.stdout.indexOf("svelte-kit sync");
+    const setupAt = result.stdout.indexOf(
+      "Wrote temple-bar's rules into AGENTS.md",
     );
+    assert.ok(prepareAt >= 0 && setupAt > prepareAt, describe(result));
     for (const [relative, contents] of Object.entries(files)) {
       if (["package.json", ".gitignore"].includes(relative)) continue;
       assert.equal(
@@ -124,7 +124,19 @@ void test(
       manifest.scripts.prepare,
       "svelte-kit sync || echo '' && temple-bar hook install",
     );
-    assert.equal(manifest.imports["#lib"], "./src/lib/index.js");
+    const original = JSON.parse(files["package.json"] ?? "{}") as {
+      scripts: Record<string, string>;
+      imports: Record<string, string>;
+    };
+    assert.deepEqual(manifest.imports, original.imports);
+    for (const [name, command] of Object.entries(original.scripts)) {
+      if (name !== "prepare") assert.equal(manifest.scripts[name], command);
+    }
+    assert.ok(
+      readFileSync(path.join(options.cwd, ".gitignore"), "utf8").startsWith(
+        files[".gitignore"] ?? "",
+      ),
+    );
     const framework = await run("pnpm", ["run", "check"], options);
     assert.equal(framework.code, 0, describe(framework));
     // Avoid real GitHub: the fixture origin is deliberately fictitious.
@@ -182,7 +194,7 @@ void test(
 );
 
 void test(
-  "packed launcher honors normal workspace install lifecycle before repository setup",
+  "packed member installation prepares the workspace but exposes the existing root setup limitation",
   { timeout: 300_000 },
   async () => {
     const options = await project("workspace", {
@@ -223,5 +235,37 @@ void test(
     );
     assert.ok(existsSync(path.join(options.cwd, "AGENTS.md")));
     assert.ok(!existsSync(path.join(member.cwd, "AGENTS.md")));
+    // init resolves the Git root, while add installs in the member. Workspace
+    // member setup is separate planned work, not support this repair claims.
+    const prepare = await run("pnpm", ["run", "prepare"], options);
+    assert.notEqual(prepare.code, 0, describe(prepare));
+    assert.match(
+      prepare.stdout + prepare.stderr,
+      /temple-bar.*(?:not found|not recognized)|(?:not found|not recognized).*temple-bar/s,
+    );
+  },
+);
+
+void test(
+  "packed launcher leaves explicitly disabled project lifecycle scripts disabled",
+  { timeout: 300_000 },
+  async () => {
+    const options = await project("disabled-scripts", {
+      ".gitignore": "node_modules/\n",
+      ".npmrc": "ignore-scripts=true\n",
+      "package.json": JSON.stringify({
+        private: true,
+        scripts: { prepare: "node prepare.cjs" },
+      }),
+      "prepare.cjs": "require('node:fs').writeFileSync('prepared', 'ran');\n",
+    });
+    const result = await launch(options);
+    assert.equal(result.code, 0, describe(result));
+    assert.ok(!existsSync(path.join(options.cwd, "prepared")));
+    assert.ok(existsSync(path.join(options.cwd, "AGENTS.md")));
+    assert.equal(
+      readFileSync(path.join(options.cwd, ".npmrc"), "utf8"),
+      "ignore-scripts=true\n",
+    );
   },
 );
