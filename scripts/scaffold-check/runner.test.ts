@@ -57,9 +57,9 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
     // Fixed scripts, with the marker path passed as an argument: no code is
     // built from a value.
     const grandchild =
-      'const fs = require("node:fs"); const beat = () => fs.appendFileSync(process.argv[1], "tick"); beat(); setInterval(beat, 50); setTimeout(() => process.exit(0), 10000);';
+      'const fs = require("node:fs"); const beat = () => fs.appendFileSync(process.argv[1], "tick"); beat(); setInterval(beat, 50); setTimeout(() => {fs.writeFileSync(process.argv[1] + ".natural-exit", "survived"); process.exit(0);}, 10000);';
     const parent =
-      'const [marker, grandchild] = process.argv.slice(1); require("node:child_process").spawn(process.execPath, ["-e", grandchild, marker], {stdio: "ignore"}); setInterval(() => {}, 1000);';
+      'const [marker, grandchild] = process.argv.slice(1); require("node:child_process").spawn(process.execPath, ["-e", grandchild, marker], {stdio: ["ignore", "inherit", "inherit"]}); setInterval(() => {}, 1000);';
     try {
       const pending = runProcess({
         command: process.execPath,
@@ -97,6 +97,14 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
         );
         // A loaded host can deliver the stopping timer late. Writes before
         // termination say nothing about cleanup; further writes do.
+        // Keep descendant pipes open until it exits: parent close alone is
+        // not acknowledgment that every POSIX group signal was delivered.
+        // A parent-only kill waits for the safety exit and must still fail.
+        assert.equal(
+          existsSync(`${marker}.natural-exit`),
+          false,
+          "grandchild survived until its natural safety exit",
+        );
         const stoppedSize = statSync(marker).size;
         assert.ok(stoppedSize > 0, "the grandchild heartbeat was exercised");
         await setTimeout(1000);
