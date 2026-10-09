@@ -28,8 +28,9 @@ let registry: LocalRegistry | undefined;
 let env: NodeJS.ProcessEnv;
 
 before(async () => {
-  // pnpm records absolute paths: use the same spelling throughout each fixture.
-  folder = realpathSync(
+  // Native realpath expands Windows short-name temp paths. pnpm and SvelteKit
+  // otherwise disagree with tools that resolve their long-name equivalents.
+  folder = realpathSync.native(
     mkdtempSync(path.join(tmpdir(), "temple-bar-prepare-")),
   );
   tarballs = await packBoth(folder);
