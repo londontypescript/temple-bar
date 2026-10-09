@@ -74,11 +74,14 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
       const stopped = pending.catch(() => undefined);
       try {
         if (stop === "Ctrl-C") {
-          for (let attempt = 0; !existsSync(marker) && attempt < 200; attempt++)
+          // Creation precedes the first write; readiness requires actual data.
+          const heartbeatStarted = () =>
+            existsSync(marker) && statSync(marker).size > 0;
+          for (let attempt = 0; !heartbeatStarted() && attempt < 200; attempt++)
             await setTimeout(20);
           assert.ok(
-            existsSync(marker),
-            "grandchild started before interruption",
+            heartbeatStarted(),
+            "grandchild wrote its heartbeat before interruption",
           );
           controller.abort();
           await assert.rejects(
