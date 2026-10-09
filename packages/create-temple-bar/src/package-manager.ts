@@ -85,6 +85,12 @@ export function addDevDependencyCommand(version: string): CommandLine {
   };
 }
 
+/** Finish normal installation without rewriting the lockfile just produced
+ * by add. pnpm owns project lifecycle scripts and workspace install scope. */
+export function installCommand(): CommandLine {
+  return { command: "pnpm", args: ["install", "--frozen-lockfile"] };
+}
+
 /** The only flags passed on to init: each carries the user's yes to one
  * question. Anything else is dropped, so the launcher never hands arbitrary
  * arguments to `pnpm exec`. */

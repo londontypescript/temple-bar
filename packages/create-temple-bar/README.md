@@ -8,7 +8,9 @@ The setup launcher for [temple-bar](https://github.com/londontypescript/temple-b
 pnpm create @londontypescript/temple-bar@latest
 ```
 
-temple-bar works with pnpm only: [install it](https://pnpm.io/installation) first. It adds `@londontypescript/temple-bar` as a dev dependency, pinned to its own version, then runs `temple-bar init`.
+temple-bar works with pnpm only: [install it](https://pnpm.io/installation) first. It adds `@londontypescript/temple-bar` as a dev dependency, pinned to its own version, runs `pnpm install --frozen-lockfile`, then runs `temple-bar init`.
+
+Installation runs the project's lifecycle scripts, including framework preparation, unless your pnpm settings disable them. In a workspace, pnpm installs the workspace and runs its lifecycle scripts. An installation failure stops setup before `init`. Run the launcher from the repository root: `init` configures that root even when invoked from a workspace member.
 
 Run `pnpm create @londontypescript/temple-bar@latest -- --help` to see the usage. It changes nothing.
 

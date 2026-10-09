@@ -56,7 +56,7 @@ const userAgents = {
   npm: "npm/10.0.0 node/v24.0.0",
 };
 
-void test("main: pnpm runs `pnpm add -D` then `pnpm exec temple-bar init`", async () => {
+void test("main: pnpm adds the dependency, finishes install, then initializes", async () => {
   const { run, calls } = makeFakeRunner(() => ({ code: 0 }));
   const fs = makeFakeFs({ "/app/package.json": "{}" });
   const deps: MainDeps = {
@@ -79,7 +79,9 @@ void test("main: pnpm runs `pnpm add -D` then `pnpm exec temple-bar init`", asyn
     "@londontypescript/temple-bar@0.3.0",
   ]);
   assert.equal(firstCall.command, "pnpm");
-  assert.deepEqual(calls[1], {
+  assert.deepEqual(calls[1]?.args, ["install", "--frozen-lockfile"]);
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls[2], {
     command: "pnpm",
     args: ["exec", "temple-bar", "init"],
     options: { cwd: "/app", env: deps.env },
@@ -170,7 +172,7 @@ void test("main: the launcher's own commands don't inherit npm exec's --package"
 
   await main(deps);
 
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   for (const call of calls) {
     assert.equal(call.options.env.npm_config_package, undefined);
     assert.equal(call.options.env.KEEP, "me");
@@ -339,7 +341,7 @@ void test("main: packageManager refuses foreign strings before writes or runs an
       assert.deepEqual(stderr.lines, []);
       assert.deepEqual(
         runner.calls.map((call) => call.args[0]),
-        ["add", "exec"],
+        ["add", "install", "exec"],
       );
       assert.deepEqual(
         writes,
@@ -362,10 +364,26 @@ void test("main: the approval flags reach `temple-bar init`", async () => {
     stderr: makeFakeWriter(),
   });
   assert.equal(code, 0);
-  assert.deepEqual(calls[1]?.args, [
+  assert.deepEqual(calls[2]?.args, [
     "exec",
     "temple-bar",
     "init",
     "--create-repo",
   ]);
 });
+
+for (const failure of [7, null]) {
+  void test(`main: install exit ${String(failure)} stops before init`, async () => {
+    const { deps, stderr } = refusalFixture(userAgents.pnpm);
+    const runner = makeFakeRunner((_command, args) => ({
+      code: args[0] === "install" ? failure : 0,
+    }));
+    assert.equal(await main({ ...deps, run: runner.run }), failure ?? 1);
+    assert.deepEqual(
+      runner.calls.map((call) => call.args[0]),
+      ["add", "install"],
+    );
+    assert.match(stderr.lines.join(""), /Failed to install the project/);
+    assert.match(stderr.lines.join(""), /ran: pnpm install --frozen-lockfile/);
+  });
+}
