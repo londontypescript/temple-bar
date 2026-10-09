@@ -41,6 +41,13 @@ before(async () => {
   ) as { name: string; version: string };
   registry = await serveTarball(manifest, tarballs.templeBar);
   env = environments(folder, process.env, registry.url).setup;
+  // A missing fixture dependency must not resolve to this checkout's bin.
+  const pathKey =
+    Object.keys(env).find((key) => key.toUpperCase() === "PATH") ?? "PATH";
+  env[pathKey] = (env[pathKey] ?? "")
+    .split(path.delimiter)
+    .filter((entry) => !/[\\/]node_modules[\\/]\.bin(?:[\\/]|$)/.test(entry))
+    .join(path.delimiter);
 });
 
 after(async () => {
