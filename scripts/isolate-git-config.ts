@@ -14,7 +14,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-/** Set once by the outermost process, so subprocesses reuse its file. */
+/** Set by the first process to load this file (each test file's process; the
+ * outer `node --test` runner never loads it), so its subprocesses reuse the file. */
 const MARKER = "TEMPLE_BAR_TEST_ISOLATED";
 
 // Variables git reads that redirect it or add config outside the files above.

@@ -4,9 +4,10 @@
 // the bare repo and squash-merges into it the way GitHub would.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import type { TestContext } from "node:test";
 
 import type { Context } from "../../context.ts";
 import type { GhResult } from "../../seams/gh.ts";
@@ -44,9 +45,13 @@ export interface Setup {
 }
 
 /** origin with main; a clone with feat/x in its own worktree, pushed; then
- * main moves on in origin, so the branch is behind. */
-export function setUp(): Setup {
+ * main moves on in origin, so the branch is behind. The test's `t` removes
+ * the folder when the test ends, pass or fail. */
+export function setUp(t: Pick<TestContext, "after">): Setup {
   const root = mkdtempSync(path.join(tmpdir(), "temple-bar-merge-"));
+  t.after(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
   const seed = path.join(root, "seed");
   const origin = path.join(root, "origin.git");
   const clone = path.join(root, "clone");

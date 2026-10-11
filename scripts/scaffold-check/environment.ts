@@ -37,6 +37,9 @@ export function environments(
   Object.assign(base, {
     GIT_CONFIG_GLOBAL: gitConfig,
     GIT_CONFIG_NOSYSTEM: "1",
+    // pnpm turns on Node's compile cache, which Node keeps in the temp folder;
+    // it is a cache, not a leak, so it must not show up as one.
+    NODE_DISABLE_COMPILE_CACHE: "1",
     GIT_AUTHOR_NAME: "Scaffold check",
     GIT_AUTHOR_EMAIL: "scaffold-check@example.invalid",
     GIT_COMMITTER_NAME: "Scaffold check",
