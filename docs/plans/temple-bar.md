@@ -91,6 +91,11 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 60  | Setup declares Node 24+ in `engines.node`, raising a plain lower `>=`               | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 61  | temple-bar refuses a Node below its minimum before loading anything else            | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 62  | Before installing, hook and launcher check the pnpm that will run against the pin   | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 63  | The judge guards what decides how the gate runs, in every package, and no more      | [0015](../adr/0015-every-package-checked-and-guarded.md)  |
+| 64  | The judge guards every script of every tracked `package.json`                       | [0015](../adr/0015-every-package-checked-and-guarded.md)  |
+| 65  | A new package with scripts, or a removed one, needs the maintainer                  | [0015](../adr/0015-every-package-checked-and-guarded.md)  |
+| 66  | `pnpm-workspace.yaml` stays guarded as a whole file                                 | [0015](../adr/0015-every-package-checked-and-guarded.md)  |
+| 67  | The gate runs every package's checks and fails on a manifest outside the list       | [0015](../adr/0015-every-package-checked-and-guarded.md)  |
 
 Decision 59 was approved on 2026-10-09 after Claude Sonnet reviewed the precise content-only contract.
 

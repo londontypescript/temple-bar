@@ -139,6 +139,10 @@ request can't weaken the checks that judge it. That is still needed, but pull
 request CI runs the pull request's own copy of the workflow, so it needs its
 own design (theme B).
 
+In a pnpm workspace the gate runs these four scripts in every package as
+well as the root
+([ADR 0015](0015-every-package-checked-and-guarded.md)).
+
 ## What would end it
 
 This is wrong if a London TypeScript project can't express its checks as
