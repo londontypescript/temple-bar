@@ -2,7 +2,8 @@
 // up a worktree that `git worktree add` has just made, whichever tool made
 // it, so it is ready to work in. Env files come in first (env-files.ts),
 // then dependencies, with `pnpm install --frozen-lockfile`, so the worktree
-// gets exactly what the lockfile on its branch says.
+// gets exactly what the lockfile on its branch says, once pnpm-check.ts has
+// confirmed the pnpm that will run is the one the project pins.
 //
 // Every other checkout in a linked worktree does nothing. git passes a
 // previous HEAD of all zeros only for a checkout with nothing before it: a
@@ -19,6 +20,7 @@ import path from "node:path";
 
 import type { Context } from "../context.ts";
 import { checkEnvKeys, copyEnvFiles, describeEnv } from "./env-files.ts";
+import { pnpmMatchesPin } from "./pnpm-check.ts";
 import {
   findCheckout,
   warnIfMainCheckoutOffDefault,
@@ -87,6 +89,9 @@ async function installDependencies(
   if (!(await ctx.fs.exists(path.join(worktree, "pnpm-lock.yaml")))) {
     say(ctx, "no pnpm-lock.yaml here, so no dependencies to install");
     return 0;
+  }
+  if (!(await pnpmMatchesPin(ctx, worktree))) {
+    return 1;
   }
   say(ctx, `installing dependencies: ${INSTALL_COMMAND}`);
   const code = await ctx.proc.run("pnpm", INSTALL_ARGS, {

@@ -21,7 +21,11 @@ async function runStep(
   manifest: Record<string, unknown>,
   env: NodeJS.ProcessEnv = { npm_config_user_agent: PNPM_USER_AGENT },
 ) {
-  const original = JSON.stringify(manifest, null, 2);
+  const original = JSON.stringify(
+    { engines: { node: ">=24" }, ...manifest },
+    null,
+    2,
+  );
   const fs = createFakeFs({ "/repo/package.json": original });
   const ctx = createFakeContext({ fs, env });
   const outcome = await ensurePackageJsonScripts(ctx, "/repo");

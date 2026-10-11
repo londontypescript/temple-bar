@@ -4,6 +4,8 @@
 // the order of setup's steps.
 
 import type { Context } from "../context.ts";
+import { MIN_NODE_MAJOR } from "../node-version.ts";
+import { WANTED_NODE, type NodeEnginesStep } from "./engines-node.ts";
 import type { WriteTarget } from "./write-target.ts";
 import type { SetupFilesOutcome } from "./files.ts";
 import type { WorkflowOutcome } from "./workflow-update.ts";
@@ -100,6 +102,23 @@ function reportWorkflows(ctx: Context, files: SetupFilesOutcome): boolean {
   return differs;
 }
 
+/** Says what setup did about the Node the project declares. A declaration
+ * it couldn't check is a warning, not a failure: the project's own range
+ * stays as it is. */
+function reportNode(ctx: Context, node: NodeEnginesStep): void {
+  if (node.kind === "added") {
+    ctx.stdout.write(
+      `Set "engines.node" in package.json to "${WANTED_NODE}": temple-bar needs Node ${String(MIN_NODE_MAJOR)} or newer.\n`,
+    );
+  } else if (node.kind === "raised") {
+    ctx.stdout.write(
+      `Raised "engines.node" in package.json from "${node.from}" to "${WANTED_NODE}": temple-bar needs Node ${String(MIN_NODE_MAJOR)} or newer.\n`,
+    );
+  } else if (node.kind === "problem") {
+    ctx.stderr.write(`Warning: ${node.message}\n`);
+  }
+}
+
 /** Reports package.json; returns true when something in it has to be put
  * right by hand, which ends the run non-zero. */
 function reportPackageJson(ctx: Context, files: SetupFilesOutcome): boolean {
@@ -126,6 +145,7 @@ function reportPackageJson(ctx: Context, files: SetupFilesOutcome): boolean {
         "the pnpm running setup: the workflows install the version it names.\n",
     );
   }
+  reportNode(ctx, outcome.node);
   return outcome.conflicts.length > 0 || outcome.pnpmProblem !== undefined;
 }
 

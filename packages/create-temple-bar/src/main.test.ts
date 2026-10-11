@@ -39,6 +39,11 @@ function makeFakeRunner(
     args: readonly string[],
     options: RunOptions,
   ) => {
+    // The check that the child pnpm is the one that started setup (the user
+    // agent below says 9.1.0). It has its own tests in pnpm-check.test.ts.
+    if (args[0] === "--version") {
+      return Promise.resolve<RunResult>({ code: 0, stdout: "9.1.0\n" });
+    }
     calls.push({ command, args, options });
     return Promise.resolve(script(command, args));
   };
@@ -143,6 +148,9 @@ void test("main: a failing add-dependency step stops before running init", async
     ownVersion: "0.3.0",
     fs,
     run: (command, args, options) => {
+      if (args[0] === "--version") {
+        return Promise.resolve({ code: 0, stdout: "9.1.0\n" });
+      }
       calls.push({ command, args, options });
       return Promise.resolve({ code: 1 });
     },
@@ -310,8 +318,8 @@ void test("main: packageManager refuses foreign strings before writes or runs an
     ['{"packageManager":"npm@10.9.2"}', "npm@10.9.2"],
     ['{"packageManager":"yarn@4.1.0"}', "yarn@4.1.0"],
     ['{"packageManager":"bun@1.1.0"}', "bun@1.1.0"],
-    ['{"packageManager":"pnpm@10.34.5"}', undefined],
-    ['{"packageManager":"pnpm@10.34.5+sha512.abcdef"}', undefined],
+    ['{"packageManager":"pnpm@9.1.0"}', undefined],
+    ['{"packageManager":"pnpm@9.1.0+sha512.abcdef"}', undefined],
     ["{}", undefined],
     ['{"packageManager":""}', undefined],
     [undefined, undefined],

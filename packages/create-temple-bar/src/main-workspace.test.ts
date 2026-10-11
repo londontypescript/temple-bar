@@ -40,6 +40,9 @@ function setup(
       realPath: (filePath) => Promise.resolve(filePath),
     },
     run: (_command, args, options) => {
+      if (args[0] === "--version") {
+        return Promise.resolve({ code: 0, stdout: "10.34.5\n" });
+      }
       calls.push({ args, options });
       return Promise.resolve(args[0] === "list" ? listResult : { code: 0 });
     },

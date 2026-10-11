@@ -18,6 +18,7 @@ import {
   pnpmRequiredMessage,
   runInitCommand,
 } from "./package-manager.ts";
+import { checkChildPnpm } from "./pnpm-check.ts";
 import type { ProcessRunner, RunOptions } from "./runner.ts";
 import {
   findWorkspaceResidue,
@@ -131,6 +132,21 @@ export async function main(deps: MainDeps): Promise<number> {
       deps.stderr.write(workspaceResidueMessage(residue.found));
       return 1;
     }
+  }
+
+  // Before anything is written or added: the pnpm that runs from here on.
+  const pnpmCheck = await checkChildPnpm(
+    packageJson,
+    deps.env.npm_config_user_agent,
+    deps.run,
+    options,
+  );
+  if (pnpmCheck.refusal !== undefined) {
+    deps.stderr.write(pnpmCheck.refusal);
+    return 1;
+  }
+  if (pnpmCheck.note !== undefined) {
+    deps.stdout.write(pnpmCheck.note);
   }
   await ensurePackageJson(deps, packageJson);
 

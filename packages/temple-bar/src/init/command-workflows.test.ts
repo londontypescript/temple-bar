@@ -115,6 +115,7 @@ void test("init workflows: a packageManager setup can't use ends the run non-zer
     name: "widgets",
     packageManager: "npm@10.9.2",
     scripts: { prepare: "temple-bar hook install", gate: "temple-bar gate" },
+    engines: { node: ">=24" },
   });
   const fs = setUpFiles({ "/repo/package.json": manifest });
   const { code, stdout, stderr } = await rerun(fs);
@@ -128,6 +129,7 @@ void test("init workflows: when it can't tell which pnpm runs it, setup writes n
   const manifest = JSON.stringify({
     name: "widgets",
     scripts: { prepare: "temple-bar hook install", gate: "temple-bar gate" },
+    engines: { node: ">=24" },
   });
   const fs = setUpFiles({ "/repo/package.json": manifest });
   const { code, stdout, stderr } = await rerun(fs, {});

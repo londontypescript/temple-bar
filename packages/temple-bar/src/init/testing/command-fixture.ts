@@ -116,6 +116,7 @@ export function setUpFiles(overrides: Record<string, string> = {}) {
       name: "widgets",
       packageManager: "pnpm@10.34.5",
       scripts: { prepare: PREPARE_SCRIPT, gate: GATE_SCRIPT },
+      engines: { node: ">=24" },
     }),
     ...overrides,
   });
