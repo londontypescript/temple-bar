@@ -26,6 +26,7 @@ function makeFakeFs(initial: Record<string, string> = {}): FsLike & {
       files.set(normalize(filePath), content);
       return Promise.resolve();
     },
+    realPath: (filePath) => Promise.resolve(filePath),
   };
 }
 
@@ -192,6 +193,7 @@ for (const flag of ["--help", "-h"]) {
         writes.push(filePath);
         return Promise.resolve();
       },
+      realPath: (filePath) => Promise.resolve(filePath),
     };
     const runner = makeFakeRunner(() => ({ code: 0 }));
     const stdout = makeFakeWriter();
@@ -231,6 +233,7 @@ function refusalFixture(
       writes.push(filePath);
       return fs.writeText(filePath, content);
     },
+    realPath: (filePath) => fs.realPath(filePath),
   };
   const runner = makeFakeRunner(() => ({ code: 0 }));
   const stdout = makeFakeWriter();

@@ -4,11 +4,15 @@
 // code. All behaviour lives in main.ts so it can be tested without spawning
 // a process.
 
-import { promises as fsp } from "node:fs";
+import { promises as fsp, realpath } from "node:fs";
+import { promisify } from "node:util";
 
 import { main } from "./main.ts";
 import { createProcessRunner } from "./runner.ts";
 import { readOwnVersion } from "./own-version.ts";
+
+// The native form expands Windows short names, as pnpm reports folders.
+const realPathNative = promisify(realpath.native);
 
 async function readText(filePath: string): Promise<string | undefined> {
   try {
@@ -33,6 +37,7 @@ const exitCode = await main({
   fs: {
     readText,
     writeText: (filePath, content) => fsp.writeFile(filePath, content, "utf8"),
+    realPath: (filePath) => realPathNative(filePath),
   },
   run: createProcessRunner(),
   stdout: { write: (text) => process.stdout.write(text) },

@@ -8,10 +8,16 @@ import { spawn } from "node:child_process";
 export interface RunOptions {
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
+  /** Collect the child's standard output into the result instead of showing
+   * it. For commands whose answer the launcher reads; never for ones that
+   * prompt. Standard error and input still go to the terminal. */
+  readonly capture?: boolean;
 }
 
 export interface RunResult {
   readonly code: number | null;
+  /** The child's standard output; only set when `capture` was asked for. */
+  readonly stdout?: string;
 }
 
 export type ProcessRunner = (
@@ -47,7 +53,7 @@ export function createProcessRunner(): ProcessRunner {
       const child = spawn(command, args, {
         cwd: options.cwd,
         env: options.env,
-        stdio: "inherit",
+        stdio: options.capture ? ["inherit", "pipe", "inherit"] : "inherit",
         windowsHide: true,
         // On Windows, pnpm is a .cmd shim, which
         // node:child_process can only launch through a shell. This is safe
@@ -57,6 +63,13 @@ export function createProcessRunner(): ProcessRunner {
         // from this package's own version, but the check doesn't rely on it).
         shell: process.platform === "win32",
       });
+      let stdout = "";
+      // Decoded as a stream, so a character split across two chunks (any
+      // non-ASCII letter in a folder name) arrives whole.
+      child.stdout?.setEncoding("utf8");
+      child.stdout?.on("data", (chunk: string) => {
+        stdout += chunk;
+      });
       child.on("error", (error: NodeJS.ErrnoException) => {
         if (error.code === "ENOENT") {
           resolve({ code: null });
@@ -64,8 +77,9 @@ export function createProcessRunner(): ProcessRunner {
         }
         reject(error);
       });
-      child.on("exit", (code) => {
-        resolve({ code });
+      // "close", not "exit": it fires after all captured output was read.
+      child.on("close", (code) => {
+        resolve(options.capture ? { code, stdout } : { code });
       });
     });
   };

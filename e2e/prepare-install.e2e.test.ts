@@ -3,97 +3,32 @@
 // prove preparation happens through normal installation before setup writes.
 
 import assert from "node:assert/strict";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
-import { initTestRepo } from "../packages/temple-bar/src/testing/git-repo.ts";
-import { environments } from "../scripts/scaffold-check/environment.ts";
-import { packBoth, type Tarballs } from "./support/pack.ts";
-import { serveTarball, type LocalRegistry } from "./support/registry.ts";
+import {
+  launch,
+  makeProject,
+  startPackedLauncher,
+  type PackedLauncher,
+} from "./support/launcher.ts";
 import { probeUnusedFiles } from "./support/unused-probes.ts";
-import { describe, run, type RunOptions } from "./support/run.ts";
+import { describe, run } from "./support/run.ts";
 
-let folder = "";
-let tarballs: Tarballs;
-let registry: LocalRegistry | undefined;
-let env: NodeJS.ProcessEnv;
+let launcher: PackedLauncher | undefined;
 
 before(async () => {
-  // Native realpath expands Windows short-name temp paths. pnpm and SvelteKit
-  // otherwise disagree with tools that resolve their long-name equivalents.
-  folder = realpathSync.native(
-    mkdtempSync(path.join(tmpdir(), "temple-bar-prepare-")),
-  );
-  tarballs = await packBoth(folder);
-  const manifest = JSON.parse(
-    readFileSync(
-      path.join(folder, "stage", "temple-bar", "package.json"),
-      "utf8",
-    ),
-  ) as { name: string; version: string };
-  registry = await serveTarball(manifest, tarballs.templeBar);
-  env = environments(folder, process.env, registry.url).setup;
-  // Exclude inherited project tools, but keep pnpm's own install directory:
-  // CI's package-manager setup also puts its executable in node_modules/.bin.
-  const pathKey =
-    Object.keys(env).find((key) => key.toUpperCase() === "PATH") ?? "PATH";
-  env[pathKey] = (env[pathKey] ?? "")
-    .split(path.delimiter)
-    .filter(
-      (entry) =>
-        !/[\\/]node_modules[\\/]\.bin(?:[\\/]|$)/.test(entry) ||
-        ["pnpm", "pnpm.cmd", "pnpm.exe"].some((name) =>
-          existsSync(path.join(entry, name)),
-        ),
-    )
-    .join(path.delimiter);
+  launcher = await startPackedLauncher("temple-bar-prepare-");
 });
 
 after(async () => {
-  await registry?.close();
-  if (folder !== "") rmSync(folder, { recursive: true, force: true });
+  await launcher?.close();
 });
 
-async function project(
-  name: string,
-  files: Readonly<Record<string, string>>,
-): Promise<RunOptions> {
-  const cwd = path.join(folder, name);
-  mkdirSync(cwd);
-  initTestRepo(cwd);
-  for (const [relative, contents] of Object.entries(files)) {
-    const target = path.join(cwd, relative);
-    mkdirSync(path.dirname(target), { recursive: true });
-    writeFileSync(target, contents);
-  }
-  const options = { cwd, env };
-  for (const args of [
-    ["add", "-A"],
-    ["commit", "-q", "-m", "Initial commit"],
-    ["remote", "add", "origin", "git@github.com:acme/widgets.git"],
-  ]) {
-    const result = await run("git", args, options);
-    assert.equal(result.code, 0, describe(result));
-  }
-  return options;
-}
-
-function launch(options: RunOptions) {
-  return run(
-    "pnpm",
-    [`--package=${tarballs.createTempleBar}`, "dlx", "create-temple-bar"],
-    options,
-  );
+function packed(): PackedLauncher {
+  assert.ok(launcher, "the packed launcher was not started");
+  return launcher;
 }
 
 void test(
@@ -106,13 +41,13 @@ void test(
         "utf8",
       ),
     ) as Record<string, string>;
-    const options = await project("sveltekit", files);
+    const options = await makeProject(packed(), "sveltekit", files);
     assert.ok(
       !existsSync(
         path.join(options.cwd, "node_modules", "$app", "tsconfig.json"),
       ),
     );
-    const result = await launch(options);
+    const result = await launch(packed(), options);
     assert.equal(result.code, 0, describe(result));
     assert.ok(
       existsSync(
@@ -192,7 +127,7 @@ void test(
   "packed launcher stops before init when normal project installation fails",
   { timeout: 300_000 },
   async () => {
-    const options = await project("failed-install", {
+    const options = await makeProject(packed(), "failed-install", {
       ".gitignore": "node_modules/\n",
       "package.json": JSON.stringify({
         private: true,
@@ -200,7 +135,7 @@ void test(
       }),
       "fail.cjs": "process.exit(7);\n",
     });
-    const result = await launch(options);
+    const result = await launch(packed(), options);
     assert.equal(result.code, 7, describe(result));
     assert.match(
       result.stderr,
@@ -215,7 +150,7 @@ void test(
   "packed member installation prepares the workspace but exposes the existing root setup limitation",
   { timeout: 300_000 },
   async () => {
-    const options = await project("workspace", {
+    const options = await makeProject(packed(), "workspace", {
       ".gitignore": "node_modules/\nprepared\n",
       "pnpm-workspace.yaml": "packages:\n  - packages/*\n",
       "package.json": JSON.stringify({
@@ -237,7 +172,7 @@ void test(
       ...options,
       cwd: path.join(options.cwd, "packages", "app"),
     };
-    const result = await launch(member);
+    const result = await launch(packed(), member);
     assert.equal(result.code, 0, describe(result));
     assert.equal(
       readFileSync(path.join(options.cwd, "prepared"), "utf8"),
@@ -268,7 +203,7 @@ void test(
   "packed launcher leaves explicitly disabled project lifecycle scripts disabled",
   { timeout: 300_000 },
   async () => {
-    const options = await project("disabled-scripts", {
+    const options = await makeProject(packed(), "disabled-scripts", {
       ".gitignore": "node_modules/\n",
       ".npmrc": "ignore-scripts=true\n",
       "package.json": JSON.stringify({
@@ -277,7 +212,7 @@ void test(
       }),
       "prepare.cjs": "require('node:fs').writeFileSync('prepared', 'ran');\n",
     });
-    const result = await launch(options);
+    const result = await launch(packed(), options);
     assert.equal(result.code, 0, describe(result));
     assert.ok(!existsSync(path.join(options.cwd, "prepared")));
     assert.ok(existsSync(path.join(options.cwd, "AGENTS.md")));

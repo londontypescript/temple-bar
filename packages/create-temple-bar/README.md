@@ -10,7 +10,7 @@ pnpm create @londontypescript/temple-bar@latest
 
 temple-bar works with pnpm only: [install it](https://pnpm.io/installation) first. It adds `@londontypescript/temple-bar` as a dev dependency, pinned to its own version, runs `pnpm install --frozen-lockfile`, then runs `temple-bar init`.
 
-Installation runs the project's lifecycle scripts, including framework preparation, unless your pnpm settings disable them. In a workspace, pnpm installs the workspace and runs its lifecycle scripts. An installation failure stops setup before `init`. Run the launcher from the repository root. Workspace member setup is not supported: installation runs across the workspace, but `init` configures the repository root while the dependency is added to the member.
+Installation runs the project's lifecycle scripts, including framework preparation, unless your pnpm settings disable them. In a workspace, pnpm installs the workspace and runs its lifecycle scripts. An installation failure stops setup before `init`. At the root of a pnpm workspace it adds the dependency to the root (`pnpm add -Dw`), and first refuses, changing nothing, if a package holds its own lockfile or `pnpm-workspace.yaml`: delete those files and run it again. Run the launcher from the repository root. Workspace member setup is not supported: installation runs across the workspace, but `init` configures the repository root while the dependency is added to the member.
 
 Run `pnpm create @londontypescript/temple-bar@latest -- --help` to see the usage. It changes nothing.
 
