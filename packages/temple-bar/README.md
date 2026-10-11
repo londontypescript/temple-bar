@@ -4,7 +4,7 @@
 
 > A rule that exists only as prose is a rule that will eventually be violated.
 
-> **Pre-release** (`0.0.x`). Expect changes.
+> **Pre-release** (`0.x`). Expect changes.
 
 Set it up in a project with the launcher:
 
