@@ -120,6 +120,10 @@ the pull request. `temple-bar merge` never bypasses.
   imitate either approval. Until agents have their own identity that is
   detection, not prevention. See "Reporting bypass merges" below.
 
+In a pnpm workspace the judge guards every script of every tracked
+`package.json`, and a new or removed package
+([ADR 0015](0015-every-package-checked-and-guarded.md)).
+
 ## How a change that weakens its own CI gets caught
 
 A pull request changes the gate step in `ci.yml` to `run: echo ok`. Its own
