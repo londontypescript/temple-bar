@@ -19,10 +19,17 @@ import {
   runInitCommand,
 } from "./package-manager.ts";
 import type { ProcessRunner, RunOptions } from "./runner.ts";
+import {
+  findWorkspaceResidue,
+  WORKSPACE_FILE,
+  workspaceResidueMessage,
+} from "./workspace.ts";
 
 export interface FsLike {
   readText(filePath: string): Promise<string | undefined>;
   writeText(filePath: string, content: string): Promise<void>;
+  /** The path with symlinks resolved, the form pnpm reports folders in. */
+  realPath(filePath: string): Promise<string>;
 }
 
 export interface WriterLike {
@@ -103,11 +110,31 @@ export async function main(deps: MainDeps): Promise<number> {
     deps.stderr.write(packageManagerRequiredMessage(packageManager));
     return 1;
   }
-  await ensurePackageJson(deps, packageJson);
 
   const options: RunOptions = { cwd: deps.cwd, env: childEnv(deps.env) };
 
-  const addDep = addDevDependencyCommand(deps.ownVersion);
+  // Checked before anything is written, so a refusal leaves no trace.
+  const atWorkspaceRoot =
+    (await deps.fs.readText(path.join(deps.cwd, WORKSPACE_FILE))) !== undefined;
+  if (atWorkspaceRoot) {
+    const residue = await findWorkspaceResidue(
+      deps.cwd,
+      deps.fs,
+      deps.run,
+      options,
+    );
+    if ("failure" in residue) {
+      deps.stderr.write(residue.failure);
+      return 1;
+    }
+    if (residue.found.length > 0) {
+      deps.stderr.write(workspaceResidueMessage(residue.found));
+      return 1;
+    }
+  }
+  await ensurePackageJson(deps, packageJson);
+
+  const addDep = addDevDependencyCommand(deps.ownVersion, atWorkspaceRoot);
   const addResult = await deps.run(addDep.command, addDep.args, options);
   if (addResult.code !== 0) {
     deps.stderr.write(

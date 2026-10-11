@@ -58,7 +58,7 @@ export interface CommandLine {
 const PACKAGE_NAME = "@londontypescript/temple-bar";
 
 /** The one command setup is run with, and the one every message prints. */
-const LAUNCH_COMMAND = "pnpm create @londontypescript/temple-bar@latest";
+export const LAUNCH_COMMAND = "pnpm create @londontypescript/temple-bar@latest";
 
 /** The caller already uses pnpm, so explain the project's conflicting field. */
 export function packageManagerRequiredMessage(value: string): string {
@@ -78,10 +78,28 @@ export function packageManagerRequiredMessage(value: string): string {
  * since they're published together). Saved exact, not as a `^` range, so a
  * later install can't drift to a newer temple-bar.
  */
-export function addDevDependencyCommand(version: string): CommandLine {
+export function addDevDependencyCommand(
+  version: string,
+  atWorkspaceRoot = false,
+): CommandLine {
+  // pnpm refuses to add to a workspace root unless told it is meant, and
+  // refuses `-w` anywhere else, so the flag is passed only at a root.
   return {
     command: "pnpm",
-    args: ["add", "-D", "--save-exact", `${PACKAGE_NAME}@${version}`],
+    args: [
+      "add",
+      atWorkspaceRoot ? "-Dw" : "-D",
+      "--save-exact",
+      `${PACKAGE_NAME}@${version}`,
+    ],
+  };
+}
+
+/** The command that lists every workspace package with its absolute path. */
+export function listPackagesCommand(): CommandLine {
+  return {
+    command: "pnpm",
+    args: ["list", "--recursive", "--depth", "-1", "--json"],
   };
 }
 
