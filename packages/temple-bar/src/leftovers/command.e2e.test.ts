@@ -19,8 +19,8 @@ import {
 import { initTestRepo } from "../testing/git-repo.ts";
 import { leftoversCommandEntry } from "./command.ts";
 
-void test("leftovers reports a merged branch and its worktree, and deletes nothing", async () => {
-  const setup = setUp();
+void test("leftovers reports a merged branch and its worktree, and deletes nothing", async (t) => {
+  const setup = setUp(t);
   const { gh } = fakeGitHub(setup, "- add x\n");
   const { ctx, stdout } = context(setup.clone, gh);
 
@@ -39,8 +39,8 @@ void test("leftovers reports a merged branch and its worktree, and deletes nothi
   assert.notEqual(git(setup.clone, "branch", "--list", "feat/x"), "");
 });
 
-void test("leftovers leaves out a branch that reuses a merged pull request's name for new work", async () => {
-  const setup = setUp();
+void test("leftovers leaves out a branch that reuses a merged pull request's name for new work", async (t) => {
+  const setup = setUp(t);
   const { gh } = fakeGitHub(setup, "- add x\n");
   // New, unpushed work on a branch named like pull request #7's.
   commitFile(setup.worktree, "new.ts", "export const n = 1;\n", "feat: new");
@@ -54,8 +54,11 @@ void test("leftovers leaves out a branch that reuses a merged pull request's nam
   assert.match(out, /remote branch origin\/feat\/x: pull request #7 merged/);
 });
 
-void test("leftovers reports a worktree whose folder is gone", async () => {
+void test("leftovers reports a worktree whose folder is gone", async (t) => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-leftovers-"));
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
   initTestRepo(dir);
   commitFile(dir, "a.txt", "a\n", "base");
   const gone = `${dir}-gone`;

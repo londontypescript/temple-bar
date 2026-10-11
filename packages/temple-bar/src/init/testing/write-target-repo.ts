@@ -20,8 +20,19 @@ import { initTestRepo } from "../../testing/git-repo.ts";
 import { createInitCommand } from "../command.ts";
 import { defaultGhScript, PNPM_USER_AGENT } from "./command-fixture.ts";
 
+/** The caller must call `cleanup()`. If setup itself throws, the folder is
+ * removed here, since the caller never gets a `cleanup` to call. */
 export function writeTargetRepo() {
   const base = mkdtempSync(path.join(tmpdir(), "temple-bar-write-target-"));
+  try {
+    return buildTargetRepo(base);
+  } catch (error) {
+    rmSync(base, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function buildTargetRepo(base: string) {
   const root = path.join(base, "repo");
   const outside = path.join(base, "outside");
   mkdirSync(root);

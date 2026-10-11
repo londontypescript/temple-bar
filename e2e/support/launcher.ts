@@ -7,6 +7,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -72,7 +73,15 @@ export async function startPackedLauncher(
       env,
       close: async () => {
         await served.close();
+        // The fake machine's temp folders must be empty: whatever is left was
+        // a leak by the tool that ran there.
+        const left = leftovers(env);
         rmSync(folder, { recursive: true, force: true });
+        assert.deepEqual(
+          left,
+          [],
+          `The fake machine's temp folders were not empty: ${left.join(", ")}`,
+        );
       },
     };
   } catch (error) {
@@ -80,6 +89,18 @@ export async function startPackedLauncher(
     rmSync(folder, { recursive: true, force: true });
     throw error;
   }
+}
+
+/** Entries left in the fake machine's TMPDIR, TMP and TEMP folders. */
+function leftovers(env: NodeJS.ProcessEnv): string[] {
+  const folders = new Set(
+    ["TMPDIR", "TMP", "TEMP"].flatMap((name) => env[name] ?? []),
+  );
+  return [...folders].flatMap((dir) =>
+    existsSync(dir)
+      ? readdirSync(dir).map((entry) => path.join(dir, entry))
+      : [],
+  );
 }
 
 /** A committed git project holding `files`, with a GitHub-shaped origin that

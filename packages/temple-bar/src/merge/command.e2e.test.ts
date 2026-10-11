@@ -17,8 +17,8 @@ import {
   setUp,
 } from "./testing/e2e-repos.ts";
 
-void test("merges a behind branch end to end: main merged in, plain push, squash, everything tidied", async () => {
-  const setup = setUp();
+void test("merges a behind branch end to end: main merged in, plain push, squash, everything tidied", async (t) => {
+  const setup = setUp(t);
   const { gh, calls } = fakeGitHub(setup, "- add x\n");
   const { ctx, stdout, stderr } = context(setup.worktree, gh);
 
@@ -58,8 +58,8 @@ void test("merges a behind branch end to end: main merged in, plain push, squash
   );
 });
 
-void test("a branch of several commits with no bullets merges with its title and co-authors only", async () => {
-  const setup = setUp();
+void test("a branch of several commits with no bullets merges with its title and co-authors only", async (t) => {
+  const setup = setUp(t);
   commitFile(setup.worktree, "z.ts", "export const z = 3;\n", "wip");
   git(setup.worktree, "push", "origin", "feat/x");
   const { gh } = fakeGitHub(setup, "Adds x, in one change.\n");
@@ -74,8 +74,8 @@ void test("a branch of several commits with no bullets merges with its title and
   );
 });
 
-void test("refuses a behind branch whose worktree has uncommitted work, and changes nothing", async () => {
-  const setup = setUp();
+void test("refuses a behind branch whose worktree has uncommitted work, and changes nothing", async (t) => {
+  const setup = setUp(t);
   writeFileSync(path.join(setup.worktree, "x.ts"), "export const x = 2;\n");
   const { gh, calls } = fakeGitHub(setup, "- add x\n");
   const { ctx, stderr } = context(setup.clone, gh);
