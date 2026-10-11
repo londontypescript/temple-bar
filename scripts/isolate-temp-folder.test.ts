@@ -98,6 +98,20 @@ void test("a failing exit code is kept, and the leftover is still named", (t) =>
   assert.match(out, /both-/);
 });
 
+void test("a leak fails even when the exit code would read as a pass", (t) => {
+  // The system keeps only the low byte of an exit code, so 256 means success.
+  const { code, out } = runUnderCheck(
+    t,
+    `import { mkdtempSync } from "node:fs";
+     import { tmpdir } from "node:os";
+     import path from "node:path";
+     mkdtempSync(path.join(tmpdir(), "wraps-"));
+     process.exitCode = 256;`,
+  );
+  assert.notEqual(code, 0);
+  assert.match(out, /wraps-/);
+});
+
 void test("a temp folder that cannot be listed fails with its own message", (t) => {
   const { code, out } = runUnderCheck(
     t,

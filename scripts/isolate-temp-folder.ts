@@ -9,6 +9,10 @@
 // it spawns (git, pnpm, hooks, the packed CLI) makes its folders inside it.
 // A run killed outright (SIGKILL, a crash) skips the exit check and leaves
 // its folder behind; that is accepted, with no sweep of old ones.
+//
+// The check runs before any exit handler a test adds, so tests clean up with
+// `t.after`, never `process.on("exit")`. A detached child still running after
+// the test file exits isn't watched.
 
 import { mkdtempSync, readdirSync, rmSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,12 +24,13 @@ const OWNER = "TEMPLE_BAR_TEST_TMP_OWNER";
 
 const testFile = process.argv[1] ?? "A test file";
 
-function fail(message: string): void {
+function fail(message: string, code: number): void {
   // Synchronous: on macOS, output to a pipe written during `exit` through
   // `console.error` can be lost, and CI reads this through a pipe.
   writeSync(2, `${message}\n`);
-  // Keep a failure the test already set; only turn a pass into a fail.
-  if (Number(process.exitCode ?? 0) === 0) {
+  // Keep a failure the process is already exiting with; only turn a pass into
+  // a fail. The system keeps the low byte, so 256 would read as a pass.
+  if (code % 256 === 0) {
     process.exitCode = 1;
   }
 }
@@ -43,21 +48,28 @@ if (process.env[OWNER] !== String(process.pid)) {
   // knip load their config through jiti, which keeps its own.
   process.env.NODE_DISABLE_COMPILE_CACHE = "1";
   process.env.JITI_FS_CACHE = "0";
-  process.on("exit", () => {
+  process.on("exit", (code) => {
     try {
       const left = readdirSync(dir);
       if (left.length > 0) {
         fail(
           `${testFile} left ${String(left.length)} entr${left.length === 1 ? "y" : "ies"} in its temp folder ${dir}: ${left.join(", ")}`,
+          code,
         );
       }
     } catch (error) {
-      fail(`Could not list the test's temp folder ${dir}: ${String(error)}`);
+      fail(
+        `Could not list the test's temp folder ${dir}: ${String(error)}`,
+        code,
+      );
     }
     try {
       rmSync(dir, { recursive: true, force: true });
     } catch (error) {
-      fail(`Could not delete the test's temp folder ${dir}: ${String(error)}`);
+      fail(
+        `Could not delete the test's temp folder ${dir}: ${String(error)}`,
+        code,
+      );
     }
   });
 }
