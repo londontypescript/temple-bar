@@ -13,11 +13,10 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { type TestContext } from "node:test";
-import { fileURLToPath } from "node:url";
 
-const SETUP = fileURLToPath(
-  new URL("./isolate-temp-folder.ts", import.meta.url),
-);
+// A file URL, not a path: `--import` reads `D:\...` on Windows as a URL whose
+// scheme is `d:`.
+const SETUP = new URL("./isolate-temp-folder.ts", import.meta.url).href;
 
 /** Runs `body` as a script (or, with `viaTestRunner`, as a test file) with the
  * check loaded, reading both outputs through pipes the way CI does. */
