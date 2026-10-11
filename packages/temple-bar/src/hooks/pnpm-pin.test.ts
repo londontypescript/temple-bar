@@ -63,7 +63,36 @@ void test("pnpm-pin: two different exact versions contradict each other", () => 
         devEngines: { packageManager: { name: "pnpm", version: "10.1.0" } },
       }),
     ),
-    { kind: "conflict", packageManager: "9.15.0", devEngines: "10.1.0" },
+    {
+      kind: "conflict",
+      pins: [
+        { field: "devEngines.packageManager", version: "10.1.0" },
+        { field: "packageManager", version: "9.15.0" },
+      ],
+    },
+  );
+});
+
+void test("pnpm-pin: a later exact devEngines entry still counts, after a range", () => {
+  assert.deepEqual(
+    declaredPnpm(
+      manifest({
+        packageManager: "pnpm@10.1.0",
+        devEngines: {
+          packageManager: [
+            { name: "pnpm", version: ">=9" },
+            { name: "pnpm", version: "9.15.0" },
+          ],
+        },
+      }),
+    ),
+    {
+      kind: "conflict",
+      pins: [
+        { field: "devEngines.packageManager", version: "9.15.0" },
+        { field: "packageManager", version: "10.1.0" },
+      ],
+    },
   );
 });
 

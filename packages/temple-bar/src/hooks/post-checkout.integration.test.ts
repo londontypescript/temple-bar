@@ -254,12 +254,12 @@ void test("worktree add: a pnpm older than the pin is refused before installing,
     assert.notEqual(result.code, 0, output);
     assert.match(output, /package\.json pins: pnpm 9\.15\.0/);
     assert.match(output, /found: 8\.1\.1/);
-    assert.match(output, /that pnpm is at: .*pnpm \(probably/);
+    assert.match(output, /that pnpm is at: .*pnpm(\.cmd)? \(probably/);
     assert.match(output, /only the install remains/);
-    // Only the version probe (and the location probe) ran: never an install.
-    assert.ok(
-      project.pnpm.calls().every((call) => call.args[0] !== "install"),
-      JSON.stringify(project.pnpm.calls()),
+    // Only the version was asked: never an install, nor anything else.
+    assert.deepEqual(
+      project.pnpm.calls().map((call) => call.args),
+      [["--version"]],
     );
     assert.equal(
       existsSync(path.join(project.worktree, "node_modules")),

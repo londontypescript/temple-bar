@@ -2,6 +2,7 @@
 // lets the install go ahead, and what a refusal says.
 
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -18,8 +19,7 @@ function pin(version: string): string {
   return JSON.stringify({ packageManager: `pnpm@${version}` });
 }
 
-/** A pnpm that answers `--version` with `version`, and does not report its
- * own path (as pnpm 10 doesn't under `exec`). */
+/** A pnpm that answers `--version` with `version`. */
 function pnpmAnswering(version: string) {
   return createFakeProc((call, options) => {
     if (call.args[0] === "--version") {
@@ -33,13 +33,14 @@ function setup(
   manifest: string | undefined,
   proc = pnpmAnswering("9.15.0"),
   files: Record<string, string> = {},
+  env: NodeJS.ProcessEnv = { PATH: "/new/bin:/old/bin" },
 ) {
   const stdout = createFakeWriter();
   const stderr = createFakeWriter();
   const fs = createFakeFs({
     ...(manifest === undefined
       ? {}
-      : { [`${WORKTREE}/package.json`]: manifest }),
+      : { [path.join(WORKTREE, "package.json")]: manifest }),
     ...files,
   });
   const ctx = createFakeContext({
@@ -48,7 +49,7 @@ function setup(
     stdout,
     stderr,
     cwd: WORKTREE,
-    env: { PATH: "/new/bin:/old/bin" },
+    env,
   });
   return { ctx, proc, stdout, stderr };
 }
@@ -70,11 +71,16 @@ void test("pnpm-check: a +sha512 pin is compared without its suffix", async () =
 });
 
 void test("pnpm-check: a different version refuses, naming both versions, where pnpm is (labelled probably), the fix and the hand-run steps", async () => {
-  const { ctx, stderr } = setup(pin("9.15.0"), pnpmAnswering("8.1.1"), {
+  const { ctx, proc, stderr } = setup(pin("9.15.0"), pnpmAnswering("8.1.1"), {
     "/old/bin/pnpm": "",
   });
 
   assert.equal(await pnpmMatchesPin(ctx, WORKTREE, "linux"), false);
+  // Only the version was asked: a wrong pnpm runs nothing else.
+  assert.deepEqual(
+    proc.calls.map((call) => call.args),
+    [["--version"]],
+  );
   const message = stderr.lines.join("");
   assert.match(message, /nothing was installed/);
   assert.match(message, /package\.json pins: pnpm 9\.15\.0/);
@@ -94,28 +100,27 @@ void test("pnpm-check: a different version refuses, naming both versions, where 
   assert.match(message, /\ntemple-bar: {3}pnpm install --frozen-lockfile\n/);
 });
 
-void test("pnpm-check: the path pnpm reports for itself is used when it reports one", async () => {
+void test("pnpm-check: a wrong answer keeps whatever pnpm printed to stderr", async () => {
   const proc = createFakeProc((call, options) => {
-    if (call.args[0] === "--version") {
-      options.stdout.write("8.1.1\n");
-    } else {
-      options.stdout.write("/real/pnpm.cjs\n");
-    }
+    options.stdout.write("8.1.1\n");
+    options.stderr.write("WARN manage-package-manager-versions is off\n");
     return 0;
   });
   const { ctx, stderr } = setup(pin("9.15.0"), proc);
 
   assert.equal(await pnpmMatchesPin(ctx, WORKTREE, "linux"), false);
   const message = stderr.lines.join("");
-  assert.match(message, /that pnpm is at: \/real\/pnpm\.cjs\n/);
-  assert.doesNotMatch(message, /probably/);
+  assert.match(message, /found: 8\.1\.1/);
+  assert.match(
+    message,
+    /pnpm also said:\ntemple-bar: {5}WARN manage-package-manager-versions is off/,
+  );
 });
 
 void test("pnpm-check: a pnpm that fails to answer refuses and keeps pnpm's own stderr", async () => {
   const proc = createFakeProc((call, options) => {
     if (call.args[0] === "--version") {
       options.stderr.write("ERR_PNPM_BROKEN: could not switch\nsecond line\n");
-      return 1;
     }
     return 1;
   });
@@ -131,11 +136,17 @@ void test("pnpm-check: a pnpm that fails to answer refuses and keeps pnpm's own 
 });
 
 void test("pnpm-check: on Windows the .cmd shim is what is looked for on PATH", async () => {
-  const { ctx, stderr } = setup(pin("9.15.0"), pnpmAnswering("8.1.1"), {
-    "/old/bin/pnpm.cmd": "",
-  });
+  const { ctx, stderr } = setup(
+    pin("9.15.0"),
+    pnpmAnswering("8.1.1"),
+    { "C:\\old\\bin\\pnpm.cmd": "" },
+    { Path: "C:\\new\\bin;C:\\old\\bin" },
+  );
   assert.equal(await pnpmMatchesPin(ctx, WORKTREE, "win32"), false);
-  assert.match(stderr.lines.join(""), /\/old\/bin\/pnpm\.cmd/);
+  assert.match(
+    stderr.lines.join(""),
+    /that pnpm is at: C:\\old\\bin\\pnpm\.cmd \(probably/,
+  );
 });
 
 void test("pnpm-check: two exact versions that differ refuse before pnpm is asked anything", async () => {

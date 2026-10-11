@@ -9,18 +9,18 @@ import { isExactSemver } from "../exact-semver.ts";
 export type DeclaredPnpm =
   /** Nothing in package.json names a pnpm version. */
   | { readonly kind: "none" }
-  /** One exact version, or two that agree. */
+  /** One exact version, or several that agree. */
   | { readonly kind: "exact"; readonly version: string }
   /** A pnpm is named, but not as an exact version (a range, `latest`...),
    * so a comparison would be a guess. */
   | { readonly kind: "range"; readonly declared: string }
-  /** `packageManager` and `devEngines.packageManager` name different exact
-   * versions. */
-  | {
-      readonly kind: "conflict";
-      readonly packageManager: string;
-      readonly devEngines: string;
-    };
+  /** Exact pins that name different versions, each with the field it is in. */
+  | { readonly kind: "conflict"; readonly pins: readonly PnpmPin[] };
+
+interface PnpmPin {
+  readonly field: "packageManager" | "devEngines.packageManager";
+  readonly version: string;
+}
 
 /** Drops a `+sha512.…` integrity suffix, which Corepack-style pins carry. */
 function withoutSuffix(version: string): string {
@@ -40,14 +40,15 @@ function fromPackageManager(value: unknown): string | undefined {
   return withoutSuffix(value.slice("pnpm@".length));
 }
 
-/** The version `devEngines.packageManager` asks of pnpm. That field may be
- * one object or a list of them. */
-function fromDevEngines(devEngines: unknown): string | undefined {
+/** Every version `devEngines.packageManager` asks of pnpm. That field may
+ * be one object or a list of them, and each pnpm entry counts. */
+function fromDevEngines(devEngines: unknown): string[] {
   if (!isRecord(devEngines)) {
-    return undefined;
+    return [];
   }
   const field = devEngines.packageManager;
   const entries: unknown[] = Array.isArray(field) ? field : [field];
+  const versions: string[] = [];
   for (const entry of entries) {
     if (
       isRecord(entry) &&
@@ -55,10 +56,10 @@ function fromDevEngines(devEngines: unknown): string | undefined {
       typeof entry.version === "string" &&
       entry.version.trim() !== ""
     ) {
-      return withoutSuffix(entry.version.trim());
+      versions.push(withoutSuffix(entry.version.trim()));
     }
   }
-  return undefined;
+  return versions;
 }
 
 /** What package.json declares for pnpm. An unreadable file declares
@@ -74,31 +75,25 @@ export function declaredPnpm(packageJson: string): DeclaredPnpm {
     return { kind: "none" };
   }
   const fromField = fromPackageManager(manifest.packageManager);
-  const fromEngines = fromDevEngines(manifest.devEngines);
-
-  const exactField =
-    fromField !== undefined && isExactSemver(fromField) ? fromField : undefined;
-  const exactEngines =
-    fromEngines !== undefined && isExactSemver(fromEngines)
-      ? fromEngines
-      : undefined;
-  if (
-    exactField !== undefined &&
-    exactEngines !== undefined &&
-    exactField !== exactEngines
-  ) {
-    return {
-      kind: "conflict",
-      packageManager: exactField,
-      devEngines: exactEngines,
-    };
+  const named: PnpmPin[] = [
+    ...fromDevEngines(manifest.devEngines).map((version): PnpmPin => ({
+      field: "devEngines.packageManager",
+      version,
+    })),
+    ...(fromField === undefined
+      ? []
+      : [{ field: "packageManager", version: fromField } as const]),
+  ];
+  const exact = named.filter((pin) => isExactSemver(pin.version));
+  if (new Set(exact.map((pin) => pin.version)).size > 1) {
+    return { kind: "conflict", pins: exact };
   }
-  const exact = exactField ?? exactEngines;
-  if (exact !== undefined) {
-    return { kind: "exact", version: exact };
+  const [first] = exact;
+  if (first !== undefined) {
+    return { kind: "exact", version: first.version };
   }
-  const declared = fromEngines ?? fromField;
+  const [declared] = named;
   return declared === undefined
     ? { kind: "none" }
-    : { kind: "range", declared };
+    : { kind: "range", declared: declared.version };
 }

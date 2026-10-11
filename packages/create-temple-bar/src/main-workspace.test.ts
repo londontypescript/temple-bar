@@ -17,6 +17,7 @@ function setup(
       { path: "/ws/packages/b" },
     ]),
   },
+  childPnpmVersion = "10.34.5",
 ) {
   const store = new Map(
     Object.entries(files).map(([key, value]) => [normalize(key), value]),
@@ -41,7 +42,7 @@ function setup(
     },
     run: (_command, args, options) => {
       if (args[0] === "--version") {
-        return Promise.resolve({ code: 0, stdout: "10.34.5\n" });
+        return Promise.resolve({ code: 0, stdout: `${childPnpmVersion}\n` });
       }
       calls.push({ args, options });
       return Promise.resolve(args[0] === "list" ? listResult : { code: 0 });
@@ -71,6 +72,14 @@ void test("main: at a workspace root the dependency is added with -w, and init f
     "@londontypescript/temple-bar@0.3.0",
   ]);
   assert.equal(calls[0]?.options.capture, true);
+});
+
+void test("main: at a workspace root an old child pnpm is refused before the workspace is even listed", async () => {
+  const { deps, calls, writes, err } = setup(workspace, undefined, "8.1.1");
+  assert.equal(await main(deps), 1);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(writes, []);
+  assert.match(err(), /`pnpm --version` found 8\.1\.1/);
 });
 
 void test("main: outside a workspace nothing is listed and the add has no -w", async () => {

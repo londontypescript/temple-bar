@@ -150,6 +150,7 @@ export function linkToolbox(projectDir: string, toolboxDir: string): void {
 interface Manifest {
   readonly scripts: Readonly<Record<string, string>>;
   readonly packageManager?: string;
+  readonly engines?: Readonly<Record<string, string>>;
   readonly [key: string]: unknown;
 }
 
@@ -277,6 +278,9 @@ export function assertScaffoldSetup(
     ...original,
     scripts: { ...original.scripts, prepare, gate: GATE_SCRIPT },
     packageManager: original.packageManager ?? `pnpm@${pnpmVersion}`,
+    // Setup declares the Node temple-bar needs, raising a lower plain `>=`
+    // such as Astro's `>=22.12.0`; no recorded scaffold declares 24 or more.
+    engines: { ...original.engines, node: ">=24" },
   };
   assert.deepEqual(
     written,

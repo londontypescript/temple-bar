@@ -20,9 +20,6 @@ if (process.argv[2] === "--version" && process.env.FAKE_PNPM_VERSION) {
   process.stdout.write(process.env.FAKE_PNPM_VERSION + "\\n");
   process.exit(0);
 }
-if (process.argv[2] === "exec") {
-  process.exit(0);
-}
 if (process.env.FAKE_PNPM_FAIL === "1") {
   process.stderr.write("ERR_PNPM_OUTDATED_LOCKFILE (from the fake pnpm)\\n");
   process.exit(1);

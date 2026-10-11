@@ -8,6 +8,8 @@
 // copy of the idea in temple-bar's hooks/pnpm-check.ts, since the launcher
 // can't import from that package.
 
+import path from "node:path";
+
 import type { ProcessRunner, RunOptions } from "./runner.ts";
 
 export interface PnpmCheck {
@@ -21,7 +23,12 @@ type Pin =
   | { readonly kind: "none" }
   | { readonly kind: "exact"; readonly version: string }
   | { readonly kind: "range"; readonly declared: string }
-  | { readonly kind: "conflict"; readonly a: string; readonly b: string };
+  | { readonly kind: "conflict"; readonly pins: readonly Named[] };
+
+interface Named {
+  readonly field: string;
+  readonly version: string;
+}
 
 const EXACT = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
@@ -47,13 +54,10 @@ function pinnedPnpm(packageJson: string | undefined): Pin {
     return { kind: "none" };
   }
   const field = manifest.packageManager;
-  const fromField =
-    typeof field === "string" && field.startsWith("pnpm@")
-      ? withoutSuffix(field.slice("pnpm@".length))
-      : undefined;
-  let fromEngines: string | undefined;
+  const named: Named[] = [];
   const devEngines = manifest.devEngines;
   if (isRecord(devEngines)) {
+    // One object or a list of them; every pnpm entry counts.
     const entries: unknown[] = Array.isArray(devEngines.packageManager)
       ? devEngines.packageManager
       : [devEngines.packageManager];
@@ -64,32 +68,31 @@ function pinnedPnpm(packageJson: string | undefined): Pin {
         typeof entry.version === "string" &&
         entry.version.trim() !== ""
       ) {
-        fromEngines = withoutSuffix(entry.version.trim());
-        break;
+        named.push({
+          field: "devEngines.packageManager",
+          version: withoutSuffix(entry.version.trim()),
+        });
       }
     }
   }
-  const exactField =
-    fromField !== undefined && EXACT.test(fromField) ? fromField : undefined;
-  const exactEngines =
-    fromEngines !== undefined && EXACT.test(fromEngines)
-      ? fromEngines
-      : undefined;
-  if (
-    exactField !== undefined &&
-    exactEngines !== undefined &&
-    exactField !== exactEngines
-  ) {
-    return { kind: "conflict", a: exactField, b: exactEngines };
+  if (typeof field === "string" && field.startsWith("pnpm@")) {
+    named.push({
+      field: "packageManager",
+      version: withoutSuffix(field.slice("pnpm@".length)),
+    });
   }
-  const exact = exactField ?? exactEngines;
-  if (exact !== undefined) {
-    return { kind: "exact", version: exact };
+  const exact = named.filter((pin) => EXACT.test(pin.version));
+  if (new Set(exact.map((pin) => pin.version)).size > 1) {
+    return { kind: "conflict", pins: exact };
   }
-  const declared = fromEngines ?? fromField;
+  const [first] = exact;
+  if (first !== undefined) {
+    return { kind: "exact", version: first.version };
+  }
+  const [declared] = named;
   return declared === undefined
     ? { kind: "none" }
-    : { kind: "range", declared };
+    : { kind: "range", declared: declared.version };
 }
 
 /** The version of the pnpm that started setup, from its user agent. */
@@ -97,21 +100,59 @@ function startedWith(userAgent: string | undefined): string | undefined {
   return /^pnpm\/(\S+) /.exec(userAgent ?? "")?.[1];
 }
 
-const FIX =
-  "Fix: give the tool that ran this command (your terminal, editor or desktop app) a pnpm 9.7 or newer, which switches itself to the pinned version, or the pinned version itself. A desktop app has to be restarted to pick up a new PATH.";
+const RESTART = "A desktop app has to be restarted to pick up a new PATH.";
+
+/** The fix for a wrong child pnpm. With a pin, any pnpm that switches itself
+ * to it will do; without one, only the very pnpm that started setup, since
+ * that is the version init will record. */
+function fixFor(pinned: boolean, expected: string): string {
+  return pinned
+    ? `Fix: give the tool that ran this command (your terminal, editor or desktop app) a pnpm 9.7 or newer, which switches itself to the pinned version, or the pinned version itself. ${RESTART}`
+    : `Fix: give the tool that ran this command (your terminal, editor or desktop app) pnpm ${expected} first on its PATH, the same pnpm that started setup. ${RESTART}`;
+}
+
+/** The first `pnpm` on the child's PATH, resolved to its real file, which is
+ * what a plain `pnpm` probably runs. `realPath` rejects a missing file. */
+async function firstPnpmOnPath(
+  env: NodeJS.ProcessEnv,
+  realPath: (filePath: string) => Promise<string>,
+): Promise<string | undefined> {
+  const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH");
+  const dirs = (key === undefined ? "" : (env[key] ?? ""))
+    .split(path.delimiter)
+    .filter((dir) => dir !== "");
+  const names =
+    process.platform === "win32"
+      ? ["pnpm.cmd", "pnpm.exe", "pnpm.bat"]
+      : ["pnpm"];
+  for (const dir of dirs) {
+    for (const name of names) {
+      try {
+        return await realPath(path.join(dir, name));
+      } catch {
+        // Not here; try the next one.
+      }
+    }
+  }
+  return undefined;
+}
 
 export async function checkChildPnpm(
   packageJson: string | undefined,
   userAgent: string | undefined,
   run: ProcessRunner,
   options: RunOptions,
+  realPath: (filePath: string) => Promise<string>,
 ): Promise<PnpmCheck> {
   const pin = pinnedPnpm(packageJson);
   if (pin.kind === "conflict") {
     return {
       refusal:
-        `package.json contradicts itself: "packageManager" pins pnpm ${pin.a} but "devEngines.packageManager" pins pnpm ${pin.b}. Nothing was changed.\n` +
-        "Fix: make the two name the same pnpm version, or remove one.\n",
+        "package.json contradicts itself. Nothing was changed.\n" +
+        pin.pins
+          .map((named) => `  "${named.field}" pins pnpm ${named.version}\n`)
+          .join("") +
+        "Fix: make them all name the same pnpm version, or keep only one.\n",
     };
   }
   if (pin.kind === "range") {
@@ -142,11 +183,14 @@ export async function checkChildPnpm(
     answer.code === 0
       ? `\`pnpm --version\` found ${found}`
       : `\`pnpm --version\` failed (exit ${String(answer.code)}; any error from pnpm is shown above)`;
+  const where = await firstPnpmOnPath(options.env, realPath);
   return {
     refusal:
       `the pnpm that setup would run is not the one it should be. Nothing was changed.\n` +
       `  ${source} pnpm ${expected}\n` +
       `  ${what}\n` +
-      `${FIX}\n`,
+      `  that pnpm is at: ${where === undefined ? "not found (no pnpm on PATH)" : `${where} (probably: the first pnpm on PATH)`}\n` +
+      `  in: ${options.cwd}\n` +
+      `${fixFor(pin.kind === "exact", expected)}\n`,
   };
 }

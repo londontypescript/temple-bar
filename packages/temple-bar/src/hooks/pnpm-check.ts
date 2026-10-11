@@ -50,23 +50,28 @@ async function capturePnpm(
   return { code, stdout, stderr };
 }
 
-function pathEntries(env: Readonly<NodeJS.ProcessEnv>): string[] {
+function pathEntries(
+  env: Readonly<NodeJS.ProcessEnv>,
+  paths: path.PlatformPath,
+): string[] {
   // Windows spells the variable `Path`.
   const key = Object.keys(env).find((name) => name.toUpperCase() === "PATH");
   const value = key === undefined ? undefined : env[key];
-  return (value ?? "").split(path.delimiter).filter((entry) => entry !== "");
+  return (value ?? "").split(paths.delimiter).filter((entry) => entry !== "");
 }
 
-/** The first `pnpm` on PATH, which is what a plain `pnpm` finds. */
+/** The first `pnpm` on PATH, which is what a plain `pnpm` finds. Path rules
+ * follow `platform`, so tests can exercise either system's on any machine. */
 async function firstPnpmOnPath(
   ctx: Context,
   platform: NodeJS.Platform,
 ): Promise<string | undefined> {
+  const paths = platform === "win32" ? path.win32 : path.posix;
   const names =
     platform === "win32" ? ["pnpm.cmd", "pnpm.exe", "pnpm.bat"] : ["pnpm"];
-  for (const entry of pathEntries(ctx.env)) {
+  for (const entry of pathEntries(ctx.env, paths)) {
     for (const name of names) {
-      const candidate = path.join(entry, name);
+      const candidate = paths.join(entry, name);
       if (await ctx.fs.exists(candidate)) {
         return candidate;
       }
@@ -75,23 +80,14 @@ async function firstPnpmOnPath(
   return undefined;
 }
 
-/** Where the pnpm that answered lives. pnpm tells scripts its own script
- * path in `npm_execpath`, so that is asked for first; not every pnpm sets it
- * for `exec`, so the first match on PATH is the labelled fallback. */
+/** Where the pnpm that answered probably lives: the first match on PATH,
+ * labelled as a guess. pnpm has no reliable way to report its own path
+ * (`pnpm exec` doesn't set `npm_execpath`, and an inherited one would name
+ * some other pnpm), and a version manager's shim can point further on. */
 async function whereIsPnpm(
   ctx: Context,
-  worktree: string,
   platform: NodeJS.Platform,
 ): Promise<string> {
-  const reported = await capturePnpm(
-    ctx,
-    ["exec", "node", "-p", "process.env.npm_execpath"],
-    worktree,
-  );
-  const line = reported.stdout.trim();
-  if (reported.code === 0 && line !== "" && line !== "undefined") {
-    return line;
-  }
   const first = await firstPnpmOnPath(ctx, platform);
   return first === undefined
     ? "not found (no pnpm on PATH)"
@@ -145,9 +141,10 @@ export async function pnpmMatchesPin(
   if (declared.kind === "conflict") {
     return refuse(ctx, [
       "package.json contradicts itself, so nothing was installed:",
-      `  "packageManager" pins pnpm ${declared.packageManager}`,
-      `  "devEngines.packageManager" pins pnpm ${declared.devEngines}`,
-      "Fix: make the two name the same pnpm version, or remove one.",
+      ...declared.pins.map(
+        (pin) => `  "${pin.field}" pins pnpm ${pin.version}`,
+      ),
+      "Fix: make them all name the same pnpm version, or keep only one.",
       ...handRunSteps(worktree),
     ]);
   }
@@ -158,7 +155,7 @@ export async function pnpmMatchesPin(
     return true;
   }
 
-  const where = await whereIsPnpm(ctx, worktree, platform);
+  const where = await whereIsPnpm(ctx, platform);
   const wrong =
     answer.code === 0
       ? [
@@ -169,15 +166,18 @@ export async function pnpmMatchesPin(
       : [
           "the pnpm that would install here could not say its version, so nothing was installed.",
           `  package.json pins: pnpm ${declared.version}`,
-          `  \`pnpm --version\` failed (exit ${String(answer.code)}):`,
-          ...answer.stderr
-            .trim()
-            .split(/\r?\n/)
-            .filter((line) => line !== "")
-            .map((line) => `    ${line}`),
+          `  \`pnpm --version\` failed (exit ${String(answer.code)})`,
         ];
+  // Whatever pnpm printed to stderr, even when it answered: a warning there
+  // can say why it didn't switch to the pinned version.
+  const said = answer.stderr
+    .trim()
+    .split(/\r?\n/)
+    .filter((line) => line !== "")
+    .map((line) => `    ${line}`);
   return refuse(ctx, [
     ...wrong,
+    ...(said.length > 0 ? ["  pnpm also said:", ...said] : []),
     `  that pnpm is at: ${where}`,
     FIX,
     ...handRunSteps(worktree),
