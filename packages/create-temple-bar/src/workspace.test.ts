@@ -158,3 +158,28 @@ void test("findWorkspaceResidue reports a failed or unreadable listing instead o
     assert.match(outcome.failure, /Nothing was changed/);
   }
 });
+
+void test("findWorkspaceResidue matches the root by its real path and names files from it", async () => {
+  // Setup was started through a symlink (or a Windows short name); pnpm
+  // lists the real folders. The root's own files must still be skipped.
+  const real = (filePath: string): string =>
+    normalize(filePath).replace(normalize("/link/ws"), normalize("/real/ws"));
+  const files: WorkspaceFiles = {
+    ...fakeFiles([
+      "/real/ws/pnpm-lock.yaml",
+      "/real/ws/pnpm-workspace.yaml",
+      "/real/ws/packages/a/pnpm-lock.yaml",
+    ]),
+    realPath: (filePath) => Promise.resolve(real(filePath)),
+  };
+  const result = await findWorkspaceResidue(
+    "/link/ws",
+    files,
+    listing(list("/real/ws", "/real/ws/packages/a")),
+    { cwd: "/link/ws", env: {} },
+  );
+  assert.deepEqual(
+    "found" in result ? result.found.map((file) => normalize(file)) : result,
+    [normalize("packages/a/pnpm-lock.yaml")],
+  );
+});

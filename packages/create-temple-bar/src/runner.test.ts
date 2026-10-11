@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import { createProcessRunner } from "./runner.ts";
@@ -36,4 +39,31 @@ void test("createProcessRunner reports a non-zero exit code without throwing", a
     env: process.env,
   });
   assert.notEqual(result.code, 0);
+});
+
+void test("createProcessRunner keeps a character whole when it arrives split across two chunks", async () => {
+  // "é" is two bytes in UTF-8. The script writes them separately, with a
+  // pause between, so the captured output reaches the runner in two pieces.
+  const folder = mkdtempSync(path.join(tmpdir(), "temple-bar-runner-"));
+  try {
+    writeFileSync(
+      path.join(folder, "split.js"),
+      "process.stdout.write(Buffer.from([0xc3]));\n" +
+        "setTimeout(() => process.stdout.write(Buffer.from([0xa9])), 200);\n",
+    );
+    writeFileSync(
+      path.join(folder, "package.json"),
+      JSON.stringify({ private: true, scripts: { split: "node split.js" } }),
+    );
+    const run = createProcessRunner();
+    const result = await run("pnpm", ["--silent", "run", "split"], {
+      cwd: folder,
+      env: process.env,
+      capture: true,
+    });
+    assert.equal(result.code, 0);
+    assert.equal(result.stdout, "é");
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
 });

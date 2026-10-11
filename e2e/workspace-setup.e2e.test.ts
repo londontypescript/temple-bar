@@ -2,87 +2,36 @@
 // the tarballs a release would publish.
 
 import assert from "node:assert/strict";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
-import { initTestRepo } from "../packages/temple-bar/src/testing/git-repo.ts";
-import { environments } from "../scripts/scaffold-check/environment.ts";
-import { packBoth, type Tarballs } from "./support/pack.ts";
-import { serveTarball, type LocalRegistry } from "./support/registry.ts";
-import { describe, run, type RunOptions } from "./support/run.ts";
+import {
+  launch,
+  makeProject,
+  startPackedLauncher,
+  type PackedLauncher,
+} from "./support/launcher.ts";
+import { describe, run } from "./support/run.ts";
 import {
   onePatternWorkspace,
   standaloneProject,
   twoPatternWorkspace,
 } from "./support/workspace.ts";
 
-let folder = "";
-let tarballs: Tarballs;
-let registry: LocalRegistry | undefined;
-let env: NodeJS.ProcessEnv;
-let version = "";
+let launcher: PackedLauncher | undefined;
 
 before(async () => {
-  folder = realpathSync.native(
-    mkdtempSync(path.join(tmpdir(), "temple-bar-workspace-")),
-  );
-  tarballs = await packBoth(folder);
-  const manifest = JSON.parse(
-    readFileSync(
-      path.join(folder, "stage", "temple-bar", "package.json"),
-      "utf8",
-    ),
-  ) as { name: string; version: string };
-  version = manifest.version;
-  registry = await serveTarball(manifest, tarballs.templeBar);
-  env = environments(folder, process.env, registry.url).setup;
+  launcher = await startPackedLauncher("temple-bar-workspace-");
 });
 
 after(async () => {
-  await registry?.close();
-  if (folder !== "") rmSync(folder, { recursive: true, force: true });
+  await launcher?.close();
 });
 
-async function project(
-  name: string,
-  files: Readonly<Record<string, string>>,
-): Promise<RunOptions> {
-  const cwd = path.join(folder, name);
-  mkdirSync(cwd);
-  initTestRepo(cwd);
-  for (const [relative, contents] of Object.entries(files)) {
-    const target = path.join(cwd, relative);
-    mkdirSync(path.dirname(target), { recursive: true });
-    writeFileSync(target, contents);
-  }
-  const options = { cwd, env };
-  for (const args of [
-    ["add", "-A"],
-    ["commit", "-q", "-m", "Initial commit"],
-    ["remote", "add", "origin", "git@github.com:acme/widgets.git"],
-  ]) {
-    const result = await run("git", args, options);
-    assert.equal(result.code, 0, describe(result));
-  }
-  return options;
-}
-
-function launch(options: RunOptions) {
-  return run(
-    "pnpm",
-    [`--package=${tarballs.createTempleBar}`, "dlx", "create-temple-bar"],
-    options,
-  );
+function packed(): PackedLauncher {
+  assert.ok(launcher, "the packed launcher was not started");
+  return launcher;
 }
 
 function readManifest(cwd: string, relative = "package.json") {
@@ -102,8 +51,12 @@ for (const [label, files] of cases) {
     `packed launcher installs temple-bar at the root of ${label} and runs init`,
     { timeout: 600_000 },
     async () => {
-      const options = await project(label.replaceAll(" ", "-"), files());
-      const result = await launch(options);
+      const options = await makeProject(
+        packed(),
+        label.replaceAll(" ", "-"),
+        files(),
+      );
+      const result = await launch(packed(), options);
       assert.equal(result.code, 0, describe(result));
       assert.match(
         result.stdout,
@@ -114,7 +67,7 @@ for (const [label, files] of cases) {
         readManifest(options.cwd).devDependencies?.[
           "@londontypescript/temple-bar"
         ],
-        version,
+        packed().version,
       );
       assert.ok(
         existsSync(
@@ -149,14 +102,14 @@ void test(
       ...twoPatternWorkspace(),
       "packages/a/pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
     };
-    const options = await project("nested-lockfile", files);
+    const options = await makeProject(packed(), "nested-lockfile", files);
     const before = Object.fromEntries(
       Object.keys(files).map((relative) => [
         relative,
         readFileSync(path.join(options.cwd, relative), "utf8"),
       ]),
     );
-    const result = await launch(options);
+    const result = await launch(packed(), options);
     assert.equal(result.code, 1, describe(result));
     assert.match(result.stderr, /Nothing was changed/, describe(result));
     assert.match(

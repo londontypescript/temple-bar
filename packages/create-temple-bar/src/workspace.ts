@@ -60,13 +60,14 @@ export function parsePackageFolders(output: string): string[] | undefined {
 }
 
 export function workspaceListFailedMessage(detail: string): string {
+  const list = listPackagesCommand();
   return (
     `temple-bar could not list this workspace's packages (${detail}). Nothing was changed.\n` +
     "\n" +
     "It looks at every package before installing, because a lockfile left\n" +
     "inside a package breaks the single install at the root. Check that\n" +
     `${WORKSPACE_FILE} is valid and that this command works here:\n` +
-    "  pnpm list --recursive --depth -1 --json\n" +
+    `  ${list.command} ${list.args.join(" ")}\n` +
     "Then run setup again:\n" +
     `  ${LAUNCH_COMMAND}\n`
   );
@@ -129,7 +130,9 @@ export async function findWorkspaceResidue(
     for (const name of RESIDUE_FILES) {
       const file = path.join(folder, name);
       if ((await files.readText(file)) !== undefined) {
-        found.push(path.relative(root, file));
+        // Relative to the real root: pnpm reports real folders, and the
+        // folder setup was started in may be reached through a symlink.
+        found.push(path.relative(realRoot, file));
       }
     }
   }

@@ -64,8 +64,11 @@ export function createProcessRunner(): ProcessRunner {
         shell: process.platform === "win32",
       });
       let stdout = "";
-      child.stdout?.on("data", (chunk: Buffer) => {
-        stdout += chunk.toString("utf8");
+      // Decoded as a stream, so a character split across two chunks (any
+      // non-ASCII letter in a folder name) arrives whole.
+      child.stdout?.setEncoding("utf8");
+      child.stdout?.on("data", (chunk: string) => {
+        stdout += chunk;
       });
       child.on("error", (error: NodeJS.ErrnoException) => {
         if (error.code === "ENOENT") {
