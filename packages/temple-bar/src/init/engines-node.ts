@@ -2,8 +2,9 @@
 // requirement is machine-readable (package managers, hosting and editors
 // read it). Like the rest of setup it only adds: a missing declaration is
 // written, a plain `>=` below the minimum (Astro's scaffold writes
-// `>=22.12.0`) is raised, and anything else is left alone and reported,
-// because a range this file can't compare is the project's to settle.
+// `>=22.12.0`) is raised, and anything else is left alone and fails the
+// run: a range this file can't compare may exclude Node 24 (`^22` does), so
+// it's the project's to correct.
 
 import { MIN_NODE_MAJOR } from "../node-version.ts";
 import { RERUN_INIT } from "./requirements.ts";

@@ -125,6 +125,24 @@ void test("init workflows: a packageManager setup can't use ends the run non-zer
   assert.doesNotMatch(stdout, /temple-bar is set up/);
 });
 
+void test("init workflows: an engines.node setup can't check ends the run non-zero, and is left alone", async () => {
+  const manifest = JSON.stringify({
+    name: "widgets",
+    packageManager: "pnpm@10.34.5",
+    scripts: { prepare: "temple-bar hook install", gate: "temple-bar gate" },
+    engines: { node: "^22" },
+  });
+  const fs = setUpFiles({ "/repo/package.json": manifest });
+  const { code, stdout, stderr } = await rerun(fs);
+  assert.equal(code, 1);
+  assert.equal(fs.files.get("/repo/package.json"), manifest);
+  assert.match(
+    stderr,
+    /engines\.node is "\^22".*Fix: set engines\.node to ">=24"/,
+  );
+  assert.doesNotMatch(stdout, /temple-bar is set up/);
+});
+
 void test("init workflows: when it can't tell which pnpm runs it, setup writes no version, says to rerun through pnpm and ends non-zero", async () => {
   const manifest = JSON.stringify({
     name: "widgets",

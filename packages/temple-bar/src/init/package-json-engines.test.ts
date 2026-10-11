@@ -57,7 +57,7 @@ void test("engines.node: a plain >= at or above the minimum is left alone", asyn
   }
 });
 
-void test("engines.node: any other form is left alone and reported as unchecked, with the fix", async () => {
+void test("engines.node: any other form is left alone and reported as a problem, with the fix", async () => {
   for (const odd of [
     { engines: { node: "^22" } },
     { engines: { node: ">=22 <25" } },

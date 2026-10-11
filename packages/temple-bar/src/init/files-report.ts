@@ -103,8 +103,9 @@ function reportWorkflows(ctx: Context, files: SetupFilesOutcome): boolean {
 }
 
 /** Says what setup did about the Node the project declares. A declaration
- * it couldn't check is a warning, not a failure: the project's own range
- * stays as it is. */
+ * it couldn't check is left as it is but ends the run non-zero: some such
+ * ranges (`^22`) exclude the only Node temple-bar runs on, and setup can't
+ * tell which. */
 function reportNode(ctx: Context, node: NodeEnginesStep): void {
   if (node.kind === "added") {
     ctx.stdout.write(
@@ -115,7 +116,7 @@ function reportNode(ctx: Context, node: NodeEnginesStep): void {
       `Raised "engines.node" in package.json from "${node.from}" to "${WANTED_NODE}": temple-bar needs Node ${String(MIN_NODE_MAJOR)} or newer.\n`,
     );
   } else if (node.kind === "problem") {
-    ctx.stderr.write(`Warning: ${node.message}\n`);
+    ctx.stderr.write(`${node.message}\n`);
   }
 }
 
@@ -146,7 +147,11 @@ function reportPackageJson(ctx: Context, files: SetupFilesOutcome): boolean {
     );
   }
   reportNode(ctx, outcome.node);
-  return outcome.conflicts.length > 0 || outcome.pnpmProblem !== undefined;
+  return (
+    outcome.conflicts.length > 0 ||
+    outcome.pnpmProblem !== undefined ||
+    outcome.node.kind === "problem"
+  );
 }
 
 /** Reports every file setup wrote or left alone; returns true when one has

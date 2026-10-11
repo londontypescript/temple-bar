@@ -184,7 +184,8 @@ applied to brand-new repos, so these rules have no older projects to spare.
   `>=24`. A plain `>=` below 24, such as the `>=22.12.0` Astro's scaffold
   writes, is raised and reported: CI runs 24 and temple-bar won't run below
   it, so a lower floor claims support nobody tests. Any other form is left
-  alone with a warning that it couldn't be checked. The minimum is its own
+  alone and ends setup non-zero with the fix: setup can't compare it, and
+  some such ranges (`^22`) exclude the only Node temple-bar runs on. The minimum is its own
   constant, apart from the Node version CI uses, so moving CI forward doesn't
   raise every new project's floor.
 - **Decision 61: temple-bar checks its own Node first.** Both entry points
