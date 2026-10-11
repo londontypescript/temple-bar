@@ -44,7 +44,13 @@ to D7. Four carried over:
 
 **Decision 2: public, but highly opinionated.** temple-bar ships the
 maintainer's defaults, makes no promise of configurability, and stays on 0.x
-versions. The README says so up front. This guards against users expecting a
+versions. A planned release raises the minor version and a fix raises the
+patch, so an urgent fix (0.1.1) never renames the planned milestones after it.
+Until 0.1.0 every release took the next 0.0.N, and three inserted releases
+renamed every milestone after them. Until release branches exist
+([#355](https://github.com/londontypescript/temple-bar/issues/355)), a patch is
+released from `main`: unreleased work there either waits or ships with it. The
+README says so up front. This guards against users expecting a
 general-purpose tool that bends to every workflow, and against options that
 weaken the enforcement temple-bar exists for.
 
@@ -58,14 +64,15 @@ not a date.
 
 **Decision 28: a solid foundation first.** temple-bar and grand-union are the
 foundation of the London TypeScript GitHub org. grand-union starts once
-temple-bar 0.0.10 ships: a first run that works, an enforced merge path,
-worktrees that work safely wherever a tool puts them, everything the earlier
-template did, a setup that works on projects made by the popular framework
-scaffolders, rules that can't be quietly weakened, subagents kept to their own
-scope, checks for leaked secrets, and status you can trust. The remaining
-themes continue alongside grand-union, so it starts on a foundation that holds
-rather than waiting for every theme. Until 2026-10-01 this decision said every
-theme (A to F) came first; it changed once the releases up to 0.0.7 were
+temple-bar's release candidate, 0.5.0, ships: a first run that works, an
+enforced merge path, worktrees that work safely wherever a tool puts them,
+everything the earlier template did, a setup that works on projects made by
+the popular framework scaffolders, rules that can't be quietly weakened,
+subagents kept to their own scope, checks for leaked secrets, and status you
+can trust. The remaining themes continue alongside grand-union, so it
+starts on a foundation that holds rather than waiting for every theme.
+Until 2026-10-01 this decision said every theme (A to F) came first; it
+changed once the releases up to 0.0.7 were
 planned and the rest proved to be later, separable work. On 2026-10-02 a small
 worktree release was inserted as 0.0.6, so the same scope ended at 0.0.8. On
 2026-10-03 0.0.9 was added, "works on real projects", after setup was found to
@@ -73,7 +80,10 @@ break or be blocked by framework scaffolders, and grand-union moved after it.
 On 2026-10-04 0.0.8 held 33 issues against 0.0.7's 23, and the delicate
 work on rules that can't be weakened would have crowded 0.0.9's scaffolder
 work. 0.0.10 was added to carry it, with scoped subagents, secrets checks and
-trustworthy status, and grand-union moved after it. Each move so far has added
+trustworthy status, and grand-union moved after it. On 2026-10-08 the release
+candidate became its own milestone, with fresh scaffolds and workspaces ahead
+of it, and grand-union moved after the candidate. On 2026-10-11 releases were
+renumbered (decision 2), making the candidate 0.5.0. Each move so far has added
 scope rather than replaced it; a further move should be weighed against that.
 
 **Decision 29: working, well-made code first; a showcase second.** The code

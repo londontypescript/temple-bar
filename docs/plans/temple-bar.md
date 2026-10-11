@@ -25,12 +25,12 @@ Settled before this session:
 - Models: phases rated routine / involved / delicate; the maintainer picks models, temple-bar never does: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 - What became of the earlier hardening plan's D2, D3, D4 and D7: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 
-Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), after the judge's trial on 2026-10-03 (46–54), while planning 0.0.8 on 2026-10-04 (55), and while building it on 2026-10-05 (56–58). Decision 38 was revised on 2026-10-05: incidents are titled, not labelled. Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds, and 28 again on 2026-10-04, when 0.0.10 was added:
+Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), after the judge's trial on 2026-10-03 (46–54), while planning 0.0.8 on 2026-10-04 (55), and while building it on 2026-10-05 (56–58). Decision 38 was revised on 2026-10-05: incidents are titled, not labelled. Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds, and 28 again on 2026-10-04, when 0.0.10 was added. Decisions 2 and 28 were revised on 2026-10-11, when releases were renumbered to 0.MINOR.PATCH:
 
 | #   | Decision                                                                            | ADR                                                       |
 | --- | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | 1   | The README opens with a plain two-sentence intro, then setup, then the background   | [0009](../adr/0009-readme-and-agents-md.md)               |
-| 2   | Public but highly opinionated: the maintainer's defaults, 0.x versions              | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 2   | Public, highly opinionated, 0.x: a planned release bumps the minor, a fix the patch | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 3   | GitHub only: a git repo, `gh` signed in, `origin` on GitHub                         | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 4   | `main` changes only through merged pull requests; hooks guard local `main`          | [0003](../adr/0003-how-a-change-reaches-main.md)          |
 | 5   | Scaffold first, then setup through `pnpm create` layers on top; pnpm only           | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
@@ -56,7 +56,7 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 25  | CodeQL is a required check on the `main` ruleset                                    | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
 | 26  | The test suite runs shut off from the machine's git config                          | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
 | 27  | _Superseded by 37._ A gitignored `planning/` folder held progress and the handoff   | [0010](../adr/0010-plans-progress-and-incidents.md)       |
-| 28  | grand-union starts once temple-bar 0.0.10 ships; other themes continue alongside    | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 28  | grand-union starts once the release candidate (0.5.0) ships; others go alongside    | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 29  | Working, standards-following code first; a showcase for TypeScript devs second      | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 30  | Worktree location stays each harness's choice; one inside the repo is made safe     | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 31  | Built for every London TypeScript repo; GitHub, `gh` and pnpm required              | [0002](../adr/0002-what-temple-bar-is-for.md)             |

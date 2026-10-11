@@ -2,7 +2,7 @@
 
 The setup launcher for [temple-bar](https://github.com/londontypescript/temple-bar#readme), the London TypeScript workflow enforced on AI coding agents via git hooks, a quality gate and GitHub rules.
 
-> **Pre-release** (`0.0.x`). Expect changes.
+> **Pre-release** (`0.x`). Expect changes.
 
 ```bash
 pnpm create @londontypescript/temple-bar@latest
