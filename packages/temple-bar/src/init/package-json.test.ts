@@ -178,6 +178,7 @@ void test("ensurePackageJsonScripts adds a missing name first, preserving format
     const pkg = {
       private: true,
       scripts: { prepare: PREPARE_SCRIPT, gate: GATE_SCRIPT },
+      engines: { node: ">=24" },
     };
     const fs = createFakeFs({
       "/repo/package.json": `${JSON.stringify(pkg, null, indent)}${newline}`,
@@ -290,6 +291,7 @@ void test("ensurePackageJsonScripts is a no-op the second time (idempotent)", as
       {
         name: "existing",
         scripts: { prepare: PREPARE_SCRIPT, gate: GATE_SCRIPT },
+        engines: { node: ">=24" },
       },
       null,
       2,

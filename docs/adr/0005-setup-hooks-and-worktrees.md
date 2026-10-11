@@ -1,8 +1,8 @@
 # ADR 0005: Setup, hooks and worktrees
 
-Date: 2026-10-01, updated 2026-10-02, 2026-10-03, 2026-10-05, 2026-10-07 and 2026-10-09. Status: accepted (decisions 5, 16, 21,
-22, 30 and 32; 32 is built and 30's ignore line ships in 0.0.6, while 16's
-checks and 30's detection are decided but not built yet).
+Date: 2026-10-01, updated 2026-10-02, 2026-10-03, 2026-10-05, 2026-10-07, 2026-10-09 and 2026-10-11. Status: accepted (decisions 5, 16, 21,
+22, 30, 32 and 60–62; 32 and 60–62 are built and 30's ignore line ships in
+0.0.6, while 16's checks and 30's detection are decided but not built yet).
 
 ## Context
 
@@ -23,7 +23,8 @@ CLI such as Vite, Next.js or Astro, or by hand), and setup then layers
 temple-bar on top of whatever is there. Setup never chooses or writes the
 project's toolchain (narrowed by [ADR 0014](0014-setup-writes-fixed-workflows.md):
 setup records the pnpm version already running it when the project names
-none): the agent sets the gate's four scripts to the right
+none; and by decision 60 below: setup declares the Node temple-bar needs):
+the agent sets the gate's four scripts to the right
 commands for the project's stack (decision 23), and setup adapts to the
 framework's files instead of replacing them: its rules go into an existing
 AGENTS.md as a marked block, its hook install chains onto an existing
@@ -163,12 +164,52 @@ checkout it stays quiet. In the new worktree the hook:
    naming the keys the template lists and the file lacks, or that the file
    is missing. Only file and key names are printed, never a value.
 3. Runs `pnpm install --frozen-lockfile` when the worktree has a
-   `pnpm-lock.yaml`. If that fails, the hook exits non-zero and says the
+   `pnpm-lock.yaml`, once the pnpm that will run has been checked against
+   the project's pin (decision 62). If either fails, the hook exits non-zero and says the
    worktree exists and which command finishes the setup: a hook can't undo
    a checkout.
 
 Env files come before the install, so they are in place even when the
 install fails.
+
+**Decisions 60–62: the runtime temple-bar and its installs run on.** In a
+trial with 0.0.10, a new worktree's install ran an old global pnpm 8 that
+came first on the PATH a desktop harness gave git. pnpm 9.7 and later switch
+themselves to the version `packageManager` names; pnpm 8 runs as itself, and
+can't read today's lockfile. The project also said "Node 24+" only in prose,
+and nothing stopped temple-bar running on an older Node. temple-bar is
+applied to brand-new repos, so these rules have no older projects to spare.
+
+- **Decision 60: setup declares Node.** With no `engines.node`, `init` adds
+  `>=24`. A plain `>=` below 24, such as the `>=22.12.0` Astro's scaffold
+  writes, is raised and reported: CI runs 24 and temple-bar won't run below
+  it, so a lower floor claims support nobody tests. Any other form is left
+  alone and ends setup non-zero with the fix: setup can't compare it, and
+  some such ranges (`^22`) exclude the only Node temple-bar runs on. The minimum is its own
+  constant, apart from the Node version CI uses, so moving CI forward doesn't
+  raise every new project's floor.
+- **Decision 61: temple-bar checks its own Node first.** Both entry points
+  (`temple-bar`, which every hook runs, and the launcher) check the Node
+  version in a tiny file that loads the real code only afterwards, so the
+  check runs even where the rest wouldn't load. Below the minimum they change
+  nothing and name the Node found, its path and the fix. This checks the Node
+  running temple-bar only: the same PATH doesn't prove pnpm runs on the same
+  Node. No `node` on PATH at all is outside it: the shell can't start
+  temple-bar, and the shims already refuse rather than let a change through.
+- **Decision 62: check the pnpm that will install, before installing.** The
+  post-checkout hook asks `pnpm --version` exactly as it will run the install
+  (same command, folder and environment, so the answer holds on Windows too)
+  and compares it with `packageManager` (an integrity suffix ignored) and an
+  exact `devEngines.packageManager`. Two exact pins that differ are refused as
+  a manifest problem; a range installs with a note that it wasn't checked. On
+  a mismatch or a failed probe nothing is installed, and the message says
+  what was declared and found, where that pnpm probably lives (the first on
+  PATH: pnpm can't reliably report its own path), and the fix: give the tool
+  that ran `git worktree add` a pnpm 9.7 or later, or the pinned one. pnpm
+  switching itself, even downloading, is pnpm's own behaviour and allowed;
+  temple-bar never installs or switches anything. The launcher runs the same
+  check before its first pnpm command; with no pin yet it compares with the
+  pnpm that started it, whose version `init` then records.
 
 ### Historical upgrades (implemented for the forthcoming 0.0.10 release)
 
@@ -199,4 +240,5 @@ failing closed before install caused more harm than an unprotected checkout,
 for example if most users never ran the install. Scaffold-first is wrong if
 the popular scaffolders start working safely inside an existing project, or
 if adapting to each one's files grows into more code than shipping a
-toolchain would be.
+toolchain would be. Decision 62 is wrong once every pnpm a user could have
+switches itself to the pin: a mismatch could then no longer happen.

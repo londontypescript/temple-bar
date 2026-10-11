@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 
-// Thin entry point: build the real context, run the router, set the exit
-// code. All behaviour lives in router.ts and context.ts so it can be tested
-// without spawning a process.
+// The entry point, kept tiny and old-Node-proof on purpose: it checks the
+// Node running it before loading anything else, because the real code uses
+// syntax and APIs an older Node cannot even parse. Every run starts here,
+// git hooks included.
 
-import { createRealContext } from "./context.ts";
-import { route } from "./router.ts";
+import { nodeTooOldMessage } from "./node-version.ts";
 
-const ctx = createRealContext();
-const exitCode = await route(process.argv.slice(2), ctx);
-process.exitCode = exitCode;
+const tooOld = nodeTooOldMessage(process.versions.node, process.execPath);
+if (tooOld === undefined) {
+  await import("./cli-main.ts");
+} else {
+  process.stderr.write(tooOld);
+  process.exitCode = 1;
+}

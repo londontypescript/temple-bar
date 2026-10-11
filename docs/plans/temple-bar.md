@@ -25,7 +25,7 @@ Settled before this session:
 - Models: phases rated routine / involved / delicate; the maintainer picks models, temple-bar never does: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 - What became of the earlier hardening plan's D2, D3, D4 and D7: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 
-Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), after the judge's trial on 2026-10-03 (46–54), while planning 0.0.8 on 2026-10-04 (55), and while building it on 2026-10-05 (56–58). Decision 38 was revised on 2026-10-05: incidents are titled, not labelled. Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds, and 28 again on 2026-10-04, when 0.0.10 was added. Decisions 2 and 28 were revised on 2026-10-11, when releases were renumbered to 0.MINOR.PATCH:
+Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), after the judge's trial on 2026-10-03 (46–54), while planning 0.0.8 on 2026-10-04 (55), while building it on 2026-10-05 (56–58), and while building 0.1.0 on 2026-10-11 (60–62). Decision 38 was revised on 2026-10-05: incidents are titled, not labelled. Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds, and 28 again on 2026-10-04, when 0.0.10 was added. Decisions 2 and 28 were revised on 2026-10-11, when releases were renumbered to 0.MINOR.PATCH:
 
 | #   | Decision                                                                            | ADR                                                       |
 | --- | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -88,6 +88,9 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 57  | One short plan file per milestone; decisions live in ADRs (for the template)        | [0010](../adr/0010-plans-progress-and-incidents.md)       |
 | 58  | Of the tool configs, the judge guards only temple-bar.config.json                   | [0011](../adr/0011-which-checks-judge-a-pull-request.md)  |
 | 59  | Unused files with only comments may pass; code, exports, types and failures block   | [0007](../adr/0007-what-the-gate-checks.md)               |
+| 60  | Setup declares Node 24+ in `engines.node`, raising a plain lower `>=`               | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 61  | temple-bar refuses a Node below its minimum before loading anything else            | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
+| 62  | Before installing, hook and launcher check the pnpm that will run against the pin   | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 
 Decision 59 was approved on 2026-10-09 after Claude Sonnet reviewed the precise content-only contract.
 

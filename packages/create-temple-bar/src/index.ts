@@ -1,46 +1,15 @@
 #!/usr/bin/env node
 
-// Thin entry point: build the real dependencies, call main(), set the exit
-// code. All behaviour lives in main.ts so it can be tested without spawning
-// a process.
+// The entry point, kept tiny and old-Node-proof on purpose: it checks the
+// Node running it before loading anything else, because the real code uses
+// syntax and APIs an older Node cannot even parse.
 
-import { promises as fsp, realpath } from "node:fs";
-import { promisify } from "node:util";
+import { nodeTooOldMessage } from "./node-version.ts";
 
-import { main } from "./main.ts";
-import { createProcessRunner } from "./runner.ts";
-import { readOwnVersion } from "./own-version.ts";
-
-// The native form expands Windows short names, as pnpm reports folders.
-const realPathNative = promisify(realpath.native);
-
-async function readText(filePath: string): Promise<string | undefined> {
-  try {
-    return await fsp.readFile(filePath, "utf8");
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      (error as NodeJS.ErrnoException).code === "ENOENT"
-    ) {
-      return undefined;
-    }
-    throw error;
-  }
+const tooOld = nodeTooOldMessage(process.versions.node, process.execPath);
+if (tooOld === undefined) {
+  await import("./launch.ts");
+} else {
+  process.stderr.write(tooOld);
+  process.exitCode = 1;
 }
-
-const exitCode = await main({
-  argv: process.argv.slice(2),
-  cwd: process.cwd(),
-  env: process.env,
-  ownVersion: readOwnVersion(),
-  fs: {
-    readText,
-    writeText: (filePath, content) => fsp.writeFile(filePath, content, "utf8"),
-    realPath: (filePath) => realPathNative(filePath),
-  },
-  run: createProcessRunner(),
-  stdout: { write: (text) => process.stdout.write(text) },
-  stderr: { write: (text) => process.stderr.write(text) },
-});
-process.exitCode = exitCode;

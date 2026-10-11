@@ -18,6 +18,7 @@ import {
   pnpmRequiredMessage,
   runInitCommand,
 } from "./package-manager.ts";
+import { checkChildPnpm } from "./pnpm-check.ts";
 import type { ProcessRunner, RunOptions } from "./runner.ts";
 import {
   findWorkspaceResidue,
@@ -113,6 +114,24 @@ export async function main(deps: MainDeps): Promise<number> {
 
   const options: RunOptions = { cwd: deps.cwd, env: childEnv(deps.env) };
 
+  // First, before any other pnpm command (even the read-only workspace
+  // listing below, which an old pnpm would fail with a misleading message):
+  // the pnpm that runs from here on.
+  const pnpmCheck = await checkChildPnpm(
+    packageJson,
+    deps.env.npm_config_user_agent,
+    deps.run,
+    options,
+    (filePath) => deps.fs.realPath(filePath),
+  );
+  if (pnpmCheck.refusal !== undefined) {
+    deps.stderr.write(pnpmCheck.refusal);
+    return 1;
+  }
+  if (pnpmCheck.note !== undefined) {
+    deps.stdout.write(pnpmCheck.note);
+  }
+
   // Checked before anything is written, so a refusal leaves no trace.
   const atWorkspaceRoot =
     (await deps.fs.readText(path.join(deps.cwd, WORKSPACE_FILE))) !== undefined;
@@ -132,6 +151,7 @@ export async function main(deps: MainDeps): Promise<number> {
       return 1;
     }
   }
+
   await ensurePackageJson(deps, packageJson);
 
   const addDep = addDevDependencyCommand(deps.ownVersion, atWorkspaceRoot);

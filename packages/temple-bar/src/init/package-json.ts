@@ -11,6 +11,8 @@ import type { Context } from "../context.ts";
 import { setupWriteTargets } from "./write-target.ts";
 import { repoName } from "./repo-name.ts";
 import { RERUN_INIT } from "./requirements.ts";
+import { EXACT_SEMVER } from "../exact-semver.ts";
+import { declareNode, type NodeEnginesStep } from "./engines-node.ts";
 
 interface PackageJsonShape {
   name?: unknown;
@@ -69,17 +71,6 @@ type PnpmVersionStep =
   | { readonly kind: "named" }
   | { readonly kind: "added"; readonly version: string }
   | { readonly kind: "problem"; readonly message: string };
-
-/** One SemVer identifier in a prerelease: a number without leading zeros,
- * or letters, digits and hyphens with at least one non-digit. */
-const PRERELEASE_ID = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
-
-/** An exact SemVer version: no leading zeros in the three numbers or in a
- * numeric prerelease identifier; build metadata allowed. */
-const EXACT_SEMVER =
-  String.raw`(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)` +
-  String.raw`(?:-${PRERELEASE_ID}(?:\.${PRERELEASE_ID})*)?` +
-  String.raw`(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?`;
 
 const PNPM_AGENT_VERSION = new RegExp(String.raw`^pnpm\/(${EXACT_SEMVER}) \S`);
 
@@ -197,6 +188,8 @@ export interface PackageJsonOutcome {
   /** Set when the project's pnpm version isn't named and setup couldn't
    * name it: what is wrong and the fix. The run ends non-zero. */
   readonly pnpmProblem?: string;
+  /** What setup did about `engines.node`. */
+  readonly node: NodeEnginesStep;
 }
 
 /**
@@ -214,7 +207,7 @@ export async function ensurePackageJsonScripts(
 ): Promise<PackageJsonOutcome> {
   const existing = await targets.readText("package.json");
   if (targets.refusals.has("package.json"))
-    return { wrote: false, conflicts: [] };
+    return { wrote: false, conflicts: [], node: { kind: "ok" } };
 
   let pkg: PackageJsonShape;
   let wrote = false;
@@ -232,6 +225,7 @@ export async function ensurePackageJsonScripts(
       return {
         wrote: false,
         conflicts: [],
+        node: { kind: "ok" },
         invalid:
           "package.json isn't a valid JSON object, so it was left alone. Fix: " +
           `correct it, then run ${RERUN_INIT} again.`,
@@ -277,7 +271,13 @@ export async function ensurePackageJsonScripts(
   if (pnpm.kind === "added") {
     pkg.packageManager = `pnpm@${pnpm.version}`;
   }
-  let changed = wrote || scriptsChanged || pnpm.kind === "added";
+  const node = declareNode(pkg);
+  let changed =
+    wrote ||
+    scriptsChanged ||
+    pnpm.kind === "added" ||
+    node.kind === "added" ||
+    node.kind === "raised";
   if (changed) {
     changed = await targets.writeText(
       "package.json",
@@ -290,6 +290,7 @@ export async function ensurePackageJsonScripts(
     conflicts,
     ...(pnpm.kind === "added" ? { addedPnpm: pnpm.version } : {}),
     ...(pnpm.kind === "problem" ? { pnpmProblem: pnpm.message } : {}),
+    node,
   };
 }
 

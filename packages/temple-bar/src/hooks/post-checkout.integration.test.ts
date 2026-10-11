@@ -13,6 +13,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { devNull } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -212,6 +213,76 @@ void test("checkout: switching branches in a worktree does nothing extra", () =>
       /temple-bar/,
     );
     assert.equal(project.pnpm.calls().length, callsAfterAdd);
+  } finally {
+    project.fixture.cleanup();
+  }
+});
+
+/** Commits a package.json pinning pnpm to `version` and returns that commit. */
+function commitPin(project: Project, version: string): string {
+  const { repoDir } = project.fixture;
+  write(repoDir, "package.json", `{"packageManager":"pnpm@${version}"}\n`);
+  runGit(repoDir, ["add", "package.json"]);
+  // The repo's own hooks are installed by now and refuse a commit on main.
+  const committed = runGit(repoDir, [
+    "-c",
+    `core.hooksPath=${devNull}`,
+    "commit",
+    "-q",
+    "-m",
+    "chore: pin pnpm",
+  ]);
+  assert.equal(committed.code, 0, committed.stderr);
+  return runGit(repoDir, ["rev-parse", "HEAD"]).stdout.trim();
+}
+
+function addWorktreeAt(project: Project, start: string, version: string) {
+  return runGitWithEnv(
+    project.fixture.repoDir,
+    ["worktree", "add", "-q", "-b", "pinned", project.worktree, start],
+    project.pnpm.env({ version }),
+  );
+}
+
+void test("worktree add: a pnpm older than the pin is refused before installing, naming both versions and the install that remains", () => {
+  const project = createProject();
+  try {
+    const start = commitPin(project, "9.15.0");
+    const result = addWorktreeAt(project, start, "8.1.1");
+    const output = result.stdout + result.stderr;
+
+    assert.notEqual(result.code, 0, output);
+    assert.match(output, /package\.json pins: pnpm 9\.15\.0/);
+    assert.match(output, /found: 8\.1\.1/);
+    assert.match(output, /that pnpm is at: .*pnpm(\.cmd)? \(probably/);
+    assert.match(output, /only the install remains/);
+    // Only the version was asked: never an install, nor anything else.
+    assert.deepEqual(
+      project.pnpm.calls().map((call) => call.args),
+      [["--version"]],
+    );
+    assert.equal(
+      existsSync(path.join(project.worktree, "node_modules")),
+      false,
+    );
+    assert.ok(existsSync(path.join(project.worktree, "package.json")));
+  } finally {
+    project.fixture.cleanup();
+  }
+});
+
+void test("worktree add: a pnpm at the pinned version installs", () => {
+  const project = createProject();
+  try {
+    const start = commitPin(project, "9.15.0");
+    const result = addWorktreeAt(project, start, "9.15.0");
+
+    assert.equal(result.code, 0, result.stdout + result.stderr);
+    assert.ok(existsSync(path.join(project.worktree, "node_modules")));
+    assert.deepEqual(
+      project.pnpm.calls().map((call) => call.args[0]),
+      ["--version", "install"],
+    );
   } finally {
     project.fixture.cleanup();
   }

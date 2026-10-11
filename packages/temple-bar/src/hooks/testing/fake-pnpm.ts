@@ -16,6 +16,10 @@ appendFileSync(
   process.env.FAKE_PNPM_LOG,
   JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd() }) + "\\n",
 );
+if (process.argv[2] === "--version" && process.env.FAKE_PNPM_VERSION) {
+  process.stdout.write(process.env.FAKE_PNPM_VERSION + "\\n");
+  process.exit(0);
+}
 if (process.env.FAKE_PNPM_FAIL === "1") {
   process.stderr.write("ERR_PNPM_OUTDATED_LOCKFILE (from the fake pnpm)\\n");
   process.exit(1);
@@ -30,7 +34,7 @@ interface FakePnpmCall {
 
 export interface FakePnpm {
   /** The environment to run git with: PATH starts at the fake. */
-  env(options?: { fail?: boolean }): NodeJS.ProcessEnv;
+  env(options?: { fail?: boolean; version?: string }): NodeJS.ProcessEnv;
   calls(): FakePnpmCall[];
 }
 
@@ -61,6 +65,7 @@ export function createFakePnpm(dir: string): FakePnpm {
         PATH: `${dir}${path.delimiter}${process.env.PATH ?? ""}`,
         FAKE_PNPM_LOG: logPath,
         FAKE_PNPM_FAIL: options.fail === true ? "1" : "0",
+        FAKE_PNPM_VERSION: options.version ?? "",
       };
     },
     calls() {
