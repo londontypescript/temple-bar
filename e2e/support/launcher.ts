@@ -18,7 +18,7 @@ import path from "node:path";
 import { initTestRepo } from "../../packages/temple-bar/src/testing/git-repo.ts";
 import { environments } from "../../scripts/scaffold-check/environment.ts";
 import { packBoth, type Tarballs } from "./pack.ts";
-import { serveTarball } from "./registry.ts";
+import { serveTarball, type LocalRegistry } from "./registry.ts";
 import { describe, run, type RunOptions, type RunResult } from "./run.ts";
 
 export interface PackedLauncher {
@@ -37,39 +37,49 @@ export async function startPackedLauncher(
   // Native realpath expands Windows short-name temp paths. pnpm and the
   // frameworks otherwise disagree with tools that resolve the long names.
   const folder = realpathSync.native(mkdtempSync(path.join(tmpdir(), prefix)));
-  const tarballs = await packBoth(folder);
-  const manifest = JSON.parse(
-    readFileSync(
-      path.join(folder, "stage", "temple-bar", "package.json"),
-      "utf8",
-    ),
-  ) as { name: string; version: string };
-  const registry = await serveTarball(manifest, tarballs.templeBar);
-  const env = environments(folder, process.env, registry.url).setup;
-  // Exclude inherited project tools, but keep pnpm's own install directory:
-  // CI's package-manager setup also puts its executable in node_modules/.bin.
-  const pathKey =
-    Object.keys(env).find((key) => key.toUpperCase() === "PATH") ?? "PATH";
-  env[pathKey] = (env[pathKey] ?? "")
-    .split(path.delimiter)
-    .filter(
-      (entry) =>
-        !/[\\/]node_modules[\\/]\.bin(?:[\\/]|$)/.test(entry) ||
-        ["pnpm", "pnpm.cmd", "pnpm.exe"].some((name) =>
-          existsSync(path.join(entry, name)),
-        ),
-    )
-    .join(path.delimiter);
-  return {
-    folder,
-    tarballs,
-    version: manifest.version,
-    env,
-    close: async () => {
-      await registry.close();
-      rmSync(folder, { recursive: true, force: true });
-    },
-  };
+  // A failure part-way through still removes the folder and stops the
+  // registry, so a broken start leaves nothing listening or on disk.
+  let registry: LocalRegistry | undefined;
+  try {
+    const tarballs = await packBoth(folder);
+    const manifest = JSON.parse(
+      readFileSync(
+        path.join(folder, "stage", "temple-bar", "package.json"),
+        "utf8",
+      ),
+    ) as { name: string; version: string };
+    registry = await serveTarball(manifest, tarballs.templeBar);
+    const env = environments(folder, process.env, registry.url).setup;
+    // Exclude inherited project tools, but keep pnpm's own install directory:
+    // CI's package-manager setup also puts its executable in node_modules/.bin.
+    const pathKey =
+      Object.keys(env).find((key) => key.toUpperCase() === "PATH") ?? "PATH";
+    env[pathKey] = (env[pathKey] ?? "")
+      .split(path.delimiter)
+      .filter(
+        (entry) =>
+          !/[\\/]node_modules[\\/]\.bin(?:[\\/]|$)/.test(entry) ||
+          ["pnpm", "pnpm.cmd", "pnpm.exe"].some((name) =>
+            existsSync(path.join(entry, name)),
+          ),
+      )
+      .join(path.delimiter);
+    const served = registry;
+    return {
+      folder,
+      tarballs,
+      version: manifest.version,
+      env,
+      close: async () => {
+        await served.close();
+        rmSync(folder, { recursive: true, force: true });
+      },
+    };
+  } catch (error) {
+    await registry?.close();
+    rmSync(folder, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 /** A committed git project holding `files`, with a GitHub-shaped origin that
