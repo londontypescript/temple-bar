@@ -72,7 +72,7 @@ pnpm create @londontypescript/temple-bar@latest
 
 In a project that's already a git repo, run just the last line. Every command takes `--help`, which shows the usage and changes nothing.
 
-A project that installs with npm, Yarn or Bun has to move to pnpm before setup, which refuses a folder with another package manager's lockfile and never makes the switch for you. Run `pnpm import` (it reads npm's and Yarn's lockfiles; for Bun, run `pnpm install`), delete the old lockfile, and change any `packageManager` field in `package.json` to pnpm. Check the project still installs, builds and tests, commit the switch, then run setup.
+A project that installs with npm, Yarn or Bun has to move to pnpm before setup, which refuses a folder with another package manager's lockfile and never makes the switch for you. First change any `packageManager` field in `package.json` to pnpm, which refuses to run until it does. In a workspace, list its packages in `pnpm-workspace.yaml`, since pnpm ignores the `workspaces` field. Then run `pnpm import` (it reads npm's and Yarn's lockfiles; for Bun, run `pnpm install`) and delete the old lockfile. Check the project still installs, builds and tests, commit the switch, then run setup.
 
 Then point the gate's four checks at your project's tools: `typecheck`, `lint`, `format:check` and `test` in `package.json`'s `scripts` (for example `tsc --noEmit`, `eslint .`, `prettier --check .` and `vitest run`). `pnpm gate` runs them all, and fails one that's missing or does nothing (`true`, `echo ok`), so set real commands, even for a small project.
 

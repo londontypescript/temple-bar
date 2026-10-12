@@ -5,6 +5,7 @@ import {
   addDevDependencyCommand,
   FOREIGN_LOCKFILES,
   foreignPackageManager,
+  declaresWorkspaces,
   foreignLockfileMessage,
   isLaunchedByPnpm,
   installCommand,
@@ -116,6 +117,7 @@ void test("foreignLockfileMessage says to move the project to pnpm, never to ins
   const message = foreignLockfileMessage({
     lockfiles: ["package-lock.json"],
     packageManager: undefined,
+    workspaces: false,
     pnpmVersion: "10.34.5",
     launch,
   });
@@ -142,6 +144,7 @@ void test("foreignLockfileMessage names every lockfile and the packageManager fi
   const message = foreignLockfileMessage({
     lockfiles: ["package-lock.json", "yarn.lock"],
     packageManager: "npm@10.9.2",
+    workspaces: false,
     pnpmVersion: "10.34.5",
     launch: launchCommand("0.3.0"),
   });
@@ -149,8 +152,9 @@ void test("foreignLockfileMessage names every lockfile and the packageManager fi
   assert.match(message, /Delete package-lock\.json and yarn\.lock\./);
   assert.match(
     message,
-    /change "packageManager": "npm@10\.9\.2" to pnpm, for example "packageManager": "pnpm@10\.34\.5"/,
+    /1\. In package\.json, change "packageManager": "npm@10\.9\.2" to pnpm, for example "packageManager": "pnpm@10\.34\.5"/,
   );
+  assert.match(message, /2\. Run `pnpm import`/);
 });
 
 void test("foreignLockfileMessage doesn't offer pnpm import for bun, which it can't read", () => {
@@ -158,6 +162,7 @@ void test("foreignLockfileMessage doesn't offer pnpm import for bun, which it ca
     const message = foreignLockfileMessage({
       lockfiles: [lockfile],
       packageManager: undefined,
+      workspaces: false,
       pnpmVersion: "10.34.5",
       launch: launchCommand("0.3.0"),
     });
@@ -181,4 +186,30 @@ void test("installCommand runs normal project installation with a frozen lockfil
     command: "pnpm",
     args: ["install", "--frozen-lockfile"],
   });
+});
+
+void test("declaresWorkspaces reads npm's and Yarn's workspaces field", () => {
+  assert.equal(declaresWorkspaces('{"workspaces":["packages/*"]}'), true);
+  assert.equal(
+    declaresWorkspaces('{"workspaces":{"packages":["packages/*"]}}'),
+    true,
+  );
+  for (const manifest of ["{}", '{"workspaces":null}', "{", undefined]) {
+    assert.equal(declaresWorkspaces(manifest), false, manifest);
+  }
+});
+
+void test("foreignLockfileMessage has a workspace write pnpm-workspace.yaml before importing", () => {
+  const message = foreignLockfileMessage({
+    lockfiles: ["package-lock.json"],
+    packageManager: undefined,
+    workspaces: true,
+    pnpmVersion: "10.34.5",
+    launch: launchCommand("0.3.0"),
+  });
+  assert.match(
+    message,
+    /1\. Create pnpm-workspace\.yaml listing the package folders/,
+  );
+  assert.match(message, /2\. Run `pnpm import`/);
 });

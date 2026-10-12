@@ -57,9 +57,10 @@ for (const lockfile of [
   });
 }
 
-void test("main: an npm project under pnpm gets one refusal covering its lockfiles and packageManager", async () => {
+void test("main: an npm project under pnpm gets one refusal covering its lockfiles, packageManager and workspaces", async () => {
   const { deps, runner, writes, stderr } = refusalFixture(userAgents.pnpm, {
-    "/app/package.json": '{"packageManager":"npm@10.9.2"}',
+    "/app/package.json":
+      '{"packageManager":"npm@10.9.2","workspaces":["packages/*"]}',
     "/app/package-lock.json": "",
     "/app/npm-shrinkwrap.json": "",
   });
@@ -69,6 +70,7 @@ void test("main: an npm project under pnpm gets one refusal covering its lockfil
   const text = stderr.lines.join("");
   assert.match(text, /Delete package-lock\.json and npm-shrinkwrap\.json\./);
   assert.match(text, /change "packageManager": "npm@10\.9\.2" to pnpm/);
+  assert.match(text, /Create pnpm-workspace\.yaml/);
 });
 
 void test("main: a refused launch does not create package.json", async () => {

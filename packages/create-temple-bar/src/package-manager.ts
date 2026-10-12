@@ -41,6 +41,25 @@ export function foreignPackageManager(
     : undefined;
 }
 
+/** True when package.json lists workspace packages the npm and Yarn way, in a
+ * `workspaces` field. pnpm ignores that field and reads pnpm-workspace.yaml
+ * instead, so `pnpm import` would leave every package out of the lockfile. */
+export function declaresWorkspaces(packageJson: string | undefined): boolean {
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(packageJson ?? "");
+  } catch {
+    return false;
+  }
+  return (
+    typeof manifest === "object" &&
+    manifest !== null &&
+    "workspaces" in manifest &&
+    manifest.workspaces !== undefined &&
+    manifest.workspaces !== null
+  );
+}
+
 /** Lockfiles that show a repo installs with something other than pnpm. */
 export const FOREIGN_LOCKFILES: readonly string[] = [
   "package-lock.json",
@@ -56,6 +75,10 @@ export interface CommandLine {
 }
 
 const PACKAGE_NAME = "@londontypescript/temple-bar";
+
+/** The pnpm version messages give as an example pin when the real one
+ * isn't known. */
+const EXAMPLE_PNPM = "10.34.5";
 
 /**
  * The command every refusal tells the user to run next. It names the
@@ -75,7 +98,7 @@ export function packageManagerRequiredMessage(
   return (
     `temple-bar needs pnpm, but package.json has "packageManager": ${JSON.stringify(value)}. Nothing was changed.\n` +
     "\n" +
-    'Set packageManager to pnpm, for example "packageManager": "pnpm@10.34.5",\n' +
+    `Set packageManager to pnpm, for example "packageManager": "pnpm@${EXAMPLE_PNPM}",\n` +
     "or re-scaffold with your framework's pnpm option.\n" +
     "Then run setup again:\n" +
     `  ${launch}\n`
@@ -100,28 +123,35 @@ const IMPORTABLE_LOCKFILES: readonly string[] = [
 export function foreignLockfileMessage(options: {
   readonly lockfiles: readonly string[];
   readonly packageManager: string | undefined;
+  readonly workspaces: boolean;
   readonly pnpmVersion: string | undefined;
   readonly launch: string;
 }): string {
-  const { lockfiles, packageManager, pnpmVersion, launch } = options;
+  const { lockfiles, packageManager, workspaces, pnpmVersion, launch } =
+    options;
   const found = lockfiles.join(" and ");
   const importable = lockfiles.find((name) =>
     IMPORTABLE_LOCKFILES.includes(name),
   );
+  // pnpm refuses to run in a project whose packageManager names another
+  // manager, so that field changes before any pnpm command.
   const steps = [
+    ...(packageManager === undefined
+      ? []
+      : [
+          `In package.json, change "packageManager": ${JSON.stringify(packageManager)} to pnpm, for example "packageManager": "pnpm@${pnpmVersion ?? EXAMPLE_PNPM}". pnpm refuses to run until it does.`,
+        ]),
+    ...(workspaces
+      ? [
+          'Create pnpm-workspace.yaml listing the package folders from package.json\'s "workspaces" field. pnpm ignores that field, and the next step would leave the packages out.',
+        ]
+      : []),
     importable === undefined
       ? `Run \`pnpm install\`. pnpm can't read ${found}, so it picks dependency versions afresh.`
       : `Run \`pnpm import\`, which makes pnpm-lock.yaml from ${importable}.`,
     `Delete ${found}.`,
-  ];
-  if (packageManager !== undefined) {
-    steps.push(
-      `In package.json, change "packageManager": ${JSON.stringify(packageManager)} to pnpm, for example "packageManager": "pnpm@${pnpmVersion ?? "10.34.5"}".`,
-    );
-  }
-  steps.push(
     "Check the project still installs, builds and tests with pnpm, and commit the switch.",
-  );
+  ];
   return (
     `temple-bar needs pnpm, and this folder has ${lockfiles.length === 1 ? "a " : ""}${found}, which another package manager wrote. Nothing was changed.\n` +
     "\n" +

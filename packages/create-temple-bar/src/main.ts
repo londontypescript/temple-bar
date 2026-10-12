@@ -10,6 +10,7 @@ import path from "node:path";
 import { HELP_TEXT, wantsHelp } from "./help.ts";
 import {
   addDevDependencyCommand,
+  declaresWorkspaces,
   FOREIGN_LOCKFILES,
   foreignPackageManager,
   foreignLockfileMessage,
@@ -114,6 +115,7 @@ export async function main(deps: MainDeps): Promise<number> {
       foreignLockfileMessage({
         lockfiles,
         packageManager,
+        workspaces: declaresWorkspaces(packageJson),
         pnpmVersion: startedWith(userAgent),
         launch,
       }),

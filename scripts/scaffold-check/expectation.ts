@@ -87,6 +87,7 @@ export function expectation(snapshot: Snapshot): Expectation {
         foreignLockfileMessage({
           lockfiles,
           packageManager: foreign,
+          workspaces: false,
           pnpmVersion: undefined,
           launch,
         }).split("\n")[0] ?? "",
