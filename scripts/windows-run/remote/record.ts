@@ -60,7 +60,7 @@ export interface ResultRecord {
 
 export const RUN_ID_PATTERN = /^[0-9a-f]{8}$/;
 export const SHA_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
-const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:[-+.][0-9A-Za-z.+-]{0,40})?$/;
+const VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 const WINDOWS_RELEASE_PATTERN = /^\d+\.\d+\.\d+$/;
 const WINDOWS_VERSION_PATTERN = /^[A-Za-z0-9 .()_-]{1,60}$/;
 const MAX_CLEANUP_LINES = 50;

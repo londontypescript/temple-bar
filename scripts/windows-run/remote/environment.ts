@@ -9,8 +9,7 @@ import type { Sys } from "./sys.ts";
 type Versions = ResultRecord["versions"];
 
 function versionIn(output: string | null): string | null {
-  const match =
-    output === null ? null : /\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?/.exec(output);
+  const match = output === null ? null : /\d+\.\d+\.\d+/.exec(output);
   return match?.[0] ?? null;
 }
 

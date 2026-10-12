@@ -76,6 +76,10 @@ export interface FakeSysOptions {
   /** The commit the worktree reports. */
   headSha?: string;
   refs?: string[];
+  /** Every listing from this call on (1 = the first) fails. */
+  failListingFrom?: number;
+  /** Git calls (joined with spaces) that fail. */
+  failGit?: (args: string) => boolean;
 }
 
 export interface FakeSys extends Sys {
@@ -86,6 +90,7 @@ export interface FakeSys extends Sys {
   unkillable: Set<number>;
   clock: number;
   stepsRun: string[];
+  listings: number;
   /** The pids running when each step began. */
   seenAtStep: Record<string, number[]>;
   deletedRefs: string[];
@@ -110,6 +115,7 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
     unkillable: new Set(),
     clock: RUNNER_START + 5_000,
     stepsRun: [],
+    listings: 0,
     seenAtStep: {},
     deletedRefs: [],
     procs: [
@@ -127,8 +133,16 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
     print(text) {
       sys.printed += text;
     },
-    listProcesses: () =>
-      Promise.resolve(sys.procs.map((proc) => ({ ...proc }))),
+    listProcesses() {
+      sys.listings++;
+      if (
+        options.failListingFrom !== undefined &&
+        sys.listings >= options.failListingFrom
+      ) {
+        return Promise.reject(new Error("the process listing failed"));
+      }
+      return Promise.resolve(sys.procs.map((proc) => ({ ...proc })));
+    },
     startOf: (pid) =>
       Promise.resolve(sys.procs.find((p) => p.pid === pid)?.startMs ?? null),
     kill(pid) {
@@ -140,6 +154,9 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
     async git(args, cwd): Promise<GitResult> {
       sys.gitCalls.push({ args, cwd });
       const ok: GitResult = { code: 0, stdout: "", stderr: "" };
+      if (options.failGit?.(args.join(" ")) === true) {
+        return { code: 1, stdout: "", stderr: "fake failure" };
+      }
       const verb = args.includes("worktree") ? "worktree" : args[0];
       if (verb === "init") {
         await nodeFs.mkdir(path.join(args.at(-1) ?? "", ".git"));

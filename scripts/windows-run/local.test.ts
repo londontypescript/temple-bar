@@ -286,3 +286,20 @@ void test("the final summary holds none of the host or paths", async (t) => {
     assert.equal(summary.includes(secret), false);
   }
 });
+
+void test("a bundle failure changes nothing, the saved host included", async (t) => {
+  const r = rig(t);
+  const real = r.deps.git;
+  r.deps = {
+    ...r.deps,
+    git: {
+      run: (args, cwd) =>
+        args[0] === "bundle" && args[1] === "create"
+          ? Promise.resolve({ code: 1, stdout: "", stderr: "no" })
+          : real.run(args, cwd),
+    },
+  };
+  assert.equal(await runLocal(["--host", "new-box"], r.deps), 2);
+  assert.equal(saved(r), undefined);
+  assert.deepEqual(r.calls, []);
+});

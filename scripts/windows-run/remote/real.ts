@@ -9,7 +9,7 @@ import process from "node:process";
 
 import { nodeFs } from "./fsx.ts";
 import { LineBuffer } from "./lines.ts";
-import { parseProcessList } from "./processes.ts";
+import { processesFromListing } from "./processes.ts";
 import type { GitResult, ProcInfo, StepOutcome, StepSpec, Sys } from "./sys.ts";
 
 const IS_WINDOWS = process.platform === "win32";
@@ -46,11 +46,20 @@ interface Captured {
   readonly stderr: string;
 }
 
-function capture(
+/** Resolves when the process exits, then gives its output streams a short
+ * grace to finish: a grandchild can hold them open forever. A timeout kills
+ * the process and resolves after the same grace. */
+export function capture(
   command: string,
   args: readonly string[],
-  options: { cwd?: string; shell?: boolean; timeoutMs?: number },
+  options: {
+    cwd?: string;
+    shell?: boolean;
+    timeoutMs?: number;
+    graceMs?: number;
+  },
 ): Promise<Captured> {
+  const graceMs = options.graceMs ?? STREAM_GRACE_MS;
   return new Promise((resolve) => {
     let child;
     try {
@@ -66,21 +75,56 @@ function capture(
     }
     let stdout = "";
     let stderr = "";
+    let done = false;
+    let timedOut = false;
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (text: string) => (stdout += text));
-    child.stderr.on("data", (text: string) => (stderr += text));
-    const timer =
-      options.timeoutMs === undefined
-        ? undefined
-        : setTimeout(() => child.kill(), options.timeoutMs);
+    child.stdout.on("data", (text: string) => {
+      if (!done) stdout += text;
+    });
+    child.stderr.on("data", (text: string) => {
+      if (!done) stderr += text;
+    });
+    const finish = (code: number): void => {
+      if (done) {
+        return;
+      }
+      done = true;
+      clearTimeout(deadline);
+      child.stdout.destroy();
+      child.stderr.destroy();
+      resolve({ code: timedOut ? 124 : code, stdout, stderr });
+    };
+    const deadline = setTimeout(
+      () => {
+        timedOut = true;
+        try {
+          if (child.pid !== undefined) {
+            process.kill(child.pid);
+          }
+        } catch {
+          // Already gone.
+        }
+        setTimeout(() => {
+          finish(124);
+        }, graceMs).unref();
+      },
+      options.timeoutMs ?? 2 ** 31 - 1,
+    );
     child.on("error", (error) => {
-      clearTimeout(timer);
-      resolve({ code: 127, stdout, stderr: stderr + String(error) });
+      stderr += String(error);
+      finish(127);
+    });
+    child.on("exit", (code) => {
+      // The process is over: no deadline may fire now (it could kill a
+      // reused pid), and the streams get only a short grace.
+      clearTimeout(deadline);
+      setTimeout(() => {
+        finish(code ?? 1);
+      }, graceMs).unref();
     });
     child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ code: code ?? 1, stdout, stderr });
+      finish(code ?? 1);
     });
   });
 }
@@ -104,10 +148,11 @@ function needsShell(command: string, args: readonly string[]): boolean {
   return true;
 }
 
-function runStep(
+export function runStep(
   spec: StepSpec,
   timeoutMs: number,
   onLine: (line: string) => void,
+  graceMs = STREAM_GRACE_MS,
 ): Promise<StepOutcome> {
   return new Promise((resolve) => {
     let child;
@@ -164,7 +209,7 @@ function runStep(
       // What it left behind is stopped by the caller; don't wait for streams.
       setTimeout(() => {
         finish(null);
-      }, STREAM_GRACE_MS);
+      }, graceMs).unref();
     }, timeoutMs);
     child.on("error", (error) => {
       onLine(`could not start ${spec.command}: ${error.message}`);
@@ -172,9 +217,11 @@ function runStep(
     });
     // The step is over when its process exits, not when its streams close.
     child.on("exit", (code) => {
+      // Over: the deadline must not fire now and kill a reused pid.
+      clearTimeout(deadline);
       setTimeout(() => {
         finish(code);
-      }, STREAM_GRACE_MS).unref();
+      }, graceMs).unref();
     });
     child.on("close", (code) => {
       finish(code);
@@ -207,12 +254,7 @@ export function createRealSys(): Sys {
       // The listing's own PowerShell (and the console host Windows may start
       // for it) began after this moment: never mistake them for leftovers.
       const asked = Date.now();
-      const result = await powershell(LIST_SCRIPT);
-      return result.code === 0
-        ? parseProcessList(result.stdout).filter(
-            (proc) => proc.startMs === null || proc.startMs < asked,
-          )
-        : [];
+      return processesFromListing(await powershell(LIST_SCRIPT), asked);
     },
     async startOf(pid) {
       if (!Number.isSafeInteger(pid)) {

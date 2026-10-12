@@ -68,6 +68,23 @@ export async function pathExists(fs: FsLike, path: string): Promise<boolean> {
   }
 }
 
+/** The path's stat, or undefined when it is gone. Only "no such file" means
+ * gone: a permissions error or a busy file is a failure to be retried and,
+ * if it persists, reported. */
+async function lstatOrGone(
+  fs: FsLike,
+  path: string,
+): Promise<Stat | undefined> {
+  try {
+    return await fs.lstat(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
 const REMOVE_ATTEMPTS = 6;
 const FIRST_BACKOFF_MS = 100;
 
@@ -84,10 +101,8 @@ export async function removeWithRetry(
   let lastError: unknown;
   for (let attempt = 0; attempt < REMOVE_ATTEMPTS; attempt++) {
     try {
-      let info: Stat | undefined;
-      try {
-        info = await fs.lstat(path);
-      } catch {
+      const info = await lstatOrGone(fs, path);
+      if (info === undefined) {
         return;
       }
       if (info.isSymbolicLink()) {
@@ -95,7 +110,7 @@ export async function removeWithRetry(
       } else {
         await fs.rm(path);
       }
-      if (!(await pathExists(fs, path))) {
+      if ((await lstatOrGone(fs, path)) === undefined) {
         return;
       }
     } catch (error) {

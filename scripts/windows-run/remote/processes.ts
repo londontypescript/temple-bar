@@ -45,6 +45,27 @@ export function parseProcessList(text: string): ProcInfo[] {
   return procs;
 }
 
+/**
+ * Reads a PowerShell listing. A listing can never legitimately be empty
+ * (Windows always has system processes), so a failed one, a timeout or
+ * nothing parsed is an error, never "no processes": reading it as empty
+ * would call a live lock holder dead and let leftovers through unstopped.
+ * Processes that started after the listing was asked for (the listing's own
+ * PowerShell and console host) are left out.
+ */
+export function processesFromListing(
+  result: { readonly code: number; readonly stdout: string },
+  askedMs: number,
+): ProcInfo[] {
+  const all = result.code === 0 ? parseProcessList(result.stdout) : [];
+  if (all.length === 0) {
+    throw new Error(
+      `the process listing failed (exit ${String(result.code)}) or was empty`,
+    );
+  }
+  return all.filter((proc) => proc.startMs === null || proc.startMs < askedMs);
+}
+
 async function targets(sys: Sys, pick: Pick): Promise<ProcInfo[]> {
   const all = await sys.listProcesses();
   return all.filter(
@@ -67,7 +88,15 @@ export async function stopProcesses(sys: Sys, pick: Pick): Promise<ProcInfo[]> {
       return found;
     }
     for (const proc of found) {
-      if ((await sys.startOf(proc.pid)) !== proc.startMs) {
+      // Slow queries must not stretch the deadline from inside a batch.
+      if (sys.now() >= end) {
+        break;
+      }
+      const current = await sys.startOf(proc.pid);
+      if (sys.now() >= end) {
+        break;
+      }
+      if (current !== proc.startMs) {
         continue;
       }
       try {

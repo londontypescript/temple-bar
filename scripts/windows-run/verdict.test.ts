@@ -133,3 +133,37 @@ void test("summaries are built only from allowlisted fields", () => {
   assert.match(texts[1] ?? "", /check failed \(.*exit 1/);
   assert.match(texts[1] ?? "", /build not run/);
 });
+
+void test("versions accept plain numbers only, so nothing else can reach a summary", () => {
+  for (const bad of ["2.55.0.windows.1", "1.0.0-rc.1", "secret-host", "1.0"]) {
+    const record = makeRecord({
+      versions: { node: bad, pnpm: "1.0.0", git: "1.0.0" },
+    });
+    assert.equal(judge([recordLine(record)], RUN_ID, SHA, 0).code, 3, bad);
+  }
+});
+
+void test("a planted marker in any field is rejected or never printed", () => {
+  const marker = "secret-host";
+  const base = makeRecord();
+  const variants: unknown[] = [
+    { ...base, versions: { ...base.versions, node: marker } },
+    { ...base, versions: { ...base.versions, pnpm: marker } },
+    { ...base, versions: { ...base.versions, git: marker } },
+    { ...base, windows: { release: marker, version: "Windows 10" } },
+    { ...base, windows: { release: "10.0.1", version: marker } },
+    { ...base, tests: { ...base.tests, tests: marker } },
+    { ...base, tests: { ...base.tests, skipped: marker } },
+    { ...base, gate: { skipped: marker, noGithubOrigin: true } },
+    { ...base, steps: base.steps.map((s) => ({ ...s, durationMs: marker })) },
+    { ...base, cleanup: [marker] },
+  ];
+  for (const variant of variants) {
+    const line = `${markerFor(RUN_ID)}${JSON.stringify(variant)}`;
+    const verdict = judge([line], RUN_ID, SHA, 0);
+    if (verdict.code !== 3) {
+      const text = summarize({ kind: "result", record: verdict.record });
+      assert.equal(text.includes(marker), false, text);
+    }
+  }
+});

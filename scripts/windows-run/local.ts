@@ -161,10 +161,11 @@ export async function runLocal(
     if (lock.tookOver !== undefined) {
       deps.stderr.write(`windows-run: took over ${lock.tookOver}\n`);
     }
-    if (parsed.host !== undefined) {
-      await saveHost(deps.fs, primary.dir, parsed.host, runId);
-    }
-    return await sendAndRun(deps, host, sha, runId);
+    return await sendAndRun(deps, host, sha, runId, () =>
+      parsed.host === undefined
+        ? Promise.resolve()
+        : saveHost(deps.fs, primary.dir, parsed.host, runId),
+    );
   } finally {
     await releaseLock(lockDeps, lockDir, runId).catch(() => {
       deps.stderr.write(`windows-run: could not release ${lockDir}\n`);
@@ -177,6 +178,7 @@ async function sendAndRun(
   host: string,
   sha: string,
   runId: string,
+  saveChosenHost: () => Promise<void>,
 ): Promise<number> {
   const folder = await deps.makeTempDir();
   try {
@@ -199,6 +201,8 @@ async function sendAndRun(
       return incomplete("unreachable");
     };
 
+    // Saved only now: every local refusal, the bundle's included, has passed.
+    await saveChosenHost();
     deps.stderr.write(`windows-run: running ${sha.slice(0, 7)} on ${host}\n`);
     const staged = await deps.ssh.exec(
       host,

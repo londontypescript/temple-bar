@@ -86,7 +86,13 @@ async function checkOut(
     }
   }
   // Before any checkout: node_modules paths are long.
-  await sys.git(["config", "core.longpaths", "true"], layout.clone);
+  const configured = await sys.git(
+    ["config", "core.longpaths", "true"],
+    layout.clone,
+  );
+  if (configured.code !== 0) {
+    throw new Failure("fetch-failed", "git config core.longpaths failed");
+  }
 
   const bundle = path.join(layout.incoming, runId, "run.bundle");
   const fetched = await sys.git(
@@ -135,9 +141,14 @@ async function cleanUp(
   runnerStart: number,
 ): Promise<string[]> {
   const problems: string[] = [];
-  const survivors = await stopProcesses(sys, startedAfter(runnerStart));
-  for (const proc of survivors) {
-    problems.push(`${describeProcess(proc)} would not stop`);
+  try {
+    const survivors = await stopProcesses(sys, startedAfter(runnerStart));
+    for (const proc of survivors) {
+      problems.push(`${describeProcess(proc)} would not stop`);
+    }
+  } catch {
+    // A failed listing can't be read as "nothing left": say so.
+    problems.push("could not list processes to stop what the run left");
   }
   const remove = async (target: string, what: string): Promise<void> => {
     try {
@@ -148,7 +159,10 @@ async function cleanUp(
   };
   await remove(path.join(layout.runs, runId), "the run's worktree");
   if (await pathExists(sys.fs, path.join(layout.clone, ".git"))) {
-    await sys.git(["worktree", "prune"], layout.clone);
+    const pruned = await sys.git(["worktree", "prune"], layout.clone);
+    if (pruned.code !== 0) {
+      problems.push("git worktree prune failed");
+    }
     const deleted = await sys.git(["update-ref", "-d", ref], layout.clone);
     if (deleted.code !== 0) {
       problems.push(`could not delete ${ref}`);
@@ -194,6 +208,9 @@ export async function runRemote(
         state.cleanup.push("could not release the lock");
       }
     }
+    // After the lock is released, so a failed release keeps the log, and on
+    // every path (a runner error included).
+    await settleLog(sys, layout, log, state);
     const totals = scanner.totals();
     const record: ResultRecord = {
       runId,
@@ -293,10 +310,6 @@ export async function runRemote(
       ...(await cleanUp(sys, layout, runId, ref, runnerStart)),
     );
     cleanupNeeded = false;
-    if (log.problem !== undefined) {
-      state.cleanup.push(log.problem);
-    }
-    await keepOrDeleteLog(sys, layout, log, state);
     return await finish();
   } catch (error) {
     state.refusal = "runner-error";
@@ -316,21 +329,24 @@ export async function runRemote(
   }
 }
 
-async function keepOrDeleteLog(
+async function settleLog(
   sys: Sys,
   layout: Layout,
   log: RunLog,
   state: State,
 ): Promise<void> {
-  const clean =
-    state.refusal === null &&
-    state.cleanup.length === 0 &&
-    state.steps.every((step) => step.status === "passed");
   try {
+    // Flushed first: a write failure only shows once the text is written.
+    await log.flush();
+    if (log.problem !== undefined) {
+      state.cleanup.push(log.problem);
+    }
+    const clean =
+      state.refusal === null &&
+      state.cleanup.length === 0 &&
+      state.steps.every((step) => step.status === "passed");
     if (clean) {
       await log.delete((ms) => sys.sleep(ms));
-    } else {
-      await log.flush();
     }
     await pruneLogs(sys.fs, (ms) => sys.sleep(ms), layout.logs);
   } catch {
