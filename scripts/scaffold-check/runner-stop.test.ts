@@ -186,13 +186,19 @@ for (const missing of ["exit", "close"] as const) {
       if (missing === "close") primary.finish(1);
       killer.emit("close", 0, null);
     });
-    const error = await createRunner(
-      "win32",
-      world.launch,
-      QUICK,
-    )(request(20)).then(
+    // A long allowance for taskkill that this one doesn't use: the limit
+    // after it succeeds must start then, not after that allowance.
+    const started = Date.now();
+    const error = await createRunner("win32", world.launch, {
+      ...QUICK,
+      stop: 5_000,
+    })(request(20)).then(
       () => assert.fail("a stop that never completed was reported as done"),
       (caught: unknown) => caught,
+    );
+    assert.ok(
+      Date.now() - started < 3_000,
+      "the after-stop limit waited out taskkill's unused allowance",
     );
     assert.ok(error instanceof CleanupFailed);
     assert.match(
@@ -223,7 +229,7 @@ void test("output that closes after exit, within the grace, is kept whole", asyn
 const GRANDCHILD =
   'require("node:fs").writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000); setTimeout(() => process.exit(0), 20000);';
 const PARENT =
-  'const [marker, grandchild] = process.argv.slice(1); require("node:child_process").spawn(process.execPath, ["-e", grandchild, marker], {stdio: ["ignore", "inherit", "inherit"]}); const wait = setInterval(() => { if (require("node:fs").existsSync(marker)) { clearInterval(wait); process.exit(0); } }, 20);';
+  'const [marker, grandchild, code] = process.argv.slice(1); require("node:child_process").spawn(process.execPath, ["-e", grandchild, marker], {stdio: ["ignore", "inherit", "inherit"]}); const wait = setInterval(() => { if (require("node:fs").existsSync(marker)) { clearInterval(wait); process.exit(Number(code)); } }, 20);';
 
 const alive = (pid: number) => {
   try {
@@ -235,34 +241,35 @@ const alive = (pid: number) => {
 };
 
 if (process.platform !== "win32") {
-  void test("on POSIX, a leftover holding output after exit is stopped, and the result isn't trusted", async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "runner-leftover-"));
-    const marker = path.join(dir, "grandchild-pid");
-    try {
-      // Even an exit code a caller might expect (a refusal's non-zero, say)
-      // must not be returned as a result once a leftover was found.
-      const error = await createRunner(process.platform, spawn, {
-        ...QUICK,
-        closeGrace: 1_000,
-      })({
-        command: process.execPath,
-        args: ["-e", PARENT, marker, GRANDCHILD],
-        cwd: dir,
-        env: process.env,
-        deadline: 15_000,
-      }).then(
-        () => assert.fail("a leftover was returned as a result"),
-        (caught: unknown) => caught,
-      );
-      assert.ok(error instanceof CleanupFailed);
-      assert.match(String(error), /left a process holding its output/);
-      const grandchild = Number(readFileSync(marker, "utf8"));
-      await delay(200);
-      assert.equal(alive(grandchild), false, "the leftover was stopped");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+  for (const code of [0, 3])
+    void test(`on POSIX, a leftover holding output after an exit of ${String(code)} is stopped, and the result isn't trusted`, async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "runner-leftover-"));
+      const marker = path.join(dir, "grandchild-pid");
+      try {
+        // Even an exit code a caller might expect (a refusal's non-zero, say)
+        // must not be returned as a result once a leftover was found.
+        const error = await createRunner(process.platform, spawn, {
+          ...QUICK,
+          closeGrace: 1_000,
+        })({
+          command: process.execPath,
+          args: ["-e", PARENT, marker, GRANDCHILD, String(code)],
+          cwd: dir,
+          env: process.env,
+          deadline: 15_000,
+        }).then(
+          () => assert.fail("a leftover was returned as a result"),
+          (caught: unknown) => caught,
+        );
+        assert.ok(error instanceof CleanupFailed);
+        assert.match(String(error), /left a process holding its output/);
+        const grandchild = Number(readFileSync(marker, "utf8"));
+        await delay(200);
+        assert.equal(alive(grandchild), false, "the leftover was stopped");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
 
   void test("on POSIX, an interrupt says what it actually did", async () => {
     const controller = new AbortController();
@@ -295,10 +302,18 @@ void test("after a failed stop, Node can still exit on its own", async () => {
     // exit must not start a timer (the 30-second close grace) that keeps
     // Node alive.
     const late = ["-e", "setTimeout(() => {}, 1500)"];
+    // Stay up until the command's own exit is seen, however slowly it
+    // starts, so the late exit is always exercised.
+    const keep = setInterval(() => {}, 1000);
     const launch = (command, args, options) => {
       if (command === "taskkill")
         return spawn(process.execPath, forever, { stdio: "ignore" });
-      return spawn(process.execPath, args, options);
+      const child = spawn(process.execPath, args, options);
+      child.once("exit", () => {
+        console.log("command exited");
+        clearInterval(keep);
+      });
+      return child;
     };
     const limits = { stop: 300, afterStop: 300, closeGrace: 30000 };
     const pending = createRunner("win32", launch, limits)({
@@ -306,8 +321,6 @@ void test("after a failed stop, Node can still exit on its own", async () => {
       env: process.env, deadline: 100,
     });
     pending.catch((error) => console.log("settled:", error.message));
-    // Stay up past the command's own exit, so that exit is seen.
-    setTimeout(() => {}, 2500);
   `;
   const outer = spawn(process.execPath, ["--input-type=module", "-e", script], {
     stdio: ["ignore", "pipe", "pipe"],
@@ -325,6 +338,7 @@ void test("after a failed stop, Node can still exit on its own", async () => {
       `the outer process never exited by itself:\n${output}`,
     );
     assert.match(output, /settled: .*taskkill did not finish within 0\.3 s/);
+    assert.match(output, /command exited/, "the late exit was seen");
     assert.ok(
       Date.now() - started < 15_000,
       "a timer started after the runner settled kept Node alive",
