@@ -24,8 +24,6 @@ import {
 import { describe, run } from "./support/run.ts";
 import { standaloneProject } from "./support/workspace.ts";
 
-const skip = process.platform === "win32";
-
 let launcher: PackedLauncher | undefined;
 
 before(async () => {
@@ -51,7 +49,7 @@ async function git(
 
 void test(
   "packed temple-bar: a new worktree installs with the pinned pnpm, and is refused with an old pnpm first on PATH",
-  { timeout: 600_000, skip },
+  { timeout: 600_000 },
   async () => {
     const options = await makeProject(packed(), "runtime", standaloneProject());
     const setup = await launch(packed(), options);
@@ -113,7 +111,7 @@ void test(
 
 void test(
   "packed launcher: a child pnpm that isn't the one that started setup is refused before package.json is touched",
-  { timeout: 600_000, skip },
+  { timeout: 600_000 },
   async () => {
     const original = '{\n  "name": "widgets",\n  "private": true\n}\n';
     const options = await makeProject(packed(), "launcher-mismatch", {
