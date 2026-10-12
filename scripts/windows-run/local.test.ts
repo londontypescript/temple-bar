@@ -264,9 +264,12 @@ void test("the exit code follows the record: a failed step is 1, a forged or mis
       }),
     ),
   ];
+  // The runner exits 1 after a failed step, and ssh passes that on.
+  r.onRun.exit = 1;
   assert.equal(await runLocal(["--host", "win-box"], r.deps), 1);
   assert.match(r.out.join(""), /Fails on Windows/);
   r.onRun.lines = () => ["  all steps passed"];
+  r.onRun.exit = 0;
   assert.equal(await runLocal([], r.deps), 3);
   r.onRun.lines = (sha) => [recordLine(makeRecord({ sha }))];
   r.onRun.exit = 255;

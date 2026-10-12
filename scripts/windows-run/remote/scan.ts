@@ -4,10 +4,10 @@
 // appears more than once) is "unknown": a guess in a pull-request summary is
 // worse than an honest gap.
 
+import { stripVTControlCharacters } from "node:util";
+
 import type { Count } from "./record.ts";
 
-// eslint-disable-next-line no-control-regex -- matching the escape character is the point
-const ANSI = /\u001b\[[0-9;]*m/g;
 const SUMMARY_LINE = /^(?:ℹ|#) (tests|pass|fail|skipped) (\d+)$/;
 // The gate prints one row per check: two spaces, the status, the check's name.
 const GATE_ROW = /^ {2}(passed|failed|missing|no-op|skipped)\s+(.+)$/;
@@ -29,7 +29,8 @@ export class CheckScanner {
   #skippedRows: string[] = [];
 
   feed(rawLine: string): void {
-    const line = rawLine.replace(ANSI, "").trimEnd();
+    // Colour codes would hide a summary line from the patterns below.
+    const line = stripVTControlCharacters(rawLine).trimEnd();
     const summary = SUMMARY_LINE.exec(line);
     if (summary?.[1] !== undefined && summary[2] !== undefined) {
       const seen = this.#figures.get(summary[1]) ?? [];

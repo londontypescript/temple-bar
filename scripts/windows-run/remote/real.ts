@@ -204,8 +204,15 @@ export function createRealSys(): Sys {
       process.stdout.write(text);
     },
     async listProcesses(): Promise<ProcInfo[]> {
+      // The listing's own PowerShell (and the console host Windows may start
+      // for it) began after this moment: never mistake them for leftovers.
+      const asked = Date.now();
       const result = await powershell(LIST_SCRIPT);
-      return result.code === 0 ? parseProcessList(result.stdout) : [];
+      return result.code === 0
+        ? parseProcessList(result.stdout).filter(
+            (proc) => proc.startMs === null || proc.startMs < asked,
+          )
+        : [];
     },
     async startOf(pid) {
       if (!Number.isSafeInteger(pid)) {

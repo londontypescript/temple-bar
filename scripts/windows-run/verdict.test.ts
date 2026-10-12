@@ -24,9 +24,11 @@ void test("a passing record followed by ssh exit 255 is incomplete", () => {
   assert.equal(judge(pass(), RUN_ID, SHA, 255).code, 3);
 });
 
-void test("a failed-step record is 1, but 3 when ssh did not exit 0", () => {
-  assert.equal(judge([recordLine(failed())], RUN_ID, SHA, 0).code, 1);
+void test("a failed-step record with the runner's exit 1 is 1, and 3 when the exit code disagrees", () => {
+  assert.equal(judge([recordLine(failed())], RUN_ID, SHA, 1).code, 1);
   assert.equal(judge([recordLine(failed())], RUN_ID, SHA, 255).code, 3);
+  assert.equal(judge([recordLine(failed())], RUN_ID, SHA, 0).code, 3);
+  assert.equal(judge(pass(), RUN_ID, SHA, 1).code, 3);
 });
 
 void test("output with no record is incomplete, even after passing steps", () => {

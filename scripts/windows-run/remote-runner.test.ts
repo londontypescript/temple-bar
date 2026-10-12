@@ -18,6 +18,7 @@ import {
   tempDir,
 } from "./testing.ts";
 import { runRemote } from "./remote/runner.ts";
+import { judge } from "./verdict.ts";
 
 const ROOT = "temple-bar-windows-run";
 
@@ -111,6 +112,28 @@ void test("a failed step stops the rest and is exit 1 with a clean cleanup", asy
     readFileSync(path.join(home, ROOT, "logs", `${RUN_ID}.log`), "utf8"),
     /boom/,
   );
+});
+
+void test("the local verdict reads the runner's real output and exit code as the runner meant them", async (t) => {
+  // ssh hands back the runner's exit code, so the two sides must agree on
+  // it: a pass is 0, a failed step 1, a refused run 1.
+  const cases = [
+    { steps: {}, expected: 0 },
+    { steps: { check: { exitCode: 1 } }, expected: 1 },
+    { steps: {}, headSha: "f".repeat(40), expected: 1 },
+  ];
+  for (const { steps, headSha, expected } of cases) {
+    const sys = fakeSys({
+      home: tempDir(t),
+      steps,
+      ...(headSha === undefined ? {} : { headSha }),
+    });
+    const exit = await runRemote(RUN_ID, SHA, sys);
+    const lines = sys.printed
+      .split("\n")
+      .map((line) => line.replace(/\r$/, ""));
+    assert.equal(judge(lines, RUN_ID, SHA, exit).code, expected);
+  }
 });
 
 void test("a step past its deadline is recorded as timed out", async (t) => {

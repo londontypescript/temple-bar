@@ -3,10 +3,11 @@
 // arrived last, it is valid and for the requested commit, and it lists
 // install, check and build as passed. Anything less is not a pass.
 //
-// Precedence: an ssh that did not exit 0, or no valid record, is 3 (the run
-// is incomplete) whatever a record says; otherwise a valid record with a
-// failed, refused or not-run step is 1; only a valid all-pass record with ssh
-// exit 0 is 0.
+// ssh exits with the runner's own exit code, which is 0 when every step
+// passed and 1 when one failed or the run was refused. So the record and the
+// exit code must agree: an all-pass record with exit 0 is 0, a failed or
+// refused record with exit 1 is 1, and everything else (exit 255 when the
+// connection dropped, a mismatch, no valid record) is 3, incomplete.
 
 import {
   markerFor,
@@ -31,7 +32,7 @@ export function judge(
   sha: string,
   sshExit: number,
 ): Verdict {
-  if (sshExit !== 0) {
+  if (sshExit !== 0 && sshExit !== 1) {
     return { code: 3, reason: "connection" };
   }
   const marker = markerFor(runId);
@@ -54,5 +55,8 @@ export function judge(
   const passed =
     record.refusal === null &&
     record.steps.every((step) => step.status === "passed");
+  if (sshExit !== (passed ? 0 : 1)) {
+    return { code: 3, reason: "connection" };
+  }
   return { code: passed ? 0 : 1, record };
 }
