@@ -1,8 +1,9 @@
 import {
   FOREIGN_LOCKFILES,
+  foreignLockfileMessage,
   foreignPackageManager,
+  launchCommand,
   packageManagerRequiredMessage,
-  pnpmRequiredMessage,
 } from "../../packages/create-temple-bar/src/package-manager.ts";
 import { COMPANION_FILES } from "../../packages/temple-bar/src/init/companion-docs.ts";
 import {
@@ -73,22 +74,28 @@ export interface Expectation {
 }
 
 export function expectation(snapshot: Snapshot): Expectation {
-  // Lockfiles take priority, as they do in the launcher.
-  const lock = FOREIGN_LOCKFILES.find(
+  // Lockfiles take priority, as they do in the launcher, which names them
+  // all. Only the first line is compared, so the rerun command doesn't matter.
+  const launch = launchCommand("0.0.0");
+  const foreign = foreignPackageManager(snapshot.files["package.json"]);
+  const lockfiles = FOREIGN_LOCKFILES.filter(
     (name) => name in snapshot.bytes || name in snapshot.symlinks,
   );
-  if (lock !== undefined)
+  if (lockfiles.length > 0)
     return {
       refusal:
-        pnpmRequiredMessage(
-          `this folder has a ${lock}, which another package manager wrote`,
-        ).split("\n")[0] ?? "",
+        foreignLockfileMessage({
+          lockfiles,
+          packageManager: foreign,
+          pnpmVersion: undefined,
+          launch,
+        }).split("\n")[0] ?? "",
       unknown: [],
     };
-  const foreign = foreignPackageManager(snapshot.files["package.json"]);
   if (foreign !== undefined)
     return {
-      refusal: packageManagerRequiredMessage(foreign).split("\n")[0] ?? "",
+      refusal:
+        packageManagerRequiredMessage(foreign, launch).split("\n")[0] ?? "",
       unknown: [],
     };
   const unknown: string[] = [];

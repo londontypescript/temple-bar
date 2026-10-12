@@ -72,6 +72,8 @@ pnpm create @londontypescript/temple-bar@latest
 
 In a project that's already a git repo, run just the last line. Every command takes `--help`, which shows the usage and changes nothing.
 
+A project that installs with npm, Yarn or Bun has to move to pnpm before setup, which refuses a folder with another package manager's lockfile and never makes the switch for you. Run `pnpm import` (it reads npm's and Yarn's lockfiles; for Bun, run `pnpm install`), delete the old lockfile, and change any `packageManager` field in `package.json` to pnpm. Check the project still installs, builds and tests, commit the switch, then run setup.
+
 Then point the gate's four checks at your project's tools: `typecheck`, `lint`, `format:check` and `test` in `package.json`'s `scripts` (for example `tsc --noEmit`, `eslint .`, `prettier --check .` and `vitest run`). `pnpm gate` runs them all, and fails one that's missing or does nothing (`true`, `echo ok`), so set real commands, even for a small project.
 
 Don't run a scaffolder after setup: some delete or replace `AGENTS.md` and `package.json` (Vite with `--overwrite`, Nuxt with `--force`), others refuse a folder that isn't empty or quietly create a subfolder.
@@ -80,7 +82,7 @@ Don't run a scaffolder after setup: some delete or replace `AGENTS.md` and `pack
 
 You've been asked to set up temple-bar. Follow these steps exactly.
 
-1. **For a new project, scaffold it first.** Ask the user what they want to build, and which framework if it matters to them. Scaffold with that framework's tool, using its pnpm option, in the folder itself rather than a subfolder, or create the files by hand. Never run a scaffolder after setup: it can delete or replace what setup writes. In an existing project, skip this step.
+1. **For a new project, scaffold it first.** Ask the user what they want to build, and which framework if it matters to them. Scaffold with that framework's tool, using its pnpm option, in the folder itself rather than a subfolder, or create the files by hand. Never run a scaffolder after setup: it can delete or replace what setup writes. In an existing project, skip this step. If it installs with npm, Yarn or Bun, setup refuses it and says how to switch it to pnpm: **ask the user** before making that switch.
 2. Run `pnpm create @londontypescript/temple-bar@latest` in the repo root. If the folder has no git repo yet, run `git init` first.
 3. If setup reports something missing (`gh` not installed or not signed in, no GitHub remote), **stop and tell the user** exactly what it said. Don't install tools globally and don't work around it.
 4. If setup asks to create a GitHub repository or change GitHub settings, **ask the user**. Only if they say yes, run setup again with `--create-repo` or `--create-ruleset` (`pnpm create @londontypescript/temple-bar@latest --create-repo`). Never pass a flag on their behalf.

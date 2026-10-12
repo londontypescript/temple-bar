@@ -96,7 +96,7 @@ function pinnedPnpm(packageJson: string | undefined): Pin {
 }
 
 /** The version of the pnpm that started setup, from its user agent. */
-function startedWith(userAgent: string | undefined): string | undefined {
+export function startedWith(userAgent: string | undefined): string | undefined {
   return /^pnpm\/(\S+) /.exec(userAgent ?? "")?.[1];
 }
 

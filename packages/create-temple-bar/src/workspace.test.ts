@@ -53,18 +53,20 @@ void test("parsePackageFolders returns each absolute path and rejects any other 
 });
 
 void test("the refusal messages say nothing changed and give the next step", () => {
-  const residue = workspaceResidueMessage([
-    "packages/a/pnpm-lock.yaml",
-    "packages/b/yarn.lock",
-  ]);
+  const launch = "pnpm create @londontypescript/temple-bar@0.3.0";
+  const residue = workspaceResidueMessage(
+    ["packages/a/pnpm-lock.yaml", "packages/b/yarn.lock"],
+    launch,
+  );
   assert.match(residue, /Nothing was changed/);
   assert.match(residue, /packages[/\\]a[/\\]pnpm-lock\.yaml|packages\/a/);
   assert.match(residue, /packages\/b\/yarn\.lock/);
   assert.match(residue, /Delete the files listed above/);
-  assert.match(residue, /pnpm create @londontypescript\/temple-bar@latest/);
-  const failed = workspaceListFailedMessage("pnpm exited with 1");
+  assert.ok(residue.endsWith(`  ${launch}\n`));
+  const failed = workspaceListFailedMessage("pnpm exited with 1", launch);
   assert.match(failed, /Nothing was changed/);
   assert.match(failed, /pnpm exited with 1/);
+  assert.ok(failed.endsWith(`  ${launch}\n`));
 });
 
 function fakeFiles(present: readonly string[]): WorkspaceFiles {
@@ -154,8 +156,11 @@ void test("findWorkspaceResidue reports a failed or unreadable listing instead o
       listing(result),
       options,
     );
-    assert.ok("failure" in outcome, JSON.stringify(result));
-    assert.match(outcome.failure, /Nothing was changed/);
+    assert.ok("listingFailed" in outcome, JSON.stringify(result));
+    assert.match(
+      outcome.listingFailed,
+      /pnpm exited with|wasn't a package list/,
+    );
   }
 });
 

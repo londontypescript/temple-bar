@@ -57,18 +57,80 @@ export interface CommandLine {
 
 const PACKAGE_NAME = "@londontypescript/temple-bar";
 
-/** The one command setup is run with, and the one every message prints. */
-export const LAUNCH_COMMAND = "pnpm create @londontypescript/temple-bar@latest";
+/**
+ * The command every refusal tells the user to run next. It names the
+ * launcher's own version, not `@latest`: a rerun then gets the same
+ * temple-bar the user started with, and pnpm can hide a version for its
+ * first day, so `@latest` may still resolve to the one before.
+ */
+export function launchCommand(version: string): string {
+  return `pnpm create ${PACKAGE_NAME}@${version}`;
+}
 
 /** The caller already uses pnpm, so explain the project's conflicting field. */
-export function packageManagerRequiredMessage(value: string): string {
+export function packageManagerRequiredMessage(
+  value: string,
+  launch: string,
+): string {
   return (
     `temple-bar needs pnpm, but package.json has "packageManager": ${JSON.stringify(value)}. Nothing was changed.\n` +
     "\n" +
     'Set packageManager to pnpm, for example "packageManager": "pnpm@10.34.5",\n' +
     "or re-scaffold with your framework's pnpm option.\n" +
     "Then run setup again:\n" +
-    `  ${LAUNCH_COMMAND}\n`
+    `  ${launch}\n`
+  );
+}
+
+/** The other package managers' lockfiles that `pnpm import` can turn into
+ * pnpm-lock.yaml. It can't read bun's. */
+const IMPORTABLE_LOCKFILES: readonly string[] = [
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "yarn.lock",
+];
+
+/**
+ * The refusal for a project that another package manager installs. pnpm is
+ * already there (it started setup), so installing it again would only lead
+ * back here: the project itself has to move to pnpm first. Setup never makes
+ * that move for the user, because it changes how the whole project installs,
+ * and the user has to check it still works before anything is added on top.
+ */
+export function foreignLockfileMessage(options: {
+  readonly lockfiles: readonly string[];
+  readonly packageManager: string | undefined;
+  readonly pnpmVersion: string | undefined;
+  readonly launch: string;
+}): string {
+  const { lockfiles, packageManager, pnpmVersion, launch } = options;
+  const found = lockfiles.join(" and ");
+  const importable = lockfiles.find((name) =>
+    IMPORTABLE_LOCKFILES.includes(name),
+  );
+  const steps = [
+    importable === undefined
+      ? `Run \`pnpm install\`. pnpm can't read ${found}, so it picks dependency versions afresh.`
+      : `Run \`pnpm import\`, which makes pnpm-lock.yaml from ${importable}.`,
+    `Delete ${found}.`,
+  ];
+  if (packageManager !== undefined) {
+    steps.push(
+      `In package.json, change "packageManager": ${JSON.stringify(packageManager)} to pnpm, for example "packageManager": "pnpm@${pnpmVersion ?? "10.34.5"}".`,
+    );
+  }
+  steps.push(
+    "Check the project still installs, builds and tests with pnpm, and commit the switch.",
+  );
+  return (
+    `temple-bar needs pnpm, and this folder has ${lockfiles.length === 1 ? "a " : ""}${found}, which another package manager wrote. Nothing was changed.\n` +
+    "\n" +
+    "Switch the project to pnpm first. Setup never does this for you:\n" +
+    steps.map((step, index) => `  ${String(index + 1)}. ${step}\n`).join("") +
+    "More on moving to pnpm: https://pnpm.io/cli/import\n" +
+    "\n" +
+    "Then run setup again:\n" +
+    `  ${launch}\n`
   );
 }
 
@@ -129,19 +191,18 @@ export function runInitCommand(argv: readonly string[] = []): CommandLine {
 }
 
 /**
- * The refusal shown when setup isn't running under pnpm. A step to take, not
+ * The refusal shown when setup wasn't started by pnpm. A step to take, not
  * a wall: why, how to install pnpm, and the exact command to run next.
- * `reason` says what was seen (how it was launched, or which lockfile).
  */
-export function pnpmRequiredMessage(reason: string): string {
+export function pnpmRequiredMessage(launch: string): string {
   return (
-    `temple-bar needs pnpm, and ${reason}. Nothing was changed.\n` +
+    "temple-bar needs pnpm, and this wasn't started with pnpm. Nothing was changed.\n" +
     "\n" +
     "Install pnpm with one command:\n" +
     "  npm install -g pnpm\n" +
     "Other ways to install it: https://pnpm.io/installation\n" +
     "\n" +
     "Then run:\n" +
-    `  ${LAUNCH_COMMAND}\n`
+    `  ${launch}\n`
   );
 }

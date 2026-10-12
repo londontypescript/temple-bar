@@ -5,8 +5,10 @@ import {
   addDevDependencyCommand,
   FOREIGN_LOCKFILES,
   foreignPackageManager,
+  foreignLockfileMessage,
   isLaunchedByPnpm,
   installCommand,
+  launchCommand,
   packageManagerRequiredMessage,
   pnpmRequiredMessage,
   runInitCommand,
@@ -42,7 +44,10 @@ void test("foreignPackageManager identifies only string values naming another ma
 });
 
 void test("packageManagerRequiredMessage explains the field change and rerun without installing pnpm", () => {
-  const message = packageManagerRequiredMessage("npm@10.9.2");
+  const message = packageManagerRequiredMessage(
+    "npm@10.9.2",
+    launchCommand("0.3.0"),
+  );
   assert.match(message, /"packageManager": "npm@10\.9\.2"/);
   assert.match(message, /temple-bar needs pnpm/);
   assert.match(message, /Nothing was changed/);
@@ -50,7 +55,7 @@ void test("packageManagerRequiredMessage explains the field change and rerun wit
   assert.match(message, /"packageManager": "pnpm@[^"\n]+"/);
   assert.match(message, /re-scaffold with your framework's pnpm option/);
   assert.match(message, /Then run setup again/);
-  assert.match(message, /pnpm create @londontypescript\/temple-bar@latest\n$/);
+  assert.match(message, /pnpm create @londontypescript\/temple-bar@0\.3\.0\n$/);
   assert.doesNotMatch(message, /install|pnpm\.io\/installation/i);
 });
 
@@ -87,13 +92,81 @@ void test("runInitCommand runs the project's temple-bar through pnpm exec", () =
   });
 });
 
+void test("launchCommand names the launcher's own version, never @latest", () => {
+  assert.equal(
+    launchCommand("0.3.0"),
+    "pnpm create @londontypescript/temple-bar@0.3.0",
+  );
+});
+
 void test("pnpmRequiredMessage says why, how to install pnpm and what to run next", () => {
-  const message = pnpmRequiredMessage("this was started with npm");
-  assert.match(message, /temple-bar needs pnpm, and this was started with npm/);
+  const message = pnpmRequiredMessage(launchCommand("0.3.0"));
+  assert.match(
+    message,
+    /temple-bar needs pnpm, and this wasn't started with pnpm/,
+  );
   assert.match(message, /Nothing was changed/);
   assert.match(message, /npm install -g pnpm/);
   assert.match(message, /https:\/\/pnpm\.io\/installation/);
-  assert.match(message, /pnpm create @londontypescript\/temple-bar@latest\n$/);
+  assert.match(message, /pnpm create @londontypescript\/temple-bar@0\.3\.0\n$/);
+});
+
+void test("foreignLockfileMessage says to move the project to pnpm, never to install pnpm", () => {
+  const launch = launchCommand("0.3.0");
+  const message = foreignLockfileMessage({
+    lockfiles: ["package-lock.json"],
+    packageManager: undefined,
+    pnpmVersion: "10.34.5",
+    launch,
+  });
+  assert.match(
+    message,
+    /this folder has a package-lock\.json, which another package manager wrote\. Nothing was changed\./,
+  );
+  assert.match(message, /Switch the project to pnpm first/);
+  assert.match(
+    message,
+    /1\. Run `pnpm import`, which makes pnpm-lock\.yaml from package-lock\.json\./,
+  );
+  assert.match(message, /2\. Delete package-lock\.json\./);
+  assert.match(
+    message,
+    /3\. Check the project still installs, builds and tests/,
+  );
+  assert.doesNotMatch(message, /packageManager/);
+  assert.doesNotMatch(message, /npm install -g pnpm|pnpm\.io\/installation/);
+  assert.ok(message.endsWith(`Then run setup again:\n  ${launch}\n`));
+});
+
+void test("foreignLockfileMessage names every lockfile and the packageManager field to change", () => {
+  const message = foreignLockfileMessage({
+    lockfiles: ["package-lock.json", "yarn.lock"],
+    packageManager: "npm@10.9.2",
+    pnpmVersion: "10.34.5",
+    launch: launchCommand("0.3.0"),
+  });
+  assert.match(message, /has package-lock\.json and yarn\.lock, which/);
+  assert.match(message, /Delete package-lock\.json and yarn\.lock\./);
+  assert.match(
+    message,
+    /change "packageManager": "npm@10\.9\.2" to pnpm, for example "packageManager": "pnpm@10\.34\.5"/,
+  );
+});
+
+void test("foreignLockfileMessage doesn't offer pnpm import for bun, which it can't read", () => {
+  for (const lockfile of ["bun.lock", "bun.lockb"]) {
+    const message = foreignLockfileMessage({
+      lockfiles: [lockfile],
+      packageManager: undefined,
+      pnpmVersion: "10.34.5",
+      launch: launchCommand("0.3.0"),
+    });
+    assert.doesNotMatch(message, /pnpm import`/, lockfile);
+    assert.ok(
+      message.includes(`Run \`pnpm install\`. pnpm can't read ${lockfile}`),
+      message,
+    );
+  }
 });
 
 void test("runInitCommand passes on only the two approval flags", () => {

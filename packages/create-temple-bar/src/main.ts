@@ -12,17 +12,20 @@ import {
   addDevDependencyCommand,
   FOREIGN_LOCKFILES,
   foreignPackageManager,
+  foreignLockfileMessage,
   isLaunchedByPnpm,
   installCommand,
+  launchCommand,
   packageManagerRequiredMessage,
   pnpmRequiredMessage,
   runInitCommand,
 } from "./package-manager.ts";
-import { checkChildPnpm } from "./pnpm-check.ts";
+import { checkChildPnpm, startedWith } from "./pnpm-check.ts";
 import type { ProcessRunner, RunOptions } from "./runner.ts";
 import {
   findWorkspaceResidue,
   WORKSPACE_FILE,
+  workspaceListFailedMessage,
   workspaceResidueMessage,
 } from "./workspace.ts";
 
@@ -78,19 +81,16 @@ async function ensurePackageJson(
   );
 }
 
-/** Why setup can't go ahead, or undefined when it's running under pnpm in a
- * repo with no other package manager's lockfile. Reads only. */
-async function notPnpmReason(deps: MainDeps): Promise<string | undefined> {
-  if (!isLaunchedByPnpm(deps.env.npm_config_user_agent)) {
-    return "this wasn't started with pnpm";
-  }
+/** Every other package manager's lockfile in the folder, all named at once
+ * so the user doesn't meet them one refusal at a time. Reads only. */
+async function foreignLockfiles(deps: MainDeps): Promise<string[]> {
+  const found: string[] = [];
   for (const name of FOREIGN_LOCKFILES) {
-    const found = await deps.fs.readText(path.join(deps.cwd, name));
-    if (found !== undefined) {
-      return `this folder has a ${name}, which another package manager wrote`;
+    if ((await deps.fs.readText(path.join(deps.cwd, name))) !== undefined) {
+      found.push(name);
     }
   }
-  return undefined;
+  return found;
 }
 
 export async function main(deps: MainDeps): Promise<number> {
@@ -98,17 +98,30 @@ export async function main(deps: MainDeps): Promise<number> {
     deps.stdout.write(HELP_TEXT);
     return 0;
   }
-  const refusal = await notPnpmReason(deps);
-  if (refusal !== undefined) {
-    deps.stderr.write(pnpmRequiredMessage(refusal));
+  const launch = launchCommand(deps.ownVersion);
+  const userAgent = deps.env.npm_config_user_agent;
+  if (!isLaunchedByPnpm(userAgent)) {
+    deps.stderr.write(pnpmRequiredMessage(launch));
     return 1;
   }
   const packageJson = await deps.fs.readText(
     path.join(deps.cwd, "package.json"),
   );
   const packageManager = foreignPackageManager(packageJson);
+  const lockfiles = await foreignLockfiles(deps);
+  if (lockfiles.length > 0) {
+    deps.stderr.write(
+      foreignLockfileMessage({
+        lockfiles,
+        packageManager,
+        pnpmVersion: startedWith(userAgent),
+        launch,
+      }),
+    );
+    return 1;
+  }
   if (packageManager !== undefined) {
-    deps.stderr.write(packageManagerRequiredMessage(packageManager));
+    deps.stderr.write(packageManagerRequiredMessage(packageManager, launch));
     return 1;
   }
 
@@ -142,12 +155,14 @@ export async function main(deps: MainDeps): Promise<number> {
       deps.run,
       options,
     );
-    if ("failure" in residue) {
-      deps.stderr.write(residue.failure);
+    if ("listingFailed" in residue) {
+      deps.stderr.write(
+        workspaceListFailedMessage(residue.listingFailed, launch),
+      );
       return 1;
     }
     if (residue.found.length > 0) {
-      deps.stderr.write(workspaceResidueMessage(residue.found));
+      deps.stderr.write(workspaceResidueMessage(residue.found, launch));
       return 1;
     }
   }
