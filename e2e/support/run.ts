@@ -5,7 +5,8 @@
 //
 // npm, pnpm and npx are `.cmd` shims on Windows, which only start through a
 // shell. Test-only code with arguments the test itself builds, so each one
-// is quoted rather than validated.
+// is quoted rather than validated. The command is quoted too: Node itself
+// is often under `C:\Program Files`, and cmd would split the path there.
 
 import { spawn } from "node:child_process";
 
@@ -32,7 +33,7 @@ export function run(
   const useShell = process.platform === "win32";
   return new Promise((resolve) => {
     const child = spawn(
-      command,
+      useShell ? quoteForWindowsShell(command) : command,
       useShell ? args.map(quoteForWindowsShell) : [...args],
       {
         cwd: options.cwd,
