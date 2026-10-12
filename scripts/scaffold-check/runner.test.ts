@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -59,7 +65,7 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
     const grandchild =
       'const fs = require("node:fs"); const beat = () => fs.appendFileSync(process.argv[1], "tick"); beat(); setInterval(beat, 50); setTimeout(() => {fs.writeFileSync(process.argv[1] + ".natural-exit", "survived"); process.exit(0);}, 10000);';
     const parent =
-      'const [marker, grandchild] = process.argv.slice(1); require("node:child_process").spawn(process.execPath, ["-e", grandchild, marker], {stdio: ["ignore", "inherit", "inherit"]}); setInterval(() => {}, 1000);';
+      'const [marker, grandchild] = process.argv.slice(1); require("node:fs").writeFileSync(marker + ".parent-pid", String(process.pid)); const child = require("node:child_process").spawn(process.execPath, ["-e", grandchild, marker], {stdio: ["ignore", "inherit", "inherit"]}); require("node:fs").writeFileSync(marker + ".grandchild-pid", String(child.pid)); setInterval(() => {}, 1000);';
     try {
       const pending = runProcess({
         command: process.execPath,
@@ -121,6 +127,29 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
         await stopped;
       }
     } finally {
+      // When the runner couldn't stop them, the test stops its own two
+      // processes, so the assertion that failed is what gets reported rather
+      // than a folder they still hold open, and nothing is left running.
+      const pids = ["parent-pid", "grandchild-pid"].map((name) =>
+        Number(readFileSync(`${marker}.${name}`, "utf8")),
+      );
+      for (const pid of pids) {
+        try {
+          process.kill(pid);
+        } catch {
+          // Already stopped, which is what a passing run leaves.
+        }
+      }
+      // Windows releases a stopped process's working folder a moment after
+      // it goes, so wait for that before removing the folder.
+      for (let attempt = 0; attempt < 100 && existsSync(dir); attempt++) {
+        try {
+          rmSync(dir, { recursive: true, force: true });
+        } catch {
+          await setTimeout(50);
+        }
+      }
+      // Still there after five seconds: this reports why.
       rmSync(dir, { recursive: true, force: true });
     }
   });

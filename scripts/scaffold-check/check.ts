@@ -15,7 +15,12 @@ import {
   type PrepareResources,
   type Resources,
 } from "./resources.ts";
-import { Interrupted, runProcess, type Runner } from "./runner.ts";
+import {
+  CleanupFailed,
+  Interrupted,
+  runProcess,
+  type Runner,
+} from "./runner.ts";
 import { capture, compare } from "./snapshot.ts";
 import { DEADLINES, failure, setup } from "./setup.ts";
 
@@ -153,8 +158,11 @@ export async function check(options: CheckOptions): Promise<CheckResult> {
           );
         snapshot = capture(project);
       } catch (error) {
-        if (error instanceof Interrupted || options.signal?.aborted)
-          throw new Interrupted();
+        // An interrupt keeps the runner's account of what it stopped, and a
+        // command that may have left processes running ends the whole check.
+        if (error instanceof Interrupted || error instanceof CleanupFailed)
+          throw error;
+        if (options.signal?.aborted) throw new Interrupted();
         results.push({
           name: fixture.name,
           statuses: ["couldn't run"],
@@ -191,8 +199,11 @@ export async function check(options: CheckOptions): Promise<CheckResult> {
         if (installed.unknown.length > 0) statuses.push("no expectation");
         else if (installed.findings.length > 0) statuses.push("setup failed");
       } catch (error) {
-        if (error instanceof Interrupted || options.signal?.aborted)
-          throw new Interrupted();
+        // An interrupt keeps the runner's account of what it stopped, and a
+        // command that may have left processes running ends the whole check.
+        if (error instanceof Interrupted || error instanceof CleanupFailed)
+          throw error;
+        if (options.signal?.aborted) throw new Interrupted();
         const unknown = expectation(snapshot).unknown;
         statuses.push(unknown.length > 0 ? "no expectation" : "setup failed");
         details.push(
