@@ -7,11 +7,7 @@
 
 import path from "node:path";
 
-import {
-  FOREIGN_LOCKFILES,
-  LAUNCH_COMMAND,
-  listPackagesCommand,
-} from "./package-manager.ts";
+import { FOREIGN_LOCKFILES, listPackagesCommand } from "./package-manager.ts";
 import type { ProcessRunner, RunOptions } from "./runner.ts";
 
 export const WORKSPACE_FILE = "pnpm-workspace.yaml";
@@ -59,7 +55,10 @@ export function parsePackageFolders(output: string): string[] | undefined {
   return folders;
 }
 
-export function workspaceListFailedMessage(detail: string): string {
+export function workspaceListFailedMessage(
+  detail: string,
+  launch: string,
+): string {
   const list = listPackagesCommand();
   return (
     `temple-bar could not list this workspace's packages (${detail}). Nothing was changed.\n` +
@@ -69,12 +68,15 @@ export function workspaceListFailedMessage(detail: string): string {
     `${WORKSPACE_FILE} is valid and that this command works here:\n` +
     `  ${list.command} ${list.args.join(" ")}\n` +
     "Then run setup again:\n" +
-    `  ${LAUNCH_COMMAND}\n`
+    `  ${launch}\n`
   );
 }
 
 /** The refusal naming every leftover file (paths relative to the root). */
-export function workspaceResidueMessage(found: readonly string[]): string {
+export function workspaceResidueMessage(
+  found: readonly string[],
+  launch: string,
+): string {
   return (
     "temple-bar found files inside workspace packages that break a workspace install. Nothing was changed.\n" +
     "\n" +
@@ -86,15 +88,15 @@ export function workspaceResidueMessage(found: readonly string[]): string {
     "pick the wrong files.\n" +
     "\n" +
     "Delete the files listed above, then run setup again:\n" +
-    `  ${LAUNCH_COMMAND}\n`
+    `  ${launch}\n`
   );
 }
 
 export type ResidueResult =
-  { readonly found: readonly string[] } | { readonly failure: string };
+  { readonly found: readonly string[] } | { readonly listingFailed: string };
 
 /** Lists the workspace's packages and returns the leftover files in them, or
- * a failure message when the listing can't be trusted. Changes nothing. */
+ * why the listing can't be trusted. Changes nothing. */
 export async function findWorkspaceResidue(
   root: string,
   files: WorkspaceFiles,
@@ -107,17 +109,11 @@ export async function findWorkspaceResidue(
     capture: true,
   });
   if (result.code !== 0) {
-    return {
-      failure: workspaceListFailedMessage(
-        `pnpm exited with ${String(result.code)}`,
-      ),
-    };
+    return { listingFailed: `pnpm exited with ${String(result.code)}` };
   }
   const folders = parsePackageFolders(result.stdout ?? "");
   if (folders === undefined) {
-    return {
-      failure: workspaceListFailedMessage("its output wasn't a package list"),
-    };
+    return { listingFailed: "its output wasn't a package list" };
   }
   // pnpm lists the root too when it has a package.json; its own lockfile and
   // workspace file are the real ones.

@@ -108,14 +108,16 @@ const launchers: Record<"npm" | "pnpm", (tarball: string) => CommandLine> = {
   }),
 };
 
-/** The refusal must leave the repo exactly as it was. */
+/** The refusal must leave the repo exactly as it was, and its rerun hint
+ * must name the version that was launched, never `@latest`. */
 function assertRefusedWithHelp(launch: RunResult, dir: string): void {
   assert.notEqual(launch.code, 0, describe(launch));
   assert.match(launch.stderr, /temple-bar needs pnpm/);
-  assert.match(launch.stderr, /https:\/\/pnpm\.io\/installation/);
-  assert.match(
+  assert.ok(
+    launch.stderr.includes(
+      `pnpm create @londontypescript/temple-bar@${version}\n`,
+    ),
     launch.stderr,
-    /pnpm create @londontypescript\/temple-bar@latest/,
   );
   assert.ok(!existsSync(path.join(dir, "package.json")), "no package.json");
   assert.ok(!existsSync(path.join(dir, "AGENTS.md")), "no AGENTS.md");
@@ -133,6 +135,7 @@ void test(
       env: baseEnv,
     });
     assertRefusedWithHelp(launch, dir);
+    assert.match(launch.stderr, /https:\/\/pnpm\.io\/installation/);
   },
 );
 
@@ -148,6 +151,11 @@ void test(
       env: baseEnv,
     });
     assertRefusedWithHelp(launch, dir);
+    // pnpm started this, so the advice is to move the project to pnpm, not
+    // to install pnpm, which would lead straight back to this refusal.
+    assert.match(launch.stderr, /Switch the project to pnpm first/);
+    assert.match(launch.stderr, /pnpm import/);
+    assert.doesNotMatch(launch.stderr, /npm install -g pnpm/);
   },
 );
 

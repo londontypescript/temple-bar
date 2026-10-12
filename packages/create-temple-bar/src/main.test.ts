@@ -1,66 +1,15 @@
 import assert from "node:assert/strict";
-import { normalize } from "node:path";
 import test from "node:test";
 
-import { main, type FsLike, type MainDeps, type WriterLike } from "./main.ts";
-import type { RunOptions, RunResult } from "./runner.ts";
-
-interface RecordedRun {
-  readonly command: string;
-  readonly args: readonly string[];
-  readonly options: RunOptions;
-}
-
-/** Keys are normalised the way the real filesystem treats them, so the
- * tests' "/app/x" and main's path.join (backslashes on Windows) match. */
-function makeFakeFs(initial: Record<string, string> = {}): FsLike & {
-  file(filePath: string): string | undefined;
-} {
-  const files = new Map(
-    Object.entries(initial).map(([key, value]) => [normalize(key), value]),
-  );
-  return {
-    file: (filePath) => files.get(normalize(filePath)),
-    readText: (filePath) => Promise.resolve(files.get(normalize(filePath))),
-    writeText: (filePath, content) => {
-      files.set(normalize(filePath), content);
-      return Promise.resolve();
-    },
-    realPath: (filePath) => Promise.resolve(filePath),
-  };
-}
-
-function makeFakeRunner(
-  script: (command: string, args: readonly string[]) => RunResult,
-) {
-  const calls: RecordedRun[] = [];
-  const run = (
-    command: string,
-    args: readonly string[],
-    options: RunOptions,
-  ) => {
-    // The check that the child pnpm is the one that started setup (the user
-    // agent below says 9.1.0). It has its own tests in pnpm-check.test.ts.
-    if (args[0] === "--version") {
-      return Promise.resolve<RunResult>({ code: 0, stdout: "9.1.0\n" });
-    }
-    calls.push({ command, args, options });
-    return Promise.resolve(script(command, args));
-  };
-  return { run, calls };
-}
-
-function makeFakeWriter(): WriterLike & { lines: string[] } {
-  const lines: string[] = [];
-  return { lines, write: (text) => lines.push(text) };
-}
-
-const userAgents = {
-  pnpm: "pnpm/9.1.0 node/v24.0.0",
-  yarn: "yarn/4.1.0 node/v24.0.0",
-  bun: "bun/1.1.0",
-  npm: "npm/10.0.0 node/v24.0.0",
-};
+import { main, type FsLike, type MainDeps } from "./main.ts";
+import {
+  makeFakeFs,
+  makeFakeRunner,
+  makeFakeWriter,
+  type RecordedRun,
+  refusalFixture,
+  userAgents,
+} from "./testing/fakes.ts";
 
 void test("main: pnpm adds the dependency, finishes install, then initializes", async () => {
   const { run, calls } = makeFakeRunner(() => ({ code: 0 }));
@@ -228,139 +177,6 @@ for (const flag of ["--help", "-h"]) {
     assert.equal(runner.calls.length, 0);
   });
 }
-
-function refusalFixture(
-  userAgent: string | undefined,
-  files: Record<string, string> = { "/app/package.json": "{}" },
-) {
-  const fs = makeFakeFs(files);
-  const writes: string[] = [];
-  const guarded: FsLike = {
-    readText: (filePath) => fs.readText(filePath),
-    writeText: (filePath, content) => {
-      writes.push(filePath);
-      return fs.writeText(filePath, content);
-    },
-    realPath: (filePath) => fs.realPath(filePath),
-  };
-  const runner = makeFakeRunner(() => ({ code: 0 }));
-  const stdout = makeFakeWriter();
-  const stderr = makeFakeWriter();
-  const deps: MainDeps = {
-    argv: [],
-    cwd: "/app",
-    env: userAgent === undefined ? {} : { npm_config_user_agent: userAgent },
-    ownVersion: "0.3.0",
-    fs: guarded,
-    run: runner.run,
-    stdout,
-    stderr,
-  };
-  return { deps, runner, writes, stdout, stderr };
-}
-
-for (const manager of ["npm", "yarn", "bun"] as const) {
-  void test(`main: \`${manager} create\` is refused with a helpful message and changes nothing`, async () => {
-    const { deps, runner, writes, stderr } = refusalFixture(
-      userAgents[manager],
-      { "/app/package.json": '{"packageManager":"npm@10.9.2"}' },
-    );
-    const code = await main(deps);
-    assert.equal(code, 1);
-    assert.equal(runner.calls.length, 0, "nothing may be spawned");
-    assert.deepEqual(writes, [], "nothing may be written");
-    const text = stderr.lines.join("");
-    assert.match(text, /temple-bar needs pnpm/);
-    assert.match(text, /this wasn't started with pnpm/);
-    assert.match(text, /npm install -g pnpm/);
-    assert.match(text, /https:\/\/pnpm\.io\/installation/);
-    assert.match(text, /pnpm create @londontypescript\/temple-bar@latest/);
-  });
-}
-
-void test("main: a launch with no package manager at all is refused", async () => {
-  const { deps, runner, writes } = refusalFixture(undefined);
-  assert.equal(await main(deps), 1);
-  assert.equal(runner.calls.length, 0);
-  assert.deepEqual(writes, []);
-});
-
-for (const lockfile of [
-  "package-lock.json",
-  "yarn.lock",
-  "bun.lockb",
-  "bun.lock",
-]) {
-  void test(`main: a ${lockfile} in the repo is refused even under pnpm, changing nothing`, async () => {
-    const { deps, runner, writes, stderr } = refusalFixture(userAgents.pnpm, {
-      "/app/package.json": "{}",
-      [`/app/${lockfile}`]: "",
-    });
-    const code = await main(deps);
-    assert.equal(code, 1);
-    assert.equal(runner.calls.length, 0);
-    assert.deepEqual(writes, []);
-    const text = stderr.lines.join("");
-    assert.ok(text.includes(lockfile), "names the lockfile it found");
-    assert.match(text, /https:\/\/pnpm\.io\/installation/);
-    assert.match(text, /pnpm create @londontypescript\/temple-bar@latest/);
-  });
-}
-
-void test("main: a refused launch does not create package.json", async () => {
-  const { deps, writes } = refusalFixture(userAgents.npm, {});
-  await main(deps);
-  assert.deepEqual(writes, []);
-});
-
-void test("main: packageManager refuses foreign strings before writes or runs and leaves other manifests to installation", async () => {
-  const cases: readonly [string | undefined, string | undefined][] = [
-    ['{"packageManager":"npm@10.9.2"}', "npm@10.9.2"],
-    ['{"packageManager":"yarn@4.1.0"}', "yarn@4.1.0"],
-    ['{"packageManager":"bun@1.1.0"}', "bun@1.1.0"],
-    ['{"packageManager":"pnpm@9.1.0"}', undefined],
-    ['{"packageManager":"pnpm@9.1.0+sha512.abcdef"}', undefined],
-    ["{}", undefined],
-    ['{"packageManager":""}', undefined],
-    [undefined, undefined],
-    ["{", undefined],
-    ['{"packageManager":42}', undefined],
-    ['{"packageManager":null}', undefined],
-    ['{"packageManager":false}', undefined],
-    ['{"packageManager":{}}', undefined],
-    ['{"packageManager":[]}', undefined],
-    ["null", undefined],
-  ];
-  for (const [contents, foreign] of cases) {
-    const { deps, runner, writes, stderr, stdout } = refusalFixture(
-      userAgents.pnpm,
-      contents === undefined ? {} : { "/app/package.json": contents },
-    );
-    assert.equal(await main(deps), foreign === undefined ? 0 : 1, contents);
-    assert.deepEqual(stdout.lines, []);
-    if (foreign !== undefined) {
-      assert.equal(runner.calls.length, 0, "nothing may be spawned");
-      assert.deepEqual(writes, [], "nothing may be written");
-      const message = stderr.lines.join("");
-      assert.ok(message.includes(foreign));
-      assert.match(message, /temple-bar needs pnpm/);
-      assert.match(message, /"packageManager": "pnpm@[^"\n]+"/);
-      assert.match(message, /framework's pnpm option/);
-      assert.match(message, /pnpm create @londontypescript\/temple-bar@latest/);
-      assert.doesNotMatch(message, /install/i);
-    } else {
-      assert.deepEqual(stderr.lines, []);
-      assert.deepEqual(
-        runner.calls.map((call) => call.args[0]),
-        ["add", "install", "exec"],
-      );
-      assert.deepEqual(
-        writes,
-        contents === undefined ? [normalize("/app/package.json")] : [],
-      );
-    }
-  }
-});
 
 void test("main: the approval flags reach `temple-bar init`", async () => {
   const { run, calls } = makeFakeRunner(() => ({ code: 0 }));
