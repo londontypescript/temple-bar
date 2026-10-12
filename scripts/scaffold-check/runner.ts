@@ -27,9 +27,10 @@ export class Interrupted extends Error {
   }
 }
 
-/** A command that may have left processes running, or whose output never
- * finished. Nothing later may start beside them, so the caller stops the
- * whole check rather than moving on to the next scaffold. */
+/** A command that may have left processes running, left one holding its
+ * output after it exited, or whose output never finished. Its result can't be
+ * trusted, and nothing later may start beside such processes, so the caller
+ * stops the whole check rather than moving on to the next scaffold. */
 export class CleanupFailed extends Error {}
 
 /** How long each wait after the command itself may take. Past any of them
@@ -37,7 +38,8 @@ export class CleanupFailed extends Error {}
 export interface Limits {
   /** For the tree-stop command (taskkill) to finish. */
   readonly stop: number;
-  /** For the command to exit and its output to close once a stop is sent. */
+  /** For the command to exit and its output to close once a stop reports
+   * success. */
   readonly afterStop: number;
   /** For the output to close after the command exits on its own. */
   readonly closeGrace: number;
@@ -98,8 +100,10 @@ export function createRunner(
       let exited = false;
       let closed = false;
       let settled = false;
-      let leftover = false;
       let exitCode: number | null = null;
+      // Set when a command exits but something it started keeps its output
+      // open: the result is untrustworthy even once that process is stopped.
+      let leftoverProblem: string | undefined;
       let stopping: Promise<void> | undefined;
       let stopOutcome: StopOutcome | undefined;
       let killer: ChildProcess | undefined;
@@ -126,6 +130,7 @@ export function createRunner(
       const settle = (problem?: string) => {
         if (settled) return;
         settled = true;
+        if (leftoverProblem !== undefined) problems.push(leftoverProblem);
         if (problem !== undefined) problems.push(problem);
         if (stopOutcome?.stopped === false)
           problems.unshift(stopOutcome.detail);
@@ -155,18 +160,12 @@ export function createRunner(
           const output = tail.toString("utf8");
           reject(
             new CleanupFailed(
-              `${request.command}: ${problems.join("; ")}.${output ? `\n${output}` : ""}`,
+              `${[request.command, ...request.args].join(" ")}: ${problems.join("; ")}.${output ? `\n${output}` : ""}`,
             ),
           );
         } else {
-          if (leftover)
-            append(
-              Buffer.from(
-                "It exited but left a process holding its output, which was stopped.\n",
-              ),
-            );
           resolve({
-            code: leftover && exitCode === 0 ? 1 : (exitCode ?? 1),
+            code: exitCode ?? 1,
             output: tail.toString("utf8"),
             stdout: stdoutTail.toString("utf8"),
             timedOut,
@@ -240,16 +239,21 @@ export function createRunner(
         // The pid may already belong to another process: the close grace
         // decides what an exited command's held output means.
         if (exited && windows) return;
+        // Each part is bounded: taskkill by its own limit, and what follows a
+        // successful stop by the after-stop limit.
         stopping = stopTree().then((outcome) => {
           stopOutcome = outcome;
-          if (!outcome.stopped || closed) settle();
-        });
-        after(limits.stop + limits.afterStop, () => {
-          settle(
-            exited
-              ? `its output was still open ${seconds(limits.afterStop)} after it was stopped`
-              : `it was still running ${seconds(limits.afterStop)} after it was stopped`,
-          );
+          if (!outcome.stopped || closed) {
+            settle();
+            return;
+          }
+          after(limits.afterStop, () => {
+            settle(
+              exited
+                ? `its output was still open ${seconds(limits.afterStop)} after the stop`
+                : `it was still running ${seconds(limits.afterStop)} after the stop`,
+            );
+          });
         });
       };
 
@@ -281,6 +285,9 @@ export function createRunner(
       child.on("exit", (code) => {
         exited = true;
         exitCode = code;
+        // After a failed stop the runner has already given up on it: a late
+        // exit must not start a timer that keeps Node alive.
+        if (settled) return;
         cancel(deadline);
         after(limits.closeGrace, () => {
           if (closed || settled || stopping !== undefined) return;
@@ -289,7 +296,7 @@ export function createRunner(
               `its output was still open ${seconds(limits.closeGrace)} after it exited, so a process it started may still be running`,
             );
           else {
-            leftover = true;
+            leftoverProblem = `it exited but left a process holding its output, which was sent SIGKILL with its process group`;
             requestStop();
           }
         });

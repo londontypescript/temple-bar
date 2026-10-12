@@ -180,6 +180,30 @@ void test("on Windows, an interrupt after exit stops nothing by pid", async () =
   assert.match(String(error), /could not confirm the command stopped/);
 });
 
+for (const missing of ["exit", "close"] as const) {
+  void test(`after a successful stop, a missing ${missing} is bounded by the after-stop limit`, async () => {
+    const world = fakes((killer, primary) => {
+      if (missing === "close") primary.finish(1);
+      killer.emit("close", 0, null);
+    });
+    const error = await createRunner(
+      "win32",
+      world.launch,
+      QUICK,
+    )(request(20)).then(
+      () => assert.fail("a stop that never completed was reported as done"),
+      (caught: unknown) => caught,
+    );
+    assert.ok(error instanceof CleanupFailed);
+    assert.match(
+      String(error),
+      missing === "exit"
+        ? /it was still running 0\.3 s after the stop/
+        : /its output was still open 0\.3 s after the stop/,
+    );
+  });
+}
+
 void test("output that closes after exit, within the grace, is kept whole", async () => {
   const world = fakes(() => undefined);
   const pending = createRunner("win32", world.launch, QUICK)(request(60_000));
@@ -211,11 +235,13 @@ const alive = (pid: number) => {
 };
 
 if (process.platform !== "win32") {
-  void test("on POSIX, a leftover holding output after exit is stopped, and the run fails", async () => {
+  void test("on POSIX, a leftover holding output after exit is stopped, and the result isn't trusted", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "runner-leftover-"));
     const marker = path.join(dir, "grandchild-pid");
     try {
-      const result = await createRunner(process.platform, spawn, {
+      // Even an exit code a caller might expect (a refusal's non-zero, say)
+      // must not be returned as a result once a leftover was found.
+      const error = await createRunner(process.platform, spawn, {
         ...QUICK,
         closeGrace: 1_000,
       })({
@@ -224,9 +250,12 @@ if (process.platform !== "win32") {
         cwd: dir,
         env: process.env,
         deadline: 15_000,
-      });
-      assert.equal(result.code, 1, "a leftover makes a passing exit fail");
-      assert.match(result.output, /left a process holding its output/);
+      }).then(
+        () => assert.fail("a leftover was returned as a result"),
+        (caught: unknown) => caught,
+      );
+      assert.ok(error instanceof CleanupFailed);
+      assert.match(String(error), /left a process holding its output/);
       const grandchild = Number(readFileSync(marker, "utf8"));
       await delay(200);
       assert.equal(alive(grandchild), false, "the leftover was stopped");
@@ -256,27 +285,29 @@ if (process.platform !== "win32") {
 void test("after a failed stop, Node can still exit on its own", async () => {
   // A separate Node process runs the runner with a taskkill that never ends
   // and a command that never ends. It must exit without process.exit().
-  const dir = mkdtempSync(path.join(tmpdir(), "runner-exit-"));
-  const pidFile = path.join(dir, "command-pid");
   const runner = pathToFileURL(path.join(import.meta.dirname, "runner.ts"));
   const script = `
     import { spawn } from "node:child_process";
     import { writeFileSync } from "node:fs";
     import { createRunner } from ${JSON.stringify(runner.href)};
     const forever = ["-e", "setInterval(() => {}, 1000)"];
+    // The command gives up on its own a while after the runner has: a late
+    // exit must not start a timer (the 30-second close grace) that keeps
+    // Node alive.
+    const late = ["-e", "setTimeout(() => {}, 1500)"];
     const launch = (command, args, options) => {
       if (command === "taskkill")
         return spawn(process.execPath, forever, { stdio: "ignore" });
-      const child = spawn(process.execPath, args, options);
-      writeFileSync(${JSON.stringify(pidFile)}, String(child.pid));
-      return child;
+      return spawn(process.execPath, args, options);
     };
-    const limits = { stop: 300, afterStop: 300, closeGrace: 300 };
+    const limits = { stop: 300, afterStop: 300, closeGrace: 30000 };
     const pending = createRunner("win32", launch, limits)({
-      command: "node.exe", args: forever, cwd: process.cwd(),
+      command: "node.exe", args: late, cwd: process.cwd(),
       env: process.env, deadline: 100,
     });
     pending.catch((error) => console.log("settled:", error.message));
+    // Stay up past the command's own exit, so that exit is seen.
+    setTimeout(() => {}, 2500);
   `;
   const outer = spawn(process.execPath, ["--input-type=module", "-e", script], {
     stdio: ["ignore", "pipe", "pipe"],
@@ -284,7 +315,8 @@ void test("after a failed stop, Node can still exit on its own", async () => {
   let output = "";
   outer.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
   outer.stderr.on("data", (chunk: Buffer) => (output += chunk.toString()));
-  const watchdog = setTimeout(() => outer.kill(), 15_000);
+  const started = Date.now();
+  const watchdog = setTimeout(() => outer.kill(), 20_000);
   try {
     const [code] = (await once(outer, "close")) as [number | null];
     assert.equal(
@@ -293,12 +325,12 @@ void test("after a failed stop, Node can still exit on its own", async () => {
       `the outer process never exited by itself:\n${output}`,
     );
     assert.match(output, /settled: .*taskkill did not finish within 0\.3 s/);
+    assert.ok(
+      Date.now() - started < 15_000,
+      "a timer started after the runner settled kept Node alive",
+    );
   } finally {
     clearTimeout(watchdog);
     if (outer.exitCode === null) outer.kill();
-    // The command was let go on purpose; this test owns it, so stop it.
-    const pid = Number(readFileSync(pidFile, "utf8"));
-    if (alive(pid)) process.kill(pid);
-    rmSync(dir, { recursive: true, force: true });
   }
 });

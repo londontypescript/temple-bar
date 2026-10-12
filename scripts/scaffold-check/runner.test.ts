@@ -60,6 +60,7 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
     const dir = mkdtempSync(path.join(tmpdir(), "scaffold-runner-group-"));
     const marker = path.join(dir, "grandchild-heartbeat");
     const controller = new AbortController();
+    let passed = false;
     // Fixed scripts, with the marker path passed as an argument: no code is
     // built from a value.
     const grandchild =
@@ -122,6 +123,7 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
           stoppedSize,
           "grandchild kept writing after the process group stopped",
         );
+        passed = true;
       } finally {
         controller.abort();
         await stopped;
@@ -130,16 +132,18 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
       // When the runner couldn't stop them, the test stops its own two
       // processes, so the assertion that failed is what gets reported rather
       // than a folder they still hold open, and nothing is left running.
-      const pids = ["parent-pid", "grandchild-pid"].map((name) =>
-        Number(readFileSync(`${marker}.${name}`, "utf8")),
-      );
-      for (const pid of pids) {
-        try {
-          process.kill(pid);
-        } catch {
-          // Already stopped, which is what a passing run leaves.
+      // After a pass they are confirmed gone, and their pids may already
+      // belong to something else, so nothing is stopped then.
+      if (!passed)
+        for (const name of ["parent-pid", "grandchild-pid"]) {
+          const file = `${marker}.${name}`;
+          if (!existsSync(file)) continue;
+          try {
+            process.kill(Number(readFileSync(file, "utf8")));
+          } catch {
+            // Already gone.
+          }
         }
-      }
       // Windows releases a stopped process's working folder a moment after
       // it goes, so wait for that before removing the folder.
       for (let attempt = 0; attempt < 100 && existsSync(dir); attempt++) {
