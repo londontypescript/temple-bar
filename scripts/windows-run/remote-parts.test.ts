@@ -66,14 +66,17 @@ void test("test totals and gate skips are read; ambiguity is unknown", () => {
   assert.equal(new CheckScanner().totals().gateSkipped, "unknown");
 });
 
-void test("the process list parses, skipping lines that do not fit", () => {
+void test("the process list parses, and any line that does not fit spoils it", () => {
   assert.deepEqual(
-    parseProcessList("12|node|1700000000000\r\n7|Sys|tem|\r\nbad\r\n|x|1\r\n"),
+    parseProcessList("12|node|1700000000000\r\n7|Sys|tem|\r\n\r\n"),
     [
       { pid: 12, name: "node", startMs: 1700000000000 },
       { pid: 7, name: "Sys|tem", startMs: null },
     ],
   );
+  for (const garbled of ["bad", "|x|1", "x|node|1", "12|node|soon"]) {
+    assert.equal(parseProcessList(`12|node|1\r\n${garbled}\r\n`), undefined);
+  }
 });
 
 function lockDeps(alive: boolean) {

@@ -43,11 +43,27 @@ void test("an empty or failed process listing is an error, never 'no processes'"
   assert.throws(() => processesFromListing({ code: 1, stdout: "1|a|2" }, 10));
   assert.throws(() => processesFromListing({ code: 0, stdout: "" }, 10));
   assert.throws(() => processesFromListing({ code: 0, stdout: "junk" }, 10));
+  // One good row doesn't rescue a garbled listing.
+  assert.throws(() =>
+    processesFromListing({ code: 0, stdout: "1|a|5\ngarbled\n" }, 10),
+  );
+});
+
+void test("a listing leaves out only its own newer PowerShell and console host, never a leftover's new child", () => {
   assert.deepEqual(
-    processesFromListing({ code: 0, stdout: "1|a|5\n2|b|50\n3|c|\n" }, 10),
+    processesFromListing(
+      {
+        code: 0,
+        stdout:
+          "1|a|5\n2|node|50\n3|c|\n4|powershell|50\n5|conhost|60\n6|conhost|5\n",
+      },
+      10,
+    ),
     [
       { pid: 1, name: "a", startMs: 5 },
+      { pid: 2, name: "node", startMs: 50 },
       { pid: 3, name: "c", startMs: null },
+      { pid: 6, name: "conhost", startMs: 5 },
     ],
   );
 });

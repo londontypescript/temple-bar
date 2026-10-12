@@ -21,15 +21,19 @@ export function describeProcess(proc: ProcInfo): string {
 export type Pick = (proc: ProcInfo) => boolean;
 
 /** Lines of `pid|name|startMs` (startMs empty when unreadable), as the
- * PowerShell script in real.ts prints them. A line that doesn't fit is
- * skipped rather than guessed at. */
-export function parseProcessList(text: string): ProcInfo[] {
+ * PowerShell script in real.ts prints them. Undefined if any line doesn't
+ * fit: the format is fixed, so a garbled line means a garbled listing, and a
+ * process missing from it must never look stopped. */
+export function parseProcessList(text: string): ProcInfo[] | undefined {
   const procs: ProcInfo[] = [];
   for (const line of text.split(/\r?\n/)) {
+    if (line.trim() === "") {
+      continue;
+    }
     const first = line.indexOf("|");
     const last = line.lastIndexOf("|");
     if (first <= 0 || last <= first) {
-      continue;
+      return undefined;
     }
     const pid = Number(line.slice(0, first));
     const startText = line.slice(last + 1).trim();
@@ -38,32 +42,42 @@ export function parseProcessList(text: string): ProcInfo[] {
       !Number.isSafeInteger(pid) ||
       (startMs !== null && !Number.isFinite(startMs))
     ) {
-      continue;
+      return undefined;
     }
     procs.push({ pid, name: line.slice(first + 1, last), startMs });
   }
   return procs;
 }
 
+/** What a listing starts for itself: PowerShell, and the console host
+ * Windows may give it. Only these are left out when they are newer than the
+ * listing; any other new process could be a leftover's child. */
+const LISTING_HELPERS = new Set(["powershell", "conhost"]);
+
 /**
  * Reads a PowerShell listing. A listing can never legitimately be empty
- * (Windows always has system processes), so a failed one, a timeout or
- * nothing parsed is an error, never "no processes": reading it as empty
- * would call a live lock holder dead and let leftovers through unstopped.
- * Processes that started after the listing was asked for (the listing's own
- * PowerShell and console host) are left out.
+ * (Windows always has system processes), so a failed one, a timeout, a
+ * garbled line or nothing parsed is an error, never "no processes": reading
+ * it as empty would call a live lock holder dead and let leftovers through
+ * unstopped. The listing's own PowerShell and console host, newer than the
+ * moment it was asked for, are left out.
  */
 export function processesFromListing(
   result: { readonly code: number; readonly stdout: string },
   askedMs: number,
 ): ProcInfo[] {
-  const all = result.code === 0 ? parseProcessList(result.stdout) : [];
-  if (all.length === 0) {
+  const all = result.code === 0 ? parseProcessList(result.stdout) : undefined;
+  if (all === undefined || all.length === 0) {
     throw new Error(
-      `the process listing failed (exit ${String(result.code)}) or was empty`,
+      `the process listing failed (exit ${String(result.code)}), was garbled or was empty`,
     );
   }
-  return all.filter((proc) => proc.startMs === null || proc.startMs < askedMs);
+  return all.filter(
+    (proc) =>
+      proc.startMs === null ||
+      proc.startMs < askedMs ||
+      !LISTING_HELPERS.has(proc.name.toLowerCase().replace(/\.exe$/, "")),
+  );
 }
 
 async function targets(sys: Sys, pick: Pick): Promise<ProcInfo[]> {
