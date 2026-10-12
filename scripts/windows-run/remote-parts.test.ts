@@ -16,7 +16,7 @@ const here = path.join(path.dirname(fileURLToPath(import.meta.url)), "remote");
 void test("nothing in the runner's folder imports from outside it", () => {
   for (const file of readdirSync(here).filter((name) => name.endsWith(".ts"))) {
     const source = readFileSync(path.join(here, file), "utf8");
-    for (const match of source.matchAll(/from "([^"]+)"/g)) {
+    for (const match of source.matchAll(/(?:from|import)\s+"([^"]+)"/g)) {
       const target = match[1] ?? "";
       assert.ok(
         target.startsWith("node:") || /^\.\/[^/]+$/.test(target),
