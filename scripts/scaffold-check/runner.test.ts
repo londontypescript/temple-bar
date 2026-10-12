@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -54,12 +60,13 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
     const dir = mkdtempSync(path.join(tmpdir(), "scaffold-runner-group-"));
     const marker = path.join(dir, "grandchild-heartbeat");
     const controller = new AbortController();
+    let passed = false;
     // Fixed scripts, with the marker path passed as an argument: no code is
     // built from a value.
     const grandchild =
       'const fs = require("node:fs"); const beat = () => fs.appendFileSync(process.argv[1], "tick"); beat(); setInterval(beat, 50); setTimeout(() => {fs.writeFileSync(process.argv[1] + ".natural-exit", "survived"); process.exit(0);}, 10000);';
     const parent =
-      'const [marker, grandchild] = process.argv.slice(1); require("node:child_process").spawn(process.execPath, ["-e", grandchild, marker], {stdio: ["ignore", "inherit", "inherit"]}); setInterval(() => {}, 1000);';
+      'const [marker, grandchild] = process.argv.slice(1); require("node:fs").writeFileSync(marker + ".parent-pid", String(process.pid)); const child = require("node:child_process").spawn(process.execPath, ["-e", grandchild, marker], {stdio: ["ignore", "inherit", "inherit"]}); require("node:fs").writeFileSync(marker + ".grandchild-pid", String(child.pid)); setInterval(() => {}, 1000);';
     try {
       const pending = runProcess({
         command: process.execPath,
@@ -116,11 +123,37 @@ for (const stop of ["deadline", "Ctrl-C"] as const) {
           stoppedSize,
           "grandchild kept writing after the process group stopped",
         );
+        passed = true;
       } finally {
         controller.abort();
         await stopped;
       }
     } finally {
+      // When the runner couldn't stop them, the test stops its own two
+      // processes, so the assertion that failed is what gets reported rather
+      // than a folder they still hold open, and nothing is left running.
+      // After a pass they are confirmed gone, and their pids may already
+      // belong to something else, so nothing is stopped then.
+      if (!passed)
+        for (const name of ["parent-pid", "grandchild-pid"]) {
+          const file = `${marker}.${name}`;
+          if (!existsSync(file)) continue;
+          try {
+            process.kill(Number(readFileSync(file, "utf8")));
+          } catch {
+            // Already gone.
+          }
+        }
+      // Windows releases a stopped process's working folder a moment after
+      // it goes, so wait for that before removing the folder.
+      for (let attempt = 0; attempt < 100 && existsSync(dir); attempt++) {
+        try {
+          rmSync(dir, { recursive: true, force: true });
+        } catch {
+          await setTimeout(50);
+        }
+      }
+      // Still there after five seconds: this reports why.
       rmSync(dir, { recursive: true, force: true });
     }
   });
