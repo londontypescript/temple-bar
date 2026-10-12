@@ -90,7 +90,9 @@ export async function acquireLock(
   await fs.mkdir(mine);
   try {
     await fs.writeFile(path.join(mine, OWNER_FILE), JSON.stringify(self));
-    if (await tryRename(fs, mine, dir)) {
+    // A rename onto an empty folder can succeed on some systems, and a lock
+    // with no owner file is exactly the empty case, so look first.
+    if (!(await pathExists(fs, dir)) && (await tryRename(fs, mine, dir))) {
       return { kind: "acquired", tookOver: undefined };
     }
     const holder = await readOwner(fs, dir);

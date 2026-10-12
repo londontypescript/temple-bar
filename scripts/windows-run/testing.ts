@@ -1,0 +1,195 @@
+// Fakes and builders shared by the windows-run tests.
+
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import type { TestContext } from "node:test";
+
+import { nodeFs } from "./remote/fsx.ts";
+import {
+  formatRecord,
+  type ResultRecord,
+  type StepRecord,
+} from "./remote/record.ts";
+import type {
+  GitResult,
+  ProcInfo,
+  StepOutcome,
+  StepSpec,
+  Sys,
+} from "./remote/sys.ts";
+
+export const SHA = "0123456789abcdef0123456789abcdef01234567";
+export const RUN_ID = "a1b2c3d4";
+
+export function tempDir(t: TestContext, prefix = "tb-wr-test-"): string {
+  const dir = mkdtempSync(path.join(tmpdir(), prefix));
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+  return dir;
+}
+
+function passedSteps(): StepRecord[] {
+  return (["install", "check", "build"] as const).map((name) => ({
+    name,
+    status: "passed",
+    exitCode: 0,
+    durationMs: 1500,
+  }));
+}
+
+export function makeRecord(
+  overrides: Partial<ResultRecord> = {},
+): ResultRecord {
+  return {
+    runId: RUN_ID,
+    sha: SHA,
+    refusal: null,
+    steps: passedSteps(),
+    versions: { node: "24.20.0", pnpm: "10.34.5", git: "2.55.0" },
+    windows: { release: "10.0.19045", version: "Windows 10 Pro" },
+    tests: { tests: 1181, passed: 1181, failed: 0, skipped: 0 },
+    gate: { skipped: 4, noGithubOrigin: true },
+    cleanup: [],
+    ...overrides,
+  };
+}
+
+export function recordLine(record: ResultRecord = makeRecord()): string {
+  return formatRecord(record);
+}
+
+export interface FakeSysOptions {
+  home: string;
+  /** What each step does: output lines, exit code, and processes it leaves. */
+  steps?: Record<
+    string,
+    {
+      lines?: string[];
+      exitCode?: number | null;
+      timedOut?: boolean;
+      leaves?: ProcInfo[];
+      takes?: number;
+    }
+  >;
+  /** The commit the worktree reports. */
+  headSha?: string;
+  refs?: string[];
+}
+
+export interface FakeSys extends Sys {
+  printed: string;
+  gitCalls: { args: readonly string[]; cwd: string | undefined }[];
+  procs: ProcInfo[];
+  killed: number[];
+  unkillable: Set<number>;
+  clock: number;
+  stepsRun: string[];
+  /** The pids running when each step began. */
+  seenAtStep: Record<string, number[]>;
+  deletedRefs: string[];
+}
+
+export const RUNNER_START = 1_000_000;
+
+/** A Windows machine that is really a temp folder and a scripted process
+ * table. The runner under test sees only `Sys`. */
+export function fakeSys(options: FakeSysOptions): FakeSys {
+  const sys: FakeSys = {
+    home: options.home,
+    devNull: "NUL",
+    tmpdir: "C:\\fake\\tmp",
+    osRelease: "10.0.19045",
+    osVersion: "Windows 10 Pro",
+    self: { pid: 100, ppid: 90, startMs: RUNNER_START },
+    fs: nodeFs,
+    printed: "",
+    gitCalls: [],
+    killed: [],
+    unkillable: new Set(),
+    clock: RUNNER_START + 5_000,
+    stepsRun: [],
+    seenAtStep: {},
+    deletedRefs: [],
+    procs: [
+      { pid: 100, name: "node", startMs: RUNNER_START },
+      { pid: 90, name: "cmd", startMs: RUNNER_START - 1_000 },
+      { pid: 80, name: "sshd-session", startMs: RUNNER_START - 2_000 },
+      { pid: 70, name: "conhost", startMs: RUNNER_START - 900 },
+      { pid: 4, name: "System", startMs: null },
+    ],
+    now: () => sys.clock,
+    sleep(ms) {
+      sys.clock += ms;
+      return Promise.resolve();
+    },
+    print(text) {
+      sys.printed += text;
+    },
+    listProcesses: () =>
+      Promise.resolve(sys.procs.map((proc) => ({ ...proc }))),
+    startOf: (pid) =>
+      Promise.resolve(sys.procs.find((p) => p.pid === pid)?.startMs ?? null),
+    kill(pid) {
+      sys.killed.push(pid);
+      if (!sys.unkillable.has(pid)) {
+        sys.procs = sys.procs.filter((proc) => proc.pid !== pid);
+      }
+    },
+    async git(args, cwd): Promise<GitResult> {
+      sys.gitCalls.push({ args, cwd });
+      const ok: GitResult = { code: 0, stdout: "", stderr: "" };
+      const verb = args.includes("worktree") ? "worktree" : args[0];
+      if (verb === "init") {
+        await nodeFs.mkdir(path.join(args.at(-1) ?? "", ".git"));
+      } else if (verb === "worktree" && args.includes("add")) {
+        await nodeFs.mkdir(args.at(-2) ?? "");
+      } else if (verb === "rev-parse") {
+        return { ...ok, stdout: `${options.headSha ?? SHA}\n` };
+      } else if (verb === "for-each-ref") {
+        return { ...ok, stdout: (options.refs ?? []).join("\n") };
+      } else if (verb === "update-ref") {
+        sys.deletedRefs.push(args.at(-1) ?? "");
+      }
+      return ok;
+    },
+    async runStep(spec: StepSpec, _timeout, onLine): Promise<StepOutcome> {
+      const name =
+        spec.args[0] === "install" ? "install" : (spec.args[0] ?? "");
+      sys.stepsRun.push(name);
+      sys.seenAtStep[name] = sys.procs.map((proc) => proc.pid);
+      const script = options.steps?.[name] ?? {};
+      for (const line of script.lines ?? []) {
+        onLine(line);
+      }
+      sys.clock += script.takes ?? 1_000;
+      sys.procs.push(...(script.leaves ?? []));
+      return Promise.resolve({
+        exitCode: script.timedOut === true ? null : (script.exitCode ?? 0),
+        timedOut: script.timedOut ?? false,
+      });
+    },
+    probe: (command) =>
+      Promise.resolve(
+        command === "node"
+          ? "v24.20.0\n"
+          : command === "pnpm"
+            ? "10.34.5\n"
+            : "git version 2.55.0.windows.1\n",
+      ),
+    where: (command) => Promise.resolve(`C:\\tools\\${command}.exe`),
+  };
+  return sys;
+}
+
+/** The record the runner printed last. */
+export function lastRecord(printed: string): ResultRecord {
+  const lines = printed.split("\n").filter((line) => line !== "");
+  const last = lines.at(-1) ?? "";
+  const marker = `windows-run result ${RUN_ID}: `;
+  if (!last.startsWith(marker)) {
+    throw new Error(`the last line is not a record: ${last}`);
+  }
+  return JSON.parse(last.slice(marker.length)) as ResultRecord;
+}

@@ -9,7 +9,7 @@ export const STEP_NAMES = ["install", "check", "build"] as const;
 export type StepName = (typeof STEP_NAMES)[number];
 
 const STEP_STATUSES = ["passed", "failed", "timed-out", "not-run"] as const;
-export type StepStatus = (typeof STEP_STATUSES)[number];
+type StepStatus = (typeof STEP_STATUSES)[number];
 
 /** Why a run ended before its steps could start. */
 const REFUSALS = [

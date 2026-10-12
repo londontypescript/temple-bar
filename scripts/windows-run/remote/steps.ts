@@ -29,7 +29,7 @@ const PLANS: readonly StepPlan[] = [
   { name: "build", args: ["build"], timeoutMs: 20 * MINUTE },
 ];
 
-export function notRun(name: StepName): StepRecord {
+function notRun(name: StepName): StepRecord {
   return { name, status: "not-run", exitCode: null, durationMs: 0 };
 }
 

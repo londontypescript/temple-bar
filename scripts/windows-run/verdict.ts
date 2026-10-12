@@ -14,7 +14,7 @@ import {
   type ResultRecord,
 } from "./remote/record.ts";
 
-export type IncompleteReason = "connection" | "no-result";
+type IncompleteReason = "connection" | "no-result";
 
 export type Verdict =
   | { readonly code: 0 | 1; readonly record: ResultRecord }

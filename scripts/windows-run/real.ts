@@ -13,7 +13,7 @@ import { createSsh } from "./ssh.ts";
 
 const START_TOLERANCE_MS = 2_000;
 
-const git: Git = {
+export const git: Git = {
   run: (args, cwd) =>
     new Promise((resolve) => {
       execFile(

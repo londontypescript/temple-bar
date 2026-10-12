@@ -4,7 +4,7 @@
 
 import type { FsLike } from "./remote/fsx.ts";
 
-export interface GitResult {
+interface GitResult {
   readonly code: number;
   readonly stdout: string;
   readonly stderr: string;
@@ -32,7 +32,7 @@ export interface Ssh {
   ): Promise<number>;
 }
 
-export interface Writer {
+interface Writer {
   write(text: string): void;
 }
 

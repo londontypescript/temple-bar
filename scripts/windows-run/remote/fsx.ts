@@ -16,7 +16,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 
-export interface Stat {
+interface Stat {
   isSymbolicLink(): boolean;
   isDirectory(): boolean;
   readonly size: number;
