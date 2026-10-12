@@ -38,7 +38,9 @@ function pnpmNames(env: NodeJS.ProcessEnv): string[] {
  * path where the fake sits first. */
 export function realPnpmPath(env: NodeJS.ProcessEnv): string {
   const names = pnpmNames(env);
-  for (const dir of (env[pathKey(env)] ?? "").split(path.delimiter)) {
+  for (const entry of (env[pathKey(env)] ?? "").split(path.delimiter)) {
+    // cmd accepts a quoted entry, such as "C:\Program Files\nodejs".
+    const dir = entry.replace(/^"(.*)"$/, "$1");
     if (dir === "") continue;
     for (const name of names) {
       const candidate = path.join(dir, name);
@@ -56,9 +58,9 @@ function posixScript(real: string, onlyForChildren: boolean): string {
   return `#!/bin/sh\n${passThrough}if [ "$1" = "--version" ]; then echo ${OLD_PNPM_VERSION}; fi\nexit 0\n`;
 }
 
-/** The batch-file stand-in. CRLF line endings, as cmd expects. Labels
- * rather than parenthesised blocks, since cmd expands `%errorlevel%` in a
- * block before running any of it. */
+/** The batch-file stand-in. CRLF line endings, as cmd expects. The real
+ * pnpm runs without `call`, which would expand any `%` in the arguments a
+ * second time; as the last line, its exit code is the stand-in's. */
 function windowsScript(real: string, onlyForChildren: boolean): string {
   const lines = [
     "@echo off",
@@ -67,9 +69,7 @@ function windowsScript(real: string, onlyForChildren: boolean): string {
       : []),
     `if "%~1"=="--version" echo ${OLD_PNPM_VERSION}`,
     "exit /b 0",
-    ...(onlyForChildren
-      ? [":real", `call "${real}" %*`, "exit /b %errorlevel%"]
-      : []),
+    ...(onlyForChildren ? [":real", `"${real}" %*`] : []),
   ];
   return `${lines.join("\r\n")}\r\n`;
 }
