@@ -75,6 +75,28 @@ void test("the 15-second stop deadline holds inside a batch of slow queries", as
   );
 });
 
+void test("a slow kill cannot push a batch past the deadline", async (t) => {
+  const sys = fakeSys({ home: tempDir(t) });
+  sys.procs.push(
+    { pid: 301, name: "node", startMs: RUNNER_START + 10 },
+    { pid: 302, name: "node", startMs: RUNNER_START + 20 },
+  );
+  let queries = 0;
+  const startOf = sys.startOf.bind(sys);
+  sys.startOf = (pid) => {
+    queries++;
+    return startOf(pid);
+  };
+  const kill = sys.kill.bind(sys);
+  sys.kill = (pid) => {
+    kill(pid);
+    sys.clock += 20_000;
+  };
+  await stopProcesses(sys, (proc) => proc.pid >= 300);
+  assert.equal(queries, 1);
+  assert.deepEqual(sys.killed, [301]);
+});
+
 // A parent that exits at once while a grandchild keeps the output pipes open
 // for a while, as a leftover test server would.
 const GRANDCHILD = `
