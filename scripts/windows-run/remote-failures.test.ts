@@ -23,12 +23,13 @@ function lockWith(home: string, owner: object): string {
 }
 
 void test("a failed process listing fails the run closed at every caller", async (t) => {
-  // Listings: 1 start, 2 sweep, 3 after install, 4 after check, 5 after
-  // build, 6 final cleanup.
+  // Listings: 1 start, 2 sweep, 3 the readiness check's tree, 4 after
+  // install, 5 after check, 6 after build, 7 final cleanup.
   const cases: { from: number; steps: string[]; refusal: string }[] = [
     { from: 1, steps: [], refusal: "runner-error" },
     { from: 2, steps: [], refusal: "runner-error" },
-    { from: 3, steps: ["install"], refusal: "runner-error" },
+    { from: 3, steps: [], refusal: "runner-error" },
+    { from: 4, steps: ["install"], refusal: "runner-error" },
   ];
   for (const { from, steps, refusal } of cases) {
     const sys = fakeSys({ home: tempDir(t), failListingFrom: from });
@@ -54,7 +55,7 @@ void test("a failed listing never reads a live lock holder as dead", async (t) =
 });
 
 void test("a listing that fails during final cleanup is reported and the result stands", async (t) => {
-  const sys = fakeSys({ home: tempDir(t), failListingFrom: 6 });
+  const sys = fakeSys({ home: tempDir(t), failListingFrom: 7 });
   assert.equal(await runRemote(RUN_ID, SHA, sys), 0);
   assert.match(
     lastRecord(sys.printed).cleanup.join(" "),
@@ -90,7 +91,7 @@ void test("the log is flushed before its problem is read, and a failed lock rele
 
 void test("a runner error keeps the log", async (t) => {
   const home = tempDir(t);
-  const sys = fakeSys({ home, failListingFrom: 3 });
+  const sys = fakeSys({ home, failListingFrom: 4 });
   await runRemote(RUN_ID, SHA, sys);
   assert.ok(existsSync(path.join(home, ROOT, "logs", `${RUN_ID}.log`)));
 });

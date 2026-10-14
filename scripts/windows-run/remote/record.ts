@@ -15,6 +15,7 @@ type StepStatus = (typeof STEP_STATUSES)[number];
 const REFUSALS = [
   "lock-held",
   "sweep-failed",
+  "machine-not-ready",
   "fetch-failed",
   "checkout-failed",
   "commit-mismatch",

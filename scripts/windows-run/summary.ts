@@ -44,6 +44,8 @@ const WINDOWS_REFUSAL_TEXT: Record<
 > = {
   "lock-held": "another run was in progress on Windows",
   "sweep-failed": "a leftover process from an earlier run would not stop",
+  "machine-not-ready":
+    "the Windows machine can't yet do what CI's runners can (sh, links or taskkill)",
   "fetch-failed": "the commit could not be fetched",
   "checkout-failed": "the commit could not be checked out",
   "commit-mismatch": "the checkout was not the requested commit",

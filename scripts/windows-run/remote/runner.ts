@@ -1,6 +1,7 @@
 // What runs on the Windows machine: take the lock, sweep a killed run's
-// leftovers, check the commit out in a fresh worktree (git hooks off), run
-// install, check and build, clean up, and print the result record last.
+// leftovers, check the machine can do what CI's runners can, check the commit
+// out in a fresh worktree (git hooks off), run install, check and build, clean
+// up, and print the result record last.
 // Everything it touches is under one folder in the account's home, and it is
 // all reached through `Sys`, so the logic is tested with fakes.
 
@@ -21,6 +22,7 @@ import {
   startedAfter,
   stopProcesses,
 } from "./processes.ts";
+import { readinessProblems } from "./readiness.ts";
 import { formatRecord, type Refusal, type ResultRecord } from "./record.ts";
 import { CheckScanner } from "./scan.ts";
 import { allNotRun, runSteps } from "./steps.ts";
@@ -285,6 +287,19 @@ export async function runRemote(
 
     cleanupNeeded = true;
     try {
+      const unready = await readinessProblems(
+        sys,
+        path.join(layout.incoming, runId, "readiness"),
+      );
+      for (const problem of unready) {
+        say(`windows-run: machine not ready: ${problem}`);
+      }
+      if (unready.length > 0) {
+        throw new Failure(
+          "machine-not-ready",
+          "this machine can't do what CI's runners can (see above)",
+        );
+      }
       const worktree = await checkOut(sys, layout, runId, sha, ref);
       const { steps, problems } = await runSteps(
         sys,

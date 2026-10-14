@@ -12,6 +12,7 @@ import {
   rename,
   rm,
   rmdir,
+  symlink,
   unlink,
   writeFile,
 } from "node:fs/promises";
@@ -35,6 +36,9 @@ export interface FsLike {
   unlink(path: string): Promise<void>;
   readdir(path: string): Promise<string[]>;
   lstat(path: string): Promise<Stat>;
+  /** Makes a symbolic link at `path` to `target`. Windows needs to know
+   * whether the target is a file or a folder. */
+  symlink(target: string, path: string, type: "file" | "dir"): Promise<void>;
 }
 
 export const nodeFs: FsLike = {
@@ -57,6 +61,7 @@ export const nodeFs: FsLike = {
   },
   readdir,
   lstat,
+  symlink: (target, path, type) => symlink(target, path, type),
 };
 
 export async function pathExists(fs: FsLike, path: string): Promise<boolean> {

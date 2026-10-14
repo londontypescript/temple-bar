@@ -66,4 +66,10 @@ export interface Sys {
   probe(command: string, args: readonly string[]): Promise<string | null>;
   /** Where the command resolves on PATH, or null. */
   where(command: string): Promise<string | null>;
+  /** Starts a chain of `depth` processes, each the child of the one before,
+   * and returns their pids, top first. Fewer if they would not all start. */
+  startTree(depth: number): Promise<number[]>;
+  /** Stops a process and everything under it with `taskkill /T`, and returns
+   * taskkill's exit code. */
+  stopTree(pid: number): Promise<number>;
 }

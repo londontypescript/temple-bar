@@ -80,6 +80,11 @@ export interface FakeSysOptions {
   failListingFrom?: number;
   /** Git calls (joined with spaces) that fail. */
   failGit?: (args: string) => boolean;
+  /** Where `sh` resolves; Git's own by default. Null: not on PATH. */
+  shAt?: string | null;
+  /** How the trial tree for `taskkill /T` goes: how many levels start, what
+   * taskkill exits with, and whether the levels below the top survive it. */
+  tree?: { starts?: number; stopCode?: number; childrenSurvive?: boolean };
 }
 
 export interface FakeSys extends Sys {
@@ -94,7 +99,12 @@ export interface FakeSys extends Sys {
   /** The pids running when each step began. */
   seenAtStep: Record<string, number[]>;
   deletedRefs: string[];
+  /** The pids of the trial tree, top first, once it has started. */
+  treePids: number[];
 }
+
+const GIT_EXEC_PATH = "C:/Program Files/Git/mingw64/libexec/git-core";
+const GIT_SH = "C:\\Program Files\\Git\\usr\\bin\\sh.exe";
 
 export const RUNNER_START = 1_000_000;
 
@@ -118,6 +128,7 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
     listings: 0,
     seenAtStep: {},
     deletedRefs: [],
+    treePids: [],
     procs: [
       { pid: 100, name: "node", startMs: RUNNER_START },
       { pid: 90, name: "cmd", startMs: RUNNER_START - 1_000 },
@@ -162,6 +173,8 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
         await nodeFs.mkdir(path.join(args.at(-1) ?? "", ".git"));
       } else if (verb === "worktree" && args.includes("add")) {
         await nodeFs.mkdir(args.at(-2) ?? "");
+      } else if (verb === "--exec-path") {
+        return { ...ok, stdout: `${GIT_EXEC_PATH}\n` };
       } else if (verb === "rev-parse") {
         return { ...ok, stdout: `${options.headSha ?? SHA}\n` };
       } else if (verb === "for-each-ref") {
@@ -193,9 +206,35 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
           ? "v24.20.0\n"
           : command === "pnpm"
             ? "10.34.5\n"
-            : "git version 2.55.0.windows.1\n",
+            : command === "sh"
+              ? "ready\n"
+              : "git version 2.55.0.windows.1\n",
       ),
-    where: (command) => Promise.resolve(`C:\\tools\\${command}.exe`),
+    where: (command) =>
+      Promise.resolve(
+        command === "sh"
+          ? options.shAt === undefined
+            ? GIT_SH
+            : options.shAt
+          : `C:\\tools\\${command}.exe`,
+      ),
+    startTree(depth) {
+      const starts = Math.min(depth, options.tree?.starts ?? depth);
+      sys.treePids = Array.from({ length: starts }, (_, level) => 500 + level);
+      for (const pid of sys.treePids) {
+        sys.procs.push({ pid, name: "node", startMs: sys.clock });
+      }
+      return Promise.resolve([...sys.treePids]);
+    },
+    stopTree(pid) {
+      const code = options.tree?.stopCode ?? 0;
+      if (code === 0) {
+        const stopped =
+          options.tree?.childrenSurvive === true ? [pid] : sys.treePids;
+        sys.procs = sys.procs.filter((proc) => !stopped.includes(proc.pid));
+      }
+      return Promise.resolve(code);
+    },
   };
   return sys;
 }

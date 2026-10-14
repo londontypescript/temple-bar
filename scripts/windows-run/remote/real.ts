@@ -31,6 +31,19 @@ Get-Process | Where-Object { $_.Id -ne $PID } | ForEach-Object {
   '{0}|{1}|{2}' -f $_.Id, $_.ProcessName, $s
 }`;
 
+// One level of the readiness check's trial tree: print its pid, start the
+// next level with its output passed up, and stay alive a while. It exits on
+// its own after two minutes, so a level nothing stops can't run forever.
+const TREE_SCRIPT = `
+const { spawn } = require('node:child_process');
+const depth = Number(process.argv[1]);
+process.stdout.write(process.pid + '\\n');
+if (depth > 1) {
+  const child = spawn(process.execPath, ['-e', 'eval(process.env.TB_TREE)', String(depth - 1)], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+  child.stdout.pipe(process.stdout);
+}
+setTimeout(() => {}, 120000);`;
+
 function startScript(pid: number): string {
   return `
 $ErrorActionPreference = 'SilentlyContinue'
@@ -229,6 +242,52 @@ export function runStep(
   });
 }
 
+function startTree(depth: number): Promise<number[]> {
+  return new Promise((resolve) => {
+    const pids: number[] = [];
+    let child;
+    try {
+      child = spawn(
+        process.execPath,
+        ["-e", "eval(process.env.TB_TREE)", String(depth)],
+        {
+          env: { ...process.env, TB_TREE: TREE_SCRIPT },
+          windowsHide: true,
+          stdio: ["ignore", "pipe", "ignore"],
+        },
+      );
+    } catch {
+      resolve(pids);
+      return;
+    }
+    const buffer = new LineBuffer();
+    let done = false;
+    const finish = (): void => {
+      if (done) {
+        return;
+      }
+      done = true;
+      clearTimeout(deadline);
+      child.stdout.destroy();
+      resolve(pids);
+    };
+    // Whatever started by then is reported; the run's cleanup stops it.
+    const deadline = setTimeout(finish, PROBE_TIMEOUT_MS);
+    child.stdout.on("data", (chunk: Buffer) => {
+      for (const line of buffer.push(chunk)) {
+        if (/^\d+$/.test(line)) {
+          pids.push(Number(line));
+        }
+      }
+      if (pids.length >= depth) {
+        finish();
+      }
+    });
+    child.on("error", finish);
+    child.on("exit", finish);
+  });
+}
+
 export function createRealSys(): Sys {
   return {
     home: process.env.USERPROFILE ?? homedir(),
@@ -283,6 +342,20 @@ export function createRealSys(): Sys {
       });
       const first = result.stdout.split(/\r?\n/)[0] ?? "";
       return result.code === 0 && first !== "" ? first : null;
+    },
+    startTree,
+    async stopTree(pid) {
+      if (!Number.isSafeInteger(pid)) {
+        return 1;
+      }
+      const result = await capture(
+        "taskkill",
+        ["/T", "/F", "/PID", String(pid)],
+        {
+          timeoutMs: PROBE_TIMEOUT_MS,
+        },
+      );
+      return result.code;
     },
   };
 }

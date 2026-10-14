@@ -1,6 +1,6 @@
 // Finding and stopping the processes a step (or a killed earlier run) left
-// behind. The account can't use WMI, tasklist or taskkill, so this lists with
-// PowerShell's Get-Process and stops with Node's process.kill. A process is
+// behind. This lists with PowerShell's Get-Process and stops with Node's
+// process.kill, which need no WMI access (taskkill and tasklist do). A process is
 // identified by its pid and its start time together, because Windows reuses
 // pids; the pair is checked again just before each kill.
 
