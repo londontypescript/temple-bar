@@ -15,14 +15,6 @@ function sh(cwd: string, ...args: string[]): string {
 }
 
 void test("the clone gets the bundle's tags, and keeps no tag the bundle lacks", async (t) => {
-  // The run's own options must do this, not this machine's git config (a
-  // global fetch.prune would hide a missing --prune). Children inherit these.
-  t.after(() => {
-    delete process.env.GIT_CONFIG_GLOBAL;
-    delete process.env.GIT_CONFIG_NOSYSTEM;
-  });
-  process.env.GIT_CONFIG_GLOBAL = devNull;
-  process.env.GIT_CONFIG_NOSYSTEM = "1";
   const source = tempDir(t);
   configureTestRepoForScripts(source);
   writeFileSync(path.join(source, "a.txt"), "a\n");
