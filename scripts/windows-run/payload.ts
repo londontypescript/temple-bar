@@ -1,5 +1,7 @@
 // What is sent to Windows, built from the recorded commit and nothing on
-// disk: the bundle with that commit's history, and the runner's folder written
+// disk: the bundle with that commit's history and the repo's tags (the suite
+// checks the release tags, which CI's full-history checkout has), and the
+// runner's folder written
 // file by file from that commit's tree. A file edited after the commit was
 // recorded can't reach the other machine.
 
@@ -25,7 +27,10 @@ export async function buildPayload(
 ): Promise<Payload> {
   const { git, fs, cwd } = deps;
   const bundle = path.join(folder, "run.bundle");
-  const made = await git.run(["bundle", "create", bundle, "HEAD"], cwd);
+  const made = await git.run(
+    ["bundle", "create", bundle, "HEAD", "--tags"],
+    cwd,
+  );
   if (made.code !== 0) {
     throw new BundleError("git could not create the bundle");
   }

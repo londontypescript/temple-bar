@@ -97,8 +97,19 @@ async function checkOut(
   }
 
   const bundle = path.join(layout.incoming, runId, "run.bundle");
+  // The tags come too, as CI's full-history checkout has them, and the clone
+  // keeps exactly the bundle's: one deleted or moved since an earlier run
+  // must not linger here.
   const fetched = await sys.git(
-    ["fetch", "--quiet", bundle, `HEAD:${ref}`],
+    [
+      "fetch",
+      "--quiet",
+      "--prune",
+      "--force",
+      bundle,
+      `HEAD:${ref}`,
+      "+refs/tags/*:refs/tags/*",
+    ],
     layout.clone,
   );
   if (fetched.code !== 0) {

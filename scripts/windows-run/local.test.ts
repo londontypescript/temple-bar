@@ -216,6 +216,21 @@ void test("a live local holder refuses; a dead one is taken over and reported", 
   assert.match(r.err.join(""), /took over/);
 });
 
+void test("the bundle carries the repo's tags with the commit", async (t) => {
+  const r = rig(t);
+  sh(r.repo, "tag", "v0.0.1");
+  let heads = "";
+  r.onCopy = (local) => {
+    if (local.endsWith("run.bundle")) {
+      heads = sh(r.repo, "bundle", "list-heads", local);
+    }
+    return 0;
+  };
+  assert.equal(await runLocal(["--host", "win-box"], r.deps), 0);
+  assert.match(heads, new RegExp(`^${r.sha} HEAD$`, "m"));
+  assert.match(heads, new RegExp(`^${r.sha} refs/tags/v0\\.0\\.1$`, "m"));
+});
+
 void test("what is sent comes from the recorded commit, not from files on disk", async (t) => {
   const r = rig(t);
   let seen = "";
