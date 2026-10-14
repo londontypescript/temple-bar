@@ -33,7 +33,9 @@ async function shProblem(sys: Sys): Promise<string | null> {
   // The exec path is <Git>\mingw64\libexec\git-core (or mingw32).
   const gitRoot = win.resolve(execPath.stdout.trim(), "..", "..", "..");
   const expected = win.join(gitRoot, "usr", "bin", "sh.exe");
-  const found = await sys.where("sh");
+  // Asked for the .exe: Node starts a bare `sh` without a shell, so it never
+  // runs a sh.cmd that `where sh` might list first.
+  const found = await sys.where("sh.exe");
   if (found === null) {
     return `no sh on PATH: add ${win.dirname(expected)} to this account's PATH`;
   }
@@ -74,19 +76,24 @@ async function treeProblem(sys: Sys): Promise<string | null> {
   }
   const [root] = pids as [number, ...number[]];
   const code = await sys.stopTree(root);
+  if (code === null) {
+    // Its pid may already be someone else's, so nothing was stopped.
+    return "the tree's top process exited before taskkill could stop it";
+  }
   if (code !== 0) {
     return `taskkill /T exited ${String(code)}: this account may need WMI access (Remote Enable on root\\cimv2)`;
   }
   const end = sys.now() + STOP_WAIT_MS;
   let left: ProcInfo[];
   for (;;) {
-    // Only processes newer than the tree can be part of it: an older one
-    // under the same pid is someone else.
+    // A process under one of the tree's pids that started before the tree is
+    // someone else. One that started since counts as a survivor, even if it
+    // reused the pid, and so does one whose start can't be read: either way
+    // the stop can't be confirmed, so the run is refused rather than passed.
     left = (await sys.listProcesses()).filter(
       (proc) =>
         pids.includes(proc.pid) &&
-        proc.startMs !== null &&
-        proc.startMs >= startedAt,
+        (proc.startMs === null || proc.startMs >= startedAt),
     );
     if (left.length === 0 || sys.now() >= end) {
       break;

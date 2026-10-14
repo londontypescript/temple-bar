@@ -69,7 +69,8 @@ export interface Sys {
   /** Starts a chain of `depth` processes, each the child of the one before,
    * and returns their pids, top first. Fewer if they would not all start. */
   startTree(depth: number): Promise<number[]>;
-  /** Stops a process and everything under it with `taskkill /T`, and returns
-   * taskkill's exit code. */
-  stopTree(pid: number): Promise<number>;
+  /** Stops the tree `startTree` started, from `pid` (its top) down, with
+   * `taskkill /T`, and returns taskkill's exit code. Null, stopping nothing,
+   * when the top process has already exited: its pid may be reused. */
+  stopTree(pid: number): Promise<number | null>;
 }

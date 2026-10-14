@@ -82,9 +82,18 @@ export interface FakeSysOptions {
   failGit?: (args: string) => boolean;
   /** Where `sh` resolves; Git's own by default. Null: not on PATH. */
   shAt?: string | null;
+  /** What `sh -c "echo ready"` prints; null when it fails. */
+  shSays?: string | null;
   /** How the trial tree for `taskkill /T` goes: how many levels start, what
    * taskkill exits with, and whether the levels below the top survive it. */
-  tree?: { starts?: number; stopCode?: number; childrenSurvive?: boolean };
+  tree?: {
+    starts?: number;
+    /** Null: the top had exited before the stop. */
+    stopCode?: number | null;
+    childrenSurvive?: boolean;
+    /** The levels left are listed with no readable start time. */
+    unreadable?: boolean;
+  };
 }
 
 export interface FakeSys extends Sys {
@@ -207,12 +216,14 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
           : command === "pnpm"
             ? "10.34.5\n"
             : command === "sh"
-              ? "ready\n"
+              ? options.shSays === undefined
+                ? "ready\n"
+                : options.shSays
               : "git version 2.55.0.windows.1\n",
       ),
     where: (command) =>
       Promise.resolve(
-        command === "sh"
+        command === "sh.exe"
           ? options.shAt === undefined
             ? GIT_SH
             : options.shAt
@@ -227,7 +238,13 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
       return Promise.resolve([...sys.treePids]);
     },
     stopTree(pid) {
-      const code = options.tree?.stopCode ?? 0;
+      const code =
+        options.tree?.stopCode === undefined ? 0 : options.tree.stopCode;
+      if (options.tree?.unreadable === true) {
+        sys.procs = sys.procs.map((proc) =>
+          sys.treePids.includes(proc.pid) ? { ...proc, startMs: null } : proc,
+        );
+      }
       if (code === 0) {
         const stopped =
           options.tree?.childrenSurvive === true ? [pid] : sys.treePids;

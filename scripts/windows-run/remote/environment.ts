@@ -1,8 +1,7 @@
 // What the run reports about the machine it ran on. Versions and where each
 // tool resolved come from the tools themselves (`node --version`, `where`),
 // not WMI, which a standard account has only once granted. The paths go to
-// the terminal only; the record
-// carries just the versions.
+// the terminal only; the record carries just the versions.
 
 import type { ResultRecord } from "./record.ts";
 import type { Sys } from "./sys.ts";

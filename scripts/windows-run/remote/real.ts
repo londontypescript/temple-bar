@@ -3,7 +3,7 @@
 // running the command for real. The pure parts it leans on (process list
 // parsing, line splitting) are tested.
 
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { devNull, homedir, release, tmpdir, version } from "node:os";
 import process from "node:process";
 
@@ -245,10 +245,15 @@ export function runStep(
   });
 }
 
+/** The top of the trial tree, kept so the stop can check it is still running:
+ * while it is, Windows holds its pid for it, so taskkill can't reach another
+ * process under a reused pid. */
+let treeTop: ChildProcess | undefined;
+
 function startTree(depth: number): Promise<number[]> {
   return new Promise((resolve) => {
     const pids: number[] = [];
-    let child;
+    let child: ChildProcess;
     try {
       child = spawn(
         process.execPath,
@@ -263,6 +268,12 @@ function startTree(depth: number): Promise<number[]> {
       resolve(pids);
       return;
     }
+    treeTop = child;
+    const stdout = child.stdout;
+    if (stdout === null) {
+      resolve(pids);
+      return;
+    }
     const buffer = new LineBuffer();
     let done = false;
     const finish = (): void => {
@@ -271,12 +282,12 @@ function startTree(depth: number): Promise<number[]> {
       }
       done = true;
       clearTimeout(deadline);
-      child.stdout.destroy();
+      stdout.destroy();
       resolve(pids);
     };
     // Whatever started by then is reported; the run's cleanup stops it.
     const deadline = setTimeout(finish, PROBE_TIMEOUT_MS);
-    child.stdout.on("data", (chunk: Buffer) => {
+    stdout.on("data", (chunk: Buffer) => {
       for (const line of buffer.push(chunk)) {
         if (/^\d+$/.test(line)) {
           pids.push(Number(line));
@@ -348,8 +359,13 @@ export function createRealSys(): Sys {
     },
     startTree,
     async stopTree(pid) {
-      if (!Number.isSafeInteger(pid)) {
-        return 1;
+      const top = treeTop;
+      if (
+        top?.pid !== pid ||
+        top.exitCode !== null ||
+        top.signalCode !== null
+      ) {
+        return null;
       }
       const result = await capture(
         "taskkill",

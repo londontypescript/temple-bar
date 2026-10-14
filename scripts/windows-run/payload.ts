@@ -1,9 +1,8 @@
 // What is sent to Windows, built from the recorded commit and nothing on
 // disk: the bundle with that commit's history and the repo's tags (the suite
 // checks the release tags, which CI's full-history checkout has), and the
-// runner's folder written
-// file by file from that commit's tree. A file edited after the commit was
-// recorded can't reach the other machine.
+// runner's folder written file by file from that commit's tree. A file edited
+// after the commit was recorded can't reach the other machine.
 
 import path from "node:path";
 
