@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import type { spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { test } from "node:test";
 
 import { nodeFs, removeWithRetry, type FsLike } from "./remote/fsx.ts";
@@ -6,6 +9,7 @@ import { processesFromListing, stopProcesses } from "./remote/processes.ts";
 import { capture, runStep } from "./remote/real.ts";
 import { fakeSys, RUNNER_START, tempDir } from "./testing.ts";
 
+const STEP = { command: "pnpm", args: ["check"], cwd: process.cwd() };
 const noSleep = (): Promise<void> => Promise.resolve();
 
 function errno(code: string): Error {
@@ -133,16 +137,44 @@ void test("a step ends when its process exits, even if a grandchild holds the st
   assert.ok(Date.now() - started < 2_000);
 });
 
-void test("the step deadline cannot fire after the process has exited", async () => {
-  // Deadline 250 ms, exit at 100 ms, grace 600 ms: the old deadline would
-  // have fired inside the grace and called the step timed out.
-  const outcome = await runStep(
-    { command: process.execPath, args: ["-e", GRANDCHILD], cwd: process.cwd() },
-    250,
-    () => undefined,
-    600,
-  );
-  assert.deepEqual(outcome, { exitCode: 0, timedOut: false });
+/** A process that does nothing until the test makes it exit, with output
+ * streams that stay open, as a leftover grandchild would hold them. */
+function heldOpenProcess(): {
+  start: typeof spawn;
+  exit: (code: number) => void;
+} {
+  // No pid: when the deadline stops it, nothing real can be signalled.
+  const child = Object.assign(new EventEmitter(), {
+    pid: undefined,
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+  });
+  return {
+    start: (() => child) as unknown as typeof spawn,
+    exit: (code) => child.emit("exit", code),
+  };
+}
+
+void test("the step deadline cannot fire after the process has exited", async (t) => {
+  // The clock is fake: nothing fires until the test moves it, so how fast a
+  // real process starts can't change the outcome. Exit at 100 ms, then move
+  // well past the 250 ms deadline: inside the 600 ms grace, a deadline left
+  // armed would call the step timed out.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const proc = heldOpenProcess();
+  const outcome = runStep(STEP, 250, () => undefined, 600, proc.start);
+  t.mock.timers.tick(100);
+  proc.exit(0);
+  t.mock.timers.tick(1_000);
+  assert.deepEqual(await outcome, { exitCode: 0, timedOut: false });
+
+  // The same process still running at 250 ms is stopped as timed out.
+  const late = heldOpenProcess();
+  const stopped = runStep(STEP, 250, () => undefined, 600, late.start);
+  // Two moves: a fake timer set while the clock moves waits for the next.
+  t.mock.timers.tick(300);
+  t.mock.timers.tick(1_000);
+  assert.deepEqual(await stopped, { exitCode: null, timedOut: true });
 });
 
 void test("capture resolves after exit despite a grandchild, and stops a process past its timeout", async () => {

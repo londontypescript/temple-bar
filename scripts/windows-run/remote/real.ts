@@ -161,16 +161,19 @@ function needsShell(command: string, args: readonly string[]): boolean {
   return true;
 }
 
+/** `start` is how the process is started: tests pass a fake process, so
+ * timing is checked with a fake clock rather than a real process's speed. */
 export function runStep(
   spec: StepSpec,
   timeoutMs: number,
   onLine: (line: string) => void,
   graceMs = STREAM_GRACE_MS,
+  start: typeof spawn = spawn,
 ): Promise<StepOutcome> {
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn(spec.command, spec.args, {
+      child = start(spec.command, spec.args, {
         cwd: spec.cwd,
         shell: needsShell(spec.command, spec.args),
         windowsHide: true,
