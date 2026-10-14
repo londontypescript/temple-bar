@@ -11,6 +11,7 @@ import {
   SHA,
   tempDir,
 } from "./testing.ts";
+import { stopTreeFrom } from "./remote/real.ts";
 import { runRemote } from "./remote/runner.ts";
 
 /** Links whose target is `refused` fail as a standard account's would. */
@@ -71,6 +72,9 @@ void test("sh must be Git's own, found case-insensitively", async (t) => {
   const other = await refusedRun(t, { shSays: "something else\n" });
   assert.match(other.printed, /is on PATH but would not run a command/);
 
+  const com = await refusedRun(t, { shComAt: "C:\\tools\\sh.com" });
+  assert.match(com.printed, /C:\\tools\\sh\.com is on PATH/);
+
   const shouting = fakeSys({
     home: tempDir(t),
     shAt: "C:\\PROGRAM FILES\\GIT\\USR\\BIN\\SH.EXE",
@@ -87,6 +91,31 @@ void test("each kind of link must be possible: to a file, a folder and nothing",
       `refusing links to ${target}`,
     );
   }
+  // Each refusal was its own run's: a run after them all, on the same shared
+  // fs, can make every link.
+  assert.equal(await runRemote(RUN_ID, SHA, fakeSys({ home: tempDir(t) })), 0);
+});
+
+void test("taskkill runs only while the tree's own top is still running", () => {
+  const calls: (readonly string[])[] = [];
+  const run = (args: readonly string[]): number => {
+    calls.push(args);
+    return 0;
+  };
+  const running = { pid: 42, exitCode: null, signalCode: null };
+  assert.equal(stopTreeFrom(running, 42, run), 0);
+  assert.deepEqual(calls, [["/T", "/F", "/PID", "42"]]);
+
+  calls.length = 0;
+  for (const top of [
+    { pid: 42, exitCode: 0, signalCode: null },
+    { pid: 42, exitCode: null, signalCode: "SIGTERM" as const },
+    { pid: 43, exitCode: null, signalCode: null },
+    undefined,
+  ]) {
+    assert.equal(stopTreeFrom(top, 42, run), null);
+  }
+  assert.deepEqual(calls, []);
 });
 
 void test("taskkill /T must stop all three levels", async (t) => {

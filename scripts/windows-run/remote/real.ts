@@ -3,7 +3,7 @@
 // running the command for real. The pure parts it leans on (process list
 // parsing, line splitting) are tested.
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { devNull, homedir, release, tmpdir, version } from "node:os";
 import process from "node:process";
 
@@ -245,10 +245,37 @@ export function runStep(
   });
 }
 
-/** The top of the trial tree, kept so the stop can check it is still running:
- * while it is, Windows holds its pid for it, so taskkill can't reach another
- * process under a reused pid. */
+/** The top of the trial tree, kept so the stop can check it is its own. */
 let treeTop: ChildProcess | undefined;
+
+function taskkillSync(args: readonly string[]): number {
+  const result = spawnSync("taskkill", args, {
+    timeout: PROBE_TIMEOUT_MS,
+    windowsHide: true,
+    stdio: "ignore",
+  });
+  return result.status ?? 124;
+}
+
+/**
+ * Stops the trial tree from its top with `taskkill /T`, and returns
+ * taskkill's exit code, or null (running nothing) when the top has exited
+ * or isn't the tree's. Run synchronously on purpose: Node closes a child's
+ * process handle only when the event loop handles its exit, and Windows never
+ * reuses a pid while a handle to it is open. With the loop blocked from the
+ * check to the end of taskkill, the pid can't pass to another process even if
+ * the top exits meanwhile; taskkill then just fails.
+ */
+export function stopTreeFrom(
+  top: Pick<ChildProcess, "pid" | "exitCode" | "signalCode"> | undefined,
+  pid: number,
+  run: (args: readonly string[]) => number = taskkillSync,
+): number | null {
+  if (top?.pid !== pid || top.exitCode !== null || top.signalCode !== null) {
+    return null;
+  }
+  return run(["/T", "/F", "/PID", String(pid)]);
+}
 
 function startTree(depth: number): Promise<number[]> {
   return new Promise((resolve) => {
@@ -358,23 +385,6 @@ export function createRealSys(): Sys {
       return result.code === 0 && first !== "" ? first : null;
     },
     startTree,
-    async stopTree(pid) {
-      const top = treeTop;
-      if (
-        top?.pid !== pid ||
-        top.exitCode !== null ||
-        top.signalCode !== null
-      ) {
-        return null;
-      }
-      const result = await capture(
-        "taskkill",
-        ["/T", "/F", "/PID", String(pid)],
-        {
-          timeoutMs: PROBE_TIMEOUT_MS,
-        },
-      );
-      return result.code;
-    },
+    stopTree: (pid) => Promise.resolve(stopTreeFrom(treeTop, pid)),
   };
 }

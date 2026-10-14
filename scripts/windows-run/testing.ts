@@ -82,6 +82,8 @@ export interface FakeSysOptions {
   failGit?: (args: string) => boolean;
   /** Where `sh` resolves; Git's own by default. Null: not on PATH. */
   shAt?: string | null;
+  /** Where a `sh.com` is on PATH, if anywhere. */
+  shComAt?: string;
   /** What `sh -c "echo ready"` prints; null when it fails. */
   shSays?: string | null;
   /** How the trial tree for `taskkill /T` goes: how many levels start, what
@@ -223,11 +225,13 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
       ),
     where: (command) =>
       Promise.resolve(
-        command === "sh.exe"
-          ? options.shAt === undefined
-            ? GIT_SH
-            : options.shAt
-          : `C:\\tools\\${command}.exe`,
+        command === "sh.com"
+          ? (options.shComAt ?? null)
+          : command === "sh.exe"
+            ? options.shAt === undefined
+              ? GIT_SH
+              : options.shAt
+            : `C:\\tools\\${command}.exe`,
       ),
     startTree(depth) {
       const starts = Math.min(depth, options.tree?.starts ?? depth);

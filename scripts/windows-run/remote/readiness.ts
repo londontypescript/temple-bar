@@ -42,6 +42,12 @@ async function shProblem(sys: Sys): Promise<string | null> {
   if (!sameFile(found, expected)) {
     return `sh on PATH is ${found}, not Git's (${expected})`;
   }
+  // In each folder on PATH Node tries sh.com before sh.exe, so any sh.com
+  // could run instead of Git's.
+  const com = await sys.where("sh.com");
+  if (com !== null) {
+    return `${com} is on PATH, and Node could run it instead of Git's sh`;
+  }
   const ran = await sys.probe("sh", ["-c", "echo ready"]);
   if (ran?.trim() !== "ready") {
     return `sh at ${found} is on PATH but would not run a command`;
