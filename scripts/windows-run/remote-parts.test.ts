@@ -66,6 +66,32 @@ void test("test totals and gate skips are read; ambiguity is unknown", () => {
   assert.equal(new CheckScanner().totals().gateSkipped, "unknown");
 });
 
+void test("a gate skip is put down to no GitHub origin only when every row says so", () => {
+  const read = (rows: string[]): boolean => {
+    const scanner = new CheckScanner();
+    for (const line of ["gate: checks:", ...rows, "gate: passed"]) {
+      scanner.feed(line);
+    }
+    return scanner.totals().gateNoGithubOrigin;
+  };
+  // What the run's own clone, which has no remote, prints.
+  assert.equal(read(["  skipped  branch ruleset (no origin remote)"]), true);
+  assert.equal(
+    read([
+      "  skipped  branch ruleset (no origin remote)",
+      "  skipped  judge ruleset (origin is not on GitHub)",
+    ]),
+    true,
+  );
+  assert.equal(
+    read([
+      "  skipped  branch ruleset (no origin remote)",
+      "  skipped  judge ruleset (could not read GitHub: GitHub answered 403)",
+    ]),
+    false,
+  );
+});
+
 void test("the process list parses, and any line that does not fit spoils it", () => {
   assert.deepEqual(
     parseProcessList("12|node|1700000000000\r\n7|Sys|tem|\r\n\r\n"),

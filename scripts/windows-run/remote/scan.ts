@@ -11,7 +11,12 @@ import type { Count } from "./record.ts";
 const SUMMARY_LINE = /^(?:ℹ|#) (tests|pass|fail|skipped) (\d+)$/;
 // The gate prints one row per check: two spaces, the status, the check's name.
 const GATE_ROW = /^ {2}(passed|failed|missing|no-op|skipped)\s+(.+)$/;
-const NO_GITHUB_SUFFIX = " (origin is not on GitHub)";
+// The gate's two ways of saying it has no GitHub repo to read: the run's
+// clone has no remote at all, and a clone's origin can point elsewhere.
+const NO_GITHUB_SUFFIXES = [
+  " (no origin remote)",
+  " (origin is not on GitHub)",
+];
 
 export interface CheckTotals {
   readonly tests: Count;
@@ -70,7 +75,9 @@ export class CheckScanner {
       gateNoGithubOrigin:
         reportRead &&
         this.#skippedRows.length > 0 &&
-        this.#skippedRows.every((row) => row.endsWith(NO_GITHUB_SUFFIX)),
+        this.#skippedRows.every((row) =>
+          NO_GITHUB_SUFFIXES.some((suffix) => row.endsWith(suffix)),
+        ),
     };
   }
 }
