@@ -136,13 +136,27 @@ void test("the local verdict reads the runner's real output and exit code as the
   }
 });
 
-void test("a step past its deadline is recorded as timed out", async (t) => {
+void test("a step past its deadline is recorded as timed out, saying what the stop did", async (t) => {
+  const leftover = { pid: 200, name: "node", startMs: RUNNER_START + 6_000 };
   const sys = fakeSys({
     home: tempDir(t),
-    steps: { install: { timedOut: true } },
+    steps: { install: { timedOut: true, leaves: [leftover] } },
   });
   assert.equal(await runRemote(RUN_ID, SHA, sys), 1);
   assert.equal(lastRecord(sys.printed).steps[0]?.status, "timed-out");
+  assert.match(
+    sys.printed,
+    /install passed its 20-minute deadline: stopping it and everything it started\n.*install stopped, with everything it started\n/s,
+  );
+
+  const stuck = fakeSys({
+    home: tempDir(t),
+    steps: { install: { timedOut: true, leaves: [leftover] } },
+  });
+  stuck.unkillable.add(200);
+  assert.equal(await runRemote(RUN_ID, SHA, stuck), 1);
+  assert.match(stuck.printed, /step install: could not stop node \(pid 200\)/);
+  assert.doesNotMatch(stuck.printed, /install stopped/);
 });
 
 void test("a cleanup failure after passing steps is reported and stays a pass", async (t) => {

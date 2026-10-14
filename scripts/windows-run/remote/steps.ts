@@ -83,14 +83,23 @@ export async function runSteps(
         ? "passed"
         : "failed";
     if (outcome.timedOut) {
+      // Said before the stop, which can take a while: the step's own process
+      // has been told to stop, but what it started may still be running.
       say(
-        `windows-run: step ${plan.name} passed its ${String(plan.timeoutMs / MINUTE)}-minute deadline and was stopped`,
+        `windows-run: step ${plan.name} passed its ${String(plan.timeoutMs / MINUTE)}-minute deadline: stopping it and everything it started`,
       );
     }
 
     // Nothing from one step may overlap the next. If something won't stop,
     // this decides the result: the step fails and the rest are not run.
     const survivors = await stopProcesses(sys, startedSince(startedAt));
+    if (outcome.timedOut) {
+      say(
+        survivors.length === 0
+          ? `windows-run: step ${plan.name} stopped, with everything it started`
+          : `windows-run: step ${plan.name}: could not stop ${survivors.map(describeProcess).join(", ")}`,
+      );
+    }
     if (survivors.length > 0) {
       for (const proc of survivors) {
         problems.push(
