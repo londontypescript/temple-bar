@@ -9,10 +9,7 @@
 
 import type { Context } from "../context.ts";
 import { afterMerge } from "./after.ts";
-import {
-  createWorktreeRemover,
-  type WorktreeRemover,
-} from "./finish-removal.ts";
+import type { WorktreeRemover } from "./finish-removal.ts";
 import { bypassReport, readBypasses } from "../judge/bypasses.ts";
 import { ASK_FOR_ADMIN_MERGE } from "../judge/changes.ts";
 import {
@@ -56,9 +53,9 @@ export interface MergeDeps {
   /** The full gate, run in a worktree after merge brings its branch up to
    * date; resolves the gate's exit code. */
   readonly runGate: RunGate;
-  /** Finishes a worktree removal git leaves half done; the real filesystem
-   * when not given. Only merge has it: setup never deletes anything. */
-  readonly worktreeRemover?: WorktreeRemover;
+  /** Finishes a worktree removal git leaves half done. Only merge has it:
+   * setup never deletes anything. */
+  readonly worktreeRemover: WorktreeRemover;
 }
 
 export interface MergeOptions {
@@ -267,7 +264,7 @@ async function mergeAndReport(
     sha,
     root,
     prNumber: options.prNumber,
-    remover: deps.worktreeRemover ?? createWorktreeRemover(),
+    remover: deps.worktreeRemover,
   });
 }
 

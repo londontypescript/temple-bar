@@ -8,6 +8,7 @@ import type { Context } from "../context.ts";
 import type { CommandEntry } from "../registry.ts";
 import { gateCommand } from "../gate/command.ts";
 import { GUARDED_CHECKS } from "../judge/guarded-checks.ts";
+import { createWorktreeRemover } from "./finish-removal.ts";
 import { runMerge, type MergeDeps } from "./run.ts";
 
 interface ParsedArgs {
@@ -38,6 +39,7 @@ export const realMergeDeps: MergeDeps = {
     await delay(ms);
   },
   runGate: (ctx) => gateCommand.run([], ctx),
+  worktreeRemover: createWorktreeRemover(),
 };
 
 export function createMergeCommand(deps: MergeDeps): CommandEntry {

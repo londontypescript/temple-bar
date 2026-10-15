@@ -205,7 +205,11 @@ function describe(pullRequest: ClosedPullRequest): string {
 
 /** The report, one line per leftover with the command that would remove
  * it, for a person to run after checking. */
-function formatLeftovers(leftovers: Leftovers, prefix: string): string {
+function formatLeftovers(
+  leftovers: Leftovers,
+  prefix: string,
+  none: string,
+): string {
   const out: string[] = [];
   for (const { path, reason } of leftovers.worktrees) {
     out.push(`worktree ${path}: ${reason} (git worktree remove ${path})`);
@@ -222,7 +226,7 @@ function formatLeftovers(leftovers: Leftovers, prefix: string): string {
   }
   const text: string[] =
     out.length === 0
-      ? [`${prefix}no leftover branches or worktrees`]
+      ? [`${prefix}${none}`]
       : [
           `${prefix}${String(out.length)} left behind (nothing deleted; check each before removing it):`,
           ...out.map((line) => `${prefix}  ${line}`),
@@ -238,9 +242,12 @@ export async function reportLeftovers(
   ctx: Context,
   cwd: string,
   prefix: string,
+  /** What to say when git lists none; a caller that knows of a folder git
+   * no longer lists says so here rather than claim all is clean. */
+  none = "no leftover branches or worktrees",
 ): Promise<number> {
   const leftovers = await findLeftovers(ctx, cwd);
-  ctx.stdout.write(formatLeftovers(leftovers, prefix));
+  ctx.stdout.write(formatLeftovers(leftovers, prefix, none));
   return (
     leftovers.worktrees.length +
     leftovers.localBranches.length +

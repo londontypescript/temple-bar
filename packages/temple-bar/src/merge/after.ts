@@ -137,15 +137,22 @@ export async function afterMerge(
     );
   }
 
-  await reportLeftovers(ctx, merged.root, "merge: ").catch((error: unknown) => {
+  // The leftovers report counts only what git still lists, so a folder git
+  // has already let go of isn't in it: it mustn't read as all clean.
+  const incomplete = cleanup.problems.length > 0;
+  await reportLeftovers(
+    ctx,
+    merged.root,
+    "merge: ",
+    incomplete
+      ? "git lists no other leftover branches or worktrees"
+      : undefined,
+  ).catch((error: unknown) => {
     ctx.stdout.write(
       `merge: could not look for leftovers: ${error instanceof Error ? error.message : String(error)}\n`,
     );
   });
-  // The leftovers report counts only what git still lists, so a folder git
-  // has already let go of isn't in it: say so rather than let it read as
-  // all clean.
-  if (cleanup.problems.length > 0) {
+  if (incomplete) {
     ctx.stderr.write(
       'merge: cleanup is incomplete: see "left behind" above. The pull request itself merged.\n',
     );

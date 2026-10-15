@@ -15,6 +15,7 @@ import { createFsSeam } from "../../seams/fs.ts";
 import { createGitSeam } from "../../seams/git.ts";
 import { createFakeHttp, createFakeWriter } from "../../testing/fakes.ts";
 import { configureTestRepo } from "../../testing/git-repo.ts";
+import { createWorktreeRemover } from "../finish-removal.ts";
 import type { MergeDeps } from "../run.ts";
 
 export function git(dir: string, ...args: string[]): string {
@@ -201,6 +202,8 @@ export const deps: MergeDeps = {
   // The gate itself has its own end-to-end tests; here it passes, so the
   // merge's own git work is what is exercised.
   runGate: () => Promise.resolve(0),
+  // Real git removes real worktrees here, so the real remover finishes them.
+  worktreeRemover: createWorktreeRemover(),
   timing: {
     pollMs: 1,
     headAttempts: 2,
