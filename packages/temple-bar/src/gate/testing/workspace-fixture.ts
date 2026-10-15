@@ -111,16 +111,17 @@ export function workspace(options: WorkspaceOptions = {}): Workspace {
     ...Object.keys(packages).map((folder) => `${folder}/package.json`),
     ...(options.extraTracked ?? []),
   ];
-  const files: Record<string, string> = {
-    ...coreFiles(),
-    "/repo/package.json": JSON.stringify({
-      packageManager: "pnpm@10.34.5",
-      scripts: { ...CORE_SCRIPTS, ...(options.rootScripts ?? ALL_SCRIPTS) },
-    }),
-  };
+  // Every key is built with path.join: this record is plain, so on Windows
+  // "/repo/package.json" and path.join("/repo", "package.json") would be two
+  // entries that the fake filesystem then folds into one, the later winning.
+  const files: Record<string, string> = { ...coreFiles() };
   for (const relative of tracked) {
     files[path.join("/repo", ...relative.split("/"))] ??= "{}\n";
   }
+  files[path.join("/repo", "package.json")] = JSON.stringify({
+    packageManager: "pnpm@10.34.5",
+    scripts: { ...CORE_SCRIPTS, ...(options.rootScripts ?? ALL_SCRIPTS) },
+  });
   for (const [folder, scripts] of Object.entries(packages)) {
     files[path.join("/repo", ...folder.split("/"), "package.json")] =
       JSON.stringify(scripts === undefined ? {} : { scripts });
