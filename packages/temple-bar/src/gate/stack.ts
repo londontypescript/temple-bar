@@ -179,7 +179,7 @@ export async function detectPackageManager(
 }
 
 /** How to run one script: the command and its arguments. */
-export interface ScriptCommandLine {
+interface ScriptCommandLine {
   readonly command: string;
   readonly args: readonly string[];
 }

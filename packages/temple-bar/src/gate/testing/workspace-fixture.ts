@@ -81,7 +81,7 @@ export function pnpmListing(folders: readonly string[]): string {
 }
 
 /** The script a recorded run was for, however it was started. */
-export function scriptOf(call: RecordedProcCall): string | undefined {
+function scriptOf(call: RecordedProcCall): string | undefined {
   return call.args[call.args.indexOf("run") + 1];
 }
 

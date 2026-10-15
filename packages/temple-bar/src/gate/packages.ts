@@ -27,7 +27,7 @@ const INVENTORY_CHECK = "workspace packages";
 const START_WITH_PNPM =
   "run `pnpm gate`, or `pnpm ready` to mark the commit ready to push";
 
-export interface WorkspacePackage {
+interface WorkspacePackage {
   /** The package's folder relative to the root, "/"-separated. */
   readonly relative: string;
   /** Its real folder, where its scripts run. */
