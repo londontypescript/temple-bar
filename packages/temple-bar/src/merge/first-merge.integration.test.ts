@@ -19,6 +19,7 @@ import {
 import { createGitSeam } from "../seams/git.ts";
 import { createFakeContext } from "../testing/fakes.ts";
 import { configureTestRepo } from "../testing/git-repo.ts";
+import { createWorktreeRemover } from "./finish-removal.ts";
 import { cleanUp } from "./local.ts";
 
 void test("first merge: main fast-forwards and the remote branch goes while the worktree's temple-bar still exists", async () => {
@@ -75,6 +76,7 @@ void test("first merge: main fast-forwards and the remote branch goes while the 
       branch: "feat/x",
       defaultBranch: "main",
       mergedSha: tip,
+      remover: createWorktreeRemover(),
     });
 
     assert.deepEqual(report.problems, []);

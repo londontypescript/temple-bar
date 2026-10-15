@@ -14,6 +14,7 @@ import {
   readPullRequest,
   type Repository,
 } from "./github.ts";
+import type { WorktreeRemover } from "./finish-removal.ts";
 import { cleanUp } from "./local.ts";
 import { listWorktrees } from "./worktrees.ts";
 
@@ -80,6 +81,7 @@ export async function afterMerge(
     readonly sha: string;
     readonly root: string;
     readonly prNumber: number;
+    readonly remover: WorktreeRemover;
   },
 ): Promise<number> {
   let exitCode = 0;
@@ -97,6 +99,7 @@ export async function afterMerge(
     branch: merged.branch,
     defaultBranch: merged.repository.defaultBranch,
     mergedSha: merged.sha,
+    remover: merged.remover,
   });
   for (const line of cleanup.done) {
     ctx.stdout.write(`merge: ${line}\n`);
@@ -139,5 +142,13 @@ export async function afterMerge(
       `merge: could not look for leftovers: ${error instanceof Error ? error.message : String(error)}\n`,
     );
   });
+  // The leftovers report counts only what git still lists, so a folder git
+  // has already let go of isn't in it: say so rather than let it read as
+  // all clean.
+  if (cleanup.problems.length > 0) {
+    ctx.stderr.write(
+      'merge: cleanup is incomplete: see "left behind" above. The pull request itself merged.\n',
+    );
+  }
   return exitCode;
 }
