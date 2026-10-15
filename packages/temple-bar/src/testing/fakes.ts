@@ -109,6 +109,11 @@ export interface FakeFs extends FsSeam {
   readonly linkTargets: Map<string, string>;
   readonly directories: Set<string>;
   readonly classificationErrors: Map<string, Error>;
+  /** What realpath answers for a path; any other existing path resolves to
+   * itself, normalised, and a missing one rejects like ENOENT. */
+  readonly realpaths: Map<string, string>;
+  /** Paths whose realpath fails with the given error. */
+  readonly realpathErrors: Map<string, Error>;
 }
 
 /** A Map whose keys are paths normalised the way the real filesystem
@@ -157,6 +162,16 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
   const linkTargets = new PathMap();
   const directories = new PathSet();
   const classificationErrors = new Map<string, Error>();
+  const realpaths = new PathMap();
+  const realpathErrors = new Map<string, Error>();
+  const exists = (entry: string): boolean => {
+    const folder = normalize(`${entry}/`);
+    return (
+      files.has(entry) ||
+      directories.has(entry) ||
+      [...files.keys(), ...directories].some((f) => f.startsWith(folder))
+    );
+  };
   return {
     files,
     writes,
@@ -164,6 +179,8 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
     linkTargets,
     directories,
     classificationErrors,
+    realpaths,
+    realpathErrors,
     classify(path) {
       const error = classificationErrors.get(normalize(path));
       if (error !== undefined) return Promise.reject(error);
@@ -189,6 +206,22 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
         ? Promise.reject(new Error(`No stored link target for '${path}'`))
         : Promise.resolve(target);
     },
+    realpath(path) {
+      const error = realpathErrors.get(normalize(path));
+      if (error !== undefined) return Promise.reject(error);
+      const answer = realpaths.get(path);
+      if (answer !== undefined) return Promise.resolve(normalize(answer));
+      return exists(path)
+        ? Promise.resolve(normalize(path))
+        : Promise.reject(
+            Object.assign(
+              new Error(
+                `ENOENT: no such file or directory, realpath '${path}'`,
+              ),
+              { code: "ENOENT" },
+            ),
+          );
+    },
     readText(path) {
       if (symlinks.has(path)) {
         return Promise.reject(
@@ -212,12 +245,8 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
     exists(path) {
       // A folder exists, as on a real disk, when some file is inside it.
       const target = linkTargets.get(path);
-      const entry = target === undefined ? path : linkedPath(path, target);
-      const folder = normalize(`${entry}/`);
       return Promise.resolve(
-        files.has(entry) ||
-          directories.has(entry) ||
-          [...files.keys(), ...directories].some((f) => f.startsWith(folder)),
+        exists(target === undefined ? path : linkedPath(path, target)),
       );
     },
     isRegularFile(path) {

@@ -206,7 +206,7 @@ void test("pre-push: a branch whose tip nothing has marked ready is refused, say
     out,
     /refusing to push work: its tip bbbbbbb has not been marked ready to push\./,
   );
-  assert.match(out, /run temple-bar ready in the worktree that has work/);
+  assert.match(out, /run pnpm ready in the worktree that has work/);
   assert.doesNotMatch(out, /marked here is/);
 });
 

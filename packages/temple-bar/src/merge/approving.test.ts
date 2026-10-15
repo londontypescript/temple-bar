@@ -77,7 +77,12 @@ void test("names the root scripts, config fields and pin that decide the checks"
     devDependencies: { "@londontypescript/temple-bar": "0.0.6" },
   };
   const after = {
-    scripts: { lint: "echo ok", build: "tsc -b", gate: "temple-bar gate" },
+    scripts: {
+      lint: "echo ok",
+      build: "tsc -b",
+      gate: "temple-bar gate",
+      ready: "temple-bar ready",
+    },
     prettier: { semi: false },
     devDependencies: { "@londontypescript/temple-bar": "0.0.7" },
   };
@@ -88,6 +93,7 @@ void test("names the root scripts, config fields and pin that decide the checks"
     [
       'package.json script "lint" (the gate runs it)',
       'package.json script "gate" (it runs the gate)',
+      'package.json script "ready" (it runs the gate before a push)',
       'package.json script "prepare" (it installs the hooks)',
       'package.json "prettier" field (format config)',
       "the pinned @londontypescript/temple-bar, 0.0.6 -> 0.0.7 (it judges this repository)",

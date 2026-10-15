@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   promises as fsp,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -55,6 +56,23 @@ void test("fs seam: no-follow classification distinguishes files, folders, live 
     // every other error must keep the filesystem's own code.
     if (code === "ENOENT") assert.equal(await fs.classify(child), "missing");
     else await assert.rejects(fs.classify(child), { code });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("fs seam: realpath resolves a linked folder to the real one, and rejects a missing path", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-fs-realpath-"));
+  try {
+    const fs = createFsSeam();
+    const real = path.join(dir, "real");
+    mkdirSync(real);
+    realLink(real, path.join(dir, "linked"), true);
+    const expected = await fs.realpath(real);
+    assert.equal(await fs.realpath(path.join(dir, "linked")), expected);
+    await assert.rejects(fs.realpath(path.join(dir, "missing")), {
+      code: "ENOENT",
+    });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

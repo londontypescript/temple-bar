@@ -119,7 +119,7 @@ function describeUnmarked(ref: PushedRef, mark: string | undefined): string {
       : ` The commit marked here is ${mark.slice(0, 7)}; any new commit needs ready again.`;
   return (
     `temple-bar: refusing to push ${branch}: its tip ${ref.localSha.slice(0, 7)} has not been marked ready to push.${markNote}\n` +
-    `Push once, when the work is finished: run temple-bar ready in the worktree that has ${branch} checked out. ` +
+    `Push once, when the work is finished: run pnpm ready in the worktree that has ${branch} checked out. ` +
     "It runs the full gate and marks the commit; then push again.\n"
   );
 }

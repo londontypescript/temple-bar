@@ -10,6 +10,10 @@ export interface FsSeam {
   /** Classifies the entry itself, never following links. Only ENOENT is missing. */
   classify(path: string): Promise<PathKind>;
   readlink(path: string): Promise<string>;
+  /** The path with every symlink, `.` and `..` resolved, the way the
+   * operating system names it (on Windows, long names, not 8.3 short ones).
+   * Rejects when the path doesn't exist. */
+  realpath(path: string): Promise<string>;
   /** Reads a file as UTF-8 text, or returns undefined if it doesn't exist. */
   readText(path: string): Promise<string | undefined>;
   /** True only for an ordinary file. A symlink (to a file, a directory, or
@@ -46,6 +50,8 @@ export function createFsSeam(): FsSeam {
       }
     },
     readlink: (path) => fsp.readlink(path),
+    // The promise form resolves the way the native realpath does.
+    realpath: (path) => fsp.realpath(path),
     async readText(path) {
       try {
         return await fsp.readFile(path, "utf8");

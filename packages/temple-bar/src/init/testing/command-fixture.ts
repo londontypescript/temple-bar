@@ -7,7 +7,7 @@ import { freshAgentsMd } from "../agents-template.ts";
 import { createInitCommand } from "../command.ts";
 import { COMPANION_FILES } from "../companion-docs.ts";
 import { GITIGNORE_LINES } from "../files.ts";
-import { GATE_SCRIPT, PREPARE_SCRIPT } from "../package-json.ts";
+import { GATE_SCRIPT, PREPARE_SCRIPT, READY_SCRIPT } from "../package-json.ts";
 import { CHECKED_WORKFLOWS } from "../workflows.ts";
 import { JUDGE_WORKFLOW_PATH, judgeWorkflow } from "../../judge/workflow.ts";
 import { JUDGE_RULESET_NAME } from "../judge-ruleset.ts";
@@ -115,7 +115,11 @@ export function setUpFiles(overrides: Record<string, string> = {}) {
     "/repo/package.json": JSON.stringify({
       name: "widgets",
       packageManager: "pnpm@10.34.5",
-      scripts: { prepare: PREPARE_SCRIPT, gate: GATE_SCRIPT },
+      scripts: {
+        prepare: PREPARE_SCRIPT,
+        gate: GATE_SCRIPT,
+        ready: READY_SCRIPT,
+      },
       engines: { node: ">=24" },
     }),
     ...overrides,

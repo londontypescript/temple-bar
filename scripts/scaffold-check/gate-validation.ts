@@ -5,6 +5,7 @@ import type { Snapshot } from "./snapshot.ts";
 
 // This is the packed gate's report contract, independently enumerated so a
 // missing check cannot disappear from scaffold acceptance with its producer.
+const INVENTORY_CHECK = "workspace packages";
 const BASE_CHECKS = [
   "core setup",
   "gate and title workflows",
@@ -69,7 +70,12 @@ export function validateGate(
     findings.push("gate: missing, duplicate or incomplete closing report");
     return findings;
   }
-  const names = [...REQUIRED_SCRIPTS, ...BASE_CHECKS, ...REMOTE_CHECKS];
+  const names = [
+    INVENTORY_CHECK,
+    ...REQUIRED_SCRIPTS,
+    ...BASE_CHECKS,
+    ...REMOTE_CHECKS,
+  ];
   const rows = lines.slice(start + 1, end);
   if (rows.length !== names.length)
     findings.push(

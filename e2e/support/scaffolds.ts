@@ -26,6 +26,7 @@ import { COMPANION_FILES } from "../../packages/temple-bar/src/init/companion-do
 import {
   GATE_SCRIPT,
   PREPARE_SCRIPT,
+  READY_SCRIPT,
 } from "../../packages/temple-bar/src/init/package-json.ts";
 import type { ScaffoldFixture } from "../../packages/temple-bar/src/init/testing/scaffolds/index.ts";
 import { CHECKED_WORKFLOWS } from "../../packages/temple-bar/src/init/workflows.ts";
@@ -276,7 +277,12 @@ export function assertScaffoldSetup(
   );
   const expected = {
     ...original,
-    scripts: { ...original.scripts, prepare, gate: GATE_SCRIPT },
+    scripts: {
+      ...original.scripts,
+      prepare,
+      gate: GATE_SCRIPT,
+      ready: READY_SCRIPT,
+    },
     packageManager: original.packageManager ?? `pnpm@${pnpmVersion}`,
     // Setup declares the Node temple-bar needs, raising a lower plain `>=`
     // such as Astro's `>=22.12.0`; no recorded scaffold declares 24 or more.

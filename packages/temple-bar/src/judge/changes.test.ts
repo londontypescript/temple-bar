@@ -24,6 +24,7 @@ const BASE = {
   name: "widgets",
   scripts: {
     gate: "temple-bar gate",
+    ready: "temple-bar ready",
     typecheck: "tsc",
     lint: "eslint .",
     "format:check": "prettier --check .",
@@ -139,8 +140,15 @@ void test("an override that swaps temple-bar is caught, in each place package ma
   }
 });
 
-void test("each script the gate runs, and the gate script itself, is guarded", () => {
-  for (const name of ["gate", "typecheck", "lint", "format:check", "test"]) {
+void test("each script the gate runs, and the gate and ready scripts themselves, is guarded", () => {
+  for (const name of [
+    "gate",
+    "ready",
+    "typecheck",
+    "lint",
+    "format:check",
+    "test",
+  ]) {
     const head = withChanges({
       scripts: { ...BASE.scripts, [name]: "echo ok" },
     });
@@ -169,7 +177,7 @@ void test("package.json removed: the pin and every guarded script go with it", (
     base: manifest(BASE),
     head: undefined,
   });
-  assert.equal(findings.length, 6);
+  assert.equal(findings.length, 7);
 });
 
 void test("package.json renamed away is read as changed", () => {

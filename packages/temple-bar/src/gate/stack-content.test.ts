@@ -11,7 +11,7 @@ import { ownContentExists } from "./stack.ts";
 function withFiles(...paths: string[]): ReturnType<typeof createFakeContext> {
   const git = createFakeGit(() => ({
     code: 0,
-    stdout: `${paths.join("\n")}\n`,
+    stdout: `${paths.join("\0")}\0`,
     stderr: "",
   }));
   return createFakeContext({ git });

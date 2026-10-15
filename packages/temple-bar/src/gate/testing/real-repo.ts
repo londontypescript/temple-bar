@@ -22,6 +22,16 @@ export function stageAll(dir: string): void {
   execFileSync("git", ["add", "-A"], { cwd: dir });
 }
 
+/** The test run's environment without npm_execpath. Under `pnpm test` it
+ * names the pnpm running the suite, and the gate would run every script
+ * through it; these fixtures are npm projects, run as a person would run
+ * the gate by hand, so they need no pnpm on PATH. */
+export function withoutPackageManager(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env.npm_execpath;
+  return env;
+}
+
 /** A context on the real seams in `cwd`, with its output recorded. */
 export function realContext(cwd: string): {
   ctx: Context;
@@ -37,7 +47,7 @@ export function realContext(cwd: string): {
     stdout,
     stderr,
     cwd,
-    env: process.env,
+    env: withoutPackageManager(),
   });
   return { ctx, stdout, stderr };
 }

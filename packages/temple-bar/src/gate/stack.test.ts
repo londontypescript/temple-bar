@@ -12,6 +12,7 @@ import {
   readPackageManifest,
   REQUIRED_SCRIPTS,
   runRequiredScripts,
+  scriptCommandFor,
 } from "./stack.ts";
 
 void test("readPackageManifest returns undefined with no package.json, and parses one that exists", async () => {
@@ -49,6 +50,19 @@ void test("missingRequiredScripts: none missing when all four are present", () =
     }),
     [],
   );
+});
+
+void test("missingRequiredScripts: a scripts field that isn't an object holds no scripts, and never crashes the lookup", async () => {
+  for (const scripts of [false, "tsc", 7]) {
+    const ctx = createFakeContext({
+      fs: createFakeFs({ "/repo/package.json": JSON.stringify({ scripts }) }),
+    });
+    assert.deepEqual(
+      missingRequiredScripts(await readPackageManifest(ctx)),
+      [...REQUIRED_SCRIPTS],
+      `scripts: ${JSON.stringify(scripts)}`,
+    );
+  }
 });
 
 void test("missingRequiredScripts: names each missing script, in the fixed order", () => {
@@ -98,7 +112,12 @@ void test("runRequiredScripts: runs every script in order, all with CI=true, eve
   });
   const ctx = createFakeContext({ proc, env: { PATH: "/usr/bin" } });
 
-  const results = await runRequiredScripts(ctx, "npm", REQUIRED_SCRIPTS);
+  const results = await runRequiredScripts(
+    ctx,
+    await scriptCommandFor(ctx, {}),
+    "/repo/packages/a",
+    REQUIRED_SCRIPTS,
+  );
 
   assert.deepEqual(calls, ["typecheck", "lint", "format:check", "test"]);
   assert.deepEqual(
@@ -113,6 +132,7 @@ void test("runRequiredScripts: runs every script in order, all with CI=true, eve
   for (const call of proc.calls) {
     assert.equal(call.command, "npm");
     assert.deepEqual(call.args.slice(0, 1), ["run"]);
+    assert.equal(call.cwd, "/repo/packages/a");
     assert.equal(call.env.CI, "true");
     assert.equal(call.env.PATH, "/usr/bin");
   }

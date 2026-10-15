@@ -20,9 +20,14 @@ export const TEMPLE_BAR_PACKAGE = "@londontypescript/temple-bar";
  * own copy of them, so editing one changes the checks that judge it. */
 const WORKFLOWS_FOLDER = ".github/workflows/";
 
-/** CI runs `pnpm gate`, and the gate runs the four scripts it requires, so
- * changing any of these changes what the checks do. */
-const GUARDED_SCRIPTS: readonly string[] = ["gate", ...REQUIRED_SCRIPTS];
+/** CI runs `pnpm gate`, agents mark a commit with `pnpm ready`, which runs
+ * the gate too, and the gate runs the four scripts it requires, so changing
+ * any of these changes what the checks do. */
+const GUARDED_SCRIPTS: readonly string[] = [
+  "gate",
+  "ready",
+  ...REQUIRED_SCRIPTS,
+];
 
 /** Files pnpm reads at the repo's root when CI installs, and that can swap
  * the pinned temple-bar without touching package.json: pnpm-workspace.yaml

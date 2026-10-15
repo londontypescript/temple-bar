@@ -29,6 +29,7 @@ import {
   type FakeWriter,
 } from "../testing/fakes.ts";
 import { CORE_SCRIPTS } from "../gate/testing/core-fixture.ts";
+import { withoutPackageManager } from "../gate/testing/real-repo.ts";
 import { GITIGNORE_LINES } from "../init/files.ts";
 import { CHECKED_WORKFLOWS } from "../init/workflows.ts";
 import { readyCommand } from "./command.ts";
@@ -116,7 +117,7 @@ function runReady(dir: string): Promise<{
     stdout,
     stderr,
     cwd: dir,
-    env: process.env,
+    env: withoutPackageManager(),
   };
   return readyCommand.run([], ctx).then((code) => ({ code, stdout, stderr }));
 }

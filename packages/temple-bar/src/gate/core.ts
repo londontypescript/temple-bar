@@ -10,9 +10,9 @@
 //   fails as surely as a deleted one;
 // - git config: no `core.hooksPath` anywhere (while it is set, git runs no
 //   hook from the shared folder) and `pull.ff` set to `only`;
-// - .gitignore with every line setup keeps there, and the `prepare` and
-//   `gate` scripts in package.json, as setup writes them (`prepare` may
-//   also chain after the project's own command).
+// - .gitignore with every line setup keeps there, and the `prepare`,
+//   `gate` and `ready` scripts in package.json, as setup writes them
+//   (`prepare` may also chain after the project's own command).
 //
 // - temple-bar's marked block in AGENTS.md, when the file has one: byte for
 //   byte the block this temple-bar writes, so an edit inside it fails.
@@ -44,6 +44,7 @@ import {
   GATE_SCRIPT,
   isTempleBarPrepare,
   PREPARE_SCRIPT,
+  READY_SCRIPT,
 } from "../init/package-json.ts";
 import { RERUN_INIT } from "../init/requirements.ts";
 import type { CheckOutcome } from "./report.ts";
@@ -61,12 +62,13 @@ export const INSTALLED_SHIMS: Readonly<Record<string, string>> = {
   "post-checkout": POST_CHECKOUT_SHIM,
 };
 
-/** The package.json scripts setup writes, with their commands. `gate` must
- * match exactly; `prepare` may also be chained after the project's own
- * command (`isTempleBarPrepare` says which forms count). */
+/** The package.json scripts setup writes, with their commands. `gate` and
+ * `ready` must match exactly; `prepare` may also be chained after the
+ * project's own command (`isTempleBarPrepare` says which forms count). */
 export const INSTALLED_SCRIPTS: Readonly<Record<string, string>> = {
   prepare: PREPARE_SCRIPT,
   gate: GATE_SCRIPT,
+  ready: READY_SCRIPT,
 };
 
 export interface CoreProblem {

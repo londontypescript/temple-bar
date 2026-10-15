@@ -1,7 +1,8 @@
 // Integration tests for the length cap against real temp git repos: the
 // package default applies with no config file, a project's own config
 // overrides it, an over-cap file fails and names itself, and a nested
-// worktree is never scanned (P3.7).
+// worktree is never scanned. git's file list itself keeps every path
+// exactly as named, however unusual.
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -15,7 +16,11 @@ import { createGitSeam } from "../seams/git.ts";
 import { initTestRepo } from "../testing/git-repo.ts";
 import { createFakeHttp } from "../testing/fakes.ts";
 import type { Context } from "../context.ts";
-import { checkFileLengths, DEFAULT_MAX_FILE_LINES } from "./lengths.ts";
+import {
+  checkFileLengths,
+  DEFAULT_MAX_FILE_LINES,
+  listGitPaths,
+} from "./lengths.ts";
 
 function stageAll(dir: string): void {
   execFileSync("git", ["add", "-A"], { cwd: dir });
@@ -137,6 +142,58 @@ void test("lengths e2e: a nested worktree inside the project passes, even one wi
       result.totalChecked,
       1,
       "only the outer repo's own file should be checked",
+    );
+  } finally {
+    try {
+      execFileSync("git", ["worktree", "remove", "--force", nestedDir], {
+        cwd: dir,
+      });
+    } catch {
+      // Best-effort: the outer rmSync below removes everything regardless.
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("lengths e2e: git's file list names unusual paths exactly, and a nested worktree still ends in /", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-lengths-names-"));
+  const nestedDir = path.join(dir, "nested");
+  // Windows refuses a quote or a line break in a file name.
+  const unusual = [
+    path.join("packages", "caf\u00e9", "package.json"),
+    ...(process.platform === "win32"
+      ? []
+      : [
+          path.join("packages", 'say "hi"', "package.json"),
+          path.join("packages", "two\nlines", "package.json"),
+        ]),
+  ];
+  try {
+    initTestRepo(dir);
+    writeFileSync(path.join(dir, "README.md"), "# Sample\n");
+    stageAll(dir);
+    execFileSync("git", ["commit", "-q", "-m", "init"], { cwd: dir });
+    for (const relative of unusual) {
+      mkdirSync(path.join(dir, path.dirname(relative)), { recursive: true });
+      writeFileSync(path.join(dir, relative), "{}\n");
+    }
+    execFileSync(
+      "git",
+      ["worktree", "add", "-q", "-b", "nested-names", nestedDir],
+      {
+        cwd: dir,
+      },
+    );
+
+    const listed = await listGitPaths(minimalContext(dir));
+
+    assert.deepEqual(
+      [...listed].sort(),
+      [
+        "README.md",
+        "nested/",
+        ...unusual.map((relative) => relative.split(path.sep).join("/")),
+      ].sort(),
     );
   } finally {
     try {

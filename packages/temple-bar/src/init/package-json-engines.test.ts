@@ -12,7 +12,11 @@ import { createFakeContext, createFakeFs } from "../testing/fakes.ts";
 const BASE = {
   name: "widgets",
   packageManager: "pnpm@10.34.5",
-  scripts: { prepare: "temple-bar hook install", gate: "temple-bar gate" },
+  scripts: {
+    prepare: "temple-bar hook install",
+    gate: "temple-bar gate",
+    ready: "temple-bar ready",
+  },
 };
 
 async function runStep(extra: Record<string, unknown>) {

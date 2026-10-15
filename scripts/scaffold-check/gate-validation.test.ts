@@ -7,6 +7,7 @@ import { tempProject, minimalFiles, world } from "./testing.ts";
 const missing = ["typecheck", "format:check", "test"];
 const report = `gate: the repo has files of its own, but package.json is missing script(s): typecheck, format:check, test
 gate: checks:
+  passed   workspace packages (the root alone: no pnpm-workspace.yaml)
   missing  typecheck (not in package.json)
   passed   lint
   missing  format:check (not in package.json)
@@ -45,6 +46,7 @@ void test("strict scaffold compatibility accepts only expected missing scripts a
 });
 
 for (const name of [
+  "workspace packages",
   "lint",
   "core setup",
   "gate and title workflows",
