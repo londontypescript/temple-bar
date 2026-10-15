@@ -39,7 +39,7 @@ function gateWith(agents: string | undefined) {
   }
   const ctx = createFakeContext({
     git: createFakeGit(
-      withCoreGit(() => ({ code: 0, stdout: "README.md\n", stderr: "" })),
+      withCoreGit(() => ({ code: 0, stdout: "README.md\0", stderr: "" })),
     ),
     fs: createFakeFs(files),
   });

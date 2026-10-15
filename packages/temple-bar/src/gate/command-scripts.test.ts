@@ -41,7 +41,7 @@ function project(
   const git = createFakeGit(
     withCoreGit(() => ({
       code: 0,
-      stdout: `${files.join("\n")}\n`,
+      stdout: `${files.join("\0")}\0`,
       stderr: "",
     })),
   );

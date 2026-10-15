@@ -106,7 +106,7 @@ void test("collectLineCounts skips lockfiles, directory entries, and binary file
       "nested-worktree/",
       "image.png",
       "gone.ts",
-    ].join("\n"),
+    ].join("\0"),
     stderr: "",
   }));
   const fs = createFakeFs({
@@ -126,7 +126,7 @@ void test("collectLineCounts skips lockfiles, directory entries, and binary file
 void test("checkFileLengths reports offenders over the configured cap", async () => {
   const git = createFakeGit(() => ({
     code: 0,
-    stdout: "big.ts\nsmall.ts\n",
+    stdout: "big.ts\0small.ts\0",
     stderr: "",
   }));
   const fs = createFakeFs({
@@ -148,7 +148,7 @@ void test("collectLineCounts skips a symlink (to a directory) instead of crashin
   fs.symlinks.add("/repo/node_modules/@scope/pkg");
   const git = createFakeGit(() => ({
     code: 0,
-    stdout: "real.txt\nnode_modules/@scope/pkg\n",
+    stdout: "real.txt\0node_modules/@scope/pkg\0",
     stderr: "",
   }));
   const ctx = createFakeContext({ fs, git });

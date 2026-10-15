@@ -58,7 +58,7 @@ async function runGate(
     git: createFakeGit(
       withCoreGit(() => ({
         code: 0,
-        stdout: "package.json\nsrc/index.ts\n",
+        stdout: "package.json\0src/index.ts\0",
         stderr: "",
       })),
     ),

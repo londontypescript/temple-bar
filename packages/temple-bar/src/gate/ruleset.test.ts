@@ -328,7 +328,7 @@ void test("gate: a weakened ruleset fails the whole gate and shows in the report
     git: createFakeGit(
       withCoreGit((args) => ({
         code: 0,
-        stdout: args[0] === "remote" ? `${ORIGIN}\n` : "README.md\n",
+        stdout: args[0] === "remote" ? `${ORIGIN}\n` : "README.md\0",
         stderr: "",
       })),
     ),

@@ -46,7 +46,7 @@ function codeProject(
   const git = createFakeGit(
     withCoreGit(() => ({
       code: 0,
-      stdout: "package.json\nsrc/index.ts\n",
+      stdout: "package.json\0src/index.ts\0",
       stderr: "",
     })),
   );
@@ -68,7 +68,7 @@ void test("gate: a passing project (stack + length cap both pass) exits 0", asyn
   const git = createFakeGit(
     withCoreGit(() => ({
       code: 0,
-      stdout: "package.json\nsrc/index.ts\n",
+      stdout: "package.json\0src/index.ts\0",
       stderr: "",
     })),
   );
@@ -92,7 +92,7 @@ void test("gate: a failing test script exits 1, but the other scripts still run"
   const git = createFakeGit(
     withCoreGit(() => ({
       code: 0,
-      stdout: "package.json\nsrc/index.ts\n",
+      stdout: "package.json\0src/index.ts\0",
       stderr: "",
     })),
   );
@@ -119,7 +119,7 @@ void test("gate: content exists but package.json has no scripts exits 2, naming 
   const git = createFakeGit(
     withCoreGit(() => ({
       code: 0,
-      stdout: "package.json\nsrc/index.ts\n",
+      stdout: "package.json\0src/index.ts\0",
       stderr: "",
     })),
   );
@@ -222,7 +222,7 @@ void test("gate: a repo with only its starting files and setup's scripts passes 
   const git = createFakeGit(
     withCoreGit(() => ({
       code: 0,
-      stdout: "README.md\nLICENSE\nAGENTS.md\n.gitignore\npackage.json\n",
+      stdout: "README.md\0LICENSE\0AGENTS.md\0.gitignore\0package.json\0",
       stderr: "",
     })),
   );
@@ -246,7 +246,7 @@ void test("gate: the length cap fails the gate even when the stack checks pass",
   const git = createFakeGit(
     withCoreGit(() => ({
       code: 0,
-      stdout: "package.json\nsrc/index.ts\n",
+      stdout: "package.json\0src/index.ts\0",
       stderr: "",
     })),
   );
@@ -271,7 +271,7 @@ void test("gate: a nested worktree's own code doesn't make the scripts required 
   const git = createFakeGit(
     withCoreGit(() => ({
       code: 0,
-      stdout: "README.md\nnested-worktree/\n",
+      stdout: "README.md\0nested-worktree/\0",
       stderr: "",
     })),
   );

@@ -26,17 +26,23 @@ export interface FileLineCount {
 
 /**
  * Lists every path `git ls-files` would track (tracked plus untracked,
- * unignored), relative to `ctx.cwd`. Shared by the length cap and the
- * stack's "does code exist" check so both see the same file set.
+ * unignored), relative to `ctx.cwd`. Shared by the length cap, the stack's
+ * "does code exist" check and the workspace inventory, so all of them see
+ * the same file set.
  *
- * P3.7: a nested worktree or nested repo is never recursed into — git lists
- * it as a single directory entry ending in "/" instead — and anything under
+ * A nested worktree or nested repo is never recursed into — git lists it as
+ * a single directory entry ending in "/" instead — and anything under
  * `.git/` is never listed at all, so both are already excluded here, not
  * specially handled by callers.
+ *
+ * `-z` ends each path with a NUL byte and turns off git's quoting. Without
+ * it, git wraps a path holding a non-ASCII byte, a quote or a line break in
+ * quotes with escapes (`"caf\303\251"`), and a line break inside a name
+ * would split it in two, so a check comparing names would miss that file.
  */
 export async function listGitPaths(ctx: Context): Promise<string[]> {
   const result = await ctx.git.run(
-    ["ls-files", "--cached", "--others", "--exclude-standard"],
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
     ctx.cwd,
   );
   if (result.code !== 0) {
@@ -46,7 +52,7 @@ export async function listGitPaths(ctx: Context): Promise<string[]> {
       `git ls-files failed in ${ctx.cwd}: ${result.stderr.trim() || "no output"}`,
     );
   }
-  return result.stdout.split("\n").filter((line) => line.length > 0);
+  return result.stdout.split("\0").filter((entry) => entry.length > 0);
 }
 
 /** True for a directory entry (see listGitPaths) and for known lockfiles,
