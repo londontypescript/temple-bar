@@ -51,6 +51,7 @@ same pull request as any change to a mechanism.
 | One-line description the same everywhere               | tests; About text by a CI step                       | **Blocked** via CI    |
 | Windows run after a failed CI Windows leg              | `pnpm windows-run`, run by hand                      | **Prose only**        |
 | Incident asked about, filed as an issue                | nothing until theme F                                | **Prose only**        |
+| Incident issues labelled, whoever files them           | `incident-label.yml` labels an `incident:` title     | **Detected** after    |
 
 Markdown integrity in the pinned 0.0.10 gate uses markdownlint's
 public structural tokens for actual local links/images and undefined explicit
