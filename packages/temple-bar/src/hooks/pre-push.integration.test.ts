@@ -205,7 +205,7 @@ void test("pre-push: a branch nobody marked ready is refused by the hook and doe
       push.stderr,
       /refusing to push feature: its tip [0-9a-f]{7} has not been marked ready to push/,
     );
-    assert.match(push.stderr, /run temple-bar ready in the worktree/);
+    assert.match(push.stderr, /run pnpm ready in the worktree/);
     assert.notEqual(push.code, 0);
     assert.notEqual(
       runGit(fixture.originDir, ["rev-parse", "--verify", "refs/heads/feature"])

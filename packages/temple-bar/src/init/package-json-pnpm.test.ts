@@ -13,6 +13,7 @@ import { createFakeContext, createFakeFs } from "../testing/fakes.ts";
 const SCRIPTS = {
   prepare: "temple-bar hook install",
   gate: "temple-bar gate",
+  ready: "temple-bar ready",
 };
 
 /** Runs the package.json step over `manifest` with `env`, by default as

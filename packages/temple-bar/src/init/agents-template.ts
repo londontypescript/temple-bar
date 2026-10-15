@@ -101,8 +101,8 @@ a one-line fix. Every branch gets its own worktree.
 
 - **Push once, when finished.** Every push runs the full CI. Push when the
   work is final, and for anything that needs the user's yes, once they have
-  agreed it. \`pnpm exec temple-bar ready\` runs the gate and marks the
-  commit; the \`pre-push\` hook refuses an unmarked one.
+  agreed it. \`pnpm ready\` runs the gate and marks the commit; the
+  \`pre-push\` hook refuses an unmarked one.
 - **One concern per pull request.** One closing two or more issues needs a
   \`One concern:\` line giving a reason that counts (see the rationale doc).
 - **Merge with \`pnpm exec temple-bar merge <N>\`** once CI and code scanning

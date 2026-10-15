@@ -70,6 +70,7 @@ export function install(dir: string, registry = FAKE_REGISTRY): void {
         ? `${prepare.trim()} && temple-bar hook install`
         : "temple-bar hook install",
     gate: "temple-bar gate",
+    ready: "temple-bar ready",
   };
   pkg.devDependencies = {
     ...object(pkg.devDependencies),
@@ -267,6 +268,7 @@ export function world(
           (name) => !(name in scripts),
         );
         const outcomes = [
+          "  passed   workspace packages (the root alone: no pnpm-workspace.yaml)",
           ...["typecheck", "lint", "format:check", "test"].map((name) =>
             missing.includes(name)
               ? `  missing  ${name} (not in package.json)`

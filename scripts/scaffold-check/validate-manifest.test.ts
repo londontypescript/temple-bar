@@ -42,6 +42,13 @@ const scenarios: {
     finding: /scripts.gate must be/,
   },
   {
+    name: "ready",
+    edit: (pkg) => {
+      pkg.scripts = { ...object(pkg.scripts), ready: "other" };
+    },
+    finding: /scripts.ready must be/,
+  },
+  {
     name: "packed dependency",
     edit: (pkg) => {
       pkg.devDependencies = { "@londontypescript/temple-bar": "^0.0.9" };

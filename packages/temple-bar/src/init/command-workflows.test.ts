@@ -114,7 +114,11 @@ void test("init workflows: a packageManager setup can't use ends the run non-zer
   const manifest = JSON.stringify({
     name: "widgets",
     packageManager: "npm@10.9.2",
-    scripts: { prepare: "temple-bar hook install", gate: "temple-bar gate" },
+    scripts: {
+      prepare: "temple-bar hook install",
+      gate: "temple-bar gate",
+      ready: "temple-bar ready",
+    },
     engines: { node: ">=24" },
   });
   const fs = setUpFiles({ "/repo/package.json": manifest });
@@ -129,7 +133,11 @@ void test("init workflows: an engines.node setup can't check ends the run non-ze
   const manifest = JSON.stringify({
     name: "widgets",
     packageManager: "pnpm@10.34.5",
-    scripts: { prepare: "temple-bar hook install", gate: "temple-bar gate" },
+    scripts: {
+      prepare: "temple-bar hook install",
+      gate: "temple-bar gate",
+      ready: "temple-bar ready",
+    },
     engines: { node: "^22" },
   });
   const fs = setUpFiles({ "/repo/package.json": manifest });
@@ -146,7 +154,11 @@ void test("init workflows: an engines.node setup can't check ends the run non-ze
 void test("init workflows: when it can't tell which pnpm runs it, setup writes no version, says to rerun through pnpm and ends non-zero", async () => {
   const manifest = JSON.stringify({
     name: "widgets",
-    scripts: { prepare: "temple-bar hook install", gate: "temple-bar gate" },
+    scripts: {
+      prepare: "temple-bar hook install",
+      gate: "temple-bar gate",
+      ready: "temple-bar ready",
+    },
     engines: { node: ">=24" },
   });
   const fs = setUpFiles({ "/repo/package.json": manifest });

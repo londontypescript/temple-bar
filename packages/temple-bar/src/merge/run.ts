@@ -146,7 +146,7 @@ async function upToDateTip(
         refuse(
           `with ${upstream} merged in, ${branch} fails the gate, so nothing was pushed. ` +
             `The merge commit is in ${worktree.path}: fix what the gate reported, commit, ` +
-            "run `temple-bar ready`, push, and run merge again.",
+            "run `pnpm ready`, push, and run merge again.",
         );
       }
       await writeMark(ctx, worktree.path, mergedTip);

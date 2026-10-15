@@ -152,14 +152,35 @@ void test("a changed or missing setup script fails; the project's other scripts 
   assert.deepEqual(problems, [
     'package.json has no "prepare" script',
     'package.json\'s "gate" script is "echo skipped"',
+    'package.json has no "ready" script',
   ]);
+});
+
+void test("a deleted or repointed `ready` script fails, with the same fix as for `gate`", async () => {
+  for (const [ready, problem] of [
+    [undefined, 'package.json has no "ready" script'],
+    ["temple-bar gate", 'package.json\'s "ready" script is "temple-bar gate"'],
+  ] as const) {
+    const { ctx } = setUpRepo((files) => {
+      files.set(
+        path.join("/repo", "package.json"),
+        JSON.stringify({ scripts: { ...CORE_SCRIPTS, ready } }),
+      );
+    });
+    assert.deepEqual(await findCoreProblems(ctx), [
+      {
+        problem,
+        fix: 'set "ready" in package.json\'s "scripts" to "temple-bar ready"',
+      },
+    ]);
+  }
 });
 
 async function prepareProblems(prepare: unknown) {
   const { ctx } = setUpRepo((files) => {
     files.set(
       path.join("/repo", "package.json"),
-      JSON.stringify({ scripts: { prepare, gate: CORE_SCRIPTS.gate } }),
+      JSON.stringify({ scripts: { ...CORE_SCRIPTS, prepare } }),
     );
   });
   return findCoreProblems(ctx);

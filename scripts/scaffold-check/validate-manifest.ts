@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import {
   GATE_SCRIPT,
   PREPARE_SCRIPT,
+  READY_SCRIPT,
   isTempleBarPrepare,
 } from "../../packages/temple-bar/src/init/package-json.ts";
 import { manifest, object, prepareCase } from "./expectation.ts";
@@ -49,6 +50,10 @@ export function validateManifest(
   if (actualScripts.gate !== GATE_SCRIPT)
     findings.push(
       `package.json: scripts.gate must be ${JSON.stringify(GATE_SCRIPT)}`,
+    );
+  if (actualScripts.ready !== READY_SCRIPT)
+    findings.push(
+      `package.json: scripts.ready must be ${JSON.stringify(READY_SCRIPT)}`,
     );
   if (object(written.devDependencies)?.[PACKAGE_NAME] !== packedVersion)
     findings.push(

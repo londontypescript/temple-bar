@@ -9,6 +9,7 @@ import { COMPANION_FILES } from "../../packages/temple-bar/src/init/companion-do
 import {
   PREPARE_SCRIPT,
   GATE_SCRIPT,
+  READY_SCRIPT,
 } from "../../packages/temple-bar/src/init/package-json.ts";
 import { CHECKED_WORKFLOWS } from "../../packages/temple-bar/src/init/workflows.ts";
 import {
@@ -112,6 +113,10 @@ export function expectation(snapshot: Snapshot): Expectation {
     if (scripts.gate !== undefined && scripts.gate !== GATE_SCRIPT)
       unknown.push(
         `scripts.gate already exists: ${JSON.stringify(scripts.gate)}`,
+      );
+    if (scripts.ready !== undefined && scripts.ready !== READY_SCRIPT)
+      unknown.push(
+        `scripts.ready already exists: ${JSON.stringify(scripts.ready)}`,
       );
     const dev = object(pkg.devEngines);
     if (dev !== undefined && Object.hasOwn(dev, "packageManager")) {
