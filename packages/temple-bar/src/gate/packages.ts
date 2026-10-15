@@ -266,8 +266,10 @@ export async function takeInventory(
 ): Promise<Inventory> {
   const workspace = tracked.includes(WORKSPACE_FILE);
   if (!workspace) {
+    // The root's own manifest is the one at the top, whatever its letter
+    // case; only a nested one belongs to no package.
     const unlisted = tracked.filter(
-      (relative) => isManifest(relative) && relative !== MANIFEST,
+      (relative) => isManifest(relative) && relative.includes("/"),
     );
     return unlisted.length > 0
       ? unlistedFailure(unlisted, false, [])

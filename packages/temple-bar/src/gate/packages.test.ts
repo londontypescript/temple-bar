@@ -282,10 +282,11 @@ void test("inventory: with no pnpm-workspace.yaml, a nested package.json is name
   );
 });
 
-void test("inventory: with no pnpm-workspace.yaml and no other package.json, the root alone passes without spawning", async () => {
+void test("inventory: with no pnpm-workspace.yaml and no other package.json, the root alone passes without spawning, whatever the root manifest's letter case", async () => {
   const { proc, result } = await inventory({
     workspaceFile: false,
     packages: {},
+    extraTracked: ["Package.json"],
     env: {},
   });
   assert.equal(proc.calls.length, 0);
