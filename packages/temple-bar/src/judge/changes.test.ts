@@ -25,6 +25,7 @@ const BASE = {
   scripts: {
     gate: "temple-bar gate",
     ready: "temple-bar ready",
+    merge: "temple-bar merge",
     typecheck: "tsc",
     lint: "eslint .",
     "format:check": "prettier --check .",
@@ -140,10 +141,11 @@ void test("an override that swaps temple-bar is caught, in each place package ma
   }
 });
 
-void test("each script the gate runs, and the gate and ready scripts themselves, is guarded", () => {
+void test("each script the gate runs, and the gate, ready and merge scripts themselves, is guarded", () => {
   for (const name of [
     "gate",
     "ready",
+    "merge",
     "typecheck",
     "lint",
     "format:check",
@@ -177,7 +179,7 @@ void test("package.json removed: the pin and every guarded script go with it", (
     base: manifest(BASE),
     head: undefined,
   });
-  assert.equal(findings.length, 7);
+  assert.equal(findings.length, 8);
 });
 
 void test("package.json renamed away is read as changed", () => {

@@ -51,12 +51,14 @@ const MACHINERY_FILES: readonly (readonly [RegExp, string])[] = [
 ];
 
 /** Root package.json scripts that are part of the checking: the ones the
- * gate runs, the gate itself, `ready`, which runs the gate before a push,
- * and the hook install that runs on every `pnpm install`. */
+ * gate runs, the gate itself, `ready` and `merge`, which run the gate
+ * before a push and a merge, and the hook install that runs on every
+ * `pnpm install`. */
 const MACHINERY_SCRIPTS: ReadonlyMap<string, string> = new Map([
   ...REQUIRED_SCRIPTS.map((name) => [name, "the gate runs it"] as const),
   ["gate", "it runs the gate"],
   ["ready", "it runs the gate before a push"],
+  ["merge", "it runs the gate before a merge"],
   ["check", "it runs the gate"],
   ["prepare", "it installs the hooks"],
 ]);

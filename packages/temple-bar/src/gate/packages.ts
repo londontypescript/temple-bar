@@ -25,7 +25,8 @@ const INVENTORY_CHECK = "workspace packages";
 
 /** The commands that start the gate through pnpm, so it can list packages. */
 const START_WITH_PNPM =
-  "run `pnpm gate`, or `pnpm ready` to mark the commit ready to push";
+  "run `pnpm gate`, `pnpm ready` to mark the commit ready to push, " +
+  "or `pnpm merge <N>` from the default-branch checkout to merge";
 
 interface WorkspacePackage {
   /** The package's folder relative to the root, "/"-separated. */

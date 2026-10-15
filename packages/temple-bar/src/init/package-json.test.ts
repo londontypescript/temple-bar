@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   ensurePackageJsonScripts,
   GATE_SCRIPT,
+  MERGE_SCRIPT,
   PREPARE_SCRIPT,
   READY_SCRIPT,
 } from "./package-json.ts";
@@ -31,6 +32,7 @@ void test("ensurePackageJsonScripts creates a minimal package.json when none exi
   assert.equal(written.scripts.prepare, PREPARE_SCRIPT);
   assert.equal(written.scripts.gate, GATE_SCRIPT);
   assert.equal(written.scripts.ready, READY_SCRIPT);
+  assert.equal(written.scripts.merge, MERGE_SCRIPT);
 });
 
 void test("ensurePackageJsonScripts adds the scripts to an existing package.json", async () => {
@@ -61,6 +63,7 @@ void test("ensurePackageJsonScripts adds the scripts to an existing package.json
   assert.equal(written.scripts.prepare, PREPARE_SCRIPT);
   assert.equal(written.scripts.gate, GATE_SCRIPT);
   assert.equal(written.scripts.ready, READY_SCRIPT);
+  assert.equal(written.scripts.merge, MERGE_SCRIPT);
 });
 
 void test("ensurePackageJsonScripts names a new package from GitHub origin", async () => {
@@ -184,6 +187,7 @@ void test("ensurePackageJsonScripts adds a missing name first, preserving format
         prepare: PREPARE_SCRIPT,
         gate: GATE_SCRIPT,
         ready: READY_SCRIPT,
+        merge: MERGE_SCRIPT,
       },
       engines: { node: ">=24" },
     };
@@ -301,6 +305,7 @@ void test("ensurePackageJsonScripts is a no-op the second time (idempotent)", as
           prepare: PREPARE_SCRIPT,
           gate: GATE_SCRIPT,
           ready: READY_SCRIPT,
+          merge: MERGE_SCRIPT,
         },
         engines: { node: ">=24" },
       },
@@ -331,49 +336,54 @@ void test("ensurePackageJsonScripts keeps the file's indent and final newline", 
   }
 });
 
-void test("ensurePackageJsonScripts reports a different `ready` script and leaves it alone", async () => {
-  const fs = createFakeFs({
-    "/repo/package.json": JSON.stringify({
-      name: "existing",
-      scripts: { ready: "node scripts/ready.js" },
-    }),
-  });
-  const outcome = await ensurePackageJsonScripts(
-    createFakeContext({ fs }),
-    "/repo",
-  );
-  assert.deepEqual(outcome.conflicts, [
-    { name: "ready", expected: READY_SCRIPT },
-  ]);
-  const written = JSON.parse(fs.files.get("/repo/package.json") ?? "{}") as {
-    scripts: Record<string, string>;
-  };
-  assert.equal(
-    written.scripts.ready,
-    "node scripts/ready.js",
-    "never overwritten",
-  );
-  assert.equal(written.scripts.gate, GATE_SCRIPT, "gate still gets added");
-});
+// `ready` and `merge` each run the gate in-process, and setup treats both
+// as it treats `gate`: a project's own one is reported, never overwritten.
+const RUN_THE_GATE = [
+  ["ready", READY_SCRIPT],
+  ["merge", MERGE_SCRIPT],
+] as const;
 
-void test("ensurePackageJsonScripts leaves a matching `ready` script alone and adds what's missing", async () => {
-  const fs = createFakeFs({
-    "/repo/package.json": JSON.stringify({
-      name: "existing",
-      scripts: { ready: READY_SCRIPT },
-    }),
+for (const [name, command] of RUN_THE_GATE) {
+  void test(`ensurePackageJsonScripts reports a different \`${name}\` script and leaves it alone`, async () => {
+    const own = `node scripts/${name}.js`;
+    const fs = createFakeFs({
+      "/repo/package.json": JSON.stringify({
+        name: "existing",
+        scripts: { [name]: own },
+      }),
+    });
+    const outcome = await ensurePackageJsonScripts(
+      createFakeContext({ fs }),
+      "/repo",
+    );
+    assert.deepEqual(outcome.conflicts, [{ name, expected: command }]);
+    const written = JSON.parse(fs.files.get("/repo/package.json") ?? "{}") as {
+      scripts: Record<string, string>;
+    };
+    assert.equal(written.scripts[name], own, "never overwritten");
+    assert.equal(written.scripts.gate, GATE_SCRIPT, "gate still gets added");
   });
-  const outcome = await ensurePackageJsonScripts(
-    createFakeContext({ fs }),
-    "/repo",
-  );
-  assert.deepEqual(outcome.conflicts, []);
-  const written = JSON.parse(fs.files.get("/repo/package.json") ?? "{}") as {
-    scripts: Record<string, string>;
-  };
-  assert.deepEqual(written.scripts, {
-    ready: READY_SCRIPT,
-    prepare: PREPARE_SCRIPT,
-    gate: GATE_SCRIPT,
+
+  void test(`ensurePackageJsonScripts leaves a matching \`${name}\` script alone and adds what's missing`, async () => {
+    const fs = createFakeFs({
+      "/repo/package.json": JSON.stringify({
+        name: "existing",
+        scripts: { [name]: command },
+      }),
+    });
+    const outcome = await ensurePackageJsonScripts(
+      createFakeContext({ fs }),
+      "/repo",
+    );
+    assert.deepEqual(outcome.conflicts, []);
+    const written = JSON.parse(fs.files.get("/repo/package.json") ?? "{}") as {
+      scripts: Record<string, string>;
+    };
+    assert.deepEqual(written.scripts, {
+      [name]: command,
+      prepare: PREPARE_SCRIPT,
+      gate: GATE_SCRIPT,
+      ...Object.fromEntries(RUN_THE_GATE.filter(([other]) => other !== name)),
+    });
   });
-});
+}

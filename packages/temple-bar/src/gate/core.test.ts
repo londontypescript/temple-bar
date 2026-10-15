@@ -153,28 +153,36 @@ void test("a changed or missing setup script fails; the project's other scripts 
     'package.json has no "prepare" script',
     'package.json\'s "gate" script is "echo skipped"',
     'package.json has no "ready" script',
+    'package.json has no "merge" script',
   ]);
 });
 
-void test("a deleted or repointed `ready` script fails, with the same fix as for `gate`", async () => {
-  for (const [ready, problem] of [
-    [undefined, 'package.json has no "ready" script'],
-    ["temple-bar gate", 'package.json\'s "ready" script is "temple-bar gate"'],
-  ] as const) {
-    const { ctx } = setUpRepo((files) => {
-      files.set(
-        path.join("/repo", "package.json"),
-        JSON.stringify({ scripts: { ...CORE_SCRIPTS, ready } }),
-      );
-    });
-    assert.deepEqual(await findCoreProblems(ctx), [
-      {
-        problem,
-        fix: 'set "ready" in package.json\'s "scripts" to "temple-bar ready"',
-      },
-    ]);
-  }
-});
+// `ready` and `merge` each run the gate in-process, through pnpm, so a
+// deleted or repointed one fails like a changed `gate`.
+for (const name of ["ready", "merge"]) {
+  void test(`a deleted or repointed \`${name}\` script fails, with the same fix as for \`gate\``, async () => {
+    for (const [command, problem] of [
+      [undefined, `package.json has no "${name}" script`],
+      [
+        "temple-bar gate",
+        `package.json's "${name}" script is "temple-bar gate"`,
+      ],
+    ] as const) {
+      const { ctx } = setUpRepo((files) => {
+        files.set(
+          path.join("/repo", "package.json"),
+          JSON.stringify({ scripts: { ...CORE_SCRIPTS, [name]: command } }),
+        );
+      });
+      assert.deepEqual(await findCoreProblems(ctx), [
+        {
+          problem,
+          fix: `set "${name}" in package.json's "scripts" to "temple-bar ${name}"`,
+        },
+      ]);
+    }
+  });
+}
 
 async function prepareProblems(prepare: unknown) {
   const { ctx } = setUpRepo((files) => {

@@ -118,6 +118,7 @@ void test("init workflows: a packageManager setup can't use ends the run non-zer
       prepare: "temple-bar hook install",
       gate: "temple-bar gate",
       ready: "temple-bar ready",
+      merge: "temple-bar merge",
     },
     engines: { node: ">=24" },
   });
@@ -137,6 +138,7 @@ void test("init workflows: an engines.node setup can't check ends the run non-ze
       prepare: "temple-bar hook install",
       gate: "temple-bar gate",
       ready: "temple-bar ready",
+      merge: "temple-bar merge",
     },
     engines: { node: "^22" },
   });
@@ -158,6 +160,7 @@ void test("init workflows: when it can't tell which pnpm runs it, setup writes n
       prepare: "temple-bar hook install",
       gate: "temple-bar gate",
       ready: "temple-bar ready",
+      merge: "temple-bar merge",
     },
     engines: { node: ">=24" },
   });

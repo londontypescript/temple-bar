@@ -3,6 +3,7 @@ import {
   GATE_SCRIPT,
   PREPARE_SCRIPT,
   READY_SCRIPT,
+  MERGE_SCRIPT,
   isTempleBarPrepare,
 } from "../../packages/temple-bar/src/init/package-json.ts";
 import { manifest, object, prepareCase } from "./expectation.ts";
@@ -54,6 +55,10 @@ export function validateManifest(
   if (actualScripts.ready !== READY_SCRIPT)
     findings.push(
       `package.json: scripts.ready must be ${JSON.stringify(READY_SCRIPT)}`,
+    );
+  if (actualScripts.merge !== MERGE_SCRIPT)
+    findings.push(
+      `package.json: scripts.merge must be ${JSON.stringify(MERGE_SCRIPT)}`,
     );
   if (object(written.devDependencies)?.[PACKAGE_NAME] !== packedVersion)
     findings.push(

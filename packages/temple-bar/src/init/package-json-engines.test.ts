@@ -16,6 +16,7 @@ const BASE = {
     prepare: "temple-bar hook install",
     gate: "temple-bar gate",
     ready: "temple-bar ready",
+    merge: "temple-bar merge",
   },
 };
 

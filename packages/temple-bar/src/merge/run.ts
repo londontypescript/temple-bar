@@ -232,7 +232,7 @@ async function mergeAndReport(
   if (reasons.length > 0 && !options.maintainerApproved) {
     refuse(
       `this pull request needs the maintainer's yes: ${reasons.join("; ")}. ` +
-        `${ASK_THE_MAINTAINER}; once they say yes, run \`temple-bar merge ${String(options.prNumber)} --maintainer-approved\`.`,
+        `${ASK_THE_MAINTAINER}; once they say yes, run \`pnpm merge ${String(options.prNumber)} --maintainer-approved\` from the default-branch checkout.`,
     );
   }
   if (reasons.length > 0) {
