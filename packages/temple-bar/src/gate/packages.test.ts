@@ -94,6 +94,12 @@ const UNTRUSTED_LISTINGS: readonly {
     reason: /^pnpm listed a folder outside the root: .*elsewhere.pkg/,
   },
   {
+    what: "a path that is a file",
+    stdout: JSON.stringify([{ path: path.normalize("/repo/notes.txt") }]),
+    untracked: { "/repo/notes.txt": "notes\n" },
+    reason: /^.*notes\.txt isn't a folder/,
+  },
+  {
     what: "a relative path",
     stdout: JSON.stringify([{ path: "packages/a" }]),
     reason: /^pnpm listed an entry without an absolute path: .*packages\/a/,
