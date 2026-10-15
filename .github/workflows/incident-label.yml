@@ -1,0 +1,29 @@
+name: Incident label
+
+# Agents file incidents as issues titled "incident: ...". GitHub silently
+# drops labels set by anyone without write access, which is everyone but the
+# maintainer, so this adds the label that triage looks for. It runs on an
+# edit too, so a title corrected to "incident: ..." after filing is caught.
+on:
+  issues:
+    types: [opened, edited]
+
+# Only what adding a label needs. No checkout: nothing from the repository
+# runs here.
+permissions:
+  issues: write
+
+jobs:
+  label:
+    name: label incident
+    # startsWith ignores case, so "Incident: ..." counts too. The title is
+    # only compared here, never put in a command, so it can't run code.
+    if: startsWith(github.event.issue.title, 'incident:')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Add the incident label
+        run: gh issue edit "$NUMBER" --repo "$GITHUB_REPOSITORY" --add-label incident
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
