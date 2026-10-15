@@ -48,7 +48,7 @@ same pull request as any change to a mechanism.
 | Gate and title workflows unchanged        | the pinned gate in CI, from 0.0.9                    | **Blocked** via CI    |
 | Release notes finished before publishing  | `pnpm release:publish` refuses unfinished notes      | **Blocked** locally   |
 | One-line description the same everywhere  | tests; About text by a CI step                       | **Blocked** via CI    |
-| Windows run before a non-Markdown push    | `pnpm windows-run`, run by hand                      | **Prose only**        |
+| Windows run after a failed CI Windows leg | `pnpm windows-run`, run by hand                      | **Prose only**        |
 | Incident asked about, filed as an issue   | nothing until theme F                                | **Prose only**        |
 
 Markdown integrity in the pinned 0.0.10 gate uses markdownlint's
