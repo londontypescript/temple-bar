@@ -214,7 +214,12 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
       return exists(path)
         ? Promise.resolve(normalize(path))
         : Promise.reject(
-            new Error(`ENOENT: no such file or directory, realpath '${path}'`),
+            Object.assign(
+              new Error(
+                `ENOENT: no such file or directory, realpath '${path}'`,
+              ),
+              { code: "ENOENT" },
+            ),
           );
     },
     readText(path) {

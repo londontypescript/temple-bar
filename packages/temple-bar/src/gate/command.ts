@@ -1,11 +1,13 @@
 // `temple-bar gate`: the merge gate. Runs the project's four stack scripts
-// (typecheck, lint, format:check, test), the file-length cap and the other
-// base checks, and combines them into one exit code:
+// (typecheck, lint, format:check, test) in the root and in every package of
+// a pnpm workspace, the file-length cap and the other base checks, and
+// combines them into one exit code:
 //
 //   0  everything passes
-//   1  a check failed (stack script(s), a base check, or both)
-//   2  the repo has content of its own, and a required script is missing
-//      from package.json or does nothing
+//   1  a check failed (stack script(s), the workspace inventory, a base
+//      check, or several)
+//   2  a required script is missing from a package.json or does nothing
+//      (in the root, only once the repo has content of its own)
 //
 // Exit 2 takes priority over 1: a repo whose scripts can't check anything
 // has a setup problem to fix first. Even then, every required script that
@@ -14,6 +16,8 @@
 // starting files (see ownContentExists) must still be able to pass on the
 // base checks alone, so those always run and are judged on their own.
 //
+// The root's scripts run first, then each workspace package's, in path
+// order (packages.ts lists them; package-scripts.ts runs one package's).
 // Every run ends with the same report, pass or fail: each check and its
 // outcome, then the verdict (see report.ts).
 
@@ -33,51 +37,21 @@ import {
   listGitPaths,
 } from "./lengths.ts";
 import { runLinkCheck, runMarkdownLint } from "./markdown.ts";
+import { runPackageScripts } from "./package-scripts.ts";
+import { takeInventory } from "./packages.ts";
 import { runRulesetChecks } from "./ruleset.ts";
 import { runUnusedCheck } from "./unused.ts";
 import { runWorkflowCopiesCheck } from "./workflow-copies.ts";
 import { createRealGateTools, type GateTools } from "./tools.ts";
 import { writeReport, type CheckOutcome } from "./report.ts";
 import {
-  detectPackageManager,
-  isNoOpScript,
-  missingRequiredScripts,
-  ownContentExists,
   readPackageManifest,
-  runRequiredScripts,
   REQUIRED_SCRIPTS,
-  SCRIPT_PURPOSE,
-  type RequiredScript,
+  scriptCommandFor,
 } from "./stack.ts";
 
 const LENGTH_CHECK = "file-length cap";
 const AGENTS_SIZE_CHECK = "AGENTS.md size";
-
-function formatMissingScripts(missing: readonly RequiredScript[]): string {
-  const lines = [
-    `gate: the repo has files of its own, but package.json is missing script(s): ${missing.join(", ")}`,
-  ];
-  for (const name of missing) {
-    lines.push(
-      `  add "${name}" to "scripts" in package.json: ${SCRIPT_PURPOSE[name]}`,
-    );
-  }
-  return `${lines.join("\n")}\n`;
-}
-
-function formatNoOpScripts(
-  noOps: readonly { name: RequiredScript; command: string }[],
-): string {
-  const lines = [
-    `gate: package.json has script(s) that check nothing: ${noOps.map(({ name }) => name).join(", ")}`,
-  ];
-  for (const { name, command } of noOps) {
-    lines.push(
-      `  "${name}" is ${JSON.stringify(command)}: replace it with ${SCRIPT_PURPOSE[name]}`,
-    );
-  }
-  return `${lines.join("\n")}\n`;
-}
 
 interface StackResult {
   readonly outcomes: CheckOutcome[];
@@ -85,78 +59,40 @@ interface StackResult {
   readonly scriptsIncomplete: boolean;
 }
 
-async function runStackChecks(ctx: Context): Promise<StackResult> {
-  const manifest = await readPackageManifest(ctx);
-  const missing = missingRequiredScripts(manifest);
-
-  // The scripts are required once the repo has content of its own. Before
-  // that there is nothing for them to check, so missing ones aren't a
-  // failure. A project that already has all four still gets them run.
-  if (missing.length > 0 && !(await ownContentExists(ctx))) {
-    return {
-      outcomes: REQUIRED_SCRIPTS.map((name) => ({
-        name,
-        status: "skipped",
-        detail: "no content of its own yet",
-      })),
-      scriptsIncomplete: false,
-    };
-  }
-
-  // Read as unknown: package.json is user-written, and a script that isn't
-  // a string is left for the package manager to reject when it runs.
-  const scripts: Readonly<Record<string, unknown>> = manifest?.scripts ?? {};
-  const noOps = REQUIRED_SCRIPTS.flatMap((name) => {
-    const command = scripts[name];
-    return typeof command === "string" && isNoOpScript(command)
-      ? [{ name, command }]
-      : [];
-  });
-  const isNoOp = (name: RequiredScript): boolean =>
-    noOps.some((noOp) => noOp.name === name);
-
-  // Every script that exists and does something runs, even when another is
-  // missing or does nothing, so one gap never hides another script's
-  // failures.
-  const runnable = REQUIRED_SCRIPTS.filter(
-    (name) => !missing.includes(name) && !isNoOp(name),
+/** The scripts of the root, then of every package the inventory lists,
+ * with the inventory's own line first. */
+async function runStackChecks(
+  ctx: Context,
+  listed: readonly string[],
+): Promise<StackResult> {
+  const inventory = await takeInventory(ctx, listed);
+  const commandFor = await scriptCommandFor(
+    ctx,
+    await readPackageManifest(ctx),
   );
-  const results =
-    runnable.length === 0
-      ? []
-      : await runRequiredScripts(
-          ctx,
-          await detectPackageManager(ctx, manifest),
-          runnable,
-        );
+  const results = [
+    await runPackageScripts(ctx, { relative: "", folder: ctx.cwd }, commandFor),
+  ];
+  for (const member of inventory.packages) {
+    results.push(await runPackageScripts(ctx, member, commandFor));
+  }
 
   // Written after the scripts' own output, so it isn't buried under it.
-  if (missing.length > 0) {
-    ctx.stderr.write(formatMissingScripts(missing));
+  for (const result of results) {
+    if (result.message !== "") {
+      ctx.stderr.write(result.message);
+    }
   }
-  if (noOps.length > 0) {
-    ctx.stderr.write(formatNoOpScripts(noOps));
+  if (inventory.message !== undefined) {
+    ctx.stderr.write(inventory.message);
   }
 
   return {
-    outcomes: REQUIRED_SCRIPTS.map((name): CheckOutcome => {
-      const noOp = noOps.find((entry) => entry.name === name);
-      if (noOp !== undefined) {
-        return { name, status: "no-op", detail: JSON.stringify(noOp.command) };
-      }
-      const result = results.find((entry) => entry.script === name);
-      if (result === undefined) {
-        return { name, status: "missing", detail: "not in package.json" };
-      }
-      return result.exitCode === 0
-        ? { name, status: "passed" }
-        : {
-            name,
-            status: "failed",
-            detail: `exit ${String(result.exitCode)}`,
-          };
-    }),
-    scriptsIncomplete: missing.length > 0 || noOps.length > 0,
+    outcomes: [
+      inventory.outcome,
+      ...results.flatMap((result) => result.outcomes),
+    ],
+    scriptsIncomplete: results.some((result) => result.incomplete),
   };
 }
 
@@ -205,8 +141,8 @@ async function runAgentsSizeCheck(ctx: Context): Promise<CheckOutcome> {
 }
 
 async function runGate(ctx: Context, tools: GateTools): Promise<number> {
-  const stack = await runStackChecks(ctx);
   const listed = await listGitPaths(ctx);
+  const stack = await runStackChecks(ctx, listed);
   const outcomes = [
     ...stack.outcomes,
     await runCoreCheck(ctx),
@@ -243,17 +179,24 @@ export function createGateCommand(tools: GateTools): CommandEntry {
   return {
     name: "gate",
     summary:
-      "Run the merge gate: stack checks, setup's core, the gate and title workflows, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code, the branch ruleset, the judge's ruleset and the gate and title checks rule.",
+      "Run the merge gate: stack checks in every workspace package, setup's core, the gate and title workflows, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code, the branch ruleset, the judge's ruleset and the gate and title checks rule.",
     details: [
       "Once the repo has files of its own (beyond package.json, the lockfile,",
       "AGENTS.md, .gitignore, README.md, LICENSE, temple-bar.config.json and",
       "the docs, CLAUDE.md and workflows setup writes),",
       "requires these package.json scripts and runs every one that exists:",
       `${REQUIRED_SCRIPTS.join(", ")}. A script that does nothing (such as`,
-      "`true` or a bare `echo`) fails. Checks that what setup installs is",
+      "`true` or a bare `echo`) fails. In a pnpm workspace",
+      "(pnpm-workspace.yaml), every package pnpm lists needs the same four",
+      "scripts, and they run in its folder: the root's first, then each",
+      "package's, by path. The list comes from the pnpm that started the gate",
+      "(npm_execpath), so run it as `pnpm gate` or `pnpm ready`; a tracked",
+      "package.json that is neither the root's nor a listed package's fails.",
+      "Started by a package manager, the gate runs every script through it.",
+      "Checks that what setup installs is",
       "still in place: the git hooks (unchanged, by SHA-256), core.hooksPath",
-      "unset, pull.ff=only, setup's .gitignore lines and its prepare and gate",
-      "scripts, and AGENTS.md's temple-bar block, when it has one, unchanged.",
+      "unset, pull.ff=only, setup's .gitignore lines, its prepare, gate and",
+      "ready scripts, and AGENTS.md's temple-bar block, when it has one, unchanged.",
       "Checks the gate and title workflows setup writes",
       "(.github/workflows/temple-bar-gate.yml and temple-bar-pr-title.yml) are",
       "exact copies of the ones this temple-bar writes, CRLF line endings",
@@ -278,7 +221,7 @@ export function createGateCommand(tools: GateTools): CommandEntry {
       "fails without one. Ends by listing each check and its outcome.",
       "",
       "Exit codes: 0 every check passed, 1 a check failed,",
-      "2 a required script is missing from package.json or does nothing.",
+      "2 a required script is missing from a package.json or does nothing.",
     ].join("\n"),
     run: (_args, ctx) => runGateSafely(ctx, tools),
   };

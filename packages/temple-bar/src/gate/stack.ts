@@ -43,13 +43,14 @@ function isPackageManifest(value: unknown): value is PackageManifest {
   return typeof value === "object" && value !== null;
 }
 
-/** Reads and parses package.json at ctx.cwd, or undefined if there is none
- * (or it isn't valid JSON — treated the same as absent, since either way
- * there is nowhere to read scripts from). */
+/** Reads and parses package.json in `folder` (the root by default), or
+ * undefined if there is none (or it isn't valid JSON — treated the same as
+ * absent, since either way there is nowhere to read scripts from). */
 export async function readPackageManifest(
   ctx: Context,
+  folder: string = ctx.cwd,
 ): Promise<PackageManifest | undefined> {
-  const raw = await ctx.fs.readText(path.join(ctx.cwd, "package.json"));
+  const raw = await ctx.fs.readText(path.join(folder, "package.json"));
   if (raw === undefined) {
     return undefined;
   }
@@ -177,28 +178,61 @@ export async function detectPackageManager(
   return "npm";
 }
 
+/** How to run one script: the command and its arguments. */
+export interface ScriptCommandLine {
+  readonly command: string;
+  readonly args: readonly string[];
+}
+
+export type ScriptCommand = (script: RequiredScript) => ScriptCommandLine;
+
+/**
+ * How the gate runs a script. When a package manager started the gate, its
+ * own entry point is in npm_execpath, and every script runs through it, by
+ * the node running the gate: one package manager runs everything, and on
+ * Windows no shell is needed. Without npm_execpath (the gate run by hand),
+ * the root's scripts run through the package manager detectPackageManager
+ * picks, from PATH; a workspace's packages are never run that way (see
+ * packages.ts).
+ */
+export async function scriptCommandFor(
+  ctx: Context,
+  rootManifest: PackageManifest | undefined,
+): Promise<ScriptCommand> {
+  const execPath = ctx.env.npm_execpath ?? "";
+  if (execPath !== "") {
+    return (script) => ({
+      command: process.execPath,
+      args: [execPath, "run", script],
+    });
+  }
+  const manager = await detectPackageManager(ctx, rootManifest);
+  return (script) => ({ command: manager, args: ["run", script] });
+}
+
 export interface ScriptRunResult {
   readonly script: RequiredScript;
   readonly exitCode: number;
 }
 
 /**
- * Runs each of `scripts` in order via `<manager> run <script>`, always
- * running all of them even if an earlier one fails (the gate summarises
- * every failure, it doesn't stop at the first). Every script gets CI=true
- * in its environment, so tools that act differently in CI (watch modes,
- * prompts) act the same way locally. It is added on top of ctx.env rather
- * than replacing it.
+ * Runs each of `scripts` in order in `folder`, always running all of them
+ * even if an earlier one fails (the gate summarises every failure, it
+ * doesn't stop at the first). Every script gets CI=true in its environment,
+ * so tools that act differently in CI (watch modes, prompts) act the same
+ * way locally. It is added on top of ctx.env rather than replacing it.
  */
 export async function runRequiredScripts(
   ctx: Context,
-  manager: "npm" | "pnpm",
+  commandFor: ScriptCommand,
+  folder: string,
   scripts: readonly RequiredScript[],
 ): Promise<ScriptRunResult[]> {
   const results: ScriptRunResult[] = [];
   for (const script of scripts) {
-    const exitCode = await ctx.proc.run(manager, ["run", script], {
-      cwd: ctx.cwd,
+    const { command, args } = commandFor(script);
+    const exitCode = await ctx.proc.run(command, args, {
+      cwd: folder,
       env: { ...ctx.env, CI: "true" },
       stdout: ctx.stdout,
       stderr: ctx.stderr,

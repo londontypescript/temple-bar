@@ -179,6 +179,7 @@ void test("gate: a pass lists every check that ran, each passed, on stdout", asy
     stdout.lines.join(""),
     [
       "gate: checks:",
+      "  passed   workspace packages (the root alone: no pnpm-workspace.yaml)",
       "  passed   typecheck",
       "  passed   lint",
       "  passed   format:check",
