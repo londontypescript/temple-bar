@@ -221,7 +221,10 @@ void test("gate: a workspace started without npm_execpath runs the root's script
   assert.ok(proc.calls.every((call) => call.command === "pnpm"));
   assert.ok(!proc.calls.some((call) => call.args.includes("list")));
   const text = stderr.lines.join("");
-  assert.match(text, /`pnpm gate`, or `pnpm ready`/);
+  assert.match(
+    text,
+    /`pnpm gate`, `pnpm ready` to mark the commit ready to push, or `pnpm merge <N>` from the default-branch checkout/,
+  );
   assert.match(text, /^ {2}passed {3}typecheck$/m);
 });
 

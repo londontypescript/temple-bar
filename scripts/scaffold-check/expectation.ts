@@ -10,6 +10,7 @@ import {
   PREPARE_SCRIPT,
   GATE_SCRIPT,
   READY_SCRIPT,
+  MERGE_SCRIPT,
 } from "../../packages/temple-bar/src/init/package-json.ts";
 import { CHECKED_WORKFLOWS } from "../../packages/temple-bar/src/init/workflows.ts";
 import {
@@ -117,6 +118,10 @@ export function expectation(snapshot: Snapshot): Expectation {
     if (scripts.ready !== undefined && scripts.ready !== READY_SCRIPT)
       unknown.push(
         `scripts.ready already exists: ${JSON.stringify(scripts.ready)}`,
+      );
+    if (scripts.merge !== undefined && scripts.merge !== MERGE_SCRIPT)
+      unknown.push(
+        `scripts.merge already exists: ${JSON.stringify(scripts.merge)}`,
       );
     const dev = object(pkg.devEngines);
     if (dev !== undefined && Object.hasOwn(dev, "packageManager")) {

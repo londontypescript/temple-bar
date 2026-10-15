@@ -4,6 +4,7 @@
 // rather than overwritten.
 
 import type { Context } from "../context.ts";
+import { finishRemoval, type WorktreeRemover } from "./finish-removal.ts";
 import { refuse } from "./refusal.ts";
 import { isDirty, listWorktrees, type Worktree } from "./worktrees.ts";
 
@@ -191,10 +192,17 @@ async function switchPrimaryToDefault(
 
 async function removeWorktree(
   ctx: Context,
+  remover: WorktreeRemover,
   worktree: Worktree,
   primaryPath: string,
   report: CleanupReport,
 ): Promise<void> {
+  // Recorded before git runs, so what is left afterwards can be checked to
+  // be the same folder, and that no other checkout is inside it.
+  const before = await remover.inspect(worktree.path);
+  const checkouts = (await listWorktrees(ctx, primaryPath))
+    .filter((other) => other.path !== worktree.path)
+    .map((other) => other.path);
   // No --force: uncommitted work in the worktree is kept and reported.
   // Run from the primary checkout: git won't remove the worktree it runs in.
   const removed = await git(
@@ -203,7 +211,17 @@ async function removeWorktree(
     primaryPath,
   );
   if (removed.ok) {
-    report.done.push(`removed the worktree at ${worktree.path}`);
+    const problem = await finishRemoval(
+      remover,
+      worktree.path,
+      before,
+      checkouts,
+    );
+    if (problem === undefined) {
+      report.done.push(`removed the worktree at ${worktree.path}`);
+    } else {
+      report.problems.push(problem);
+    }
   } else {
     report.problems.push(
       `left the worktree at ${worktree.path}: ${removed.stderr}. ` +
@@ -295,6 +313,8 @@ export async function cleanUp(
     /** The commit that merged; a local branch anywhere else holds work that
      * didn't, so it is kept. */
     readonly mergedSha: string;
+    /** Finishes a removal git leaves half done (see finish-removal.ts). */
+    readonly remover: WorktreeRemover;
   },
 ): Promise<CleanupReport> {
   const report: CleanupReport = { done: [], problems: [] };
@@ -321,7 +341,7 @@ export async function cleanUp(
   await confirmRemoteBranchGone(ctx, options.branch, cwd, report);
 
   if (holder !== undefined && !holder.primary) {
-    await removeWorktree(ctx, holder, cwd, report);
+    await removeWorktree(ctx, options.remover, holder, cwd, report);
   }
 
   const tip = await resolveCommit(ctx, `refs/heads/${options.branch}`, cwd);

@@ -8,6 +8,12 @@ import test from "node:test";
 import { createFakeContext, createFakeGit } from "../testing/fakes.ts";
 import { cleanUp } from "./local.ts";
 
+// git's removal is faked here, so no folder is ever left to finish.
+const gone = {
+  inspect: () => Promise.resolve({ kind: "missing" as const }),
+  removeTree: () => Promise.reject(new Error("nothing should be removed")),
+};
+
 const MERGED = "a".repeat(40);
 
 function scripted(options: { readonly primaryOnBranch: boolean }) {
@@ -43,6 +49,7 @@ function scripted(options: { readonly primaryOnBranch: boolean }) {
       branch: "feat/x",
       defaultBranch: "main",
       mergedSha: MERGED,
+      remover: gone,
     });
   const at = (...prefix: string[]) =>
     git.calls.findIndex((call) => prefix.every((p, i) => call.args[i] === p));

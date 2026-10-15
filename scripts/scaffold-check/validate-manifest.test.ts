@@ -49,6 +49,13 @@ const scenarios: {
     finding: /scripts.ready must be/,
   },
   {
+    name: "merge",
+    edit: (pkg) => {
+      pkg.scripts = { ...object(pkg.scripts), merge: "other" };
+    },
+    finding: /scripts.merge must be/,
+  },
+  {
     name: "packed dependency",
     edit: (pkg) => {
       pkg.devDependencies = { "@londontypescript/temple-bar": "^0.0.9" };

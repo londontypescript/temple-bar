@@ -1,9 +1,10 @@
 // Creates package.json, or adds a missing name and the scripts temple-bar
 // needs to an existing one. Like the rest of setup, it only adds: when the
-// project already has a `gate` or `ready` script with different content, it
-// is reported, never overwritten. A `prepare` script that is the project's own
-// is kept and temple-bar's command is chained after it, so both run; one
-// that can't safely be chained onto is reported like a `gate` conflict.
+// project already has a `gate`, `ready` or `merge` script with different
+// content, it is reported, never overwritten. A `prepare` script that is the
+// project's own is kept and temple-bar's command is chained after it, so
+// both run; one that can't safely be chained onto is reported like a `gate`
+// conflict.
 // When nothing names the project's pnpm version, it records the one running
 // setup (see pnpmVersionStep).
 
@@ -26,6 +27,9 @@ export const GATE_SCRIPT = "temple-bar gate";
 /** `pnpm ready` runs `ready` through pnpm, so the gate inside it can list a
  * workspace's packages through that pnpm (see gate/packages.ts). */
 export const READY_SCRIPT = "temple-bar ready";
+/** `merge` runs the full gate too, on the branch it brings up to date, so
+ * `pnpm merge <N>` hands it pnpm the same way `pnpm ready` does. */
+export const MERGE_SCRIPT = "temple-bar merge";
 
 const CHAIN = ` && ${PREPARE_SCRIPT}`;
 
@@ -197,11 +201,12 @@ export interface PackageJsonOutcome {
 
 /**
  * Creates a minimal package.json if there isn't one, names it if needed,
- * then adds the `prepare`, `gate` and `ready` scripts if they're absent. An existing
- * `prepare` script gets temple-bar's command chained after it. Any other
- * script that already exists with different content (or a `prepare` that
- * can't be chained onto) is left untouched; its name and expected line come
- * back in `conflicts` so the caller can report it and end non-zero.
+ * then adds the `prepare`, `gate`, `ready` and `merge` scripts if they're
+ * absent. An existing `prepare` script gets temple-bar's command chained
+ * after it. Any other script that already exists with different content
+ * (or a `prepare` that can't be chained onto) is left untouched; its name
+ * and expected line come back in `conflicts` so the caller can report it
+ * and end non-zero.
  */
 export async function ensurePackageJsonScripts(
   ctx: Context,
@@ -262,6 +267,7 @@ export async function ensurePackageJsonScripts(
   for (const [name, command] of [
     ["gate", GATE_SCRIPT],
     ["ready", READY_SCRIPT],
+    ["merge", MERGE_SCRIPT],
   ] as const) {
     const existing = scripts[name];
     if (existing === undefined) {
