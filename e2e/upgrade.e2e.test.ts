@@ -11,6 +11,7 @@ import path from "node:path";
 import { after, before, test } from "node:test";
 
 import { INSTALLED_SHIMS } from "../packages/temple-bar/src/gate/core.ts";
+import { templeBarBlock } from "../packages/temple-bar/src/init/agents-template.ts";
 import { CHECKED_WORKFLOWS } from "../packages/temple-bar/src/init/workflows.ts";
 import {
   JUDGE_WORKFLOW_PATH,
@@ -258,14 +259,48 @@ void test(
         env,
       );
       const secondSetup = await setup(linked);
-      assert.equal(secondSetup.code, 0, describe(secondSetup));
+      const primaryAgents = readFileSync(path.join(dir, "AGENTS.md"), "utf8");
+      const linkedAgents = readFileSync(path.join(linked, "AGENTS.md"), "utf8");
+      if (currentFirst) {
+        // 0.0.9 never wrote this release's AGENTS.md block, so to its setup
+        // the block is a hand edit: left alone and reported, never replaced
+        // with its own older block.
+        assert.equal(secondSetup.code, 1, describe(secondSetup));
+        assert.match(
+          secondSetup.stderr,
+          /AGENTS\.md's temple-bar block has been edited/,
+        );
+        assert.equal(
+          linkedAgents,
+          primaryAgents,
+          "an older setup keeps the newer block",
+        );
+      } else {
+        // This release recognizes the block 0.0.9 wrote and replaces it.
+        assert.equal(secondSetup.code, 0, describe(secondSetup));
+        assert.ok(
+          !primaryAgents.includes(templeBarBlock()),
+          "0.0.9 wrote an earlier block, so the upgrade is a real replacement",
+        );
+        assert.ok(
+          linkedAgents.includes(templeBarBlock()),
+          "the linked worktree holds this release's block",
+        );
+      }
       assertCurrent(dir);
       const primaryGate = await gate(dir);
       const linkedGate = await gate(linked);
-      // This release deliberately keeps 0.0.9's template bytes. Both immutable
-      // gates can therefore pass; a future changed template needs new evidence.
       assert.equal(primaryGate.code, 0, describe(primaryGate));
-      assert.equal(linkedGate.code, 0, describe(linkedGate));
+      if (currentFirst) {
+        // 0.0.9's gate in the linked worktree sees a block it never writes.
+        assert.notEqual(linkedGate.code, 0, describe(linkedGate));
+        assert.match(
+          linkedGate.stderr,
+          /AGENTS\.md's temple-bar block differs from the one this temple-bar version writes/,
+        );
+      } else {
+        assert.equal(linkedGate.code, 0, describe(linkedGate));
+      }
 
       const hooks = path.join(dir, ".git/hooks");
       const marker = path.join(hooks, INSTALLED_CHECKOUT_FILE);

@@ -78,6 +78,11 @@ Clear or compact only at a phase boundary, and ask first. On resume, read
 git, open pull requests and the issue; don't ask the user to remember. How:
 [docs/phase-boundaries.md](docs/phase-boundaries.md).
 
+Where the tool lets you name the session, name it after the project and
+the work as soon as both are known (\`<project>: setup and design\`), and
+rename it when the work moves on: sessions titled from their first prompt
+all look alike, and one that has moved on is hard to find again.
+
 ## Branches and commits
 
 The default branch changes only through merged pull requests, each squashed:
@@ -198,9 +203,11 @@ export function freshAgentsMd(): string {
  * blockHash computes it. Setup replaces a block matching one of these (an
  * upgrade); any other block that differs from today's was edited by hand,
  * and setup leaves it alone rather than lose the edit. When a release
- * changes the block, add the hash of the block it replaces here. Empty
- * while only one release has written a block. */
-export const EARLIER_BLOCK_SHA256: readonly string[] = [];
+ * changes the block, add the hash of the block it replaces here. */
+export const EARLIER_BLOCK_SHA256: readonly string[] = [
+  // 0.0.9 and 0.0.10 (the same block)
+  "c02fbddb1a10a85fc5e1a756cc497ec1a45415df026ef1564c6ad4b642d0f474",
+];
 
 /** The block's text compared without its final newline and with Windows
  * line endings made plain, so a checkout that turns LF into CRLF (git's
