@@ -57,10 +57,13 @@ function describe(error: unknown): string {
 }
 
 /** True for a folder named by git's "/"-separated path whose last part is
- * package.json. A directory entry (a nested worktree) ends in "/" and never
- * matches. */
+ * package.json, in any letter case: on a case-insensitive disk (Windows, a
+ * default macOS volume) git may track `Package.json` while every tool opens
+ * it as `package.json`, so an odd spelling is a manifest to check, never a
+ * way past the list. A directory entry (a nested worktree) ends in "/" and
+ * never matches. */
 function isManifest(relative: string): boolean {
-  return relative.split("/").pop() === MANIFEST;
+  return relative.split("/").pop()?.toLowerCase() === MANIFEST;
 }
 
 /** The pnpm that started the gate: npm_execpath, when it names a pnpm. */
@@ -169,7 +172,8 @@ async function listPackages(
     { cwd: ctx.cwd, env: ctx.env, stdout, stderr },
   );
   if (code !== 0) {
-    const said = stderr.text().trim().split("\n")[0] ?? "";
+    // pnpm on Windows may end its lines with CRLF.
+    const said = stderr.text().trim().split(/\r?\n/)[0] ?? "";
     fail(
       `pnpm list exited with ${String(code)}${said === "" ? "" : `: ${said}`}`,
     );

@@ -247,6 +247,14 @@ void test("inventory: a tracked package.json outside pnpm's list is named relati
   );
 });
 
+void test("inventory: a manifest tracked with odd letter case (Package.json) is named too, never read as some other file", async () => {
+  const { result } = await inventory({
+    extraTracked: ["tools/c/Package.json"],
+  });
+  assert.equal(result.outcome.status, "failed");
+  assert.match(result.message ?? "", /^ {2}tools\/c\/Package\.json$/m);
+});
+
 void test("inventory: a package.json inside a listed package's folder, but not its own, is named", async () => {
   const { result } = await inventory({
     extraTracked: ["packages/a/fixtures/package.json"],

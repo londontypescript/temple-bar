@@ -19,6 +19,7 @@ import {
   runRequiredScripts,
   REQUIRED_SCRIPTS,
   SCRIPT_PURPOSE,
+  scriptsOf,
   type RequiredScript,
   type ScriptCommand,
   type ScriptRunResult,
@@ -131,9 +132,9 @@ export async function runPackageScripts(
     };
   }
 
-  // Read as unknown: package.json is user-written, and a script that isn't
-  // a string is left for the package manager to reject when it runs.
-  const scripts: Readonly<Record<string, unknown>> = manifest?.scripts ?? {};
+  // A script that isn't a string is left for the package manager to reject
+  // when it runs.
+  const scripts = scriptsOf(manifest);
   const noOps = REQUIRED_SCRIPTS.flatMap((name) => {
     const command = scripts[name];
     return typeof command === "string" && isNoOpScript(command)

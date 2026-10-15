@@ -63,13 +63,26 @@ export async function readPackageManifest(
   return isPackageManifest(parsed) ? parsed : undefined;
 }
 
+/** The manifest's `scripts` map, read as unknown: package.json is
+ * user-written, so `scripts` may be anything. One that isn't an object
+ * (`false`, a string, a number) holds no scripts, and is read as empty
+ * rather than crashing the gate when a name is looked up in it. */
+export function scriptsOf(
+  manifest: PackageManifest | undefined,
+): Readonly<Record<string, unknown>> {
+  const scripts: unknown = manifest?.scripts;
+  return typeof scripts === "object" && scripts !== null
+    ? (scripts as Readonly<Record<string, unknown>>)
+    : {};
+}
+
 /** Which of the required scripts are missing from `manifest`. A missing
  * manifest (no package.json at all) counts as every one missing:
  * there is nowhere for them to be defined. */
 export function missingRequiredScripts(
   manifest: PackageManifest | undefined,
 ): RequiredScript[] {
-  const scripts = manifest?.scripts ?? {};
+  const scripts = scriptsOf(manifest);
   return REQUIRED_SCRIPTS.filter((name) => !(name in scripts));
 }
 

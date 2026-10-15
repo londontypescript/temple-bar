@@ -103,6 +103,26 @@ void test("gate: a package with no scripts exits 2, naming its package.json, and
   );
 });
 
+void test("gate: a package whose scripts field isn't an object exits 2 with every script missing, and the other package still runs", async () => {
+  const fixture = workspace();
+  fixture.fs.files.set(
+    path.join("/repo", "packages", "a", "package.json"),
+    JSON.stringify({ name: "pkg-a", scripts: false }),
+  );
+
+  assert.equal(await runGate(fixture.ctx), 2);
+  assert.deepEqual(scriptRuns(fixture.proc), [
+    ...each(""),
+    ...each("packages/b"),
+  ]);
+  const text = fixture.stderr.lines.join("");
+  assert.match(
+    text,
+    /^gate: packages\/a\/package\.json is missing script\(s\): typecheck, lint, format:check, test$/m,
+  );
+  assert.match(text, /^gate: failed: typecheck \(packages\/a\)/m);
+});
+
 void test("gate: a package's removed typecheck, or one that does nothing, exits 2 and names the package", async () => {
   const withoutTypecheck = Object.fromEntries(
     Object.entries(ALL_SCRIPTS).filter(([name]) => name !== "typecheck"),

@@ -52,6 +52,19 @@ void test("missingRequiredScripts: none missing when all four are present", () =
   );
 });
 
+void test("missingRequiredScripts: a scripts field that isn't an object holds no scripts, and never crashes the lookup", async () => {
+  for (const scripts of [false, "tsc", 7]) {
+    const ctx = createFakeContext({
+      fs: createFakeFs({ "/repo/package.json": JSON.stringify({ scripts }) }),
+    });
+    assert.deepEqual(
+      missingRequiredScripts(await readPackageManifest(ctx)),
+      [...REQUIRED_SCRIPTS],
+      `scripts: ${JSON.stringify(scripts)}`,
+    );
+  }
+});
+
 void test("missingRequiredScripts: names each missing script, in the fixed order", () => {
   assert.deepEqual(
     missingRequiredScripts({ scripts: { test: "node --test" } }),
