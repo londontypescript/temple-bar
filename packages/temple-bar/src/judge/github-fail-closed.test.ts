@@ -135,34 +135,48 @@ void test("a blob answered with an error, invalid JSON, the wrong shape or bad b
 });
 
 void test("a base branch tip answered for another branch, a non-commit or as a list fails closed", async (t) => {
-  const answers: HttpResult[] = [
-    response(200, {
-      ref: "refs/heads/main-old",
-      object: { type: "commit", sha: "4".repeat(40) },
-    }),
-    response(200, {
-      ref: "refs/heads/main",
-      object: { type: "tag", sha: "4".repeat(40) },
-    }),
-    response(200, {
-      ref: "refs/heads/main",
-      object: { type: "commit", sha: "main" },
-    }),
-    response(200, [
-      {
+  // Each answer names the real base commit, so only its own flaw can stop
+  // the read.
+  const answers: ((base: string) => [HttpResult, RegExp])[] = [
+    (base) => [
+      response(200, {
+        ref: "refs/heads/main-old",
+        object: { type: "commit", sha: base },
+      }),
+      /unexpected answer for the tip of main/,
+    ],
+    (base) => [
+      response(200, {
         ref: "refs/heads/main",
-        object: { type: "commit", sha: "4".repeat(40) },
-      },
-    ]),
-    response(404, {}),
+        object: { type: "tag", sha: base },
+      }),
+      /unexpected answer for the tip of main/,
+    ],
+    () => [
+      response(200, {
+        ref: "refs/heads/main",
+        object: { type: "commit", sha: "main" },
+      }),
+      /unexpected answer for the tip of main/,
+    ],
+    (base) => [
+      response(200, [
+        { ref: "refs/heads/main", object: { type: "commit", sha: base } },
+      ]),
+      /isn't a JSON object/,
+    ],
+    () => [response(404, {}), /GitHub answered 404/],
   ];
   for (const answer of answers) {
-    const { read } = setup(
-      t,
-      CODE_ONLY,
-      answering(() => tipUrl, answer),
-    );
-    await assertCantRead(read, /tip of main|isn't a JSON object|answered 404/);
+    let reason = /never/;
+    const { read } = setup(t, CODE_ONLY, (shas) => {
+      const [reply, why] = answer(shas.base);
+      reason = why;
+      return {
+        override: (url: string) => (url === tipUrl ? reply : undefined),
+      };
+    });
+    await assertCantRead(read, reason);
   }
 });
 

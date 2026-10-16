@@ -53,10 +53,11 @@ function unreadable(reason: string): FileState {
 /** The one entry `git ls-tree` gives for `file` at `commit`, checked:
  * `<mode> <type> <id>\t<path>\0`, for exactly the path asked for. */
 function parseEntry(output: string, file: string) {
-  if (!output.endsWith("\0") || output.indexOf("\0") !== output.length - 1) {
+  // git ends every entry with a NUL, so one entry splits into it and "".
+  const [line, end, ...more] = output.split("\0");
+  if (line === undefined || end !== "" || more.length > 0) {
     return undefined;
   }
-  const line = output.slice(0, -1);
   const tab = line.indexOf("\t");
   const [mode, type, id, ...rest] = line.slice(0, tab).split(" ");
   if (tab < 0 || rest.length > 0 || line.slice(tab + 1) !== file) {
