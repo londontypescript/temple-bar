@@ -16,8 +16,10 @@ import { runKnip, type KnipResult } from "./unused-run.ts";
 import { runMarkdownlint } from "./markdownlint-run.ts";
 
 export interface GateTools {
-  /** Runs knip in ctx.cwd. Returns its exit code and independently verified comment-only evidence.
-   * Native diagnostics are streamed without replacing project preprocessors. */
+  /** Runs knip in ctx.cwd. Returns its exit code, independently verified
+   * comment-only evidence and, when its evidence is complete, the file of
+   * every finding. Native diagnostics are streamed without replacing
+   * project preprocessors. */
   readonly knip: (ctx: Context, args: readonly string[]) => Promise<KnipResult>;
   /** Lints `files` (relative to ctx.cwd) with markdownlint, using the
    * gate's fixed integrity configuration. Project style settings and inline

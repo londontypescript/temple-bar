@@ -38,7 +38,7 @@ import {
 } from "./lengths.ts";
 import { runLinkCheck, runMarkdownLint } from "./markdown.ts";
 import { runPackageScripts } from "./package-scripts.ts";
-import { takeInventory } from "./packages.ts";
+import { takeInventory, type Inventory } from "./packages.ts";
 import { runRulesetChecks } from "./ruleset.ts";
 import { runUnusedCheck } from "./unused.ts";
 import { runWorkflowCopiesCheck } from "./workflow-copies.ts";
@@ -57,6 +57,8 @@ interface StackResult {
   readonly outcomes: CheckOutcome[];
   /** A required script is missing or does nothing, so the gate exits 2. */
   readonly scriptsIncomplete: boolean;
+  /** The packages, for checks that say which package a finding is in. */
+  readonly inventory: Inventory;
 }
 
 /** The scripts of the root, then of every package the inventory lists,
@@ -93,6 +95,7 @@ async function runStackChecks(
       ...results.flatMap((result) => result.outcomes),
     ],
     scriptsIncomplete: results.some((result) => result.incomplete),
+    inventory,
   };
 }
 
@@ -151,7 +154,7 @@ async function runGate(ctx: Context, tools: GateTools): Promise<number> {
     await runAgentsSizeCheck(ctx),
     await runMarkdownLint(ctx, tools, listed),
     await runLinkCheck(ctx, listed),
-    await runUnusedCheck(ctx, tools),
+    await runUnusedCheck(ctx, tools, stack.inventory),
     ...(await runRulesetChecks(ctx)),
   ];
   writeReport(ctx, outcomes);

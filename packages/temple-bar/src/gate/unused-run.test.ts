@@ -79,7 +79,9 @@ void test("valid capture passes only at exit 1 when every file qualifies", async
     for (const code of [0, 1, 2, 127]) {
       assert.deepEqual(
         await invoke(code, JSON.stringify(evidence)),
-        code === 1 ? { code, commentOnlyFiles: [file] } : { code },
+        code === 1
+          ? { code, findingFiles: [file], commentOnlyFiles: [file] }
+          : { code },
       );
     }
     assert.deepEqual(
@@ -92,7 +94,11 @@ void test("valid capture passes only at exit 1 when every file qualifies", async
       [other]: { type: "files", filePath: other },
     };
     evidence.counters.files = 2;
-    assert.deepEqual(await invoke(1, JSON.stringify(evidence)), { code: 1 });
+    // Code in an unused file keeps the failure, but still says where it is.
+    assert.deepEqual(await invoke(1, JSON.stringify(evidence)), {
+      code: 1,
+      findingFiles: [file, other],
+    });
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

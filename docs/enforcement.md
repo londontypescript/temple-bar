@@ -122,6 +122,12 @@ reporter and bounded strict file reader preserve native diagnostics and all
 real unused code, exports, types and analyzer failures. Packed SvelteKit
 regressions exercise the exception and retained failures.
 
+From 0.1.0, Knip still runs once at the root over the whole workspace, so a
+shared package's code that only its sibling packages use counts as used. The
+gate names the packages that hold Knip's findings, or the root; that naming
+never turns a failure into a pass. temple-bar writes no Knip config: entries
+that Knip's plugins don't find are declared in the project's own.
+
 The release scaffold checker validates the packed gate's complete check report,
 exact per-framework missing-script expectations, verdict and exit code. Every
 other local check must pass; only the four GitHub-rule checks may be skipped,

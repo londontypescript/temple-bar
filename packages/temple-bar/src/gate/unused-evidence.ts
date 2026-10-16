@@ -1,4 +1,6 @@
 // Reject incomplete or unfamiliar evidence rather than reinterpret a failure.
+import path from "node:path";
+
 const GROUPS = [
   "files",
   "dependencies",
@@ -23,7 +25,23 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function reportedFilePaths(value: unknown): string[] | undefined {
+/** The groups the gate asks knip for; every other group must be empty. */
+const SELECTED = new Set<string>(["files", "exports", "types"]);
+
+/** One thing knip reported: an unused file, or an unused export or type
+ * in a file. */
+export interface UnusedFinding {
+  readonly group: "files" | "exports" | "types";
+  readonly filePath: string;
+}
+
+function isSelected(group: string): group is UnusedFinding["group"] {
+  return SELECTED.has(group);
+}
+
+/** Every finding in complete, familiar evidence; undefined for anything
+ * else, or for evidence with no findings at all. */
+export function reportedFindings(value: unknown): UnusedFinding[] | undefined {
   if (
     !record(value) ||
     !record(value.report) ||
@@ -58,7 +76,7 @@ export function reportedFilePaths(value: unknown): string[] | undefined {
     )
   )
     return undefined;
-  const paths: string[] = [];
+  const findings: UnusedFinding[] = [];
   for (const group of GROUPS) {
     const enabled = value.report[group];
     const issues = value.issues[group];
@@ -79,24 +97,31 @@ export function reportedFilePaths(value: unknown): string[] | undefined {
           !record(issue) ||
           issue.type !== group ||
           typeof issue.filePath !== "string" ||
-          issue.filePath === ""
+          issue.filePath === "" ||
+          // knip names files by absolute path; a relative one would be read
+          // against the gate's own folder, not the project's.
+          !path.isAbsolute(issue.filePath)
         )
           return undefined;
         found++;
-        // Even unselected findings are retained conservatively.
-        if (group !== "files" || !enabled || issue.isFixed === true)
+        // A finding in a group the gate didn't ask for is unfamiliar.
+        if (!isSelected(group) || !enabled || issue.isFixed === true)
           return undefined;
-        paths.push(issue.filePath);
+        findings.push({ group, filePath: issue.filePath });
       }
     }
     if (count !== found) return undefined;
-    if (
-      (group === "files" || group === "exports" || group === "types") !==
-      enabled
-    )
-      return undefined;
+    if (isSelected(group) !== enabled) return undefined;
   }
-  return paths.length > 0 && new Set(paths).size === paths.length
-    ? paths
-    : undefined;
+  return findings.length > 0 ? findings : undefined;
+}
+
+/** The unused files, when every finding is an unused file, each listed
+ * once; undefined otherwise. Only these can be comment-only. */
+export function reportedFilePaths(value: unknown): string[] | undefined {
+  const findings = reportedFindings(value);
+  if (findings === undefined || findings.some((f) => f.group !== "files"))
+    return undefined;
+  const paths = findings.map((finding) => finding.filePath);
+  return new Set(paths).size === paths.length ? paths : undefined;
 }
