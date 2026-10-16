@@ -29,8 +29,7 @@ function foldedName(file: string): string {
   return fold(path.posix.basename(file));
 }
 
-export const isWorkflow = (file: string): boolean =>
-  file.startsWith(WORKFLOWS_FOLDER);
+const isWorkflow = (file: string): boolean => file.startsWith(WORKFLOWS_FOLDER);
 
 /** temple-bar's own settings at the root. They set the limits its checks
  * enforce, such as the file-length cap, so raising one would let a pull
@@ -39,8 +38,7 @@ export const isWorkflow = (file: string): boolean =>
  * stack, the judge can't tell a stricter change from a looser one, and
  * guarding them would make bypass merges routine (see
  * docs/adr/0011-which-checks-judge-a-pull-request.md). */
-export const isTempleBarConfig = (file: string): boolean =>
-  file === CONFIG_FILE_NAME;
+const isTempleBarConfig = (file: string): boolean => file === CONFIG_FILE_NAME;
 
 /** Files pnpm reads when CI installs, at any depth, that can swap the
  * pinned temple-bar or run code without touching a package.json:
