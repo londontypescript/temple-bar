@@ -40,7 +40,22 @@ export interface EntriesOptions {
    * esbuild script knip doesn't take entries from: "declared" also names
    * it in the project's knip config. */
   readonly hostEntry?: "undeclared" | "declared";
+  /** `packages/shared/src/greeting.ts`, a file no default entry pattern
+   * matches, which only a sibling reaches, by a deep import from
+   * `apps/web` ("imported") or not at all ("unimported"). knip follows the
+   * import only through pnpm's link to the package, which the test makes
+   * (see linkSharedPackage). A deep import needs the package to have no
+   * `exports` map, which would forbid it, so shared names its entry with
+   * `main` instead. */
+  readonly siblingDeepImport?: "imported" | "unimported";
 }
+
+/** The apps that depend on `@entries/shared`. */
+export const SHARED_DEPENDENTS: readonly string[] = [
+  "apps/desktop",
+  "apps/terminal",
+  "apps/web",
+];
 
 /** The project's own knip config, declaring what `options` asks for;
  * undefined when it declares nothing, so there is no config at all. */
@@ -63,6 +78,7 @@ export function entriesWorkspace(
   options: EntriesOptions = {},
 ): Record<string, string> {
   const host = options.hostEntry !== undefined;
+  const deep = options.siblingDeepImport;
   const files: Record<string, string> = {
     ".gitignore": "node_modules/\n",
     "pnpm-workspace.yaml": 'packages:\n  - "apps/*"\n  - "packages/*"\n',
@@ -92,8 +108,11 @@ export function entriesWorkspace(
       '<!doctype html>\n<html>\n  <body>\n    <div id="root"></div>\n    <script type="module" src="/src/boot.tsx"></script>\n  </body>\n</html>\n',
     // A plain object, so knip can load it without vite installed.
     "apps/web/vite.config.ts": "export default { server: { port: 5173 } };\n",
-    "apps/web/src/boot.tsx":
-      'import { greet } from "@entries/shared";\nimport { App } from "./App.tsx";\n\nconsole.log(greet("web"), App);\n',
+    "apps/web/src/boot.tsx": `${
+      deep === "imported"
+        ? 'import { greeting } from "@entries/shared/src/greeting.ts";\n'
+        : ""
+    }import { greet } from "@entries/shared";\nimport { App } from "./App.tsx";\n\nconsole.log(greet("web"), App${deep === "imported" ? ", greeting" : ""});\n`,
     "apps/web/src/App.tsx":
       "export function App() {\n  return <p>web</p>;\n}\n",
 
@@ -136,7 +155,9 @@ export function entriesWorkspace(
     // import them.
     "packages/shared/package.json": manifest({
       name: "@entries/shared",
-      exports: { ".": "./src/index.ts" },
+      ...(deep === undefined
+        ? { exports: { ".": "./src/index.ts" } }
+        : { main: "src/index.ts" }),
     }),
     "packages/shared/src/index.ts":
       "export function greet(name: string): string {\n  return `hello ${name}`;\n}\n\nexport interface Theme {\n  readonly accent: string;\n}\n",
@@ -144,6 +165,10 @@ export function entriesWorkspace(
   if (options.rootVitestConfig !== undefined) {
     files["vitest.root.config.ts"] =
       'export default { test: { include: ["**/*.test.ts"] } };\n';
+  }
+  if (deep !== undefined) {
+    files["packages/shared/src/greeting.ts"] =
+      'export const greeting = "hello";\n';
   }
   if (host) {
     files["apps/desktop/src/host.ts"] = 'console.log("host");\n';

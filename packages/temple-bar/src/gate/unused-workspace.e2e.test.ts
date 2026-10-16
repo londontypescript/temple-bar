@@ -5,7 +5,13 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -15,6 +21,7 @@ import { createGateCommand } from "./command.ts";
 import { installCore } from "./testing/core-fixture.ts";
 import {
   entriesWorkspace,
+  SHARED_DEPENDENTS,
   type EntriesOptions,
 } from "./testing/entries-fixture.ts";
 import { realContext } from "./testing/real-repo.ts";
@@ -32,6 +39,20 @@ function suitePnpm(): string {
     );
   }
   return execPath;
+}
+
+/** Links each app's `node_modules/@entries/shared` to the package, as
+ * `pnpm install` would, with nothing installed. A junction on Windows
+ * needs no admin rights and an absolute target; elsewhere the type is
+ * ignored and it is a plain folder link. node_modules is gitignored, so
+ * git and knip's file search leave it out, as with pnpm's own. */
+function linkSharedPackage(dir: string): void {
+  const target = path.join(dir, "packages", "shared");
+  for (const app of SHARED_DEPENDENTS) {
+    const link = path.join(dir, ...app.split("/"), "node_modules", "@entries");
+    mkdirSync(link, { recursive: true });
+    symlinkSync(target, path.join(link, "shared"), "junction");
+  }
 }
 
 /** Writes the fixture, with `extra` files added or replaced, into a new
@@ -52,6 +73,7 @@ async function gateOn(
       mkdirSync(path.dirname(file), { recursive: true });
       writeFileSync(file, text);
     }
+    linkSharedPackage(dir);
     await installCore(dir);
     execFileSync("git", ["add", "-A"], { cwd: dir });
     const { ctx, stdout, stderr } = realContext(dir);
@@ -100,6 +122,21 @@ void test("a custom Vitest config and a noncanonical Electron entry each fail un
   assert.match(hostOnly.err, failedIn("the root"));
   assert.equal(both.code, 0, both.err);
   assert.match(both.out, PASSED);
+});
+
+void test("a shared file only a sibling reaches, by a deep import, is used; without that import it is reported", async () => {
+  const [imported, unimported] = await Promise.all([
+    gateOn({ siblingDeepImport: "imported" }),
+    gateOn({ siblingDeepImport: "unimported" }),
+  ]);
+  assert.equal(imported.code, 0, imported.err);
+  assert.match(imported.out, PASSED);
+  assert.equal(unimported.code, 1, unimported.err);
+  assert.match(unimported.err, failedIn("packages/shared"));
+  assert.match(
+    unimported.err,
+    / {2}packages\/shared:\n {4}packages\/shared\/src\/greeting\.ts\n/,
+  );
 });
 
 void test("an unused file, value export and type export in packages are each found, and both packages named in the inventory's order", async () => {
