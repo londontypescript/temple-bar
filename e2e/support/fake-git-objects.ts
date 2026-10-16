@@ -5,7 +5,6 @@
 // write-tree` gives for the same files; the tests check that against git.
 
 import { createHash } from "node:crypto";
-import path from "node:path";
 
 /** A file as a test gives it. Text alone is a regular file. */
 export type FakeFile =
@@ -176,25 +175,46 @@ export function entryAt(
 }
 
 /** The regular file a symlink at `at` points to, or undefined when its
- * target is outside the repository, missing, or not a regular file. */
+ * target is outside the repository, missing, or not a regular file. The
+ * target is walked a segment at a time, as the operating system does, so
+ * "missing/../x" fails at "missing" instead of being tidied into "x". A
+ * symlink along the way isn't followed. */
 export function followSymlink(
   trees: GitObjects["trees"],
   root: string,
   at: string,
   target: string,
 ): TreeEntry | undefined {
-  const resolved = path.posix.normalize(
-    path.posix.join(path.posix.dirname(at), target),
-  );
-  if (
-    path.posix.isAbsolute(target) ||
-    resolved === ".." ||
-    resolved.startsWith("../")
-  ) {
+  if (target.startsWith("/")) {
     return undefined;
   }
-  const entry = entryAt(trees, root, resolved);
-  return entry?.mode === "100644" || entry?.mode === "100755"
-    ? entry
-    : undefined;
+  const parts = at.split("/").slice(0, -1);
+  // The folder each part leads to, the root first.
+  const folders = [root];
+  for (const part of parts) {
+    const entry = entryAt(trees, folders.at(-1) ?? "", part);
+    folders.push(entry?.sha ?? "");
+  }
+  const segments = target.split("/");
+  const name = segments.pop() ?? "";
+  // A target ending in "/", "." or ".." names a folder, never a file.
+  if (name === "" || name === "." || name === "..") {
+    return undefined;
+  }
+  for (const segment of segments) {
+    if (segment === "..") {
+      if (folders.length === 1) {
+        return undefined;
+      }
+      folders.pop();
+    } else if (segment !== "" && segment !== ".") {
+      const entry = entryAt(trees, folders.at(-1) ?? "", segment);
+      if (entry?.type !== "tree") {
+        return undefined;
+      }
+      folders.push(entry.sha);
+    }
+  }
+  const file = entryAt(trees, folders.at(-1) ?? "", name);
+  return file?.mode === "100644" || file?.mode === "100755" ? file : undefined;
 }

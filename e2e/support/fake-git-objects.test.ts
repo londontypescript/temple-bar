@@ -200,14 +200,22 @@ void test("the fake's contents API follows a symlink to a regular file, as GitHu
       "dangling.json": { symlink: "missing.json" },
       "outside.json": { symlink: "../elsewhere.json" },
       "to-folder": { symlink: "a" },
+      "via-missing.json": { symlink: "missing/../package.json" },
+      "via-file.json": { symlink: "package.json/../package.json" },
+      "absolute.json": { symlink: "/package.json" },
+      "chain.json": { symlink: "linked.json" },
+      "a/up.json": { symlink: "./../a/./deep/x.json" },
     },
   });
   try {
     const real = (await get(`contents/package.json?ref=${HEAD}`)).body;
     // Indistinguishable from the file it points to, as on GitHub.
-    for (const linked of ["linked.json", "packages/x/package.json"]) {
+    for (const [linked, pointsTo] of [
+      ["linked.json", "a/b c.json"],
+      ["packages/x/package.json", "package.json"],
+      ["a/up.json", "a/deep/x.json"],
+    ] as const) {
       const body = (await get(`contents/${linked}?ref=${HEAD}`)).body;
-      const pointsTo = linked === "linked.json" ? "a/b c.json" : "package.json";
       const file = (await get(`contents/${pointsTo}?ref=${HEAD}`)).body;
       assert.deepEqual(body, { ...file, path: linked });
     }
@@ -216,6 +224,10 @@ void test("the fake's contents API follows a symlink to a regular file, as GitHu
       ["dangling.json", "missing.json"],
       ["outside.json", "../elsewhere.json"],
       ["to-folder", "a"],
+      ["via-missing.json", "missing/../package.json"],
+      ["via-file.json", "package.json/../package.json"],
+      ["absolute.json", "/package.json"],
+      ["chain.json", "linked.json"],
     ] as const) {
       const body = (await get(`contents/${link}?ref=${HEAD}`)).body;
       assert.deepEqual(
