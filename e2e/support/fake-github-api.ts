@@ -4,6 +4,9 @@
 // GITHUB_API_URL, the variable GitHub sets for its own Actions, so the
 // packed judge runs for real without GitHub.
 //
+// Files carry git's modes (regular, executable, symlink, submodule) and git's
+// own object ids, so the same content has the same id at every ref.
+//
 // It can also answer the way GitHub does when something is off: a file
 // count that doesn't match the list, a path listed twice, a head or base
 // that moves while the judge is reading, or a tree too big to list whole.
@@ -12,6 +15,13 @@
 
 import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import {
+  entryAt,
+  listTree,
+  writeGitObjects,
+  type FakeFile,
+  type TreeEntry,
+} from "./fake-git-objects.ts";
 
 /** A changed file as GitHub lists it. A bare path means "modified". */
 interface FakeChangedFile {
@@ -39,9 +49,7 @@ export interface FakePullRequest {
 
 /** The files in the repository at each ref (a branch name or a commit
  * sha), by path from the root. A path missing from a ref is absent there. */
-type FakeTrees = Readonly<
-  Record<string, Readonly<Record<string, string>>>
->;
+type FakeTrees = Readonly<Record<string, Readonly<Record<string, FakeFile>>>>;
 
 export interface FakeRepository {
   /** The files at each ref; see FakeTrees. */
@@ -101,61 +109,10 @@ function base64(text: string): string {
   return Buffer.from(text, "utf8").toString("base64");
 }
 
-/** An object's id: its kind, ref and path, so no two objects share one and
- * the routes can find it again without a table. */
-function objectId(kind: "blob" | "tree", ref: string, at: string): string {
-  return Buffer.from(`${kind}\0${ref}\0${at}`, "utf8").toString("base64url");
-}
-
-function fromObjectId(id: string): string[] {
-  return Buffer.from(id, "base64url").toString("utf8").split("\0");
-}
-
-/** Every folder above a file, nearest the root first: "a/b/c.json" gives
- * "a" and "a/b". */
-function foldersOf(filePath: string): string[] {
-  const parts = filePath.split("/").slice(0, -1);
-  return parts.map((_, i) => parts.slice(0, i + 1).join("/"));
-}
-
-/** The files and folders under `folder` ("" for the root), by their path
- * below it: only its own children, or everything with `recursive`. */
-function listTree(
-  ref: string,
-  files: ReadonlyMap<string, string>,
-  folder: string,
-  recursive: boolean,
-): { path: string; type: string; sha: string }[] {
-  const prefix = folder === "" ? "" : `${folder}/`;
-  const below = (full: string) =>
-    full.startsWith(prefix) && full !== folder
-      ? full.slice(prefix.length)
-      : undefined;
-  const entries = new Map<
-    string,
-    { path: string; type: string; sha: string }
-  >();
-  for (const filePath of files.keys()) {
-    for (const dir of foldersOf(filePath)) {
-      const rel = below(dir);
-      if (rel !== undefined && (recursive || !rel.includes("/"))) {
-        entries.set(rel, {
-          path: rel,
-          type: "tree",
-          sha: objectId("tree", ref, dir),
-        });
-      }
-    }
-    const rel = below(filePath);
-    if (rel !== undefined && (recursive || !rel.includes("/"))) {
-      entries.set(rel, {
-        path: rel,
-        type: "blob",
-        sha: objectId("blob", ref, filePath),
-      });
-    }
-  }
-  return [...entries.values()].sort((a, b) => a.path.localeCompare(b.path));
+/** How the contents API names an entry in a folder's list. For backwards
+ * compatibility GitHub lists symlinks and submodules there as files. */
+function contentsType(entry: TreeEntry): string {
+  return entry.type === "tree" ? "dir" : "file";
 }
 
 export function serveFakeGithubApi(
@@ -169,11 +126,13 @@ export function serveFakeGithubApi(
   const prefix = `/repos/${owner}/${repo}`;
   // Maps rather than the objects the tests pass, so a path such as
   // "constructor" is absent, as on GitHub, not an inherited property.
-  const refs = new Map(
-    Object.entries(trees).map(([ref, files]) => [
-      ref,
-      new Map(Object.entries(files)),
-    ]),
+  const objects = writeGitObjects(
+    new Map(
+      Object.entries(trees).map(([ref, files]) => [
+        ref,
+        new Map(Object.entries(files)),
+      ]),
+    ),
   );
   const tips = new Map(Object.entries(branches));
 
@@ -224,71 +183,72 @@ export function serveFakeGithubApi(
 
   // A file's text, or a folder's entries, as the contents API gives them.
   function contents(res: ServerResponse, at: string, url: URL): void {
-    const ref = url.searchParams.get("ref") ?? "";
-    const files = refs.get(ref);
-    const text = files?.get(at);
-    if (files === undefined) {
-      notFound(res);
-    } else if (text !== undefined) {
-      reply(res, 200, {
-        type: "file",
-        path: at,
-        content: base64(text),
-        encoding: "base64",
-      });
-    } else {
-      const entries = listTree(ref, files, at, false);
-      if (entries.length === 0) {
-        notFound(res);
-        return;
-      }
+    const root = objects.roots.get(url.searchParams.get("ref") ?? "");
+    const entry =
+      root === undefined || at === ""
+        ? undefined
+        : entryAt(objects.trees, root, at);
+    const folder =
+      at === "" ? root : entry?.type === "tree" ? entry.sha : undefined;
+    if (folder !== undefined) {
       reply(
         res,
         200,
-        entries.map((entry) => ({
-          type: entry.type === "tree" ? "dir" : "file",
-          name: entry.path,
-          path: at === "" ? entry.path : `${at}/${entry.path}`,
-          sha: entry.sha,
+        listTree(objects.trees, folder, false).map((item) => ({
+          type: contentsType(item),
+          name: item.path,
+          path: at === "" ? item.path : `${at}/${item.path}`,
+          sha: item.sha,
         })),
       );
+    } else if (entry?.mode === "160000") {
+      reply(res, 200, { type: "submodule", path: at, sha: entry.sha });
+    } else if (entry?.mode === "120000") {
+      const target = objects.blobs.get(entry.sha);
+      reply(res, 200, { type: "symlink", path: at, sha: entry.sha, target });
+    } else if (entry !== undefined) {
+      reply(res, 200, {
+        type: "file",
+        path: at,
+        sha: entry.sha,
+        content: base64(objects.blobs.get(entry.sha) ?? ""),
+        encoding: "base64",
+      });
+    } else {
+      notFound(res);
     }
   }
 
-  // A ref names its root tree; a tree's id names a folder inside one.
+  // A ref, or a commit sha the tests gave files for, names its root tree;
+  // any other id is a tree's own.
   function tree(res: ServerResponse, id: string, url: URL): void {
-    const [kind, idRef, idFolder] = fromObjectId(id);
-    const [ref, folder] = refs.has(id)
-      ? [id, ""]
-      : kind === "tree"
-        ? [idRef, idFolder]
-        : [];
-    const files = ref === undefined ? undefined : refs.get(ref);
-    if (ref === undefined || folder === undefined || files === undefined) {
+    const sha = objects.roots.get(id) ?? id;
+    if (!objects.trees.has(sha)) {
       notFound(res);
       return;
     }
     const recursive = url.searchParams.get("recursive") !== null;
-    const entries = listTree(ref, files, folder, recursive);
-    const cut = recursive && truncated.includes(ref);
+    const entries = listTree(objects.trees, sha, recursive);
+    const cut = recursive && truncated.includes(id);
     reply(res, 200, {
-      sha: id,
+      sha,
       tree: cut ? entries.slice(0, Math.ceil(entries.length / 2)) : entries,
       truncated: cut,
     });
   }
 
   function blob(res: ServerResponse, id: string): void {
-    const [kind, ref, at] = fromObjectId(id);
-    const text =
-      kind === "blob" && ref !== undefined && at !== undefined
-        ? refs.get(ref)?.get(at)
-        : undefined;
+    const text = objects.blobs.get(id);
     if (text === undefined) {
       notFound(res);
       return;
     }
-    reply(res, 200, { sha: id, content: base64(text), encoding: "base64" });
+    reply(res, 200, {
+      sha: id,
+      size: Buffer.byteLength(text),
+      content: base64(text),
+      encoding: "base64",
+    });
   }
 
   const server: Server = createServer((req, res) => {
