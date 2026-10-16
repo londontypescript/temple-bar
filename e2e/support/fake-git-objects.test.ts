@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import {
-  readManifests,
-  readPullRequest,
+  readBlob,
+  readTree,
 } from "../../packages/temple-bar/src/judge/github.ts";
 import { createHttpSeam } from "../../packages/temple-bar/src/seams/http.ts";
 import { createFakeContext } from "../../packages/temple-bar/src/testing/fakes.ts";
@@ -192,111 +192,29 @@ void test("the fake gives the same content the same id at every ref, and serves 
   }
 });
 
-void test("the fake's contents API follows a symlink to a regular file, as GitHub does", async () => {
-  const { api, get } = await serve({
-    [HEAD]: {
-      ...FILES,
-      "packages/x/package.json": { symlink: "../../package.json" },
-      "dangling.json": { symlink: "missing.json" },
-      "outside.json": { symlink: "../elsewhere.json" },
-      "to-folder": { symlink: "a" },
-      "via-missing.json": { symlink: "missing/../package.json" },
-      "via-file.json": { symlink: "package.json/../package.json" },
-      "absolute.json": { symlink: "/package.json" },
-      "chain.json": { symlink: "linked.json" },
-      "a/up.json": { symlink: "./../a/./deep/x.json" },
-    },
-  });
-  try {
-    const real = (await get(`contents/package.json?ref=${HEAD}`)).body;
-    // Indistinguishable from the file it points to, as on GitHub.
-    for (const [linked, pointsTo] of [
-      ["linked.json", "a/b c.json"],
-      ["packages/x/package.json", "package.json"],
-      ["a/up.json", "a/deep/x.json"],
-    ] as const) {
-      const body = (await get(`contents/${linked}?ref=${HEAD}`)).body;
-      const file = (await get(`contents/${pointsTo}?ref=${HEAD}`)).body;
-      assert.deepEqual(body, { ...file, path: linked });
-    }
-    assert.equal(real.type, "file");
-    for (const [link, target] of [
-      ["dangling.json", "missing.json"],
-      ["outside.json", "../elsewhere.json"],
-      ["to-folder", "a"],
-      ["via-missing.json", "missing/../package.json"],
-      ["via-file.json", "package.json/../package.json"],
-      ["absolute.json", "/package.json"],
-      ["chain.json", "linked.json"],
-    ] as const) {
-      const body = (await get(`contents/${link}?ref=${HEAD}`)).body;
-      assert.deepEqual(
-        { ...body, sha: undefined },
-        {
-          type: "symlink",
-          path: link,
-          sha: undefined,
-          target,
-        },
-      );
-    }
-    assert.deepEqual((await get(`contents/vendor/lib?ref=${HEAD}`)).body, {
-      type: "submodule",
-      path: "vendor/lib",
-      sha: PINNED,
-    });
-    // In a folder's list GitHub calls a submodule a file, for backwards
-    // compatibility, and a symlink a symlink.
-    const top = (await get(`contents?ref=${HEAD}`)).body as unknown as {
-      name: string;
-      type: string;
-    }[];
-    const vendor = (await get(`contents/vendor?ref=${HEAD}`))
-      .body as unknown as {
-      type: string;
-    }[];
-    assert.equal(
-      top.find((entry) => entry.name === "linked.json")?.type,
-      "symlink",
-    );
-    assert.deepEqual(
-      vendor.map((entry) => entry.type),
-      ["file"],
-    );
-  } finally {
-    await api.close();
-  }
-});
-
 void test("the fake wraps base64 as GitHub does, and the judge's reader takes it", async () => {
   const manifest = JSON.stringify({
     name: "widgets",
     scripts: { test: "x".repeat(200) },
   });
-  const api = await serveFakeGithubApi(
-    "acme",
-    "widgets",
-    [{ number: 1, headShas: [HEAD], files: ["package.json"] }],
-    {
-      trees: {
-        main: { "package.json": manifest },
-        [HEAD]: { "package.json": manifest },
-      },
-    },
-  );
+  const api = await serveFakeGithubApi("acme", "widgets", [], {
+    trees: { [HEAD]: { "package.json": manifest } },
+  });
   try {
+    const tree = await readTree(ctx, ref(api), HEAD);
+    assert.ok(tree.ok, tree.ok ? "" : tree.reason);
+    const entry = tree.value.get("package.json");
+    assert.ok(entry, "package.json is in the tree");
     const res = await fetch(
-      `${api.url}/repos/acme/widgets/contents/package.json?ref=${HEAD}`,
+      `${api.url}/repos/acme/widgets/git/blobs/${entry.id}`,
     );
     const { content } = (await res.json()) as { content: string };
     const lines = content.split("\n");
     assert.ok(lines.length > 2);
     assert.ok(lines.slice(0, -2).every((line) => line.length === 60));
-    const facts = await readPullRequest(ctx, ref(api));
-    assert.ok(facts.ok, facts.ok ? "" : facts.reason);
-    assert.deepEqual(await readManifests(ctx, ref(api), facts.value), {
+    assert.deepEqual(await readBlob(ctx, ref(api), entry.id), {
       ok: true,
-      value: { base: manifest, head: manifest },
+      value: manifest,
     });
   } finally {
     await api.close();

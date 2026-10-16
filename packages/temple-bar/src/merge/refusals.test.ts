@@ -145,7 +145,7 @@ void test("refuses a change to a CI workflow, before waiting for any check", asy
   const code = await createMergeCommand(h.deps).run(["7"], h.ctx);
   assert.match(
     h.err(),
-    /changes the checks that judge it: \.github\/workflows\/ci\.yml \(changed\)/,
+    /changes the checks that judge it: \.github\/workflows\/ci\.yml \(modified\)/,
   );
   assert.match(h.err(), ADMIN_MERGE);
   assert.equal(code, 1);

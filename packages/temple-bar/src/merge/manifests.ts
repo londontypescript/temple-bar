@@ -1,78 +1,63 @@
 // What a pull request changes, read once from git and shared by everything
-// that judges it before the merge: the files it touches, and each
-// package.json it touches, parsed as it was before and after. Reading the
-// manifests here, rather than in each caller, means the maintainer-approval
-// check and the "what you are approving" report can't disagree.
-
-import path from "node:path";
+// that judges it before the merge: the files it touches, each guarded
+// path's state on both sides (what the judge compares), and each
+// package.json it touches, parsed as it was before and after. Reading them
+// here, rather than in each caller, means the maintainer-approval check
+// and the "what you are approving" report can't disagree.
 
 import type { Context } from "../context.ts";
-import { TEMPLE_BAR_PACKAGE, type TextPair } from "../judge/changes.ts";
-import { LOCKFILE } from "../judge/lockfile.ts";
-import { changedFiles, fileAt } from "./local.ts";
-
-export type Manifest = Readonly<Record<string, unknown>>;
+import type { FileState, PathChange } from "../judge/file-state.ts";
+import { isManifest } from "../judge/guarded-paths.ts";
+import {
+  parseManifest,
+  TEMPLE_BAR_PACKAGE,
+  type Manifest,
+} from "../judge/manifests.ts";
+import { changedPaths, readGuardedChanges } from "./guarded-states.ts";
 
 export interface ManifestChange {
   /** Repository-relative, e.g. "package.json" or "packages/x/package.json". */
   readonly path: string;
-  /** Undefined when the file didn't exist on that side, or didn't parse. */
+  /** Undefined when the file didn't exist on that side, or couldn't be
+   * read or parsed there. */
   readonly before: Manifest | undefined;
   readonly after: Manifest | undefined;
 }
 
 export interface PullRequestChanges {
   readonly files: readonly string[];
+  /** Each guarded path the pull request changes, with its state on both
+   * sides: what the judge's comparison reads. */
+  readonly guarded: readonly PathChange[];
   readonly manifests: readonly ManifestChange[];
-  /** The root pnpm-lock.yaml's text on each side, read only when it changed:
-   * the judge's check of temple-bar's entries in it needs both. */
-  readonly lockfile?: TextPair;
 }
 
-function parse(text: string | undefined): Manifest | undefined {
-  if (text === undefined) {
+function parsed(state: FileState): Manifest | undefined {
+  if (state.kind !== "regular" || state.text === undefined) {
     return undefined;
   }
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return typeof parsed === "object" &&
-      parsed !== null &&
-      !Array.isArray(parsed)
-      ? (parsed as Manifest)
-      : undefined;
-  } catch {
-    return undefined;
-  }
+  const manifest = parseManifest(state.text);
+  return manifest.kind === "valid" ? manifest.value : undefined;
 }
 
-/** The files and package.json files changed between where the pull request
- * branched off (`base`) and its tip (`head`). */
+/** The files, guarded paths and package.json files changed between where
+ * the pull request branched off (`base`) and its tip (`head`). */
 export async function readChanges(
   ctx: Context,
   base: string,
   head: string,
   cwd: string,
 ): Promise<PullRequestChanges> {
-  const files = await changedFiles(ctx, base, head, cwd);
-  const manifests: ManifestChange[] = [];
-  for (const file of files) {
-    if (path.posix.basename(file) !== "package.json") {
-      continue;
-    }
-    manifests.push({
-      path: file,
-      before: parse(await fileAt(ctx, base, file, cwd)),
-      after: parse(await fileAt(ctx, head, file, cwd)),
-    });
-  }
-  if (!files.includes(LOCKFILE)) {
-    return { files, manifests };
-  }
-  const lockfile = {
-    base: await fileAt(ctx, base, LOCKFILE, cwd),
-    head: await fileAt(ctx, head, LOCKFILE, cwd),
-  };
-  return { files, manifests, lockfile };
+  const files = await changedPaths(ctx, base, head, cwd);
+  const guarded = await readGuardedChanges(ctx, base, head, files, cwd);
+  const manifests = guarded
+    .filter((change) => isManifest(change.path))
+    .map((change) => ({
+      path: change.path,
+      before: parsed(change.base),
+      after: parsed(change.head),
+    }));
+  return { files, guarded, manifests };
 }
 
 /** The repository's root package.json change, if it has one. */
