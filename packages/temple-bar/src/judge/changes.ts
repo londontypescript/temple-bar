@@ -35,9 +35,12 @@ export const ASK_FOR_ADMIN_MERGE =
   "Ask the maintainer to review the pull request and, if they agree, to " +
   "merge it themselves as a repository admin.";
 
-/** Added, removed or modified. A side that couldn't be read counts as
- * there: unknown is never absent. */
+/** Not a regular file at the head, else added, removed or modified. A
+ * side that couldn't be read counts as there: unknown is never absent. */
 function status({ base, head }: PathChange): string {
+  if (head.kind === "special") {
+    return "not a regular file";
+  }
   if (base.kind === "absent") {
     return "added";
   }
@@ -71,7 +74,9 @@ const byPath = (a: PathChange, b: PathChange): number =>
  * pnpm's install settings and temple-bar's config first, then each
  * package.json by path, then temple-bar's entries in the root lockfile.
  * Empty when the change leaves them alone. Paths that aren't guarded are
- * left out, whatever their state.
+ * left out, whatever their state. A path that is the same on both sides
+ * still counts when the head has it as something other than a regular
+ * file: the readers hand those over changed or not.
  */
 export function findCheckChanges(changes: readonly PathChange[]): string[] {
   const guarded = changes.filter((change) => isGuarded(change.path));

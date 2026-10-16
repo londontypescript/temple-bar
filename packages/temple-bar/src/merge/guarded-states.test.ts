@@ -19,7 +19,8 @@ import {
 } from "../testing/git-commits.ts";
 import { initTestRepo } from "../testing/git-repo.ts";
 import { checkChanges } from "./approval.ts";
-import { changedPaths, stateAt } from "./guarded-states.ts";
+import { changedPaths, readGuardedChanges, stateAt } from "./guarded-states.ts";
+import { MergeRefusal } from "./refusal.ts";
 import { readChanges } from "./manifests.ts";
 
 const MANIFEST = JSON.stringify({
@@ -133,6 +134,20 @@ void test("ls-tree's answer is trusted only when it is the one entry asked for",
     ["no tab", ok(`100644 blob ${ID} ${NESTED}\0`)],
     ["a failure", { code: 128, stdout: "", stderr: "fatal: bad tree" }],
   ];
+  // A path no tree can hold, asked for and answered exactly.
+  const dodging = "node_modules/../packages/a/package.json";
+  assert.equal(
+    (
+      await stateAt(
+        scripted(ok(`100644 blob ${ID}\t${dodging}\0`)).ctx,
+        "base",
+        dodging,
+        "/repo",
+      )
+    ).kind,
+    "unreadable",
+    "a path with ..",
+  );
   for (const [what, answer] of unreadable) {
     const { ctx } = scripted(answer);
     assert.equal(
@@ -195,4 +210,38 @@ void test("the changed paths come NUL-separated from a diff that takes no defaul
     "--no-color",
     "b...h",
   ]);
+});
+
+void test("the head's whole tree is listed for paths that aren't regular files, and a listing it can't read is refused", async () => {
+  const listing = (stdout: string, code = 0) => {
+    const git = createFakeGit((args) =>
+      args.includes("-r")
+        ? { code, stdout, stderr: code === 0 ? "" : "fatal: bad tree" }
+        : ok(""),
+    );
+    return readGuardedChanges(
+      createFakeContext({ git }),
+      "b",
+      "h",
+      [],
+      "/repo",
+    );
+  };
+  const folder = await listing(`040000 tree ${ID}\t${NESTED}\0`);
+  assert.deepEqual(
+    folder.map((change) => change.path),
+    [NESTED],
+  );
+  for (const [what, stdout, code] of [
+    ["a failure", "", 128],
+    ["no closing NUL", `100644 blob ${ID}\tsrc/a.ts`, 0],
+    ["a bad entry", `100644 tree ${ID}\tsrc/a.ts\0`, 0],
+    [
+      "a path no tree holds",
+      `040000 tree ${ID}\tnode_modules/../${NESTED}\0`,
+      0,
+    ],
+  ] as const) {
+    await assert.rejects(listing(stdout, code), MergeRefusal, what);
+  }
 });

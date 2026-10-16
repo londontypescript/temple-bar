@@ -21,7 +21,7 @@
 
 import type { Context } from "../context.ts";
 import type { FileState, PathChange } from "./file-state.ts";
-import { isGuarded, readsText } from "./guarded-paths.ts";
+import { isGuarded, isWorkflowFolder, readsText } from "./guarded-paths.ts";
 import {
   readBlob,
   readBranchTip,
@@ -36,7 +36,8 @@ export interface FixedChanges {
   readonly baseRef: string;
   readonly baseSha: string;
   readonly headSha: string;
-  /** Each guarded path that differs, with both sides' state. */
+  /** Each guarded path that differs, or that isn't a regular file at the
+   * head, with both sides' state. */
   readonly changes: readonly PathChange[];
 }
 
@@ -49,6 +50,17 @@ function differs(
   head: TreeEntry | undefined,
 ): boolean {
   return base?.mode !== head?.mode || base?.id !== head?.id;
+}
+
+/** A guarded path is judged when it changed, or when the head has it as
+ * something other than a regular file, changed or not: a manifest that is
+ * already a symlink follows a file no guard covers, so a pull request
+ * changing only that file would change the manifest unseen. */
+function judged(
+  base: TreeEntry | undefined,
+  head: TreeEntry | undefined,
+): boolean {
+  return differs(base, head) || (head !== undefined && !isRegularFile(head));
 }
 
 /** A tree entry as the comparison sees it, with its text read only where
@@ -85,15 +97,23 @@ async function compareTrees(
   head: ReadonlyMap<string, TreeEntry>,
 ): Promise<Read<PathChange[]>> {
   const changes: PathChange[] = [];
+  const seen = (tree: ReadonlyMap<string, TreeEntry>, file: string) => {
+    const entry = tree.get(file);
+    return entry === undefined || isWorkflowFolder(file, entry)
+      ? undefined
+      : entry;
+  };
   for (const file of new Set([...base.keys(), ...head.keys()])) {
-    if (!isGuarded(file) || !differs(base.get(file), head.get(file))) {
+    const before = seen(base, file);
+    const after = seen(head, file);
+    if (!isGuarded(file) || !judged(before, after)) {
       continue;
     }
-    const was = await stateOf(ctx, pr, file, base.get(file));
+    const was = await stateOf(ctx, pr, file, before);
     if (!was.ok) {
       return was;
     }
-    const now = await stateOf(ctx, pr, file, head.get(file));
+    const now = await stateOf(ctx, pr, file, after);
     if (!now.ok) {
       return now;
     }

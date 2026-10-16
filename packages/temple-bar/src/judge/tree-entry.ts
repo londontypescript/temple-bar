@@ -39,6 +39,19 @@ export function checkEntry(
   return { mode, type, id };
 }
 
+/** A path as git stores it in a tree: no NUL, and no empty, "." or ".."
+ * part, so no leading or trailing "/". Anything else can't be a real
+ * entry, and could dodge a rule by its spelling: `node_modules/../a`
+ * would be left out as if it sat under node_modules. */
+export function isTreePath(path: string): boolean {
+  return (
+    !path.includes("\0") &&
+    path
+      .split("/")
+      .every((part) => part !== "" && part !== "." && part !== "..")
+  );
+}
+
 /** A regular file, executable or not. Everything else, a symlink, a
  * submodule or a folder, is never read as a file's text: a package.json
  * made a symlink can show the same text as before and later follow a file

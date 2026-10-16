@@ -277,6 +277,16 @@ void test("a head that isn't a regular file is a finding, its text unread", () =
   );
 });
 
+void test("a path that isn't a regular file at the head counts even when it is the same on both sides", () => {
+  const link: FileState = { kind: "special", mode: "120000" };
+  assert.deepEqual(manifest(NESTED, link, link), [
+    `${NESTED} (not a regular file)`,
+  ]);
+  assert.deepEqual(findCheckChanges([change(".npmrc", link, link)]), [
+    ".npmrc (not a regular file)",
+  ]);
+});
+
 void test("a change of mode is a finding, and a manifest that was a symlink has nothing to compare against", () => {
   const exec = text(JSON.stringify(PACKAGE), "100755");
   assert.deepEqual(manifest(NESTED, text(JSON.stringify(PACKAGE)), exec), [
@@ -326,7 +336,7 @@ void test("whole files: any change to a workflow, an install setting or temple-b
       ".github/workflows/ci.yml (modified)",
       ".github/workflows/fake-judge.yml (added)",
       "packages/a/.npmrc (removed)",
-      "temple-bar.config.json (modified)",
+      "temple-bar.config.json (not a regular file)",
     ],
   );
 });

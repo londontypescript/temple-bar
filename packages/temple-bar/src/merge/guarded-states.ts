@@ -10,8 +10,12 @@
 
 import type { Context } from "../context.ts";
 import type { FileState, PathChange } from "../judge/file-state.ts";
-import { isGuarded, readsText } from "../judge/guarded-paths.ts";
-import { checkEntry, isRegularFile } from "../judge/tree-entry.ts";
+import {
+  isGuarded,
+  isWorkflowFolder,
+  readsText,
+} from "../judge/guarded-paths.ts";
+import { checkEntry, isRegularFile, isTreePath } from "../judge/tree-entry.ts";
 import { refuse } from "./refusal.ts";
 
 /** Paths changed between `base` and `head`, compared from where they
@@ -50,6 +54,18 @@ function unreadable(reason: string): FileState {
   return { kind: "unreadable", reason };
 }
 
+/** One line of `git ls-tree -z`: `<mode> <type> <id>\t<path>`, checked,
+ * or undefined when it isn't that shape or names a path no tree holds. */
+function parseLine(line: string) {
+  const tab = line.indexOf("\t");
+  const [mode, type, id, ...rest] = line.slice(0, tab).split(" ");
+  const path = line.slice(tab + 1);
+  const entry = checkEntry(mode, type, id);
+  return tab < 0 || rest.length > 0 || entry === undefined || !isTreePath(path)
+    ? undefined
+    : { path, entry };
+}
+
 /** The one entry `git ls-tree` gives for `file` at `commit`, checked:
  * `<mode> <type> <id>\t<path>\0`, for exactly the path asked for. */
 function parseEntry(output: string, file: string) {
@@ -58,12 +74,8 @@ function parseEntry(output: string, file: string) {
   if (line === undefined || end !== "" || more.length > 0) {
     return undefined;
   }
-  const tab = line.indexOf("\t");
-  const [mode, type, id, ...rest] = line.slice(0, tab).split(" ");
-  if (tab < 0 || rest.length > 0 || line.slice(tab + 1) !== file) {
-    return undefined;
-  }
-  return checkEntry(mode, type, id);
+  const parsed = parseLine(line);
+  return parsed?.path === file ? parsed.entry : undefined;
 }
 
 /** `file` at `commit`: absent, a regular file (its text read when the
@@ -88,6 +100,9 @@ export async function stateAt(
   if (entry === undefined) {
     return unreadable("git ls-tree listed something other than this file");
   }
+  if (isWorkflowFolder(file, entry)) {
+    return { kind: "absent" };
+  }
   if (!isRegularFile(entry)) {
     return { kind: "special", mode: entry.mode };
   }
@@ -100,7 +115,47 @@ export async function stateAt(
     : unreadable(`git cat-file failed: ${blob.stderr.trim()}`);
 }
 
-/** Each guarded path among `paths`, with its state at `base` and `head`. */
+/** Every guarded path in `commit`'s whole tree that isn't a regular file,
+ * changed or not, as the judge finds them in GitHub's recursive tree. A
+ * diff lists only files, so a folder named package.json shows up only
+ * here. A listing that can't be read whole is refused, never skipped. */
+async function nonRegularGuardedPaths(
+  ctx: Context,
+  commit: string,
+  cwd: string,
+): Promise<string[]> {
+  const listed = await ctx.git.run(
+    ["ls-tree", "-r", "-t", "-z", "--full-tree", commit],
+    cwd,
+  );
+  const lines = listed.stdout.split("\0");
+  // git ends every entry with a NUL, so the last part is always "".
+  if (listed.code !== 0 || lines.pop() !== "") {
+    refuse(
+      `could not list the files at ${commit}: ${listed.stderr.trim() || "git ls-tree answered nothing"}`,
+    );
+  }
+  const found: string[] = [];
+  for (const line of lines) {
+    const parsed = parseLine(line);
+    if (parsed === undefined) {
+      refuse(
+        `could not list the files at ${commit}: git ls-tree listed "${line}"`,
+      );
+    }
+    if (
+      isGuarded(parsed.path) &&
+      !isRegularFile(parsed.entry) &&
+      !isWorkflowFolder(parsed.path, parsed.entry)
+    ) {
+      found.push(parsed.path);
+    }
+  }
+  return found;
+}
+
+/** Each guarded path among `paths`, and each guarded path that isn't a
+ * regular file at `head`, with its state at `base` and `head`. */
 export async function readGuardedChanges(
   ctx: Context,
   base: string,
@@ -108,8 +163,12 @@ export async function readGuardedChanges(
   paths: readonly string[],
   cwd: string,
 ): Promise<PathChange[]> {
+  const files = new Set(paths.filter(isGuarded));
+  for (const file of await nonRegularGuardedPaths(ctx, head, cwd)) {
+    files.add(file);
+  }
   const changes: PathChange[] = [];
-  for (const file of paths.filter(isGuarded)) {
+  for (const file of files) {
     changes.push({
       path: file,
       base: await stateAt(ctx, base, file, cwd),

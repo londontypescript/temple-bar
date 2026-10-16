@@ -75,6 +75,16 @@ void test("a tree entry with a field missing, a mode and type that don't match, 
     [[{ ...entry, mode: "120000", type: "commit" }], /unexpected entry/],
     [[{ ...entry, mode: "100600" }], /unexpected entry/],
     [[entry, { ...entry, sha: "3".repeat(40) }], /lists src\/a\.ts twice/],
+    // A path no tree can hold, which would dodge the node_modules rule.
+    [
+      [{ ...entry, path: "node_modules/../packages/a/package.json" }],
+      /unexpected entry/,
+    ],
+    [[{ ...entry, path: "./package.json" }], /unexpected entry/],
+    [[{ ...entry, path: "/package.json" }], /unexpected entry/],
+    [[{ ...entry, path: "packages/a/" }], /unexpected entry/],
+    [[{ ...entry, path: "packages//package.json" }], /unexpected entry/],
+    [[{ ...entry, path: "package.json\u0000x" }], /unexpected entry/],
   ];
   for (const [tree, reason] of trees) {
     const { read } = setup(

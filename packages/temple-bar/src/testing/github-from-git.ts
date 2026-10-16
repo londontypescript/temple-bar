@@ -43,7 +43,7 @@ function nth<T>(answers: readonly T[], read: number): T {
 }
 
 /** Base64 as GitHub sends it, in lines of 60 characters. */
-export function wrappedBase64(bytes: Buffer): string {
+function wrappedBase64(bytes: Buffer): string {
   const flat = bytes.toString("base64");
   return (flat.match(/.{1,60}/g) ?? []).map((line) => `${line}\n`).join("");
 }

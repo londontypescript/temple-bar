@@ -19,7 +19,26 @@ export type TreeReads = (args: readonly string[]) => GitResult | undefined;
 export function fakeTreeReads(filesAt: FilesAt): TreeReads {
   const blobs = new Map<string, string>();
   const ok = (stdout: string): GitResult => ({ code: 0, stdout, stderr: "" });
+  const entry = (file: string, text: string): string => {
+    const id = createHash("sha1")
+      .update(`blob ${String(Buffer.byteLength(text))}\0`)
+      .update(text)
+      .digest("hex");
+    blobs.set(id, text);
+    return `100644 blob ${id}\t${file}\0`;
+  };
   return (args) => {
+    if (args.includes("ls-tree") && args.includes("-r")) {
+      // ... ls-tree -r -t -z --full-tree <commit>: every file, all regular.
+      const files = filesAt(args.at(-1) ?? "");
+      return files === undefined
+        ? { code: 128, stdout: "", stderr: "fatal: not a tree object" }
+        : ok(
+            Object.entries(files)
+              .map(([file, text]) => entry(file, text))
+              .join(""),
+          );
+    }
     if (args.includes("ls-tree")) {
       // ... ls-tree -z --full-tree <commit> -- <path>
       const commit = args.at(-3) ?? "";
@@ -32,12 +51,7 @@ export function fakeTreeReads(filesAt: FilesAt): TreeReads {
       if (text === undefined) {
         return ok("");
       }
-      const id = createHash("sha1")
-        .update(`blob ${String(Buffer.byteLength(text))}\0`)
-        .update(text)
-        .digest("hex");
-      blobs.set(id, text);
-      return ok(`100644 blob ${id}\t${file}\0`);
+      return ok(entry(file, text));
     }
     if (args[0] === "cat-file" && args[1] === "blob") {
       const text = blobs.get(args[2] ?? "");
