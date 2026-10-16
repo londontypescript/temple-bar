@@ -133,7 +133,7 @@ void test("an unused file, value export and type export in packages are each fou
   );
 });
 
-void test("with the inventory failed, unused code still fails, every finding put down to the root", async () => {
+void test("with the inventory failed, unused code still fails, every finding in the repo put down to the root", async () => {
   const run = await gateOn(
     {},
     {

@@ -155,9 +155,9 @@ void test("unfamiliar evidence still fails the check, without attribution", asyn
   assert.doesNotMatch(err, /the root/);
 });
 
-void test("a failed inventory still fails the check, and says every finding is put down to the root", async () => {
+void test("a failed inventory still fails the check, and puts every finding in the repo down to the root", async () => {
   const { outcome, err } = await failWith(
-    [at("apps", "web", "src", "old.ts")],
+    [at("apps", "web", "src", "old.ts"), path.resolve("/elsewhere/z.ts")],
     {
       packages: WORKSPACE.packages,
       outcome: { name: "workspace packages", status: "failed" },
@@ -166,10 +166,10 @@ void test("a failed inventory still fails the check, and says every finding is p
   assert.equal(outcome.status, "failed");
   assert.equal(
     outcome.detail,
-    "unused files or exports in the root; packages unknown, as the workspace inventory failed",
+    `unused files or exports in the root, ${path.resolve("/elsewhere/z.ts")}; packages unknown, as the workspace inventory failed`,
   );
   assert.match(
     err,
-    /couldn't be listed, so every finding is put down to the root\n {2}the root:\n {4}apps\/web\/src\/old\.ts\n$/,
+    /couldn't be listed, so every finding in the repo is put down to the root\n {2}the root:\n {4}apps\/web\/src\/old\.ts\n {2}(.+):\n {4}\1\n$/,
   );
 });

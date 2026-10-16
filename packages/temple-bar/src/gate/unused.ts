@@ -72,7 +72,7 @@ async function unusedFailure(
       ...(known
         ? []
         : [
-            `  the workspace's packages couldn't be listed, so every finding is put down to ${ROOT_OWNER}`,
+            `  the workspace's packages couldn't be listed, so every finding in the repo is put down to ${ROOT_OWNER}`,
           ]),
       ...owners.flatMap((owner) => [
         `  ${owner.name}:`,
