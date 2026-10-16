@@ -22,7 +22,7 @@ export const GITHUB_ACTIONS_APP_ID = 15368;
 
 // Reads the exact temple-bar version package.json pins. Only an exact
 // version is accepted: a range would let the judge's code change without a
-// change to package.json, which is the one place the judge watches.
+// change to the pin in package.json, which the judge watches.
 const READ_PIN = `const { readFileSync, appendFileSync } = require("node:fs");
             const pkg = JSON.parse(readFileSync("package.json", "utf8"));
             const name = "@londontypescript/temple-bar";

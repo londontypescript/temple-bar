@@ -1,44 +1,27 @@
 // A stand-in for GitHub's REST API on localhost, answering only what the
-// judge reads: a pull request, its list of changed files, and the files in
-// the repository at a ref. The installed judge is pointed at it through
+// judge reads: a pull request, its base branch's tip, a commit's whole tree,
+// and a file's blob. The installed judge is pointed at it through
 // GITHUB_API_URL, the variable GitHub sets for its own Actions, so the
 // packed judge runs for real without GitHub.
 //
 // Files carry git's modes (regular, executable, symlink, submodule) and git's
 // own object ids, so the same content has the same id at every ref.
 //
-// It can also answer the way GitHub does when something is off: a file
-// count that doesn't match the list, a path listed twice, a head or base
-// that moves while the judge is reading, or a tree too big to list whole.
-// The judge must fail closed on each, so the tests need a GitHub that can
-// say them.
+// It can also answer the way GitHub does when something is off: a head or
+// base that moves while the judge is reading, or a tree too big to list
+// whole. The judge must fail closed on each, so the tests need a GitHub that
+// can say them.
 
 import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import {
-  entryAt,
-  followSymlink,
   listTree,
   writeGitObjects,
   type FakeFile,
-  type TreeEntry,
 } from "./fake-git-objects.ts";
-
-/** A changed file as GitHub lists it. A bare path means "modified". */
-interface FakeChangedFile {
-  readonly filename: string;
-  readonly status: "added" | "modified" | "removed" | "renamed";
-  /** The old path, for a rename. */
-  readonly previousFilename?: string;
-}
 
 export interface FakePullRequest {
   readonly number: number;
-  /** Listed in this order, duplicates included. */
-  readonly files: readonly (string | FakeChangedFile)[];
-  /** The count GitHub claims. Defaults to the length of `files`; set it to
-   * something else to send a list that doesn't match. */
-  readonly changedFiles?: number;
   /** The head commit on each read of the pull request, in order; the last
    * one repeats. More than one makes the head move mid-judgement. Defaults
    * to a single head of forty "a"s. */
@@ -73,10 +56,6 @@ export interface FakeGithubApi {
 
 const DEFAULT_HEAD = "a".repeat(40);
 const DEFAULT_BASE_SHA = "b".repeat(40);
-/** GitHub's own largest page, and the most files it lists for a pull
- * request however many it changes. */
-const MAX_PAGE = 100;
-const MAX_FILES = 3000;
 
 function reply(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json" });
@@ -93,19 +72,6 @@ function nth<T>(answers: readonly T[], read: number): T | undefined {
   return answers[Math.min(read, answers.length - 1)];
 }
 
-function toEntry(file: string | FakeChangedFile): Record<string, string> {
-  if (typeof file === "string") {
-    return { filename: file, status: "modified" };
-  }
-  return file.previousFilename === undefined
-    ? { filename: file.filename, status: file.status }
-    : {
-        filename: file.filename,
-        status: file.status,
-        previous_filename: file.previousFilename,
-      };
-}
-
 /** Base64 as GitHub sends it, broken into lines of 60 characters, so a
  * reader that can't take the line breaks fails here as it would there. */
 function base64(text: string): string {
@@ -113,16 +79,6 @@ function base64(text: string): string {
   return (
     (flat.match(/.{1,60}/g) ?? [""]).join("\n") + (flat === "" ? "" : "\n")
   );
-}
-
-/** How the contents API names an entry in a folder's list. For backwards
- * compatibility GitHub lists a submodule there as a file. */
-function contentsType(entry: TreeEntry): string {
-  return entry.type === "tree"
-    ? "dir"
-    : entry.mode === "120000"
-      ? "symlink"
-      : "file";
 }
 
 export function serveFakeGithubApi(
@@ -161,19 +117,7 @@ export function serveFakeGithubApi(
         ref: pr.baseRef ?? "main",
         sha: nth(pr.baseShas ?? [DEFAULT_BASE_SHA], read),
       },
-      changed_files: pr.changedFiles ?? pr.files.length,
     });
-  }
-
-  function files(res: ServerResponse, pr: FakePullRequest, url: URL): void {
-    const perPage = Math.min(
-      Number(url.searchParams.get("per_page") ?? "30"),
-      MAX_PAGE,
-    );
-    const page = Number(url.searchParams.get("page") ?? "1");
-    const start = (page - 1) * perPage;
-    const listed = pr.files.slice(0, MAX_FILES);
-    reply(res, 200, listed.slice(start, start + perPage).map(toEntry));
   }
 
   function branch(res: ServerResponse, name: string): void {
@@ -189,58 +133,6 @@ export function serveFakeGithubApi(
         sha: nth(answers, readCount(`branch ${name}`)),
       },
     });
-  }
-
-  function fileContents(at: string, sha: string) {
-    return {
-      type: "file",
-      path: at,
-      sha,
-      content: base64(objects.blobs.get(sha) ?? ""),
-      encoding: "base64",
-    };
-  }
-
-  // A file's text, or a folder's entries, as the contents API gives them.
-  function contents(res: ServerResponse, at: string, url: URL): void {
-    const root = objects.roots.get(url.searchParams.get("ref") ?? "");
-    const entry =
-      root === undefined || at === ""
-        ? undefined
-        : entryAt(objects.trees, root, at);
-    const folder =
-      at === "" ? root : entry?.type === "tree" ? entry.sha : undefined;
-    if (folder !== undefined) {
-      reply(
-        res,
-        200,
-        listTree(objects.trees, folder, false).map((item) => ({
-          type: contentsType(item),
-          name: item.path,
-          path: at === "" ? item.path : `${at}/${item.path}`,
-          sha: item.sha,
-        })),
-      );
-    } else if (entry?.mode === "160000") {
-      reply(res, 200, { type: "submodule", path: at, sha: entry.sha });
-    } else if (entry?.mode === "120000") {
-      // GitHub answers a symlink to a regular file in the repository with
-      // that file's content, as if it were the file itself, so a reader of
-      // this API can't tell a manifest made a symlink from a real one.
-      const target = objects.blobs.get(entry.sha) ?? "";
-      const file = followSymlink(objects.trees, root ?? "", at, target);
-      reply(
-        res,
-        200,
-        file === undefined
-          ? { type: "symlink", path: at, sha: entry.sha, target }
-          : fileContents(at, file.sha),
-      );
-    } else if (entry !== undefined) {
-      reply(res, 200, fileContents(at, entry.sha));
-    } else {
-      notFound(res);
-    }
   }
 
   // A ref, or a commit sha the tests gave files for, names its root tree;
@@ -285,27 +177,17 @@ export function serveFakeGithubApi(
     const route = url.pathname.startsWith(`${prefix}/`)
       ? url.pathname.slice(prefix.length)
       : "";
-    const pulls = /^\/pulls\/(\d+)(\/files)?$/.exec(route);
+    const pulls = /^\/pulls\/(\d+)$/.exec(route);
     const pr = pullRequests.find(
       (entry) => String(entry.number) === pulls?.[1],
     );
     if (pulls !== null && pr !== undefined) {
-      if (pulls[2] === undefined) {
-        pull(res, pr);
-      } else {
-        files(res, pr, url);
-      }
+      pull(res, pr);
       return;
     }
     // Matched before decoding: a ref such as "feature/x" arrives as one
     // encoded segment, and decoding first would split it in two.
     const routes: readonly [RegExp, (part: string) => void][] = [
-      [
-        /^\/contents(?:\/(.*))?$/,
-        (part) => {
-          contents(res, part, url);
-        },
-      ],
       [
         /^\/git\/ref\/heads\/(.+)$/,
         (part) => {
@@ -328,7 +210,6 @@ export function serveFakeGithubApi(
     for (const [pattern, answer] of routes) {
       const match = pattern.exec(route);
       if (match !== null) {
-        // The contents API's root has no path at all.
         answer(decodeURIComponent(match[1] ?? ""));
         return;
       }

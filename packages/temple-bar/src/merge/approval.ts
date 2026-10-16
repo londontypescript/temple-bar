@@ -15,8 +15,8 @@
 // request visible instead, and merge records the claim on the default
 // branch, so a change that skipped it shows up in `git log`.
 
-import { findCheckChangesInDiff } from "../judge/changes.ts";
-import { rootManifest, type PullRequestChanges } from "./manifests.ts";
+import { findCheckChanges } from "../judge/changes.ts";
+import type { PullRequestChanges } from "./manifests.ts";
 
 /** What every warning and refusal about the maintainer's yes tells the
  * agent to do: ask a person, where a person answers. */
@@ -37,12 +37,7 @@ export function reasonsForMaintainerApproval(
 /** Each change to the checks that judge the repository, as the judge words
  * it; empty when the pull request leaves them alone. */
 export function checkChanges(changes: PullRequestChanges): string[] {
-  const root = rootManifest(changes);
-  return findCheckChangesInDiff(
-    changes.files,
-    root === undefined ? undefined : { before: root.before, after: root.after },
-    changes.lockfile,
-  );
+  return findCheckChanges(changes.guarded);
 }
 
 /** Every change that needs the maintainer, of both kinds above. */

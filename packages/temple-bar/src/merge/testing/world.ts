@@ -14,6 +14,7 @@ import {
   type FakeGit,
   type FakeWriter,
 } from "../../testing/fakes.ts";
+import { fakeTreeReads } from "../../testing/git-trees.ts";
 import type { MergeDeps } from "../run.ts";
 
 export const HEAD = "a".repeat(40);
@@ -68,7 +69,8 @@ export interface World {
   packageBefore: string;
   packageAfter: string;
   /** Other files' contents where the branched-off commit and the head have
-   * them; a missing side doesn't exist there. */
+   * them; a missing side doesn't exist there. A changed file not named here
+   * is on both sides, with different text. */
   otherFiles: Record<string, { before?: string; after?: string }>;
   coAuthors: string;
   /** How many merge requests GitHub refuses before it accepts one. */
@@ -158,7 +160,35 @@ export function harness(world: World): Harness {
   let worktreeRemoved = false;
   let branchDeleted = false;
 
+  // Each side's files: every changed file, with text that differs, then
+  // package.json and the other files as the world gives them.
+  const side = (atBase: boolean): Record<string, string> => {
+    const files = new Map(
+      world.changedFiles.map((file) => [file, atBase ? "before" : "after"]),
+    );
+    files.set(
+      "package.json",
+      atBase ? world.packageBefore : world.packageAfter,
+    );
+    for (const [file, sides] of Object.entries(world.otherFiles)) {
+      const text = atBase ? sides.before : sides.after;
+      if (text === undefined) {
+        files.delete(file);
+      } else {
+        files.set(file, text);
+      }
+    }
+    return Object.fromEntries(files);
+  };
+  const treeReads = fakeTreeReads((commit) =>
+    commit === BASE ? side(true) : side(false),
+  );
+
   const git = createFakeGit((args) => {
+    const read = treeReads(args);
+    if (read !== undefined) {
+      return read;
+    }
     const [command, ...rest] = args;
     const joined = args.join(" ");
     switch (command) {
@@ -196,21 +226,7 @@ export function harness(world: World): Harness {
         if (joined.includes("--numstat")) {
           return ok("1\t1\tsrc/x.ts\0");
         }
-        return ok(world.changedFiles.join("\n"));
-      case "show": {
-        const spec = rest[0] ?? "";
-        const file = spec.slice(spec.indexOf(":") + 1);
-        const atBase = spec.startsWith(BASE);
-        if (file === "package.json") {
-          return ok(atBase ? world.packageBefore : world.packageAfter);
-        }
-        const text = atBase
-          ? world.otherFiles[file]?.before
-          : world.otherFiles[file]?.after;
-        return text === undefined
-          ? fail(`fatal: path '${file}' does not exist`)
-          : ok(text);
-      }
+        return ok(world.changedFiles.map((file) => `${file}\0`).join(""));
       case "log":
         return ok(world.coAuthors);
       case "ls-remote":

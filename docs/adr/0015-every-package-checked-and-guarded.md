@@ -98,17 +98,40 @@ against git.**
 
 ## What the judge reads, and how it fails
 
-These follow from the decisions, and need no separate choice:
+These follow from the decisions, apart from two the maintainer chose on
+2026-10-15 while the judge was built: comparing two fixed trees, and the
+package-manager fields in every package.
 
-- **Install settings.** The judge also guards the root's `packageManager`,
-  `devEngines` and `pnpm` fields, and `.npmrc`, `.pnpmfile.*` and
+- **Two fixed trees, not GitHub's file list (chosen 2026-10-15).** The
+  judge reads the pull request's head commit and the base branch's tip,
+  then each commit's whole tree, and compares the guarded paths by mode and
+  object id. A path on one side only, or with another mode or id, changed;
+  a rename is the old path gone and the new one there. A tree GitHub cuts
+  short is no answer. Afterwards it reads the pull request and the base
+  branch again: if either moved, it can't judge and fails. GitHub's list of
+  a pull request's files can't be asked for a given commit, so a list read
+  while the head moves away and back can describe a commit neither read
+  names, and no count or check of the list can tell. Commits never change,
+  so judging two named commits judges exactly them.
+- **Install settings.** The judge also guards the `packageManager` and
+  `devEngines` fields in every `package.json` (chosen 2026-10-15: pnpm
+  honours a package's own `devEngines` when it runs that package's
+  scripts), the root's `pnpm` field, and `.npmrc`, `.pnpmfile.*` and
   `pnpm-workspace.yaml` at any depth.
+- **Names as a checkout reads them.** Checkouts on Windows and macOS ignore
+  letter case, so `Package.json` and `.NPMRC` count as the real files. A
+  `package.json` is left out only under a folder named exactly
+  `node_modules`; install settings never are.
+- **Regular files only.** A guarded path that isn't a regular file on the
+  pull request's side (a symlink, a submodule or a folder) is a finding,
+  whether or not the pull request changed it, and so is a change of mode.
+  Otherwise a manifest made a symlink could later follow a file the judge
+  doesn't guard.
 - **Fail closed.** Every manifest is read as absent, valid, invalid or
   unreadable, by the judge and by `ready` and `merge` alike. Unreadable never
-  counts as absent, and invalid on the pull request's side is a finding.
-- **GitHub's file list.** It must be complete and consistent: a whole-number
-  count, distinct paths, and an exact match. The base and head commits are
-  fixed before any file is read and checked again afterwards.
+  counts as absent, and invalid on the pull request's side is a finding. Any
+  answer from GitHub that isn't the documented shape is a failure to read,
+  never an empty answer.
 - **Unused code.** knip still runs once at the root, where it sees every
   package. Entry exports are judged as they are today. A project whose
   entries knip's plugins don't find declares them in its own knip config,
@@ -139,7 +162,7 @@ Phases 5 and 6 add a test for each of these.
 | Adds a negation to `pnpm-workspace.yaml`'s package list       | judge       | 66            |
 | Leaves a tracked `package.json` outside the workspace list    | gate        | 67            |
 | Puts a `pnpm` on the project's PATH that lists fewer packages | gate        | 67            |
-| Sends a GitHub file list that is truncated or repeats a path  | judge       | (fail closed) |
+| Has a tree GitHub can't list whole                            | judge       | (fail closed) |
 
 ## What would end it
 
@@ -150,3 +173,6 @@ Phases 5 and 6 add a test for each of these.
   gains an exception list in `temple-bar.config.json`.
 - If pnpm ever gives a list of workspace packages that the judge can read
   without running the pull request's code, decision 66 can be revisited.
+- If a project outgrows one recursive tree listing (GitHub stops at 100,000
+  entries or 7 MB), the judge refuses every pull request there; it would
+  then read trees folder by folder instead.

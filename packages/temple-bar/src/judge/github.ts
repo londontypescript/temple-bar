@@ -1,15 +1,18 @@
-// Reads a pull request from GitHub's API as data: its changed files, and
-// package.json and pnpm-lock.yaml on each side when they changed. Nothing here checks out, runs or
-// installs anything from the pull request. That is what makes the judge safe
-// to run with the default branch's trust: the pull request's content is only
-// ever compared, never executed.
+// Reads a pull request from GitHub's API as data: its head commit and base
+// branch, the base branch's tip, a commit's whole tree, and a file's blob.
+// Nothing here checks out, runs or installs anything from the pull request.
+// That is what makes the judge safe to run with the default branch's trust:
+// the pull request's content is only ever compared, never executed.
 //
-// Every failure comes back as a reason, never a guess. A judge that can't
-// read the pull request must fail rather than pass it unseen.
+// Every failure comes back as a reason, never a guess. An answer that isn't
+// the shape GitHub documents is a failure too, never an empty answer: a
+// judge that can't read the pull request must fail rather than pass it
+// unseen.
+
+import { createHash } from "node:crypto";
 
 import type { Context } from "../context.ts";
-import type { ChangedFile, TextPair } from "./changes.ts";
-import { LOCKFILE } from "./lockfile.ts";
+import { checkEntry, isTreePath, type TreeEntry } from "./tree-entry.ts";
 
 export interface PullRequestRef {
   readonly api: string;
@@ -22,16 +25,13 @@ export interface PullRequestRef {
 export interface PullRequestFacts {
   readonly headSha: string;
   readonly baseRef: string;
-  readonly files: readonly ChangedFile[];
 }
 
 export type Read<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly reason: string };
 
-/** GitHub lists at most 100 files a page and 3000 files in all. */
-const PAGE_SIZE = 100;
-const MAX_PAGES = 30;
+const COMMIT_ID = /^[0-9a-f]{40}$/;
 
 function fail(reason: string): { ok: false; reason: string } {
   return { ok: false, reason };
@@ -55,88 +55,36 @@ function answered(status: number): string {
     : `GitHub answered ${String(status)}`;
 }
 
-/** GET a JSON document. `missingOk` turns a 404 into `undefined`. */
-async function getJson(
+/** GET a JSON object. Anything else, a 404 included, is a failure: every
+ * read here names something that must exist. */
+async function getObject(
   ctx: Context,
   url: string,
   token: string | undefined,
-  missingOk = false,
-): Promise<Read<unknown>> {
+): Promise<Read<Record<string, unknown>>> {
   const reply = await ctx.http.get(url, token);
   if (reply.kind === "network-error") {
     return fail(reply.message);
-  }
-  if (missingOk && reply.status === 404) {
-    return { ok: true, value: undefined };
   }
   if (reply.status !== 200) {
     return fail(answered(reply.status));
   }
   const value = parse(reply.body);
-  return value === undefined
-    ? fail("an answer that isn't JSON")
-    : { ok: true, value };
+  return isRecord(value)
+    ? { ok: true, value }
+    : fail("an answer that isn't a JSON object");
 }
 
 function repoUrl(pr: PullRequestRef): string {
   return `${pr.api}/repos/${encodeURIComponent(pr.owner)}/${encodeURIComponent(pr.repo)}`;
 }
 
-function toChangedFile(entry: unknown): ChangedFile | undefined {
-  if (!isRecord(entry)) {
-    return undefined;
-  }
-  const { filename, status, previous_filename: previous } = entry;
-  if (typeof filename !== "string" || typeof status !== "string") {
-    return undefined;
-  }
-  return typeof previous === "string"
-    ? { filename, status, previousFilename: previous }
-    : { filename, status };
-}
-
-async function readFiles(
-  ctx: Context,
-  pr: PullRequestRef,
-  expected: number,
-): Promise<Read<ChangedFile[]>> {
-  const files: ChangedFile[] = [];
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const url = `${repoUrl(pr)}/pulls/${String(pr.number)}/files?per_page=${String(PAGE_SIZE)}&page=${String(page)}`;
-    const read = await getJson(ctx, url, pr.token);
-    if (!read.ok) {
-      return read;
-    }
-    if (!Array.isArray(read.value)) {
-      return fail("an unexpected list of changed files");
-    }
-    for (const entry of read.value) {
-      const file = toChangedFile(entry);
-      if (file === undefined) {
-        return fail("an unexpected entry in the list of changed files");
-      }
-      files.push(file);
-    }
-    if (read.value.length < PAGE_SIZE) {
-      break;
-    }
-  }
-  // GitHub stops listing at 3000 files. A file it didn't list could be a
-  // workflow, so a list shorter than the pull request is no answer at all.
-  if (files.length < expected) {
-    return fail(
-      `GitHub listed ${String(files.length)} of the ${String(expected)} changed files`,
-    );
-  }
-  return { ok: true, value: files };
-}
-
-/** The pull request's head commit, base branch and every changed file. */
+/** The pull request's head commit and base branch, as they are now. */
 export async function readPullRequest(
   ctx: Context,
   pr: PullRequestRef,
 ): Promise<Read<PullRequestFacts>> {
-  const read = await getJson(
+  const read = await getObject(
     ctx,
     `${repoUrl(pr)}/pulls/${String(pr.number)}`,
     pr.token,
@@ -144,140 +92,131 @@ export async function readPullRequest(
   if (!read.ok) {
     return read;
   }
-  const value = read.value;
-  const head = isRecord(value) ? value.head : undefined;
-  const base = isRecord(value) ? value.base : undefined;
+  const { head, base } = read.value;
   const headSha = isRecord(head) ? head.sha : undefined;
   const baseRef = isRecord(base) ? base.ref : undefined;
-  const changed = isRecord(value) ? value.changed_files : undefined;
   if (
     typeof headSha !== "string" ||
+    !COMMIT_ID.test(headSha) ||
     typeof baseRef !== "string" ||
-    typeof changed !== "number"
+    baseRef === ""
   ) {
     return fail("an unexpected description of the pull request");
   }
-  const files = await readFiles(ctx, pr, changed);
-  if (!files.ok) {
-    return files;
-  }
-  return { ok: true, value: { headSha, baseRef, files: files.value } };
+  return { ok: true, value: { headSha, baseRef } };
 }
 
-/** package.json's text at `ref`, or undefined when there is none there. */
-async function readManifestAt(
+/** The commit at the tip of `branch` now. The name keeps its slashes, each
+ * part encoded, and the answer must name exactly that branch: GitHub's ref
+ * endpoints can answer for a different ref than the one asked for. */
+export async function readBranchTip(
   ctx: Context,
   pr: PullRequestRef,
-  ref: string,
-): Promise<Read<string | undefined>> {
-  const read = await getJson(
+  branch: string,
+): Promise<Read<string>> {
+  const name = branch.split("/").map(encodeURIComponent).join("/");
+  const read = await getObject(
     ctx,
-    `${repoUrl(pr)}/contents/package.json?ref=${encodeURIComponent(ref)}`,
+    `${repoUrl(pr)}/git/ref/heads/${name}`,
     pr.token,
-    true,
   );
-  if (!read.ok || read.value === undefined) {
-    return read.ok ? { ok: true, value: undefined } : read;
+  if (!read.ok) {
+    return read;
   }
-  const { content, encoding } = isRecord(read.value)
-    ? read.value
-    : { content: undefined, encoding: undefined };
+  const { ref, object } = read.value;
+  const sha = isRecord(object) ? object.sha : undefined;
+  if (
+    ref !== `refs/heads/${branch}` ||
+    !isRecord(object) ||
+    object.type !== "commit" ||
+    typeof sha !== "string" ||
+    !COMMIT_ID.test(sha)
+  ) {
+    return fail(`an unexpected answer for the tip of ${branch}`);
+  }
+  return { ok: true, value: sha };
+}
+
+/** Every entry of the commit's tree, files and folders at every depth, by
+ * path. A tree GitHub cuts short (it stops at 100,000 entries or 7 MB) is
+ * no answer: a file it didn't list could be a workflow. */
+export async function readTree(
+  ctx: Context,
+  pr: PullRequestRef,
+  commit: string,
+): Promise<Read<Map<string, TreeEntry>>> {
+  const read = await getObject(
+    ctx,
+    `${repoUrl(pr)}/git/trees/${encodeURIComponent(commit)}?recursive=1`,
+    pr.token,
+  );
+  if (!read.ok) {
+    return read;
+  }
+  const { truncated, tree } = read.value;
+  if (truncated === true) {
+    return fail(
+      `GitHub can't list the tree of ${commit} whole: the repository is too big for one listing`,
+    );
+  }
+  if (truncated !== false || !Array.isArray(tree)) {
+    return fail(`an unexpected answer for the tree of ${commit}`);
+  }
+  const entries = new Map<string, TreeEntry>();
+  for (const item of tree as unknown[]) {
+    const path = isRecord(item) ? item.path : undefined;
+    const entry = isRecord(item)
+      ? checkEntry(item.mode, item.type, item.sha)
+      : undefined;
+    if (typeof path !== "string" || !isTreePath(path) || entry === undefined) {
+      return fail(`an unexpected entry in the tree of ${commit}`);
+    }
+    if (entries.has(path)) {
+      return fail(`the tree of ${commit} lists ${path} twice`);
+    }
+    entries.set(path, entry);
+  }
+  return { ok: true, value: entries };
+}
+
+/** git's own id for a blob with these bytes. */
+function blobId(bytes: Buffer): string {
+  return createHash("sha1")
+    .update(`blob ${String(bytes.length)}\0`)
+    .update(bytes)
+    .digest("hex");
+}
+
+/** A blob's text. Read through the blobs API rather than the contents API,
+ * which stops at 1 MB: a large repo's lockfile can be bigger than that.
+ * GitHub wraps the base64 across lines; once the breaks are out, it must
+ * decode and encode back to the same text, or bytes were dropped on the
+ * way. The bytes must also be the ones the id names, which proves the
+ * text is the file the tree listed. */
+export async function readBlob(
+  ctx: Context,
+  pr: PullRequestRef,
+  id: string,
+): Promise<Read<string>> {
+  const read = await getObject(
+    ctx,
+    `${repoUrl(pr)}/git/blobs/${encodeURIComponent(id)}`,
+    pr.token,
+  );
+  if (!read.ok) {
+    return read;
+  }
+  const { content, encoding } = read.value;
   if (typeof content !== "string" || encoding !== "base64") {
-    return fail("an unexpected answer for package.json");
+    return fail(`an unexpected answer for the blob ${id}`);
   }
-  return { ok: true, value: Buffer.from(content, "base64").toString("utf8") };
-}
-
-/** package.json on the base branch as it is now, and at the pull request's
- * head. The base branch's current copy, not the one the pull request
- * started from: that is what a merge would change. The judge's ruleset
- * merges only branches that are up to date, and there the two are the same
- * commit. On a branch that is behind, the comparison can only see too much
- * (the base branch's own newer changes look like the pull request undoing
- * them), so it refuses wrongly rather than passes wrongly, and updating the
- * branch runs the judge again. The one thing it can't do is re-judge a pull
- * request that has already merged: its changes are then on the base branch
- * too, so it passes. */
-export async function readManifests(
-  ctx: Context,
-  pr: PullRequestRef,
-  facts: PullRequestFacts,
-): Promise<Read<TextPair>> {
-  const base = await readManifestAt(ctx, pr, facts.baseRef);
-  if (!base.ok) {
-    return base;
+  const flat = content.replace(/\r?\n/g, "");
+  const bytes = Buffer.from(flat, "base64");
+  if (bytes.toString("base64") !== flat) {
+    return fail(`the blob ${id} came back in base64 that doesn't decode`);
   }
-  const head = await readManifestAt(ctx, pr, facts.headSha);
-  if (!head.ok) {
-    return head;
+  if (blobId(bytes) !== id) {
+    return fail(`the blob ${id} came back with other content`);
   }
-  return { ok: true, value: { base: base.value, head: head.value } };
-}
-
-/** A file at the root of the tree at `ref`, or undefined when there is none
- * there. Read through the tree and its blob rather than the contents API,
- * which stops at 1 MB: a large repo's lockfile can be bigger than that, and
- * a lockfile the judge can't read would fail every dependency update. */
-async function readRootFileAt(
-  ctx: Context,
-  pr: PullRequestRef,
-  ref: string,
-  name: string,
-): Promise<Read<string | undefined>> {
-  const tree = await getJson(
-    ctx,
-    `${repoUrl(pr)}/git/trees/${encodeURIComponent(ref)}`,
-    pr.token,
-  );
-  if (!tree.ok) {
-    return tree;
-  }
-  const entries = isRecord(tree.value) ? tree.value.tree : undefined;
-  if (!Array.isArray(entries)) {
-    return fail(`an unexpected answer for the files at ${ref}`);
-  }
-  const entry: unknown = entries.find(
-    (item: unknown) => isRecord(item) && item.path === name,
-  );
-  if (entry === undefined) {
-    return { ok: true, value: undefined };
-  }
-  const sha = isRecord(entry) && entry.type === "blob" ? entry.sha : undefined;
-  if (typeof sha !== "string") {
-    return fail(`an unexpected answer for ${name}`);
-  }
-  const blob = await getJson(
-    ctx,
-    `${repoUrl(pr)}/git/blobs/${encodeURIComponent(sha)}`,
-    pr.token,
-  );
-  if (!blob.ok) {
-    return blob;
-  }
-  const { content, encoding } = isRecord(blob.value)
-    ? blob.value
-    : { content: undefined, encoding: undefined };
-  if (typeof content !== "string" || encoding !== "base64") {
-    return fail(`an unexpected answer for ${name}`);
-  }
-  return { ok: true, value: Buffer.from(content, "base64").toString("utf8") };
-}
-
-/** The root lockfile on the base branch as it is now, and at the pull
- * request's head, compared on the same terms as package.json (see
- * readManifests). */
-export async function readLockfiles(
-  ctx: Context,
-  pr: PullRequestRef,
-  facts: PullRequestFacts,
-): Promise<Read<TextPair>> {
-  const base = await readRootFileAt(ctx, pr, facts.baseRef, LOCKFILE);
-  if (!base.ok) {
-    return base;
-  }
-  const head = await readRootFileAt(ctx, pr, facts.headSha, LOCKFILE);
-  if (!head.ok) {
-    return head;
-  }
-  return { ok: true, value: { base: base.value, head: head.value } };
+  return { ok: true, value: bytes.toString("utf8") };
 }

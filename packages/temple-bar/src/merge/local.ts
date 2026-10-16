@@ -135,37 +135,6 @@ export async function bringUpToDate(
   return tip ?? refuse(`could not read ${branch} after the push`);
 }
 
-/** Paths the pull request changes, compared with where it branched off. */
-export async function changedFiles(
-  ctx: Context,
-  base: string,
-  head: string,
-  cwd: string,
-): Promise<string[]> {
-  const result = await git(
-    ctx,
-    ["diff", "--name-only", "--no-renames", `${base}...${head}`],
-    cwd,
-  );
-  if (!result.ok) {
-    refuse(
-      `could not list the files the pull request changes: ${result.stderr}`,
-    );
-  }
-  return result.stdout.split("\n").filter((file) => file !== "");
-}
-
-/** A file's contents at a commit, or undefined when it isn't there. */
-export async function fileAt(
-  ctx: Context,
-  commit: string,
-  file: string,
-  cwd: string,
-): Promise<string | undefined> {
-  const result = await ctx.git.run(["show", `${commit}:${file}`], cwd);
-  return result.code === 0 ? result.stdout : undefined;
-}
-
 export interface CleanupReport {
   readonly done: string[];
   /** Anything left behind, each with what to do about it. */
