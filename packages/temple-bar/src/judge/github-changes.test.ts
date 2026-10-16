@@ -95,7 +95,7 @@ void test("manifests and the lockfile are read from the same two trees, through 
   assert.ok(http.calls.every((call) => !call.url.includes("/contents/")));
 });
 
-void test("a manifest made a symlink with the same text is caught at once, before its target can change", async (t) => {
+void test("a manifest made a symlink is refused, and still refused once it is on the base branch", async (t) => {
   const first = setup(t, {
     ...BASE,
     "shared/a.json": MANIFEST,
@@ -112,8 +112,8 @@ void test("a manifest made a symlink with the same text is caught at once, befor
     first.http.calls.every((call) => call.url !== blobUrl(symlinkBlob)),
   );
 
-  // Had it passed, the next pull request could change the target, which
-  // no guard covers, and pass.
+  // A symlink already on the base branch is still refused when a pull
+  // request changes only its target, which no guard covers by name.
   const linked = {
     ...BASE,
     "shared/a.json": MANIFEST,
@@ -126,7 +126,9 @@ void test("a manifest made a symlink with the same text is caught at once, befor
     linked,
   ).read();
   assert.ok(second.ok);
-  assert.deepEqual(findCheckChanges(second.value.changes), []);
+  assert.deepEqual(findCheckChanges(second.value.changes), [
+    "packages/a/package.json (not a regular file)",
+  ]);
 });
 
 void test("a change of mode on a guarded file is a finding", async (t) => {

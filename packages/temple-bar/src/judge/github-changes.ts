@@ -36,7 +36,8 @@ export interface FixedChanges {
   readonly baseRef: string;
   readonly baseSha: string;
   readonly headSha: string;
-  /** Each guarded path that differs, with both sides' state. */
+  /** Each guarded path that differs, or that isn't a regular file at the
+   * head, with both sides' state. */
   readonly changes: readonly PathChange[];
 }
 
@@ -49,6 +50,17 @@ function differs(
   head: TreeEntry | undefined,
 ): boolean {
   return base?.mode !== head?.mode || base?.id !== head?.id;
+}
+
+/** A guarded path is judged when it changed, or when the head has it as
+ * something other than a regular file, changed or not: a manifest that is
+ * already a symlink follows a file no guard covers, so a pull request
+ * changing only that file would change the manifest unseen. */
+function judged(
+  base: TreeEntry | undefined,
+  head: TreeEntry | undefined,
+): boolean {
+  return differs(base, head) || (head !== undefined && !isRegularFile(head));
 }
 
 /** A tree entry as the comparison sees it, with its text read only where
@@ -86,7 +98,7 @@ async function compareTrees(
 ): Promise<Read<PathChange[]>> {
   const changes: PathChange[] = [];
   for (const file of new Set([...base.keys(), ...head.keys()])) {
-    if (!isGuarded(file) || !differs(base.get(file), head.get(file))) {
+    if (!isGuarded(file) || !judged(base.get(file), head.get(file))) {
       continue;
     }
     const was = await stateOf(ctx, pr, file, base.get(file));
