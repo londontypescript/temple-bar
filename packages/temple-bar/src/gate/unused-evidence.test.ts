@@ -7,7 +7,7 @@ import test from "node:test";
 import type { ReporterOptions } from "knip";
 
 import { createUnusedReport as evidence } from "./testing/unused-report.ts";
-import { reportedFilePaths } from "./unused-evidence.ts";
+import { reportedFilePaths, reportedFindings } from "./unused-evidence.ts";
 import captureUnusedReport from "./unused-reporter.ts";
 
 void test("only complete nonempty file findings without other failure causes qualify", () => {
@@ -37,6 +37,48 @@ void test("only complete nonempty file findings without other failure causes qua
   const mismatch = evidence();
   mismatch.counters.files = 2;
   assert.equal(reportedFilePaths(mismatch), undefined);
+});
+
+void test("findings in the selected groups are each located; anything unfamiliar is refused", () => {
+  const mixed = evidence();
+  mixed.issues.exports = {
+    "/repo/code.ts": {
+      a: { type: "exports", filePath: "/repo/code.ts" },
+      b: { type: "exports", filePath: "/repo/code.ts" },
+    },
+  };
+  mixed.issues.types = {
+    "/repo/kinds.ts": { T: { type: "types", filePath: "/repo/kinds.ts" } },
+  };
+  mixed.counters.exports = 2;
+  mixed.counters.types = 1;
+  assert.deepEqual(reportedFindings(mixed), [
+    { group: "files", filePath: "/repo/empty.ts" },
+    { group: "exports", filePath: "/repo/code.ts" },
+    { group: "exports", filePath: "/repo/code.ts" },
+    { group: "types", filePath: "/repo/kinds.ts" },
+  ]);
+  // Only unused files can be comment-only.
+  assert.equal(reportedFilePaths(mixed), undefined);
+
+  const unselected = evidence();
+  unselected.issues.dependencies = {
+    "/repo/package.json": {
+      x: { type: "dependencies", filePath: "/repo/package.json" },
+    },
+  };
+  unselected.counters.dependencies = 1;
+  assert.equal(reportedFindings(unselected), undefined);
+
+  const miscounted = structuredClone(mixed);
+  miscounted.counters.exports = 1;
+  assert.equal(reportedFindings(miscounted), undefined);
+
+  const mistyped = structuredClone(mixed);
+  mistyped.issues.types = {
+    "/repo/kinds.ts": { T: { type: "exports", filePath: "/repo/kinds.ts" } },
+  };
+  assert.equal(reportedFindings(mistyped), undefined);
 });
 
 void test("capture reporter records public evidence without mutating it and refuses overwrites", async () => {
