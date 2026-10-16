@@ -1,4 +1,6 @@
 // Reject incomplete or unfamiliar evidence rather than reinterpret a failure.
+import path from "node:path";
+
 const GROUPS = [
   "files",
   "dependencies",
@@ -95,7 +97,10 @@ export function reportedFindings(value: unknown): UnusedFinding[] | undefined {
           !record(issue) ||
           issue.type !== group ||
           typeof issue.filePath !== "string" ||
-          issue.filePath === ""
+          issue.filePath === "" ||
+          // knip names files by absolute path; a relative one would be read
+          // against the gate's own folder, not the project's.
+          !path.isAbsolute(issue.filePath)
         )
           return undefined;
         found++;

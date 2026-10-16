@@ -74,6 +74,12 @@ void test("findings in the selected groups are each located; anything unfamiliar
   miscounted.counters.exports = 1;
   assert.equal(reportedFindings(miscounted), undefined);
 
+  const relative = structuredClone(mixed);
+  relative.issues.types = {
+    "kinds.ts": { T: { type: "types", filePath: "kinds.ts" } },
+  };
+  assert.equal(reportedFindings(relative), undefined);
+
   const mistyped = structuredClone(mixed);
   mistyped.issues.types = {
     "/repo/kinds.ts": { T: { type: "exports", filePath: "/repo/kinds.ts" } },
