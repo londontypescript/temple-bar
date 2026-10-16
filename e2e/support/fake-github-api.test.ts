@@ -42,18 +42,6 @@ async function readFiles(
   return files;
 }
 
-/** The pull request's file list, page by page, as GitHub serves it. */
-async function listFiles(
-  api: FakeGithubApi,
-  number: number,
-  page: number,
-): Promise<{ filename: string }[]> {
-  const res = await fetch(
-    `${api.url}/repos/acme/widgets/pulls/${String(number)}/files?per_page=100&page=${String(page)}`,
-  );
-  return (await res.json()) as { filename: string }[];
-}
-
 void test("the judge reads a pull request, its base's tip, both trees and their blobs from the fake", async () => {
   const api = await serveFakeGithubApi(
     "acme",
@@ -62,17 +50,6 @@ void test("the judge reads a pull request, its base's tip, both trees and their 
       {
         number: 1,
         headShas: [HEAD],
-        files: [
-          "package.json",
-          { filename: "packages/b/package.json", status: "added" },
-          { filename: "packages/c/package.json", status: "removed" },
-          {
-            filename: "packages/e/package.json",
-            status: "renamed",
-            previousFilename: "packages/d/package.json",
-          },
-          "pnpm-lock.yaml",
-        ],
       },
     ],
     {
@@ -106,24 +83,7 @@ void test("the judge reads a pull request, its base's tip, both trees and their 
       "packages/b/package.json": "nested",
       "pnpm-lock.yaml": "head lock",
     });
-    // The list GitHub gives for the pull request, with each status.
-    assert.deepEqual((await listFiles(api, 1, 1)).slice(1, 4), [
-      { filename: "packages/b/package.json", status: "added" },
-      { filename: "packages/c/package.json", status: "removed" },
-      {
-        filename: "packages/e/package.json",
-        status: "renamed",
-        previous_filename: "packages/d/package.json",
-      },
-    ]);
-
-    // A nested file at a ref, by the contents API and by a recursive tree,
-    // for checks that read every manifest.
-    const nested = await fetch(
-      `${api.url}/repos/acme/widgets/contents/packages/b/package.json?ref=${HEAD}`,
-    );
-    const body = (await nested.json()) as { content: string };
-    assert.equal(Buffer.from(body.content, "base64").toString(), "nested");
+    // The recursive tree lists folders too, depth first, as GitHub does.
     const tree = await fetch(
       `${api.url}/repos/acme/widgets/git/trees/${HEAD}?recursive=1`,
     );
@@ -153,73 +113,12 @@ void test("the judge reads a pull request, its base's tip, both trees and their 
       ),
       ["package.json"],
     );
-    // A folder through the contents API is a list, not a missing file.
-    const dir = await fetch(
-      `${api.url}/repos/acme/widgets/contents/packages?ref=${HEAD}`,
-    );
-    const [entry] = (await dir.json()) as {
-      type: string;
-      name: string;
-      path: string;
-      sha: string;
-    }[];
-    assert.deepEqual(
-      { ...entry, sha: undefined },
-      { type: "dir", name: "b", path: "packages/b", sha: undefined },
-    );
-    assert.equal(entry?.sha, folder?.sha);
-    // The root through the contents API, with and without a trailing slash.
-    for (const root of ["contents", "contents/"]) {
-      const top = await fetch(
-        `${api.url}/repos/acme/widgets/${root}?ref=${HEAD}`,
-      );
-      assert.deepEqual(
-        ((await top.json()) as { path: string }[]).map((item) => item.path),
-        ["package.json", "packages", "pnpm-lock.yaml"],
-      );
+    // An object the repository doesn't hold is not found, as on GitHub,
+    // even one named like an inherited property.
+    for (const missing of ["git/trees/constructor", "git/blobs/constructor"]) {
+      const res = await fetch(`${api.url}/repos/acme/widgets/${missing}`);
+      assert.equal(res.status, 404, missing);
     }
-    // A path that is an inherited property name is absent, not a crash.
-    const odd = await fetch(
-      `${api.url}/repos/acme/widgets/contents/constructor?ref=${HEAD}`,
-    );
-    assert.equal(odd.status, 404);
-    const absent = await fetch(
-      `${api.url}/repos/acme/widgets/contents/packages/c/package.json?ref=${HEAD}`,
-    );
-    assert.equal(absent.status, 404);
-  } finally {
-    await api.close();
-  }
-});
-
-void test("the fake pages a long file list, and can send one shorter than its count", async () => {
-  const files = Array.from({ length: 150 }, (_, i) => `src/f${String(i)}.ts`);
-  const huge = Array.from({ length: 3001 }, (_, i) => `src/g${String(i)}.ts`);
-  const api = await serveFakeGithubApi("acme", "widgets", [
-    { number: 1, files },
-    { number: 2, files, changedFiles: 151 },
-    { number: 3, files: ["a.ts", "a.ts"] },
-    { number: 4, files: huge },
-  ]);
-  try {
-    const first = await listFiles(api, 1, 1);
-    const second = await listFiles(api, 1, 2);
-    assert.equal(first.length, 100);
-    assert.equal(second.length, 50);
-    assert.equal(second[49]?.filename, "src/f149.ts");
-    // The count GitHub claims, which a test can make disagree with the list.
-    const short = (await (
-      await fetch(`${api.url}/repos/acme/widgets/pulls/2`)
-    ).json()) as { changed_files: number };
-    assert.equal(short.changed_files, 151);
-    // GitHub stops listing at 3000 files, whatever the pull request holds.
-    assert.equal((await listFiles(api, 4, 30)).length, 100);
-    assert.deepEqual(await listFiles(api, 4, 31), []);
-    // A repeated path is served as given.
-    assert.deepEqual(
-      (await listFiles(api, 3, 1)).map((file) => file.filename),
-      ["a.ts", "a.ts"],
-    );
   } finally {
     await api.close();
   }
@@ -229,7 +128,6 @@ void test("the fake moves the head and base between reads, and records each requ
   const api = await serveFakeGithubApi("acme", "widgets", [
     {
       number: 1,
-      files: [],
       headShas: ["1".repeat(40), HEAD],
       baseShas: ["2".repeat(40), "3".repeat(40)],
     },
@@ -269,7 +167,7 @@ void test("the fake serves a base branch whose name has a slash", async () => {
   const api = await serveFakeGithubApi(
     "acme",
     "widgets",
-    [{ number: 1, files: ["pnpm-lock.yaml"], baseRef: "release/1.x" }],
+    [{ number: 1, baseRef: "release/1.x" }],
     {
       branches: { "release/1.x": ["d".repeat(40), "e".repeat(40)] },
       trees: {

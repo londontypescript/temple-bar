@@ -288,12 +288,8 @@ for (const pm of ["pnpm"] as const) {
         "acme",
         "widgets",
         [
-          { number: 1, files: ["src/a.ts"], headShas: [codeSha] },
-          {
-            number: 2,
-            files: [".github/workflows/ci.yml"],
-            headShas: [ciSha],
-          },
+          { number: 1, headShas: [codeSha] },
+          { number: 2, headShas: [ciSha] },
         ],
         {
           branches: { main: [baseSha] },

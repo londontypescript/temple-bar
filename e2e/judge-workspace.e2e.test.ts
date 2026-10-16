@@ -11,10 +11,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
 import type { FakeFile } from "./support/fake-git-objects.ts";
-import {
-  serveFakeGithubApi,
-  type FakePullRequest,
-} from "./support/fake-github-api.ts";
+import { serveFakeGithubApi } from "./support/fake-github-api.ts";
 import {
   launch,
   makeProject,
@@ -94,19 +91,6 @@ function without(files: Files, ...paths: readonly string[]): Files {
   );
 }
 
-/** GitHub's file list for the pull request, for a judge that still reads
- * it: every path added, removed or modified between the two trees. */
-function fileList(base: Files, head: Files): FakePullRequest["files"] {
-  const paths = [...new Set([...Object.keys(base), ...Object.keys(head)])];
-  return paths.sort().flatMap((filename): FakePullRequest["files"] => {
-    const [was, now] = [base[filename], head[filename]];
-    if (was === undefined || now === undefined) {
-      return [{ filename, status: was === undefined ? "added" : "removed" }];
-    }
-    return JSON.stringify(was) === JSON.stringify(now) ? [] : [filename];
-  });
-}
-
 interface Serving {
   /** Which side's tree GitHub can't list whole. */
   readonly truncated?: "base" | "head";
@@ -128,17 +112,13 @@ async function judge(
     [
       {
         number: PR,
-        files: fileList(base, head),
         headShas: headMoves ? [HEAD_SHA, LATER_HEAD_SHA] : [HEAD_SHA],
         baseRef: "main",
         baseShas: [BASE_SHA],
       },
     ],
     {
-      // The base under its branch name too, for a judge that reads files
-      // by the branch rather than by its tip.
       trees: {
-        main: base,
         [BASE_SHA]: base,
         [HEAD_SHA]: head,
         [LATER_HEAD_SHA]: head,
