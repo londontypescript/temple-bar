@@ -187,6 +187,12 @@ const cases: readonly [string, Files, Files, readonly string[]][] = [
     ["packages/a/package.json (not a regular file)"],
   ],
   [
+    "a folder at a guarded path deleted",
+    { "packages/a/.npmrc/payload.txt": "x\n" },
+    {},
+    ["packages/a/.npmrc (removed)"],
+  ],
+  [
     "a folder under .github/workflows/, unchanged",
     { ".github/workflows/sub/a.yml": "name: A\n" },
     { ".github/workflows/sub/a.yml": "name: A\n" },
