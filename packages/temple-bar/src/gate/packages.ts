@@ -3,7 +3,7 @@
 // docs/adr/0015-every-package-checked-and-guarded.md).
 //
 // In a pnpm workspace the list comes from the pnpm that started the gate,
-// named by npm_execpath, never from a `pnpm` on PATH: a project could put
+// named by npm_execpath (see launcher.ts), never from a `pnpm` on PATH: a project could put
 // one there that lists fewer packages. The list is then compared with
 // git's: every tracked package.json must be the root's or a listed
 // package's own, so a package left outside pnpm-workspace.yaml's patterns
@@ -17,6 +17,13 @@ import path from "node:path";
 
 import type { Context } from "../context.ts";
 import type { Writer } from "../seams/io.ts";
+import {
+  launch,
+  launcherName,
+  refusalMessage,
+  type Launcher,
+  type Startable,
+} from "./launcher.ts";
 import type { CheckOutcome } from "./report.ts";
 
 const WORKSPACE_FILE = "pnpm-workspace.yaml";
@@ -67,21 +74,24 @@ function isManifest(relative: string): boolean {
   return relative.split("/").pop()?.toLowerCase() === MANIFEST;
 }
 
-/** The pnpm that started the gate: npm_execpath, when it names a pnpm. */
-function startingPnpm(ctx: Context): string {
-  const execPath = ctx.env.npm_execpath ?? "";
-  if (execPath === "") {
+/** The pnpm that started the gate, when it was a pnpm the gate can start
+ * again. */
+function startingPnpm(launcher: Launcher): Startable {
+  if (launcher.kind === "absent") {
     fail(
       `this is a pnpm workspace, but the gate wasn't started through pnpm, so it can't ask pnpm for the packages: ${START_WITH_PNPM}`,
     );
   }
-  const name = path.basename(execPath);
-  if (!name.startsWith("pnpm")) {
+  if (launcher.kind === "refused") {
+    fail(refusalMessage(launcher));
+  }
+  const name = launcherName(launcher);
+  if (!name.toLowerCase().startsWith("pnpm")) {
     fail(
       `this is a pnpm workspace, which needs pnpm, but the gate was started by ${name}: ${START_WITH_PNPM}`,
     );
   }
-  return execPath;
+  return launcher;
 }
 
 function collect(): Writer & { text: () => string } {
@@ -161,17 +171,23 @@ function byteOrder(a: string, b: string): number {
 async function listPackages(
   ctx: Context,
   realRoot: string,
+  launcher: Launcher,
 ): Promise<WorkspacePackage[]> {
-  const pnpm = startingPnpm(ctx);
+  const listing = launch(startingPnpm(launcher), [
+    "list",
+    "--recursive",
+    "--depth",
+    "-1",
+    "--json",
+  ]);
   const stdout = collect();
   const stderr = collect();
-  // Through the node running the gate, so no shell is ever involved, on
-  // Windows either.
-  const code = await ctx.proc.run(
-    process.execPath,
-    [pnpm, "list", "--recursive", "--depth", "-1", "--json"],
-    { cwd: ctx.cwd, env: ctx.env, stdout, stderr },
-  );
+  const code = await ctx.proc.run(listing.command, listing.args, {
+    cwd: ctx.cwd,
+    env: ctx.env,
+    stdout,
+    stderr,
+  });
   if (code !== 0) {
     // pnpm on Windows may end its lines with CRLF.
     const said = stderr.text().trim().split(/\r?\n/)[0] ?? "";
@@ -259,12 +275,23 @@ function unlistedFailure(
 
 /**
  * Which packages besides the root the gate runs scripts in, judged from
- * `tracked`, git's file list. Never throws: every failure is the outcome.
+ * `tracked`, git's file list, listed through `launcher`. Never throws:
+ * every failure is the outcome. A launcher the gate can't start fails it
+ * in any project, since then none of its scripts run either.
  */
 export async function takeInventory(
   ctx: Context,
   tracked: readonly string[],
+  launcher: Launcher,
 ): Promise<Inventory> {
+  if (launcher.kind === "refused") {
+    const reason = refusalMessage(launcher);
+    return failed(
+      `${reason}; no script was run`,
+      [],
+      `gate: no script was run: ${reason}\n`,
+    );
+  }
   const workspace = tracked.includes(WORKSPACE_FILE);
   if (!workspace) {
     // The root's own manifest is the one at the top, whatever its letter
@@ -288,7 +315,7 @@ export async function takeInventory(
   let packages: WorkspacePackage[];
   try {
     realRoot = await realFolder(ctx, ctx.cwd);
-    packages = await listPackages(ctx, realRoot);
+    packages = await listPackages(ctx, realRoot, launcher);
   } catch (error) {
     const reason = describe(error);
     return failed(

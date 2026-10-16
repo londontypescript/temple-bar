@@ -11,6 +11,7 @@ import {
   PR_TITLE_WORKFLOW_PATH,
 } from "../init/workflows.ts";
 import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
+import { launch, type Launcher } from "./launcher.ts";
 import { LOCKFILE_NAMES, listGitPaths } from "./lengths.ts";
 
 /** In the order the gate runs them. Every script runs whatever the others
@@ -200,24 +201,24 @@ interface ScriptCommandLine {
 export type ScriptCommand = (script: RequiredScript) => ScriptCommandLine;
 
 /**
- * How the gate runs a script. When a package manager started the gate, its
- * own entry point is in npm_execpath, and every script runs through it, by
- * the node running the gate: one package manager runs everything, and on
- * Windows no shell is needed. Without npm_execpath (the gate run by hand),
- * the root's scripts run through the package manager detectPackageManager
- * picks, from PATH; a workspace's packages are never run that way (see
- * packages.ts).
+ * How the gate runs a script, or undefined when it can't. When a package
+ * manager started the gate, every script runs through that one, started
+ * the way `launcher` says (see launcher.ts), with no shell. Without
+ * npm_execpath (the gate run by hand), the root's scripts run through the
+ * package manager detectPackageManager picks, from PATH; a workspace's
+ * packages are never run that way (see packages.ts). A launcher the gate
+ * can't start runs nothing.
  */
 export async function scriptCommandFor(
   ctx: Context,
   rootManifest: PackageManifest | undefined,
-): Promise<ScriptCommand> {
-  const execPath = ctx.env.npm_execpath ?? "";
-  if (execPath !== "") {
-    return (script) => ({
-      command: process.execPath,
-      args: [execPath, "run", script],
-    });
+  launcher: Launcher,
+): Promise<ScriptCommand | undefined> {
+  if (launcher.kind === "refused") {
+    return undefined;
+  }
+  if (launcher.kind !== "absent") {
+    return (script) => launch(launcher, ["run", script]);
   }
   const manager = await detectPackageManager(ctx, rootManifest);
   return (script) => ({ command: manager, args: ["run", script] });

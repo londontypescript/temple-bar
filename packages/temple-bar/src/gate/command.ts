@@ -37,6 +37,7 @@ import {
   listGitPaths,
 } from "./lengths.ts";
 import { runLinkCheck, runMarkdownLint } from "./markdown.ts";
+import { resolveLauncher } from "./launcher.ts";
 import { runPackageScripts } from "./package-scripts.ts";
 import { takeInventory, type Inventory } from "./packages.ts";
 import { runRulesetChecks } from "./ruleset.ts";
@@ -67,10 +68,14 @@ async function runStackChecks(
   ctx: Context,
   listed: readonly string[],
 ): Promise<StackResult> {
-  const inventory = await takeInventory(ctx, listed);
+  // Once, so the package list and every script use the same package
+  // manager.
+  const launcher = await resolveLauncher(ctx);
+  const inventory = await takeInventory(ctx, listed, launcher);
   const commandFor = await scriptCommandFor(
     ctx,
     await readPackageManifest(ctx),
+    launcher,
   );
   const results = [
     await runPackageScripts(ctx, { relative: "", folder: ctx.cwd }, commandFor),
@@ -198,7 +203,10 @@ export function createGateCommand(tools: GateTools): CommandEntry {
       "never inside a pull request's worktree: pnpm runs whatever the",
       "current folder's package.json says. A tracked package.json that is",
       "neither the root's nor a listed package's fails.",
-      "Started by a package manager, the gate runs every script through it.",
+      "Started by a package manager, the gate runs every script through it,",
+      "with no shell: a JavaScript entry point through Node, or pnpm's",
+      "standalone executable directly. Any other launcher, such as a .cmd",
+      "shim, runs nothing and fails, saying how to install pnpm.",
       "Checks that what setup installs is",
       "still in place: the git hooks (unchanged, by SHA-256), core.hooksPath",
       "unset, pull.ff=only, setup's .gitignore lines, its prepare, gate,",

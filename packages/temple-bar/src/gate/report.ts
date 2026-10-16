@@ -9,10 +9,13 @@ import type { Context } from "../context.ts";
  * - passed / failed: the check ran and this is its result.
  * - missing: a required script isn't in package.json, so it couldn't run.
  * - no-op: a required script's command does nothing, so it wasn't run.
+ * - not-run: a required script the gate couldn't run, because it can't
+ *   start the package manager that started it (see launcher.ts).
  * - skipped: deliberately not run (the repo has no content of its own yet,
  *   or the check doesn't apply here); never a failure on its own.
  */
-type CheckStatus = "passed" | "failed" | "missing" | "no-op" | "skipped";
+type CheckStatus =
+  "passed" | "failed" | "missing" | "no-op" | "not-run" | "skipped";
 
 export interface CheckOutcome {
   readonly name: string;
@@ -24,7 +27,8 @@ function isFailure(outcome: CheckOutcome): boolean {
   return (
     outcome.status === "failed" ||
     outcome.status === "missing" ||
-    outcome.status === "no-op"
+    outcome.status === "no-op" ||
+    outcome.status === "not-run"
   );
 }
 

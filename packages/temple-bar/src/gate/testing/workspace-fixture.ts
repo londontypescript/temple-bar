@@ -126,6 +126,9 @@ export function workspace(options: WorkspaceOptions = {}): Workspace {
     files[path.join("/repo", ...folder.split("/"), "package.json")] =
       JSON.stringify(scripts === undefined ? {} : { scripts });
   }
+  // The launchers npm_execpath can name exist, as they would on a real disk.
+  files[PNPM_EXEC] = "";
+  files[NPM_EXEC] = "";
   const fs = createFakeFs({ ...files, ...options.untracked });
 
   const listing = options.listing ?? {

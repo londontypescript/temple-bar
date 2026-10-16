@@ -111,10 +111,12 @@ void test("runRequiredScripts: runs every script in order, all with CI=true, eve
     return call.args[1] === "lint" ? 1 : 0;
   });
   const ctx = createFakeContext({ proc, env: { PATH: "/usr/bin" } });
+  const commandFor = await scriptCommandFor(ctx, {}, { kind: "absent" });
+  assert.ok(commandFor !== undefined);
 
   const results = await runRequiredScripts(
     ctx,
-    await scriptCommandFor(ctx, {}),
+    commandFor,
     "/repo/packages/a",
     REQUIRED_SCRIPTS,
   );

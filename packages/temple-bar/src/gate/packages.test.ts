@@ -7,6 +7,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { listGitPaths } from "./lengths.ts";
+import { resolveLauncher } from "./launcher.ts";
 import { takeInventory } from "./packages.ts";
 import {
   NPM_EXEC,
@@ -21,6 +22,7 @@ async function inventory(options: WorkspaceOptions = {}) {
   const result = await takeInventory(
     fixture.ctx,
     await listGitPaths(fixture.ctx),
+    await resolveLauncher(fixture.ctx),
   );
   return { ...fixture, result };
 }
@@ -186,6 +188,7 @@ void test("inventory: a realpath that fails fails the check, caught where it hap
   const result = await takeInventory(
     fixture.ctx,
     await listGitPaths(fixture.ctx),
+    await resolveLauncher(fixture.ctx),
   );
   assert.equal(result.outcome.status, "failed");
   assert.match(
@@ -215,6 +218,7 @@ void test("inventory: a checkout reached through a symlink keeps its packages", 
   const result = await takeInventory(
     fixture.ctx,
     await listGitPaths(fixture.ctx),
+    await resolveLauncher(fixture.ctx),
   );
   assert.deepEqual(result.outcome.status, "passed", result.outcome.detail);
   assert.deepEqual(
