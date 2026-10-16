@@ -70,3 +70,55 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  # pnpm's standalone executable (@pnpm/exe), which the gate starts directly
+  # rather than through Node. The pinned temple-bar's gate can't run under
+  # it, since this is the code that fixes that, so the job runs the whole
+  # suite directly: its packed tests start the gate through this pnpm. Once a
+  # temple-bar with the fix is pinned, `pnpm test` becomes `pnpm gate`.
+  standalone:
+    name: standalone (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm's standalone executable
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          standalone: true
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # Without this, a pnpm from somewhere else first on PATH would turn the
+      # job into another run of the JavaScript entry, and pass.
+      - name: Check scripts see the standalone executable
+        shell: bash
+        run: |
+          dir="$RUNNER_TEMP/which-pnpm"
+          mkdir -p "$dir"
+          cat > "$dir/which.js" <<'SCRIPT'
+          const given = process.env.npm_execpath ?? "";
+          console.log(`npm_execpath: ${given}`);
+          process.exit(/[\\/]pnpm(\.exe)?$/i.test(given) ? 0 : 1);
+          SCRIPT
+          echo '{ "scripts": { "which": "node which.js" } }' > "$dir/package.json"
+          pnpm --dir "$dir" run which
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test (the whole suite, through this pnpm)
+        run: pnpm test
+        env:
+          GH_TOKEN: ${{ github.token }}
