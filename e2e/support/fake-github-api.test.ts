@@ -5,9 +5,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  readLockfiles,
-  readManifests,
+  readBlob,
+  readBranchTip,
   readPullRequest,
+  readTree,
   type PullRequestRef,
 } from "../../packages/temple-bar/src/judge/github.ts";
 import { createHttpSeam } from "../../packages/temple-bar/src/seams/http.ts";
@@ -15,13 +16,45 @@ import { createFakeContext } from "../../packages/temple-bar/src/testing/fakes.t
 import { serveFakeGithubApi, type FakeGithubApi } from "./fake-github-api.ts";
 
 const HEAD = "c".repeat(40);
+const BASE = "b".repeat(40);
 const ctx = createFakeContext({ http: createHttpSeam() });
 
 function ref(api: FakeGithubApi, number: number): PullRequestRef {
   return { api: api.url, owner: "acme", repo: "widgets", number, token: "t" };
 }
 
-void test("the judge reads a pull request's files, statuses and both sides' manifests from the fake", async () => {
+/** Each file's text at `commit`, read as the judge reads it: the commit's
+ * whole tree, then each blob by the id the tree lists. */
+async function readFiles(
+  api: FakeGithubApi,
+  commit: string,
+): Promise<Record<string, string>> {
+  const tree = await readTree(ctx, ref(api, 1), commit);
+  assert.ok(tree.ok, tree.ok ? "" : tree.reason);
+  const files: Record<string, string> = {};
+  for (const [at, entry] of tree.value) {
+    if (entry.type === "blob") {
+      const blob = await readBlob(ctx, ref(api, 1), entry.id);
+      assert.ok(blob.ok, blob.ok ? "" : blob.reason);
+      files[at] = blob.value;
+    }
+  }
+  return files;
+}
+
+/** The pull request's file list, page by page, as GitHub serves it. */
+async function listFiles(
+  api: FakeGithubApi,
+  number: number,
+  page: number,
+): Promise<{ filename: string }[]> {
+  const res = await fetch(
+    `${api.url}/repos/acme/widgets/pulls/${String(number)}/files?per_page=100&page=${String(page)}`,
+  );
+  return (await res.json()) as { filename: string }[];
+}
+
+void test("the judge reads a pull request, its base's tip, both trees and their blobs from the fake", async () => {
   const api = await serveFakeGithubApi(
     "acme",
     "widgets",
@@ -44,39 +77,45 @@ void test("the judge reads a pull request's files, statuses and both sides' mani
     ],
     {
       trees: {
-        main: { "package.json": "base", "pnpm-lock.yaml": "base lock" },
+        [BASE]: { "package.json": "base", "pnpm-lock.yaml": "base lock" },
         [HEAD]: {
           "package.json": "head",
           "pnpm-lock.yaml": "head lock",
           "packages/b/package.json": "nested",
         },
       },
+      branches: { main: [BASE] },
     },
   );
   try {
     const facts = await readPullRequest(ctx, ref(api, 1));
-    assert.ok(facts.ok, facts.ok ? "" : facts.reason);
-    assert.equal(facts.value.headSha, HEAD);
-    assert.equal(facts.value.baseRef, "main");
-    assert.deepEqual(facts.value.files.slice(1, 4), [
+    assert.deepEqual(facts, {
+      ok: true,
+      value: { headSha: HEAD, baseRef: "main" },
+    });
+    assert.deepEqual(await readBranchTip(ctx, ref(api, 1), "main"), {
+      ok: true,
+      value: BASE,
+    });
+    assert.deepEqual(await readFiles(api, BASE), {
+      "package.json": "base",
+      "pnpm-lock.yaml": "base lock",
+    });
+    assert.deepEqual(await readFiles(api, HEAD), {
+      "package.json": "head",
+      "packages/b/package.json": "nested",
+      "pnpm-lock.yaml": "head lock",
+    });
+    // The list GitHub gives for the pull request, with each status.
+    assert.deepEqual((await listFiles(api, 1, 1)).slice(1, 4), [
       { filename: "packages/b/package.json", status: "added" },
       { filename: "packages/c/package.json", status: "removed" },
       {
         filename: "packages/e/package.json",
         status: "renamed",
-        previousFilename: "packages/d/package.json",
+        previous_filename: "packages/d/package.json",
       },
     ]);
-    const manifests = await readManifests(ctx, ref(api, 1), facts.value);
-    assert.deepEqual(manifests, {
-      ok: true,
-      value: { base: "base", head: "head" },
-    });
-    const lockfiles = await readLockfiles(ctx, ref(api, 1), facts.value);
-    assert.deepEqual(lockfiles, {
-      ok: true,
-      value: { base: "base lock", head: "head lock" },
-    });
 
     // A nested file at a ref, by the contents API and by a recursive tree,
     // for checks that read every manifest.
@@ -163,31 +202,22 @@ void test("the fake pages a long file list, and can send one shorter than its co
     { number: 4, files: huge },
   ]);
   try {
-    const whole = await readPullRequest(ctx, ref(api, 1));
-    assert.ok(whole.ok, whole.ok ? "" : whole.reason);
-    assert.equal(whole.value.files.length, 150);
-    assert.equal(whole.value.files[149]?.filename, "src/f149.ts");
-    const short = await readPullRequest(ctx, ref(api, 2));
-    assert.deepEqual(short, {
-      ok: false,
-      reason: "GitHub listed 150 of the 151 changed files",
-    });
+    const first = await listFiles(api, 1, 1);
+    const second = await listFiles(api, 1, 2);
+    assert.equal(first.length, 100);
+    assert.equal(second.length, 50);
+    assert.equal(second[49]?.filename, "src/f149.ts");
+    // The count GitHub claims, which a test can make disagree with the list.
+    const short = (await (
+      await fetch(`${api.url}/repos/acme/widgets/pulls/2`)
+    ).json()) as { changed_files: number };
+    assert.equal(short.changed_files, 151);
     // GitHub stops listing at 3000 files, whatever the pull request holds.
-    const past = await fetch(
-      `${api.url}/repos/acme/widgets/pulls/4/files?per_page=100&page=31`,
-    );
-    assert.deepEqual(await past.json(), []);
-    const capped = await readPullRequest(ctx, ref(api, 4));
-    assert.deepEqual(capped, {
-      ok: false,
-      reason: "GitHub listed 3000 of the 3001 changed files",
-    });
-    // A repeated path reaches the judge as GitHub sent it, for the judge to
-    // refuse.
-    const repeated = await readPullRequest(ctx, ref(api, 3));
-    assert.ok(repeated.ok, repeated.ok ? "" : repeated.reason);
+    assert.equal((await listFiles(api, 4, 30)).length, 100);
+    assert.deepEqual(await listFiles(api, 4, 31), []);
+    // A repeated path is served as given.
     assert.deepEqual(
-      repeated.value.files.map((file) => file.filename),
+      (await listFiles(api, 3, 1)).map((file) => file.filename),
       ["a.ts", "a.ts"],
     );
   } finally {
@@ -243,7 +273,7 @@ void test("the fake serves a base branch whose name has a slash", async () => {
     {
       branches: { "release/1.x": ["d".repeat(40), "e".repeat(40)] },
       trees: {
-        "release/1.x": {
+        ["d".repeat(40)]: {
           "package.json": "base",
           "pnpm-lock.yaml": "base lock",
         },
@@ -253,27 +283,32 @@ void test("the fake serves a base branch whose name has a slash", async () => {
   );
   try {
     const facts = await readPullRequest(ctx, ref(api, 1));
-    assert.ok(facts.ok, facts.ok ? "" : facts.reason);
-    const pr = { ...facts.value, headSha: HEAD };
-    assert.deepEqual(await readManifests(ctx, ref(api, 1), pr), {
+    assert.deepEqual(facts, {
       ok: true,
-      value: { base: "base", head: "head" },
+      value: { headSha: "a".repeat(40), baseRef: "release/1.x" },
     });
-    assert.deepEqual(await readLockfiles(ctx, ref(api, 1), pr), {
+    // The judge's reader keeps the slash and gets the branch it asked for,
+    // and the tip moves between reads, as a judge must notice.
+    assert.deepEqual(await readBranchTip(ctx, ref(api, 1), "release/1.x"), {
       ok: true,
-      value: { base: "base lock", head: "head lock" },
+      value: "d".repeat(40),
     });
-    // The branch's tip, read twice, moves: the second read is how a judge
-    // notices the base changed under it.
-    const tip = `${api.url}/repos/acme/widgets/git/ref/heads/${encodeURIComponent("release/1.x")}`;
-    const first = (await (await fetch(tip)).json()) as {
-      object: { sha: string };
-    };
-    const second = (await (await fetch(tip)).json()) as {
-      object: { sha: string };
-    };
-    assert.equal(first.object.sha, "d".repeat(40));
-    assert.equal(second.object.sha, "e".repeat(40));
+    assert.deepEqual(await readBranchTip(ctx, ref(api, 1), "release/1.x"), {
+      ok: true,
+      value: "e".repeat(40),
+    });
+    assert.ok(
+      api.requests.includes("/repos/acme/widgets/git/ref/heads/release/1.x"),
+      api.requests.join("\n"),
+    );
+    assert.deepEqual(await readFiles(api, "d".repeat(40)), {
+      "package.json": "base",
+      "pnpm-lock.yaml": "base lock",
+    });
+    assert.deepEqual(await readFiles(api, HEAD), {
+      "package.json": "head",
+      "pnpm-lock.yaml": "head lock",
+    });
   } finally {
     await api.close();
   }
@@ -298,6 +333,9 @@ void test("the fake can cut a recursive tree short and say so", async () => {
     const body = (await cut.json()) as { tree: unknown[]; truncated: boolean };
     assert.equal(body.truncated, true);
     assert.ok(body.tree.length < 4);
+    // The judge's reader refuses it rather than judge part of a tree.
+    const read = await readTree(ctx, ref(api, 1), HEAD);
+    assert.equal(read.ok, false);
   } finally {
     await api.close();
   }

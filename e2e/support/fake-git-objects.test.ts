@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import {
-  readManifests,
-  readPullRequest,
+  readBlob,
+  readTree,
 } from "../../packages/temple-bar/src/judge/github.ts";
 import { createHttpSeam } from "../../packages/temple-bar/src/seams/http.ts";
 import { createFakeContext } from "../../packages/temple-bar/src/testing/fakes.ts";
@@ -273,30 +273,24 @@ void test("the fake wraps base64 as GitHub does, and the judge's reader takes it
     name: "widgets",
     scripts: { test: "x".repeat(200) },
   });
-  const api = await serveFakeGithubApi(
-    "acme",
-    "widgets",
-    [{ number: 1, headShas: [HEAD], files: ["package.json"] }],
-    {
-      trees: {
-        main: { "package.json": manifest },
-        [HEAD]: { "package.json": manifest },
-      },
-    },
-  );
+  const api = await serveFakeGithubApi("acme", "widgets", [], {
+    trees: { [HEAD]: { "package.json": manifest } },
+  });
   try {
+    const tree = await readTree(ctx, ref(api), HEAD);
+    assert.ok(tree.ok, tree.ok ? "" : tree.reason);
+    const entry = tree.value.get("package.json");
+    assert.ok(entry, "package.json is in the tree");
     const res = await fetch(
-      `${api.url}/repos/acme/widgets/contents/package.json?ref=${HEAD}`,
+      `${api.url}/repos/acme/widgets/git/blobs/${entry.id}`,
     );
     const { content } = (await res.json()) as { content: string };
     const lines = content.split("\n");
     assert.ok(lines.length > 2);
     assert.ok(lines.slice(0, -2).every((line) => line.length === 60));
-    const facts = await readPullRequest(ctx, ref(api));
-    assert.ok(facts.ok, facts.ok ? "" : facts.reason);
-    assert.deepEqual(await readManifests(ctx, ref(api), facts.value), {
+    assert.deepEqual(await readBlob(ctx, ref(api), entry.id), {
       ok: true,
-      value: { base: manifest, head: manifest },
+      value: manifest,
     });
   } finally {
     await api.close();
