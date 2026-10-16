@@ -47,6 +47,8 @@ same pull request as any change to a mechanism.
 | Gate and title checks required on `main`               | `main` ruleset, gate (public repos), from 0.0.9      | **Blocked** on GitHub |
 | Gate and title workflows unchanged                     | the pinned gate in CI, from 0.0.9                    | **Blocked** via CI    |
 | Every workspace package's four scripts present and run | the gate, from 0.1.0                                 | **Blocked** via CI    |
+| Every package's scripts unchanged                      | the judge, from 0.1.0                                | **Blocked** on GitHub |
+| pnpm's install settings unchanged at any depth         | the judge, from 0.1.0                                | **Blocked** on GitHub |
 | Release notes finished before publishing               | `pnpm release:publish` refuses unfinished notes      | **Blocked** locally   |
 | One-line description the same everywhere               | tests; About text by a CI step                       | **Blocked** via CI    |
 | Windows run after a failed CI Windows leg              | `pnpm windows-run`, run by hand                      | **Prose only**        |
