@@ -11,7 +11,7 @@
 import type { Context } from "../context.ts";
 import type { FileState, PathChange } from "../judge/file-state.ts";
 import { isGuarded, readsText } from "../judge/guarded-paths.ts";
-import { checkEntry, isRegularFile } from "../judge/tree-entry.ts";
+import { checkEntry, isRegularFile, isTreePath } from "../judge/tree-entry.ts";
 import { refuse } from "./refusal.ts";
 
 /** Paths changed between `base` and `head`, compared from where they
@@ -60,7 +60,12 @@ function parseEntry(output: string, file: string) {
   }
   const tab = line.indexOf("\t");
   const [mode, type, id, ...rest] = line.slice(0, tab).split(" ");
-  if (tab < 0 || rest.length > 0 || line.slice(tab + 1) !== file) {
+  if (
+    tab < 0 ||
+    rest.length > 0 ||
+    line.slice(tab + 1) !== file ||
+    !isTreePath(file)
+  ) {
     return undefined;
   }
   return checkEntry(mode, type, id);

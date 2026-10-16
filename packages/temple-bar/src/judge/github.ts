@@ -12,7 +12,7 @@
 import { createHash } from "node:crypto";
 
 import type { Context } from "../context.ts";
-import { checkEntry, type TreeEntry } from "./tree-entry.ts";
+import { checkEntry, isTreePath, type TreeEntry } from "./tree-entry.ts";
 
 export interface PullRequestRef {
   readonly api: string;
@@ -168,7 +168,7 @@ export async function readTree(
     const entry = isRecord(item)
       ? checkEntry(item.mode, item.type, item.sha)
       : undefined;
-    if (typeof path !== "string" || path === "" || entry === undefined) {
+    if (typeof path !== "string" || !isTreePath(path) || entry === undefined) {
       return fail(`an unexpected entry in the tree of ${commit}`);
     }
     if (entries.has(path)) {

@@ -133,6 +133,20 @@ void test("ls-tree's answer is trusted only when it is the one entry asked for",
     ["no tab", ok(`100644 blob ${ID} ${NESTED}\0`)],
     ["a failure", { code: 128, stdout: "", stderr: "fatal: bad tree" }],
   ];
+  // A path no tree can hold, asked for and answered exactly.
+  const dodging = "node_modules/../packages/a/package.json";
+  assert.equal(
+    (
+      await stateAt(
+        scripted(ok(`100644 blob ${ID}\t${dodging}\0`)).ctx,
+        "base",
+        dodging,
+        "/repo",
+      )
+    ).kind,
+    "unreadable",
+    "a path with ..",
+  );
   for (const [what, answer] of unreadable) {
     const { ctx } = scripted(answer);
     assert.equal(
