@@ -175,6 +175,24 @@ const cases: readonly [string, Files, Files, readonly string[]][] = [
     ["packages/a/package.json (not a regular file)"],
   ],
   [
+    "a manifest already a symlink on the base branch, its target changed",
+    {
+      "packages/a/package.json": { symlink: "../../shared.json" },
+      "shared.json": A,
+    },
+    {
+      "packages/a/package.json": { symlink: "../../shared.json" },
+      "shared.json": B,
+    },
+    ["packages/a/package.json (not a regular file)"],
+  ],
+  [
+    "a folder named package.json added",
+    {},
+    { "packages/a/package.json/README.md": "not a manifest\n" },
+    ["packages/a/package.json (not a regular file)"],
+  ],
+  [
     "an invalid manifest",
     { "packages/a/package.json": A },
     { "packages/a/package.json": "{ not json" },
