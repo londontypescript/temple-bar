@@ -13,6 +13,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { QUIET_GIT_CONFIG } from "./quiet-git-config.ts";
 
 /** Set by the first process to load this file (each test file's process; the
  * outer `node --test` runner never loads it), so its subprocesses reuse the file. */
@@ -38,7 +39,7 @@ const REDIRECTS = [
 if (process.env[MARKER] === undefined) {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-git-config-"));
   const file = path.join(dir, "gitconfig");
-  writeFileSync(file, "");
+  writeFileSync(file, QUIET_GIT_CONFIG);
   process.on("exit", () => {
     rmSync(dir, { recursive: true, force: true });
   });

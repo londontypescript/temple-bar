@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createFakeGh } from "../../e2e/support/fake-gh.ts";
+import { QUIET_GIT_CONFIG } from "../quiet-git-config.ts";
 
 export function environments(
   folder: string,
@@ -33,7 +34,7 @@ export function environments(
     base[name] = dir;
   }
   const gitConfig = path.join(folder, "gitconfig");
-  writeFileSync(gitConfig, "");
+  writeFileSync(gitConfig, QUIET_GIT_CONFIG);
   Object.assign(base, {
     GIT_CONFIG_GLOBAL: gitConfig,
     GIT_CONFIG_NOSYSTEM: "1",
