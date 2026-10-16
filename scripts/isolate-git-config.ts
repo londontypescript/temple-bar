@@ -38,7 +38,11 @@ const REDIRECTS = [
 if (process.env[MARKER] === undefined) {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-git-config-"));
   const file = path.join(dir, "gitconfig");
-  writeFileSync(file, "");
+  // After a commit, a fetch or a push, git starts its automatic maintenance
+  // in the background, and it can outlive the command. A test that deletes
+  // its repository straight away then races it: git recreates the folders
+  // it writes to, and the temp-folder check fails the file for the leftover.
+  writeFileSync(file, "[maintenance]\n\tauto = false\n[gc]\n\tauto = 0\n");
   process.on("exit", () => {
     rmSync(dir, { recursive: true, force: true });
   });
