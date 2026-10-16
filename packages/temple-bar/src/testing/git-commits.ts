@@ -67,9 +67,31 @@ export function commitFiles(
     const [mode, id] = modeAndId(dir, content);
     return `${mode} ${id}\t${file}\0`;
   });
-  git(dir, ["update-index", "-z", "--index-info"], entries.join(""), env);
+  // Git for Windows refuses paths no Windows filesystem allows (a quote, a
+  // tab) unless core.protectNTFS is off, and --index-info skips them with
+  // only a warning. Nothing here is ever checked out, so it is safe to
+  // turn off for this throwaway index.
+  git(
+    dir,
+    ["-c", "core.protectNTFS=false", "update-index", "-z", "--index-info"],
+    entries.join(""),
+    env,
+  );
   const tree = git(dir, ["write-tree"], undefined, env);
   rmSync(index, { force: true });
+  // Never a commit missing a path the test asked for: a skipped one would
+  // make the test judge a different change from the one it names.
+  const listed = execFileSync(
+    "git",
+    ["ls-tree", "-r", "-z", "--name-only", "--full-tree", tree],
+    { cwd: dir, encoding: "utf8" },
+  )
+    .split("\0")
+    .filter((file) => file !== "");
+  const missing = Object.keys(files).filter((file) => !listed.includes(file));
+  if (missing.length > 0) {
+    throw new Error(`commitFiles: git left out ${JSON.stringify(missing)}`);
+  }
   const parents = parent === undefined ? [] : ["-p", parent];
   return git(dir, ["commit-tree", tree, ...parents, "-m", "test"]);
 }
