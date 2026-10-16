@@ -9,8 +9,11 @@ import test from "node:test";
 import { createFakeContext, createFakeFs } from "../testing/fakes.ts";
 import { launch, resolveLauncher, type Launcher } from "./launcher.ts";
 
-/** A path rooted the way both rule sets accept, in the host's own form. */
-const at = (...parts: string[]) => path.join("/tools", ...parts);
+/** npm_execpath as a path both rule sets read as absolute: forward
+ * slashes, so Linux's and macOS's rules accept it on a Windows host too.
+ * The fake filesystem stores it in the host's form, which is what the
+ * resolver answers, so expectations use path.normalize. */
+const at = (...parts: string[]) => path.posix.join("/tools", ...parts);
 
 function setUp(
   execPath: string | undefined,
@@ -93,7 +96,7 @@ for (const [platform, name] of [
 }
 
 void test("launcher: a link is followed, and its target decides the form and is what runs", async () => {
-  const link = path.join("/usr", "local", "bin", "pnpm");
+  const link = path.posix.join("/usr", "local", "bin", "pnpm");
   const binary = at("pnpm", "pnpm");
   const native = await resolve(link, "linux", [binary], (fs) => {
     fs.realpaths.set(link, binary);
@@ -113,7 +116,7 @@ void test("launcher: a link is followed, and its target decides the form and is 
 });
 
 void test("launcher: a broken link, a link loop or a link to a folder is refused", async () => {
-  const link = path.join("/usr", "local", "bin", "pnpm");
+  const link = path.posix.join("/usr", "local", "bin", "pnpm");
   const broken = await resolve(link, "linux", [], (fs) => {
     fs.linkTargets.set(link, at("gone"));
   });

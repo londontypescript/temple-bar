@@ -34,7 +34,7 @@ export type Startable = Extract<Launcher, { path: string }>;
 const JAVASCRIPT = /\.[cm]?js$/i;
 
 /** How to get a pnpm the gate can start, said when it can't. */
-export const INSTALL_PNPM =
+const INSTALL_PNPM =
   "install pnpm with npm (`npm install --global pnpm`), with corepack " +
   "(`corepack enable pnpm`) or with pnpm's standalone installer " +
   "(https://pnpm.io/installation)";
