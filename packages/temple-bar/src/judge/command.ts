@@ -1,7 +1,8 @@
 // `temple-bar judge`: fails a pull request that changes the checks which
 // judge it. It runs in the judge workflow (see workflow.ts), which GitHub
 // takes from the default branch, so a pull request can't change the judge by
-// editing it. It reads the pull request through the API and never runs it.
+// editing it. It reads the base branch's tip and the pull request's head
+// through the API, as two whole trees, and never runs either.
 //
 //   0  the pull request leaves the checks alone
 //   1  it changes them, or GitHub couldn't be read (the judge fails closed)
@@ -12,19 +13,10 @@
 import type { Context } from "../context.ts";
 import type { CommandEntry } from "../registry.ts";
 import { checkOrigin } from "../init/requirements.ts";
-import {
-  ASK_FOR_ADMIN_MERGE,
-  changesLockfile,
-  changesManifest,
-  findCheckChanges,
-} from "./changes.ts";
+import { ASK_FOR_ADMIN_MERGE, findCheckChanges } from "./changes.ts";
 import { GUARDED_CHECKS } from "./guarded-checks.ts";
-import {
-  readLockfiles,
-  readManifests,
-  readPullRequest,
-  type PullRequestRef,
-} from "./github.ts";
+import { readFixedChanges } from "./github-changes.ts";
+import type { PullRequestRef } from "./github.ts";
 
 const DEFAULT_API = "https://api.github.com";
 
@@ -99,13 +91,21 @@ const NEEDS_TOKEN =
 /** What the maintainer and the agent read when the judge fails. It says what
  * the pull request touched and who decides, in the same words merge uses
  * when it refuses such a change. */
-function formatCheckChanges(findings: readonly string[]): string {
+function formatCheckChanges(
+  findings: readonly string[],
+  baseRef: string,
+): string {
   return (
     "judge: this pull request changes the checks that judge it:\n" +
     findings.map((line) => `  ${line}\n`).join("") +
     "Its own CI can't vouch for a change to that CI, so the maintainer " +
     `decides. ${ASK_FOR_ADMIN_MERGE} Keep a change like this in a pull ` +
-    "request of its own, with other work in another one.\n"
+    "request of its own, with other work in another one.\n" +
+    // The judge compares with the base branch as it is now, so a branch
+    // that is behind shows that branch's newer changes as its own.
+    `If the branch is behind ${baseRef}, bring it up to date first: ` +
+    `${baseRef}'s newer changes show up here as if this pull request ` +
+    "undid them.\n"
   );
 }
 
@@ -148,34 +148,20 @@ async function runJudge(
     return 1;
   };
 
-  const facts = await readPullRequest(ctx, pr);
-  if (!facts.ok) {
-    return cantRead(facts.reason);
+  const read = await readFixedChanges(ctx, pr);
+  if (!read.ok) {
+    return cantRead(read.reason);
   }
-  // Both files are read only when the pull request changes them, and only
-  // as text to compare: nothing in them runs here.
-  const { files } = facts.value;
-  const manifests = changesManifest(files)
-    ? await readManifests(ctx, pr, facts.value)
-    : undefined;
-  if (manifests !== undefined && !manifests.ok) {
-    return cantRead(manifests.reason);
-  }
-  const lockfiles = changesLockfile(files)
-    ? await readLockfiles(ctx, pr, facts.value)
-    : undefined;
-  if (lockfiles !== undefined && !lockfiles.ok) {
-    return cantRead(lockfiles.reason);
-  }
-  const findings = findCheckChanges(files, manifests?.value, lockfiles?.value);
+  const { baseRef, baseSha, headSha, changes } = read.value;
+  const findings = findCheckChanges(changes);
 
   if (findings.length > 0) {
-    ctx.stderr.write(formatCheckChanges(findings));
+    ctx.stderr.write(formatCheckChanges(findings, baseRef));
     return 1;
   }
   ctx.stdout.write(
     `judge: pull request #${String(number)} leaves the checks alone ` +
-      `(${String(facts.value.files.length)} changed files read).\n`,
+      `(its head ${headSha.slice(0, 7)} compared with ${baseRef} at ${baseSha.slice(0, 7)}).\n`,
   );
   return 0;
 }
@@ -185,9 +171,9 @@ export const judgeCommand: CommandEntry = {
   summary: "Fail a pull request that changes the checks which judge it.",
   args: "[--pr <number>]",
   details:
-    "Reads the pull request's changed files from GitHub, without checking " +
-    "out or running any of its code, and fails when they change " +
-    `${GUARDED_CHECKS}. ` +
+    "Reads the base branch's tip and the pull request's head from GitHub " +
+    "as two whole trees, without checking out or running any of their " +
+    `code, and fails when the head changes ${GUARDED_CHECKS}. ` +
     "Setup's judge workflow runs it on every pull request.\n\n" +
     "Options:\n" +
     "  --pr <number>  The pull request to judge. In GitHub Actions it comes\n" +

@@ -61,19 +61,30 @@ async function gate(dir: string) {
   return run("pnpm", ["run", "gate"], { cwd: dir, env });
 }
 
-function assertCurrent(dir: string): void {
+function assertCurrentShims(dir: string): void {
   for (const [name, content] of Object.entries(INSTALLED_SHIMS))
     assert.equal(
       readFileSync(path.join(dir, ".git/hooks", name), "utf8"),
       content,
       `${name}: recognized old artifact was not upgraded`,
     );
+}
+
+/** This release's workflows, or exactly what `release` wrote. */
+function assertWorkflows(dir: string, release?: string): void {
   for (const workflow of workflows)
     assert.equal(
       readFileSync(path.join(dir, workflow.path), "utf8"),
-      workflow.content,
+      release === undefined
+        ? workflow.content
+        : outputFromRelease(workflow.path, release),
       `${workflow.path}: recognized old artifact was not upgraded`,
     );
+}
+
+function assertCurrent(dir: string): void {
+  assertCurrentShims(dir);
+  assertWorkflows(dir);
 }
 
 void test(
@@ -287,7 +298,12 @@ void test(
           "the linked worktree holds this release's block",
         );
       }
-      assertCurrent(dir);
+      // Hooks are shared by every worktree, so the primary runs the newest
+      // shims in either order. Workflows are each checkout's own files, as
+      // its own setup wrote them: 0.0.9's in a primary 0.0.9 set up.
+      assertCurrentShims(dir);
+      assertWorkflows(dir, currentFirst ? undefined : "0.0.9");
+      if (!currentFirst) assertWorkflows(linked);
       const primaryGate = await gate(dir);
       const linkedGate = await gate(linked);
       assert.equal(primaryGate.code, 0, describe(primaryGate));

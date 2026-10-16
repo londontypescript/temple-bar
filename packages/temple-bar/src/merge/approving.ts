@@ -4,11 +4,12 @@
 // is a statement rather than a missing line:
 //
 //   - the maintainer's yes: each change that needs it (see approval.ts),
-//     such as a change to AGENTS.md, so the maintainer asked in chat sees
-//     what they are saying yes to.
+//     such as a change to AGENTS.md or to anything the judge guards (any
+//     package.json's scripts included), so the maintainer asked in chat
+//     sees what they are saying yes to.
 //   - machinery: changes to what checks this repository (CI workflows, the
-//     lint, format and TypeScript config, the scripts the gate runs, the
-//     hook install, the pinned temple-bar). A pull request that changes
+//     lint, format and TypeScript config, the root scripts the gate runs,
+//     the hook install, the pinned temple-bar). A pull request that changes
 //     these changes how every later pull request is judged.
 //   - dependencies: packages added, removed, or moved to a new major
 //     version, from each package.json the pull request touches. Agents are
@@ -20,7 +21,7 @@ import path from "node:path";
 
 import { LOCKFILE_NAMES } from "../gate/lengths.ts";
 import { REQUIRED_SCRIPTS } from "../gate/stack.ts";
-import { TEMPLE_BAR_PACKAGE } from "../judge/changes.ts";
+import { TEMPLE_BAR_PACKAGE } from "../judge/manifests.ts";
 import { reasonsForMaintainersYes } from "./approval.ts";
 import {
   allDependencies,

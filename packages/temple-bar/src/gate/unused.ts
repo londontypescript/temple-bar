@@ -6,12 +6,18 @@
 // Only those issue types are reported. knip's dependency checks are left
 // out: a project's package manager and its own scripts already own its
 // dependency list.
+//
+// knip runs once, at the root, over every package of a workspace; its
+// findings are then put down to the package that holds each one (see
+// unused-attribution.ts), so the report says which packages need work.
 
 import path from "node:path";
 
 import type { Context } from "../context.ts";
+import type { Inventory } from "./packages.ts";
 import type { CheckOutcome } from "./report.ts";
 import type { GateTools } from "./tools.ts";
+import { attributeFindings, ROOT_OWNER } from "./unused-attribution.ts";
 
 const UNUSED_CHECK = "unused code (knip)";
 
@@ -23,9 +29,70 @@ export const KNIP_ARGS: readonly string[] = [
   "--no-progress",
 ];
 
+const FOUND =
+  "gate: knip found unused files or exports (listed above): delete each one, or use it\n";
+
+/** The root as given and as it resolves: knip may name files either way. */
+async function rootSpellings(ctx: Context): Promise<string[]> {
+  try {
+    return [ctx.cwd, await ctx.fs.realpath(ctx.cwd)];
+  } catch {
+    return [ctx.cwd];
+  }
+}
+
+/** Fails the check for knip's findings, saying which packages hold them
+ * when knip's evidence says where they are. Only the wording depends on
+ * that evidence: the check fails either way. */
+async function unusedFailure(
+  ctx: Context,
+  inventory: Pick<Inventory, "packages" | "outcome">,
+  files: readonly string[] | undefined,
+): Promise<CheckOutcome> {
+  const failure = {
+    name: UNUSED_CHECK,
+    status: "failed",
+    detail: "unused files or exports",
+  } as const;
+  if (files === undefined || files.length === 0) {
+    ctx.stderr.write(FOUND);
+    return failure;
+  }
+  // Without the inventory the gate doesn't know the packages' folders.
+  const known = inventory.outcome.status !== "failed";
+  const owners = attributeFindings(
+    await rootSpellings(ctx),
+    known ? inventory.packages.map((member) => member.relative) : [],
+    files,
+  );
+  const names = owners.map((owner) => owner.name).join(", ");
+  ctx.stderr.write(
+    [
+      FOUND.trimEnd(),
+      ...(known
+        ? []
+        : [
+            `  the workspace's packages couldn't be listed, so every finding in the repo is put down to ${ROOT_OWNER}`,
+          ]),
+      ...owners.flatMap((owner) => [
+        `  ${owner.name}:`,
+        ...owner.files.map((file) => `    ${file}`),
+      ]),
+      "",
+    ].join("\n"),
+  );
+  return {
+    ...failure,
+    detail: known
+      ? `${failure.detail} in ${names}`
+      : `${failure.detail} in ${names}; packages unknown, as the workspace inventory failed`,
+  };
+}
+
 export async function runUnusedCheck(
   ctx: Context,
   tools: GateTools,
+  inventory: Pick<Inventory, "packages" | "outcome">,
 ): Promise<CheckOutcome> {
   // knip reads package.json to find a project's entry files; without one
   // there is no JavaScript or TypeScript project for it to look at.
@@ -51,17 +118,13 @@ export async function runUnusedCheck(
   if (code === 0) {
     return { name: UNUSED_CHECK, status: "passed" };
   }
-  ctx.stderr.write(
-    code === 1
-      ? "gate: knip found unused files or exports (listed above): delete each one, or use it\n"
-      : "gate: knip could not run (see the error above)\n",
-  );
+  if (code === 1) {
+    return unusedFailure(ctx, inventory, result.findingFiles);
+  }
+  ctx.stderr.write("gate: knip could not run (see the error above)\n");
   return {
     name: UNUSED_CHECK,
     status: "failed",
-    detail:
-      code === 1
-        ? "unused files or exports"
-        : `could not run (exit ${String(code)})`,
+    detail: `could not run (exit ${String(code)})`,
   };
 }

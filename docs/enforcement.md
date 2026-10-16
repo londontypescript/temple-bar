@@ -47,6 +47,8 @@ same pull request as any change to a mechanism.
 | Gate and title checks required on `main`               | `main` ruleset, gate (public repos), from 0.0.9      | **Blocked** on GitHub |
 | Gate and title workflows unchanged                     | the pinned gate in CI, from 0.0.9                    | **Blocked** via CI    |
 | Every workspace package's four scripts present and run | the gate, from 0.1.0                                 | **Blocked** via CI    |
+| Every package's scripts unchanged                      | the judge, from 0.1.0                                | **Blocked** on GitHub |
+| pnpm's install settings unchanged at any depth         | the judge, from 0.1.0                                | **Blocked** on GitHub |
 | Release notes finished before publishing               | `pnpm release:publish` refuses unfinished notes      | **Blocked** locally   |
 | One-line description the same everywhere               | tests; About text by a CI step                       | **Blocked** via CI    |
 | Windows run after a failed CI Windows leg              | `pnpm windows-run`, run by hand                      | **Prose only**        |
@@ -119,6 +121,12 @@ JavaScript/TypeScript file findings (decision 59). A public Knip capture
 reporter and bounded strict file reader preserve native diagnostics and all
 real unused code, exports, types and analyzer failures. Packed SvelteKit
 regressions exercise the exception and retained failures.
+
+From 0.1.0, Knip still runs once at the root over the whole workspace, so a
+shared package's code that only its sibling packages use counts as used. The
+gate names the packages that hold Knip's findings, or the root; that naming
+never turns a failure into a pass. temple-bar writes no Knip config: entries
+that Knip's plugins don't find are declared in the project's own.
 
 The release scaffold checker validates the packed gate's complete check report,
 exact per-framework missing-script expectations, verdict and exit code. Every

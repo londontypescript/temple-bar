@@ -4,13 +4,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import type { Context } from "../context.ts";
-import { reportedFilePaths } from "./unused-evidence.ts";
+import { reportedFilePaths, reportedFindings } from "./unused-evidence.ts";
 import { isCommentOnlyFile } from "./unused-read.ts";
 import { unusedReporterPath } from "./unused-reporter.ts";
 
 export interface KnipResult {
   readonly code: number;
   readonly commentOnlyFiles?: readonly string[];
+  /** The file of every finding, as knip names it (absolute), when the
+   * evidence is complete and familiar; only to say where they are. */
+  readonly findingFiles?: readonly string[];
 }
 
 export async function runKnip(
@@ -46,14 +49,19 @@ export async function runKnip(
       const evidence: unknown = JSON.parse(
         await fs.readFile(outputPath, "utf8"),
       );
+      const findings = reportedFindings(evidence);
+      if (findings === undefined) return { code };
+      const located = {
+        code,
+        findingFiles: findings.map((finding) => finding.filePath),
+      };
       const files = reportedFilePaths(evidence);
-      if (files !== undefined) {
-        for (const file of files) {
-          const eligible = await isCommentOnlyFile(ctx.cwd, file);
-          if (!eligible) return { code };
-        }
-        return { code, commentOnlyFiles: files };
+      if (files === undefined) return located;
+      for (const file of files) {
+        const eligible = await isCommentOnlyFile(ctx.cwd, file);
+        if (!eligible) return located;
       }
+      return { ...located, commentOnlyFiles: files };
     } catch {
       // A missing, unreadable or malformed report cannot turn failure to pass.
     }

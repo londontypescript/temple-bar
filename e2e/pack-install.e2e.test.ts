@@ -274,10 +274,35 @@ for (const pm of ["pnpm"] as const) {
 
       // The judge the workflow runs is the installed one: it passes a pull
       // request that leaves the checks alone and fails one that edits CI.
-      const api = await serveFakeGithubApi("acme", "widgets", [
-        { number: 1, files: ["src/a.ts"] },
-        { number: 2, files: [".github/workflows/ci.yml"] },
-      ]);
+      // Each pull request's head is the base tip with one file changed: code
+      // in the first, a workflow in the second.
+      const base = {
+        "package.json": "{}\n",
+        "src/a.ts": "export {};\n",
+        ".github/workflows/ci.yml": "name: CI\n",
+      };
+      const baseSha = "b".repeat(40);
+      const codeSha = "1".repeat(40);
+      const ciSha = "2".repeat(40);
+      const api = await serveFakeGithubApi(
+        "acme",
+        "widgets",
+        [
+          { number: 1, headShas: [codeSha] },
+          { number: 2, headShas: [ciSha] },
+        ],
+        {
+          branches: { main: [baseSha] },
+          trees: {
+            [baseSha]: base,
+            [codeSha]: { ...base, "src/a.ts": "export const a = 1;\n" },
+            [ciSha]: {
+              ...base,
+              ".github/workflows/ci.yml": "name: CI\non: push\n",
+            },
+          },
+        },
+      );
       try {
         const judgeEnv = {
           cwd: dir,

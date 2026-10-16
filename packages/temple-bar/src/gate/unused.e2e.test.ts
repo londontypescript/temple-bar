@@ -56,7 +56,7 @@ void test("unused e2e: an unused export fails the gate, and using it passes", as
     assert.match(failing.out, /forgotten +lib\.js/);
     assert.match(
       failing.err,
-      /^ {2}failed {3}unused code \(knip\) \(unused files or exports\)$/m,
+      /^ {2}failed {3}unused code \(knip\) \(unused files or exports in the root\)$/m,
     );
 
     write(
