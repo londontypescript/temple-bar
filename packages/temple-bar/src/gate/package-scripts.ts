@@ -107,11 +107,13 @@ async function runEach(
 }
 
 /** Runs the four scripts in `target`'s folder, each through `commandFor`,
- * and reports each one's outcome. */
+ * and reports each one's outcome. Without `commandFor` (the gate can't
+ * start its package manager again) nothing runs: each script that would
+ * have run is "not run", and missing or empty ones are still named. */
 export async function runPackageScripts(
   ctx: Context,
   target: ScriptsTarget,
-  commandFor: ScriptCommand,
+  commandFor: ScriptCommand | undefined,
 ): Promise<ScriptsResult> {
   const manifest = await readPackageManifest(ctx, target.folder);
   const missing = missingRequiredScripts(manifest);
@@ -145,7 +147,10 @@ export async function runPackageScripts(
     (name) =>
       !missing.includes(name) && !noOps.some((noOp) => noOp.name === name),
   );
-  const results = await runEach(ctx, target, commandFor, runnable);
+  const results =
+    commandFor === undefined
+      ? []
+      : await runEach(ctx, target, commandFor, runnable);
 
   const where = `not in ${manifestLabel(target)}`;
   return {
@@ -154,6 +159,13 @@ export async function runPackageScripts(
       const noOp = noOps.find((entry) => entry.name === script);
       if (noOp !== undefined) {
         return { name, status: "no-op", detail: JSON.stringify(noOp.command) };
+      }
+      if (commandFor === undefined && runnable.includes(script)) {
+        return {
+          name,
+          status: "not-run",
+          detail: "the gate can't start its package manager",
+        };
       }
       const result = results.find((entry) => entry.script === script);
       if (result === undefined) {
