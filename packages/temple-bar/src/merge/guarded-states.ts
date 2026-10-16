@@ -116,7 +116,7 @@ export async function stateAt(
 }
 
 /** Every guarded path in `commit`'s whole tree that isn't a regular file,
- * changed or not, as the judge finds them in GitHub's recursive tree. A
+ * as the judge finds them in GitHub's recursive trees. A
  * diff lists only files, so a folder named package.json shows up only
  * here. A listing that can't be read whole is refused, never skipped. */
 async function nonRegularGuardedPaths(
@@ -155,7 +155,7 @@ async function nonRegularGuardedPaths(
 }
 
 /** Each guarded path among `paths`, and each guarded path that isn't a
- * regular file at `head`, with its state at `base` and `head`. */
+ * regular file at `base` or `head`, with its state at `base` and `head`. */
 export async function readGuardedChanges(
   ctx: Context,
   base: string,
@@ -164,8 +164,12 @@ export async function readGuardedChanges(
   cwd: string,
 ): Promise<PathChange[]> {
   const files = new Set(paths.filter(isGuarded));
-  for (const file of await nonRegularGuardedPaths(ctx, head, cwd)) {
-    files.add(file);
+  // Both sides: a folder at a guarded path that the head deletes shows in
+  // the diff only as the files inside it, which aren't guarded.
+  for (const commit of [base, head]) {
+    for (const file of await nonRegularGuardedPaths(ctx, commit, cwd)) {
+      files.add(file);
+    }
   }
   const changes: PathChange[] = [];
   for (const file of files) {
