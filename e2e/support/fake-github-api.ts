@@ -17,6 +17,7 @@ import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import {
   entryAt,
+  followSymlink,
   listTree,
   writeGitObjects,
   type FakeFile,
@@ -105,14 +106,23 @@ function toEntry(file: string | FakeChangedFile): Record<string, string> {
       };
 }
 
+/** Base64 as GitHub sends it, broken into lines of 60 characters, so a
+ * reader that can't take the line breaks fails here as it would there. */
 function base64(text: string): string {
-  return Buffer.from(text, "utf8").toString("base64");
+  const flat = Buffer.from(text, "utf8").toString("base64");
+  return (
+    (flat.match(/.{1,60}/g) ?? [""]).join("\n") + (flat === "" ? "" : "\n")
+  );
 }
 
 /** How the contents API names an entry in a folder's list. For backwards
- * compatibility GitHub lists symlinks and submodules there as files. */
+ * compatibility GitHub lists a submodule there as a file. */
 function contentsType(entry: TreeEntry): string {
-  return entry.type === "tree" ? "dir" : "file";
+  return entry.type === "tree"
+    ? "dir"
+    : entry.mode === "120000"
+      ? "symlink"
+      : "file";
 }
 
 export function serveFakeGithubApi(
@@ -181,6 +191,16 @@ export function serveFakeGithubApi(
     });
   }
 
+  function fileContents(at: string, sha: string) {
+    return {
+      type: "file",
+      path: at,
+      sha,
+      content: base64(objects.blobs.get(sha) ?? ""),
+      encoding: "base64",
+    };
+  }
+
   // A file's text, or a folder's entries, as the contents API gives them.
   function contents(res: ServerResponse, at: string, url: URL): void {
     const root = objects.roots.get(url.searchParams.get("ref") ?? "");
@@ -204,16 +224,20 @@ export function serveFakeGithubApi(
     } else if (entry?.mode === "160000") {
       reply(res, 200, { type: "submodule", path: at, sha: entry.sha });
     } else if (entry?.mode === "120000") {
-      const target = objects.blobs.get(entry.sha);
-      reply(res, 200, { type: "symlink", path: at, sha: entry.sha, target });
+      // GitHub answers a symlink to a regular file in the repository with
+      // that file's content, as if it were the file itself, so a reader of
+      // this API can't tell a manifest made a symlink from a real one.
+      const target = objects.blobs.get(entry.sha) ?? "";
+      const file = followSymlink(objects.trees, root ?? "", at, target);
+      reply(
+        res,
+        200,
+        file === undefined
+          ? { type: "symlink", path: at, sha: entry.sha, target }
+          : fileContents(at, file.sha),
+      );
     } else if (entry !== undefined) {
-      reply(res, 200, {
-        type: "file",
-        path: at,
-        sha: entry.sha,
-        content: base64(objects.blobs.get(entry.sha) ?? ""),
-        encoding: "base64",
-      });
+      reply(res, 200, fileContents(at, entry.sha));
     } else {
       notFound(res);
     }
@@ -229,7 +253,11 @@ export function serveFakeGithubApi(
     }
     const recursive = url.searchParams.get("recursive") !== null;
     const entries = listTree(objects.trees, sha, recursive);
-    const cut = recursive && truncated.includes(id);
+    // GitHub's limit is on the tree, so asking for it by its own id is cut
+    // short too.
+    const cut =
+      recursive &&
+      truncated.some((ref) => ref === id || objects.roots.get(ref) === sha);
     reply(res, 200, {
       sha,
       tree: cut ? entries.slice(0, Math.ceil(entries.length / 2)) : entries,

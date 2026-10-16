@@ -5,6 +5,7 @@
 // write-tree` gives for the same files; the tests check that against git.
 
 import { createHash } from "node:crypto";
+import path from "node:path";
 
 /** A file as a test gives it. Text alone is a regular file. */
 export type FakeFile =
@@ -172,4 +173,28 @@ export function entryAt(
     tree = entry?.type === "tree" ? entry.sha : undefined;
   }
   return entry;
+}
+
+/** The regular file a symlink at `at` points to, or undefined when its
+ * target is outside the repository, missing, or not a regular file. */
+export function followSymlink(
+  trees: GitObjects["trees"],
+  root: string,
+  at: string,
+  target: string,
+): TreeEntry | undefined {
+  const resolved = path.posix.normalize(
+    path.posix.join(path.posix.dirname(at), target),
+  );
+  if (
+    path.posix.isAbsolute(target) ||
+    resolved === ".." ||
+    resolved.startsWith("../")
+  ) {
+    return undefined;
+  }
+  const entry = entryAt(trees, root, resolved);
+  return entry?.mode === "100644" || entry?.mode === "100755"
+    ? entry
+    : undefined;
 }
