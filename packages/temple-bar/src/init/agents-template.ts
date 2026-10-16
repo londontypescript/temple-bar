@@ -105,11 +105,13 @@ a one-line fix. Every branch gets its own worktree.
   \`pre-push\` hook refuses an unmarked one.
 - **One concern per pull request.** One closing two or more issues needs a
   \`One concern:\` line giving a reason that counts (see the rationale doc).
-- **Merge with \`pnpm exec temple-bar merge <N>\`** once CI and code scanning
-  are green. A change to AGENTS.md or to the checks, or one that tags or
-  publishes, needs the user's yes first. The judge refuses a change to the
-  checks it guards: the user merges that one as admin. Never rewrite a
-  pushed branch.
+- **Merge with \`pnpm merge <N>\`** from the default-branch checkout once CI
+  and code scanning are green. It runs whatever that folder's
+  \`package.json\` says, so never run it inside a pull request's worktree,
+  where the pull request's own scripts would run. A change to AGENTS.md or
+  to the checks, or one that tags or publishes, needs the user's yes first.
+  The judge refuses a change to the checks it guards: the user merges that
+  one as admin. Never rewrite a pushed branch.
 - **One bullet per distinct change** in the pull request description, as a
   top-level list: merge turns the title and those bullets into the squash
   commit.

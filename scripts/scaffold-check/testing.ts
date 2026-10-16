@@ -71,6 +71,7 @@ export function install(dir: string, registry = FAKE_REGISTRY): void {
         : "temple-bar hook install",
     gate: "temple-bar gate",
     ready: "temple-bar ready",
+    merge: "temple-bar merge",
   };
   pkg.devDependencies = {
     ...object(pkg.devDependencies),

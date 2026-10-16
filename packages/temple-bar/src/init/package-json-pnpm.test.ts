@@ -14,6 +14,7 @@ const SCRIPTS = {
   prepare: "temple-bar hook install",
   gate: "temple-bar gate",
   ready: "temple-bar ready",
+  merge: "temple-bar merge",
 };
 
 /** Runs the package.json step over `manifest` with `env`, by default as

@@ -27,6 +27,7 @@ import {
   GATE_SCRIPT,
   PREPARE_SCRIPT,
   READY_SCRIPT,
+  MERGE_SCRIPT,
 } from "../../packages/temple-bar/src/init/package-json.ts";
 import type { ScaffoldFixture } from "../../packages/temple-bar/src/init/testing/scaffolds/index.ts";
 import { CHECKED_WORKFLOWS } from "../../packages/temple-bar/src/init/workflows.ts";
@@ -282,6 +283,7 @@ export function assertScaffoldSetup(
       prepare,
       gate: GATE_SCRIPT,
       ready: READY_SCRIPT,
+      merge: MERGE_SCRIPT,
     },
     packageManager: original.packageManager ?? `pnpm@${pnpmVersion}`,
     // Setup declares the Node temple-bar needs, raising a lower plain `>=`

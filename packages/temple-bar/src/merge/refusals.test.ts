@@ -101,7 +101,7 @@ void test("refuses when GitHub's head never matches the local tip", async () => 
 void test("refuses a change to AGENTS.md without the maintainer's yes", async () => {
   await refusal((w) => {
     w.changedFiles = ["AGENTS.md", "src/x.ts"];
-  }, /needs the maintainer's yes: changes AGENTS\.md\. Ask the maintainer in chat; once they say yes, run `temple-bar merge 7 --maintainer-approved`\./);
+  }, /needs the maintainer's yes: changes AGENTS\.md\. Ask the maintainer in chat; once they say yes, run `pnpm merge 7 --maintainer-approved` from the default-branch checkout\./);
 });
 
 // The judge fails these on purpose; only the maintainer merges them, as a

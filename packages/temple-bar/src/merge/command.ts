@@ -8,6 +8,7 @@ import type { Context } from "../context.ts";
 import type { CommandEntry } from "../registry.ts";
 import { gateCommand } from "../gate/command.ts";
 import { GUARDED_CHECKS } from "../judge/guarded-checks.ts";
+import { createWorktreeRemover } from "./finish-removal.ts";
 import { runMerge, type MergeDeps } from "./run.ts";
 
 interface ParsedArgs {
@@ -28,7 +29,7 @@ function parseArgs(args: readonly string[]): ParsedArgs | string {
     }
   }
   if (prNumber === undefined || prNumber <= 0) {
-    return "give the pull request's number: temple-bar merge <pr-number>";
+    return "give the pull request's number: pnpm merge <pr-number>";
   }
   return { prNumber, maintainerApproved };
 }
@@ -38,6 +39,7 @@ export const realMergeDeps: MergeDeps = {
     await delay(ms);
   },
   runGate: (ctx) => gateCommand.run([], ctx),
+  worktreeRemover: createWorktreeRemover(),
 };
 
 export function createMergeCommand(deps: MergeDeps): CommandEntry {
@@ -46,6 +48,13 @@ export function createMergeCommand(deps: MergeDeps): CommandEntry {
     summary: "Wait for checks, then squash-merge a pull request and tidy up.",
     args: "<pr-number> [--maintainer-approved]",
     details: [
+      "Run it as `pnpm merge <N>` from the default-branch checkout. Through",
+      "the root `merge` script, the gate it runs gets the pnpm that started",
+      "it, which a pnpm workspace needs to list its packages. pnpm runs",
+      "whatever the current folder's package.json says, so never run it",
+      "inside a pull request's worktree, where the pull request's own",
+      "scripts would run.",
+      "",
       "Blocks until done. Refuses a draft, closed or fork pull request, or",
       "one that doesn't target the default branch. When the branch is behind,",
       "merges the default branch into it in its worktree, runs the full gate",

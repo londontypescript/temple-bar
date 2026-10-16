@@ -50,6 +50,9 @@ export interface World {
   behind: boolean;
   /** Exit code of the gate merge runs after bringing a branch up to date. */
   gateExit: number;
+  /** What git leaves in the merged worktree's folder after removing it;
+   * undefined when the folder is gone. */
+  folderLeft: readonly string[] | undefined;
   dirty: boolean;
   /** Extra worktree entries after the primary one, in porcelain form. */
   worktrees: string;
@@ -93,6 +96,7 @@ export function defaultWorld(): World {
     localTip: HEAD,
     behind: false,
     gateExit: 0,
+    folderLeft: undefined,
     dirty: false,
     worktrees: `worktree /wt/x\nHEAD ${HEAD}\nbranch refs/heads/feat/x\n`,
     checkRuns: [[{ name: "gate", status: "completed", conclusion: "success" }]],
@@ -311,6 +315,19 @@ export function harness(world: World): Harness {
   const gateRuns: string[] = [];
   const timedCtx: Context = { ...ctx, clock: { now: () => new Date(now) } };
   const deps: MergeDeps = {
+    // Never the real filesystem: the worktree paths here are made up.
+    worktreeRemover: {
+      inspect: () =>
+        Promise.resolve(
+          world.folderLeft === undefined
+            ? { kind: "missing" }
+            : { kind: "directory", identity: "1:1", entries: world.folderLeft },
+        ),
+      removeTree: () => {
+        world.folderLeft = undefined;
+        return Promise.resolve();
+      },
+    },
     runGate: (gateCtx) => {
       gateRuns.push(gateCtx.cwd);
       return Promise.resolve(world.gateExit);
