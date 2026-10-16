@@ -39,6 +39,8 @@ export const EARLIER_OUTPUT_HASHES: Readonly<
   ".github/workflows/temple-bar-judge.yml": [
     // 0.0.7
     "7c0a0d52a68da892b87cbea36066a232a0cca27f87df82f15177db8d15485c53",
+    // 0.0.8–0.0.10
+    "4839cce5a86a09af8f3ceffc93187ce18b0eae62d715869cfc07d289f873a2fd",
   ],
 };
 
