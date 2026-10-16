@@ -73,7 +73,11 @@ export function entriesWorkspace(
         : { devDependencies: { vitest: "4.0.0" } }),
     }),
 
-    // Vite finds src/main.tsx through index.html.
+    // Entries are named so knip's default entry patterns (src/main.*,
+    // src/cli.*, src/index.*) don't match them: each is found only through
+    // its tool's own detection.
+    //
+    // Vite finds src/boot.tsx through index.html.
     "apps/web/package.json": manifest({
       name: "@entries/web",
       scripts: { dev: "vite", build: "vite build" },
@@ -85,10 +89,10 @@ export function entriesWorkspace(
       devDependencies: { vite: "7.0.0" },
     }),
     "apps/web/index.html":
-      '<!doctype html>\n<html>\n  <body>\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n',
+      '<!doctype html>\n<html>\n  <body>\n    <div id="root"></div>\n    <script type="module" src="/src/boot.tsx"></script>\n  </body>\n</html>\n',
     // A plain object, so knip can load it without vite installed.
     "apps/web/vite.config.ts": "export default { server: { port: 5173 } };\n",
-    "apps/web/src/main.tsx":
+    "apps/web/src/boot.tsx":
       'import { greet } from "@entries/shared";\nimport { App } from "./App.tsx";\n\nconsole.log(greet("web"), App);\n',
     "apps/web/src/App.tsx":
       "export function App() {\n  return <p>web</p>;\n}\n",
@@ -96,7 +100,7 @@ export function entriesWorkspace(
     // Ink's entry is found through the tsx script that runs it.
     "apps/terminal/package.json": manifest({
       name: "@entries/terminal",
-      scripts: { "start:source": "tsx src/cli.tsx" },
+      scripts: { "start:source": "tsx src/app.tsx" },
       dependencies: {
         "@entries/shared": "workspace:*",
         ink: "6.0.0",
@@ -104,13 +108,13 @@ export function entriesWorkspace(
       },
       devDependencies: { tsx: "4.0.0" },
     }),
-    "apps/terminal/src/cli.tsx":
+    "apps/terminal/src/app.tsx":
       'import type { Theme } from "@entries/shared";\n\nconst theme: Theme = { accent: "green" };\nconsole.log(theme.accent);\n',
 
     // Electron's main process is the manifest's main.
     "apps/desktop/package.json": manifest({
       name: "@entries/desktop",
-      main: "src/main.ts",
+      main: "src/electron.ts",
       ...(host
         ? {
             scripts: {
@@ -125,7 +129,7 @@ export function entriesWorkspace(
         ...(host ? { esbuild: "0.25.0" } : {}),
       },
     }),
-    "apps/desktop/src/main.ts":
+    "apps/desktop/src/electron.ts":
       'import { greet } from "@entries/shared";\n\nconsole.log(greet("desktop"));\n',
 
     // Source-only: its exports point at TypeScript, and only the apps
