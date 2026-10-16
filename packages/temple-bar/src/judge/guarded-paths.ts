@@ -10,6 +10,7 @@ import path from "node:path";
 
 import { CONFIG_FILE_NAME } from "../config/project-config.ts";
 import { LOCKFILE } from "./lockfile.ts";
+import type { TreeEntry } from "./tree-entry.ts";
 
 /** Every file under here is a workflow GitHub runs. A pull request runs its
  * own copy of them, so editing one changes the checks that judge it. GitHub
@@ -30,6 +31,14 @@ function foldedName(file: string): string {
 }
 
 const isWorkflow = (file: string): boolean => file.startsWith(WORKFLOWS_FOLDER);
+
+/** A folder under .github/workflows/ is no workflow: GitHub runs only the
+ * files there, and each of those is guarded by its own path. Both readers
+ * treat the folder's own entry as not there. A symlink or a submodule there
+ * still counts: what it points at isn't guarded by any path. */
+export function isWorkflowFolder(file: string, entry: TreeEntry): boolean {
+  return entry.type === "tree" && isWorkflow(file);
+}
 
 /** temple-bar's own settings at the root. They set the limits its checks
  * enforce, such as the file-length cap, so raising one would let a pull

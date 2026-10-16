@@ -187,6 +187,36 @@ const cases: readonly [string, Files, Files, readonly string[]][] = [
     ["packages/a/package.json (not a regular file)"],
   ],
   [
+    "a folder under .github/workflows/, unchanged",
+    { ".github/workflows/sub/a.yml": "name: A\n" },
+    { ".github/workflows/sub/a.yml": "name: A\n" },
+    [],
+  ],
+  [
+    "a file changed inside a folder under .github/workflows/",
+    { ".github/workflows/sub/a.yml": "name: A\n" },
+    { ".github/workflows/sub/a.yml": "name: B\n" },
+    [".github/workflows/sub/a.yml (modified)"],
+  ],
+  [
+    "a workflow file made a folder",
+    { ".github/workflows/sub": "name: A\n" },
+    { ".github/workflows/sub/a.yml": "name: A\n" },
+    [".github/workflows/sub (removed)", ".github/workflows/sub/a.yml (added)"],
+  ],
+  [
+    "a symlink under .github/workflows/, unchanged",
+    {
+      ".github/workflows/a.yml": { symlink: "../../ci/a.yml" },
+      "ci/a.yml": "x",
+    },
+    {
+      ".github/workflows/a.yml": { symlink: "../../ci/a.yml" },
+      "ci/a.yml": "y",
+    },
+    [".github/workflows/a.yml (not a regular file)"],
+  ],
+  [
     "a folder named package.json added",
     {},
     { "packages/a/package.json/README.md": "not a manifest\n" },

@@ -157,6 +157,28 @@ void test("a submodule or a folder at a guarded path is judged without fetching 
   assert.ok(http.calls.every((call) => !call.url.includes("/git/blobs/")));
 });
 
+void test("a folder under .github/workflows/ is no finding; a file changed inside it is", async (t) => {
+  const workflows = { ...BASE, ".github/workflows/sub/a.yml": "name: A\n" };
+  const unchanged = await setup(
+    t,
+    { ...workflows, "src/x.ts": "1" },
+    {},
+    workflows,
+  ).read();
+  assert.ok(unchanged.ok);
+  assert.deepEqual(findCheckChanges(unchanged.value.changes), []);
+  const changed = await setup(
+    t,
+    { ...workflows, ".github/workflows/sub/a.yml": "name: B\n" },
+    {},
+    workflows,
+  ).read();
+  assert.ok(changed.ok);
+  assert.deepEqual(findCheckChanges(changed.value.changes), [
+    ".github/workflows/sub/a.yml (modified)",
+  ]);
+});
+
 void test("a base branch whose name has a slash is asked for with the slash kept and answered exactly", async (t) => {
   const { read, http } = setup(t, CODE_ONLY, {
     baseRefs: ["feature/über"],

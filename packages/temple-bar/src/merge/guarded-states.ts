@@ -10,7 +10,11 @@
 
 import type { Context } from "../context.ts";
 import type { FileState, PathChange } from "../judge/file-state.ts";
-import { isGuarded, readsText } from "../judge/guarded-paths.ts";
+import {
+  isGuarded,
+  isWorkflowFolder,
+  readsText,
+} from "../judge/guarded-paths.ts";
 import { checkEntry, isRegularFile, isTreePath } from "../judge/tree-entry.ts";
 import { refuse } from "./refusal.ts";
 
@@ -96,6 +100,9 @@ export async function stateAt(
   if (entry === undefined) {
     return unreadable("git ls-tree listed something other than this file");
   }
+  if (isWorkflowFolder(file, entry)) {
+    return { kind: "absent" };
+  }
   if (!isRegularFile(entry)) {
     return { kind: "special", mode: entry.mode };
   }
@@ -136,7 +143,11 @@ async function nonRegularGuardedPaths(
         `could not list the files at ${commit}: git ls-tree listed "${line}"`,
       );
     }
-    if (isGuarded(parsed.path) && !isRegularFile(parsed.entry)) {
+    if (
+      isGuarded(parsed.path) &&
+      !isRegularFile(parsed.entry) &&
+      !isWorkflowFolder(parsed.path, parsed.entry)
+    ) {
       found.push(parsed.path);
     }
   }

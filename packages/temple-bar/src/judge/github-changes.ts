@@ -21,7 +21,7 @@
 
 import type { Context } from "../context.ts";
 import type { FileState, PathChange } from "./file-state.ts";
-import { isGuarded, readsText } from "./guarded-paths.ts";
+import { isGuarded, isWorkflowFolder, readsText } from "./guarded-paths.ts";
 import {
   readBlob,
   readBranchTip,
@@ -97,15 +97,23 @@ async function compareTrees(
   head: ReadonlyMap<string, TreeEntry>,
 ): Promise<Read<PathChange[]>> {
   const changes: PathChange[] = [];
+  const seen = (tree: ReadonlyMap<string, TreeEntry>, file: string) => {
+    const entry = tree.get(file);
+    return entry === undefined || isWorkflowFolder(file, entry)
+      ? undefined
+      : entry;
+  };
   for (const file of new Set([...base.keys(), ...head.keys()])) {
-    if (!isGuarded(file) || !judged(base.get(file), head.get(file))) {
+    const before = seen(base, file);
+    const after = seen(head, file);
+    if (!isGuarded(file) || !judged(before, after)) {
       continue;
     }
-    const was = await stateOf(ctx, pr, file, base.get(file));
+    const was = await stateOf(ctx, pr, file, before);
     if (!was.ok) {
       return was;
     }
-    const now = await stateOf(ctx, pr, file, head.get(file));
+    const now = await stateOf(ctx, pr, file, after);
     if (!now.ok) {
       return now;
     }
