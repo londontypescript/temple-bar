@@ -18,9 +18,18 @@ import { defaultWorld, harness } from "./testing/world.ts";
 function changes(
   files: string[],
   manifests: PullRequestChanges["manifests"] = [],
+  guarded: PullRequestChanges["guarded"] = [],
 ): PullRequestChanges {
-  return { files, manifests };
+  return { files, guarded, manifests };
 }
+
+/** A regular file on both sides whose content differs. */
+const modified = (path: string) =>
+  ({
+    path,
+    base: { kind: "regular", mode: "100644" },
+    head: { kind: "regular", mode: "100644" },
+  }) as const;
 
 void test("a pull request touching neither machinery nor dependencies says none, and zero incidents", () => {
   assert.deepEqual(approvingSection(7, changes(["src/x.ts"]), 0), [
@@ -160,10 +169,17 @@ void test("a changed lockfile is mentioned, with what the list leaves out", () =
   const lockfile = "lockfileVersion: '9.0'\n";
   const lines = approvingSection(
     3,
-    {
-      ...changes(["pnpm-lock.yaml"]),
-      lockfile: { base: lockfile, head: lockfile },
-    },
+    changes(
+      ["pnpm-lock.yaml"],
+      [],
+      [
+        {
+          path: "pnpm-lock.yaml",
+          base: { kind: "regular", mode: "100644", text: lockfile },
+          head: { kind: "regular", mode: "100644", text: lockfile },
+        },
+      ],
+    ),
     1,
   );
   assert.deepEqual(lines.slice(3), [
@@ -219,17 +235,17 @@ void test("the section lists each change that needs the maintainer, of both kind
   assert.deepEqual(
     approvingSection(
       7,
-      changes([
-        "AGENTS.md",
-        "packages/a/AGENTS.md",
-        ".github/workflows/ci.yml",
-      ]),
+      changes(
+        ["AGENTS.md", "packages/a/AGENTS.md", ".github/workflows/ci.yml"],
+        [],
+        [modified(".github/workflows/ci.yml")],
+      ),
       0,
     ).slice(1, 4),
     [
       "  maintainer's yes: needed for 2 changes",
       "    changes AGENTS.md, packages/a/AGENTS.md",
-      "    changes the checks that judge it (.github/workflows/ci.yml (changed))",
+      "    changes the checks that judge it (.github/workflows/ci.yml (modified))",
     ],
   );
 });

@@ -70,7 +70,9 @@ function setup(scenario: Scenario = {}) {
           : ok(`${BASE}\n`);
       case "diff":
         if (args[1] === "--name-only") {
-          return ok((scenario.changed ?? ["a.ts"]).join("\n"));
+          return ok(
+            (scenario.changed ?? ["a.ts"]).map((f) => `${f}\0`).join(""),
+          );
         }
         return scenario.diffFails === true
           ? { code: 128, stdout: "", stderr: "bad revision origin/main" }
@@ -258,7 +260,7 @@ void test("pre-push: a marked branch that changes AGENTS.md warns to ask the mai
     git.calls.some(
       (call) =>
         call.args.join(" ") ===
-        `diff --name-only --no-renames ${BASE}...${NEW}`,
+        `diff --name-only -z --no-renames --no-relative --ignore-submodules=none --no-ext-diff --no-color ${BASE}...${NEW}`,
     ),
     "compared from where the branch left origin's default branch",
   );

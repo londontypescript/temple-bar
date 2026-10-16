@@ -6,7 +6,7 @@
 import path from "node:path";
 
 import type { Context } from "../context.ts";
-import { TEMPLE_BAR_PACKAGE } from "../judge/changes.ts";
+import { TEMPLE_BAR_PACKAGE } from "../judge/manifests.ts";
 import { reportLeftovers } from "../leftovers/report.ts";
 import {
   describeAlerts,

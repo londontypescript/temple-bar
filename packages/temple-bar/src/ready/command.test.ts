@@ -13,6 +13,7 @@ import {
   createFakeGit,
   createFakeWriter,
 } from "../testing/fakes.ts";
+import { fakeTreeReads } from "../testing/git-trees.ts";
 import { createReadyCommand } from "./command.ts";
 
 const HEAD = "c".repeat(40);
@@ -37,7 +38,27 @@ interface Scenario {
 function setup(scenario: Scenario = {}) {
   const ok = (out = ""): GitResult => ({ code: 0, stdout: out, stderr: "" });
   let gateRan = 0;
+  // Each changed file has different text on each side; package.json is the
+  // scenario's own where it gives one.
+  const changed = scenario.changed ?? ["src/a.ts"];
+  const treeReads = fakeTreeReads((commit) => {
+    const atHead = commit === HEAD;
+    const files = new Map(
+      changed.map((file) => [file, atHead ? "after" : "before"]),
+    );
+    if (scenario.manifests !== undefined) {
+      const manifest = atHead
+        ? scenario.manifests.head
+        : scenario.manifests.base;
+      files.set("package.json", JSON.stringify(manifest));
+    }
+    return Object.fromEntries(files);
+  });
   const git = createFakeGit((args) => {
+    const read = treeReads(args);
+    if (read !== undefined) {
+      return read;
+    }
     const joined = args.join(" ");
     if (joined === "rev-parse --show-toplevel") {
       return ok("/repo\n");
@@ -64,14 +85,8 @@ function setup(scenario: Scenario = {}) {
     if (args[0] === "symbolic-ref") {
       return ok("refs/remotes/origin/main\n");
     }
-    if (args[0] === "show" && scenario.manifests !== undefined) {
-      const side = args[1]?.startsWith(HEAD)
-        ? scenario.manifests.head
-        : scenario.manifests.base;
-      return ok(JSON.stringify(side));
-    }
     if (args[0] === "diff") {
-      return ok((scenario.changed ?? ["src/a.ts"]).join("\n"));
+      return ok(changed.map((file) => `${file}\0`).join(""));
     }
     return { code: 1, stdout: "", stderr: "" };
   });
@@ -180,7 +195,7 @@ void test("ready: a change to a CI workflow is warned about, naming it", async (
   assert.equal(t.promptUses(), 0);
   assert.match(
     t.stderr.lines.join(""),
-    /needs the maintainer's yes before it is pushed: changes the checks that judge it \(\.github\/workflows\/ci\.yml \(changed\)\)/,
+    /needs the maintainer's yes before it is pushed: changes the checks that judge it \(\.github\/workflows\/ci\.yml \(modified\)\)/,
   );
 });
 
@@ -205,12 +220,28 @@ void test("ready: a changed pin or gate script is warned about, naming each", as
   assert.match(out, /package\.json: the "lint" script/);
 });
 
+void test("ready: any script is warned about, a nested package's too", async () => {
+  const t = setup({
+    changed: ["package.json", "packages/a/package.json"],
+    manifests: {
+      base: { scripts: { build: "tsc" } },
+      head: { scripts: { build: "tsc -b" } },
+    },
+  });
+  assert.equal(await t.run(), 0);
+  const out = t.stderr.lines.join("");
+  assert.match(out, /package\.json: the "build" script/);
+  // The nested manifest is plain text on each side here, so invalid at
+  // the head: named, never passed.
+  assert.match(out, /packages\/a\/package\.json isn't valid JSON here/);
+});
+
 void test("ready: a package.json change outside the checks is not warned about", async () => {
   const t = setup({
     changed: ["package.json"],
     manifests: {
-      base: { scripts: { build: "tsc" } },
-      head: { scripts: { build: "tsc -b" } },
+      base: { scripts: { build: "tsc" }, dependencies: { zod: "4.0.0" } },
+      head: { scripts: { build: "tsc" }, dependencies: { zod: "4.1.0" } },
     },
   });
   assert.equal(await t.run(), 0);
