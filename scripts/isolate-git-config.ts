@@ -13,6 +13,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { QUIET_GIT_CONFIG } from "./quiet-git-config.ts";
 
 /** Set by the first process to load this file (each test file's process; the
  * outer `node --test` runner never loads it), so its subprocesses reuse the file. */
@@ -38,11 +39,7 @@ const REDIRECTS = [
 if (process.env[MARKER] === undefined) {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-git-config-"));
   const file = path.join(dir, "gitconfig");
-  // After a commit, a fetch or a push, git starts its automatic maintenance
-  // in the background, and it can outlive the command. A test that deletes
-  // its repository straight away then races it: git recreates the folders
-  // it writes to, and the temp-folder check fails the file for the leftover.
-  writeFileSync(file, "[maintenance]\n\tauto = false\n[gc]\n\tauto = 0\n");
+  writeFileSync(file, QUIET_GIT_CONFIG);
   process.on("exit", () => {
     rmSync(dir, { recursive: true, force: true });
   });
