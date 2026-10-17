@@ -3,7 +3,8 @@
 // passes, through `pnpm gate` and through `pnpm ready`, and fails the pull
 // requests a workspace trial got past the gate before it checked packages:
 // a package with no scripts, a package's typecheck removed, and a
-// package.json outside the workspace's list (see
+// package.json outside the workspace's list; and a pnpm first on the
+// project's PATH never stands in for the one that started the gate (see
 // docs/adr/0015-every-package-checked-and-guarded.md).
 
 import assert from "node:assert/strict";
@@ -17,6 +18,7 @@ import {
   startPackedLauncher,
   type PackedLauncher,
 } from "./support/launcher.ts";
+import { realPnpmPath, withOldPnpmFirst } from "./support/old-pnpm.ts";
 import { describe, run, type RunOptions } from "./support/run.ts";
 import {
   checkedWorkspace,
@@ -61,11 +63,12 @@ function file(relative: string): string {
   return path.join(inProject().cwd, ...relative.split("/"));
 }
 
-/** Runs `change`, then the gate through `pnpm gate`, then puts the files it
- * names back as they were. */
+/** Runs `change`, then the gate through `pnpm gate` (or `start`), then puts
+ * the files it names back as they were. */
 async function gateWith(
   touched: readonly string[],
   change: () => void,
+  start = () => run("pnpm", ["gate"], inProject()),
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const saved = touched.map((relative) => {
     try {
@@ -76,7 +79,7 @@ async function gateWith(
   });
   try {
     change();
-    return await run("pnpm", ["gate"], inProject());
+    return await start();
   } finally {
     for (const [index, relative] of touched.entries()) {
       const content = saved[index];
@@ -192,6 +195,44 @@ void test(
     assert.equal(gate.code, 1, describe(gate));
     assert.match(gate.stderr, /^ {2}tools\/d\/package\.json$/m);
     assert.match(gate.stderr, /^gate: failed: workspace packages$/m);
+  },
+);
+
+void test(
+  "workspace gate: a pnpm first on the project's PATH neither lists the packages nor runs their scripts",
+  { timeout: 600_000 },
+  async () => {
+    // The stand-in answers every command with nothing and success. Had the
+    // gate asked it, the listing would come back empty and the inventory
+    // fail, and package b's failing test would pass unseen.
+    assert.ok(launcher, "the packed launcher was not started");
+    const env = withOldPnpmFirst(
+      path.join(launcher.folder, "pnpm-on-path"),
+      inProject().env,
+    );
+    const real = realPnpmPath(inProject().env);
+    const gate = await gateWith(
+      ["packages/b/package.json"],
+      () => {
+        writeFileSync(
+          file("packages/b/package.json"),
+          packageManifest("pkg-b", {
+            ...PASSING_SCRIPTS,
+            test: 'node -e "process.exit(3)"',
+          }),
+        );
+      },
+      () => run(real, ["gate"], { ...inProject(), env }),
+    );
+    assert.equal(gate.code, 1, describe(gate));
+    // A failed gate prints its whole report on stderr.
+    for (const line of [
+      /^ {2}passed {3}workspace packages \(the root and 2 package\(s\)\)$/m,
+      /^ {2}passed {3}test \(packages\/a\)$/m,
+      /^ {2}failed {3}test \(packages\/b\) \(exit 3\)$/m,
+    ]) {
+      assert.match(gate.stderr, line, describe(gate));
+    }
   },
 );
 
