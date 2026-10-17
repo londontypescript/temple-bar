@@ -14,6 +14,13 @@ every session. The reasons behind some of them live here.
   of it.
 - **Wide changes are checked for duplication.** A decision that was right at
   prototype scale can quietly expire; editing four copies hides that it has.
+- **The test runner starts one shell on Windows.** Git for Windows' shells
+  share one `/tmp` mapping, set from the `TEMP` of the first one to start and
+  kept while any of them is alive. The suite gives each test file its own
+  temp folder and deletes it when the file ends, so without a long-lived
+  shell of Git's own install holding `/tmp` on a folder that outlives the
+  run, a shell started later can find `/tmp` gone and warn. Only an MSYS
+  process of that install can hold it, so this one command can't be Node.
 - **AGENTS.md stays within 200 lines and 32 KiB.** Every agent loads all of it
   in every session. Anthropic's guidance is under 200 lines, and Codex stops
   reading past 32 KiB by default.

@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --import ./scripts/isolate-git-config.ts --import ./scripts/isolate-temp-folder.ts --test",
+    "test": "node scripts/run-tests.ts",
     "build": "tsc -p packages/temple-bar/tsconfig.build.json && tsc -p packages/create-temple-bar/tsconfig.build.json",
     "pack:local": "node scripts/pack-local.ts",
     "windows-run": "node scripts/windows-run.ts",
