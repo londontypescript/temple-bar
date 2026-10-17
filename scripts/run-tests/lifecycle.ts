@@ -124,10 +124,9 @@ function isInside(
   parent: string,
   platform: NodeJS.Platform,
 ): boolean {
+  // Windows' relative() already ignores case, as Windows does.
   const paths = platform === "win32" ? path.win32 : path.posix;
-  const fold = (text: string): string =>
-    platform === "win32" ? text.toLowerCase() : text;
-  const relative = paths.relative(fold(parent), fold(child));
+  const relative = paths.relative(parent, child);
   return (
     relative !== "" &&
     relative !== ".." &&

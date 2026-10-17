@@ -6,6 +6,7 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { realDeps } from "./run-tests.ts";
 
@@ -47,8 +48,14 @@ void test("a process that can't start, or is stopped, says so through its end", 
     env: process.env,
     piped: true,
   });
-  const ended = await missing.ended;
-  assert.ok(ended.kind === "error", "it could not start");
+  // Bounded, so an error that never reaches `ended` fails rather than hangs.
+  const giveUp = new AbortController();
+  const ended = await Promise.race([
+    missing.ended,
+    delay(5_000, null, { signal: giveUp.signal }),
+  ]);
+  giveUp.abort();
+  assert.ok(ended?.kind === "error", "it could not start, and said so");
   assert.match(ended.message, /ENOENT/);
 
   const waiting = deps.start(
