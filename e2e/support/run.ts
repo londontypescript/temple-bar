@@ -48,17 +48,19 @@ export function run(
     );
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk: Buffer) => {
-      const text = chunk.toString("utf8");
+    // Decoded per stream, so a character split across two chunks survives.
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (text: string) => {
       stdout += text;
       options.onOutput?.(text);
     });
-    child.stderr.on("data", (chunk: Buffer) => {
-      const text = chunk.toString("utf8");
+    child.stderr.on("data", (text: string) => {
       stderr += text;
       options.onOutput?.(text);
     });
     child.on("error", (error) => {
+      options.onOutput?.(`${error.message}\n`);
       resolve({ code: 127, stdout, stderr: `${stderr}${error.message}\n` });
     });
     child.on("close", (code) => {

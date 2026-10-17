@@ -26,7 +26,7 @@ jobs:
   release-tier:
     name: release tier (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    timeout-minutes: 100
     strategy:
       fail-fast: false
       # The same operating systems and Node versions as CI's check job.
@@ -73,6 +73,12 @@ jobs:
           declared=${declared:-0}
           if [ -z "$tests" ] || [ "$tests" -eq 0 ] || [ "$declared" -eq 0 ]; then
             echo "::error::The release tier ran no tests, so it proves nothing. Check that e2e/release/ holds *.release.ts files and that test:release's pattern still matches them."
+            exit 1
+          fi
+          # Node reports a file on its own line only when the file itself
+          # is the test: it registered none, or failed before it could.
+          if grep -q '^\(✔\|✖\) .*\.release\.ts\( (\|$\)' "$log"; then
+            echo "::error::A release file ran without registering its tests: every release-tier test must run."
             exit 1
           fi
           if [ "$tests" -ne "$declared" ]; then
