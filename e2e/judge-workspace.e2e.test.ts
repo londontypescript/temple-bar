@@ -23,12 +23,7 @@ import {
   startPackedLauncher,
   type PackedLauncher,
 } from "./support/launcher.ts";
-import {
-  describe,
-  run,
-  type RunOptions,
-  type RunResult,
-} from "./support/run.ts";
+import { describe, type RunOptions, type RunResult } from "./support/run.ts";
 import {
   checkedWorkspace,
   packageManifest,
