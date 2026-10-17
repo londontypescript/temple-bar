@@ -31,9 +31,7 @@ function isLockfileLine(line: string): boolean {
  * ending is used (CRLF when its first line ends that way), so a file kept
  * with Windows line endings stays consistent.
  */
-export function withLockfileIgnored(
-  existing: string | undefined,
-): string | undefined {
+function withLockfileIgnored(existing: string | undefined): string | undefined {
   if (existing === undefined || existing === "") {
     return `${LOCKFILE}\n`;
   }
