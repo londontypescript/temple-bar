@@ -10,6 +10,7 @@ import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
 import { CLAUDE_MD_PATH, COMPANION_FILES } from "./companion-docs.ts";
 import { reportWriteTarget } from "./files-report.ts";
 import { CHECKED_WORKFLOWS } from "./workflows.ts";
+import { PRETTIER_IGNORE_PATH } from "./prettier-ignore.ts";
 
 export interface RefusedTarget {
   readonly kind: "refused";
@@ -24,6 +25,7 @@ export type WriteTarget =
 
 export const SETUP_PATHS: readonly string[] = [
   ".gitignore",
+  PRETTIER_IGNORE_PATH,
   "AGENTS.md",
   ...COMPANION_FILES.map((file) => file.path),
   JUDGE_WORKFLOW_PATH,

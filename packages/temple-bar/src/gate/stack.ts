@@ -6,6 +6,7 @@ import path from "node:path";
 import { CONFIG_FILE_NAME } from "../config/project-config.ts";
 import type { Context } from "../context.ts";
 import { COMPANION_FILES } from "../init/companion-docs.ts";
+import { PRETTIER_IGNORE_PATH } from "../init/prettier-ignore.ts";
 import {
   GATE_WORKFLOW_PATH,
   PR_TITLE_WORKFLOW_PATH,
@@ -132,14 +133,16 @@ const NOT_OWN_CONTENT_FOLDERS = new Set([
 
 /** Files a project starts with before it has anything of its own: the ones
  * setup writes (AGENTS.md and the docs it links to, CLAUDE.md, package.json,
- * .gitignore and the judge, gate and title workflows), the lockfile its
- * install writes, temple-bar's own config, and the ones GitHub offers to
- * create with a new repository (README.md, LICENSE and .gitignore). A repo holding only these has nothing for the
- * four scripts to check yet. */
+ * .gitignore, .prettierignore and the judge, gate and title workflows), the
+ * lockfile its install writes, temple-bar's own config, and the ones GitHub
+ * offers to create with a new repository (README.md, LICENSE and
+ * .gitignore). A repo holding only these has nothing for the four scripts to
+ * check yet. */
 const STARTING_FILES = new Set([
   "AGENTS.md",
   "package.json",
   ".gitignore",
+  PRETTIER_IGNORE_PATH,
   ...COMPANION_FILES.map((file) => file.path),
   JUDGE_WORKFLOW_PATH,
   GATE_WORKFLOW_PATH,

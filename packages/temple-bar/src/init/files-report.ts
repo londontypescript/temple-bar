@@ -10,6 +10,7 @@ import type { WriteTarget } from "./write-target.ts";
 import type { SetupFilesOutcome } from "./files.ts";
 import type { WorkflowOutcome } from "./workflow-update.ts";
 import { RESTORE_WORKFLOW } from "./workflows.ts";
+import { PRETTIER_IGNORE_PATH } from "./prettier-ignore.ts";
 
 /** Why a package.json script was left alone, and what to do about it. A
  * `prepare` script is the project's own command, so replacing it would throw
@@ -154,6 +155,17 @@ function reportPackageJson(ctx: Context, files: SetupFilesOutcome): boolean {
   );
 }
 
+/** Reports .prettierignore, unless setup refused to write through it (that
+ * refusal was reported when it was found). */
+function reportPrettierIgnore(ctx: Context, files: SetupFilesOutcome): void {
+  if (files.refusedPaths.has(PRETTIER_IGNORE_PATH)) return;
+  ctx.stdout.write(
+    files.wrotePrettierIgnore
+      ? `Updated ${PRETTIER_IGNORE_PATH} so Prettier leaves pnpm-lock.yaml as pnpm writes it.\n`
+      : `${PRETTIER_IGNORE_PATH} already lists pnpm-lock.yaml; left it alone.\n`,
+  );
+}
+
 /** Reports every file setup wrote or left alone; returns true when one has
  * a problem that ends the run non-zero. .gitignore is reported by the
  * command, which may have written it earlier in the run. */
@@ -161,6 +173,7 @@ export function reportSetupFiles(
   ctx: Context,
   files: SetupFilesOutcome,
 ): boolean {
+  reportPrettierIgnore(ctx, files);
   const agentsFailed = reportAgentsFiles(ctx, files);
   const workflowsFailed = reportWorkflows(ctx, files);
   const packageFailed = reportPackageJson(ctx, files);
@@ -177,6 +190,7 @@ export function reportSetupFiles(
 export function wroteSetupFiles(files: SetupFilesOutcome): boolean {
   return (
     files.wroteGitignore ||
+    files.wrotePrettierIgnore ||
     files.wroteAgents ||
     files.wroteCompanions.length > 0 ||
     files.claudeMdAdded.length > 0 ||
