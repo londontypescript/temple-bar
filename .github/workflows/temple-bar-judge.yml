@@ -1,10 +1,11 @@
 # Written by temple-bar. The judge fails a pull request that changes the
-# checks which judge it: a workflow, the temple-bar version pinned in
-# package.json or its lockfile entries, the scripts the gate runs, pnpm's
-# install settings (pnpm-workspace.yaml, a pnpmfile, .npmrc), or
-# temple-bar.config.json. A pull request runs its own copy of those, so its
-# own CI can't vouch for a change to them. Such a change is the maintainer's
-# to review and merge.
+# checks which judge it: a workflow; any package.json's scripts, its
+# temple-bar version or its packageManager and devEngines fields, the root's
+# pnpm field, or a package.json added with scripts or removed; temple-bar's
+# entries in the root lockfile; pnpm's install settings at any depth
+# (pnpm-workspace.yaml, a pnpmfile, .npmrc); or temple-bar.config.json. A pull
+# request runs its own copy of those, so its own CI can't vouch for a change
+# to them. Such a change is the maintainer's to review and merge.
 name: temple-bar judge
 
 # pull_request_target, not pull_request: GitHub runs this file as it is on

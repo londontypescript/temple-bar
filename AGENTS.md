@@ -62,14 +62,14 @@ changes the checks, which the judge fails: the maintainer admin-merges those.
 Agents push branches and open pull requests, never `main`.
 
 **Push once, when finished.** Every push to a pull request runs the full CI.
-Draft locally, and push only when the work is final: agreed with the user
-for anything that needs their yes (AGENTS.md, plan decisions, a README
-rewrite), finished by the agent otherwise. Never push on the fly while it's being
-discussed.
+Draft locally, and push only when the work is final: agreed with the user for
+anything that needs their yes (AGENTS.md, plan decisions, a README rewrite),
+finished by the agent otherwise. Never push on the fly while it's being discussed.
 
-**Merge with `temple-bar merge <N>`.** It brings a branch that's behind `main`
-up to date by merging `main` into it (never rewrite a pushed branch), waits for
-the checks, refuses on open alerts, writes the squash message and cleans up.
+**Merge with `pnpm merge <N>` from the primary checkout,** never a pull
+request's worktree, whose own scripts would run. It merges `main` into a branch
+that's behind (never rewrite a pushed branch), waits for the checks, refuses on
+open alerts, writes the squash message and cleans up.
 
 **One concern per pull request,** settled when the work is planned. The
 `pre-push` size warning is the last check before the push: split the branch,
@@ -115,8 +115,8 @@ CI is the merge condition, and CI runs the pinned `pnpm gate`, so the last
 published temple-bar judges every pull request. `pnpm check` is the same gate,
 kept as a familiar local alias.
 
-- `pnpm test` runs in full, whatever changed: never select tests by diff. Tests
-  installing real frameworks are the release tier, required before a release.
+- The gate runs every test file, whatever changed: never select tests by diff.
+  Tests installing real frameworks are the release tier, required before a release.
 - Never weaken a check, suppress a rule, narrow an ignore list or skip a test
   to make it pass. Fix the cause, or argue that the check is wrong and change it
   deliberately in its own reviewed change.
