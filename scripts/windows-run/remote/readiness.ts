@@ -8,6 +8,7 @@
 
 import path from "node:path";
 
+import { findGitSh } from "./git-sh.ts";
 import type { ProcInfo, Sys } from "./sys.ts";
 
 /** How deep the trial tree goes: a child's child is the case `taskkill /T`
@@ -16,41 +17,15 @@ const TREE_DEPTH = 3;
 const STOP_WAIT_MS = 10_000;
 const POLL_MS = 500;
 
-const win = path.win32;
-
-function sameFile(a: string, b: string): boolean {
-  return win.normalize(a).toLowerCase() === win.normalize(b).toLowerCase();
-}
-
-/** `sh` must be the one Git for Windows ships, as on CI's runners: other
- * shells named `sh` (Cygwin, MSYS2, WSL) differ in ways the hook shims
- * notice. Git's own install says where its `usr\bin` is. */
+/** `sh` must be Git for Windows' own, and must run a command. */
 async function shProblem(sys: Sys): Promise<string | null> {
-  const execPath = await sys.git(["--exec-path"]);
-  if (execPath.code !== 0 || execPath.stdout.trim() === "") {
-    return "git --exec-path failed, so Git's own sh can't be found";
-  }
-  // The exec path is <Git>\mingw64\libexec\git-core (or mingw32).
-  const gitRoot = win.resolve(execPath.stdout.trim(), "..", "..", "..");
-  const expected = win.join(gitRoot, "usr", "bin", "sh.exe");
-  // Asked for the .exe: Node starts a bare `sh` without a shell, so it never
-  // runs a sh.cmd that `where sh` might list first.
-  const found = await sys.where("sh.exe");
-  if (found === null) {
-    return `no sh on PATH: add ${win.dirname(expected)} to this account's PATH`;
-  }
-  if (!sameFile(found, expected)) {
-    return `sh on PATH is ${found}, not Git's (${expected})`;
-  }
-  // In each folder on PATH Node tries sh.com before sh.exe, so any sh.com
-  // could run instead of Git's.
-  const com = await sys.where("sh.com");
-  if (com !== null) {
-    return `${com} is on PATH, and Node could run it instead of Git's sh`;
+  const found = await findGitSh(sys);
+  if ("problem" in found) {
+    return found.problem;
   }
   const ran = await sys.probe("sh", ["-c", "echo ready"]);
   if (ran?.trim() !== "ready") {
-    return `sh at ${found} is on PATH but would not run a command`;
+    return `sh at ${found.onPath} is on PATH but would not run a command`;
   }
   return null;
 }

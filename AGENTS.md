@@ -151,7 +151,7 @@ Rerunning the checks is not a review.
 - **Seams** between domain logic and git, `gh`, the filesystem, the clock and
   user prompts, so tests can fake them.
 - **Node built-ins only** for the machinery. Bash appears only as one-line hook
-  shims that call Node.
+  shims that call Node, and as the test runner's one Windows anchor command.
 - **Comments explain why, in plain words** a newcomer can follow. No internal
   plan IDs in code (`P3.1`, `D2`, "decision 23", "subtask 1.7"): state the
   reason itself, and point to an ADR when the full story matters. History

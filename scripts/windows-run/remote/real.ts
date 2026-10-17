@@ -4,6 +4,7 @@
 // parsing, line splitting) are tested.
 
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { realpath } from "node:fs/promises";
 import { devNull, homedir, release, tmpdir, version } from "node:os";
 import process from "node:process";
 
@@ -384,6 +385,12 @@ export function createRealSys(): Sys {
       const first = result.stdout.split(/\r?\n/)[0] ?? "";
       return result.code === 0 && first !== "" ? first : null;
     },
+    // The promise form follows the native one, so short names come back long.
+    realpath: (file) =>
+      realpath(file).then(
+        (real) => real,
+        () => null,
+      ),
     startTree,
     stopTree: (pid) => Promise.resolve(stopTreeFrom(treeTop, pid)),
   };

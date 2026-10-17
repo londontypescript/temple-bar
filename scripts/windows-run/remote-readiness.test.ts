@@ -80,6 +80,16 @@ void test("sh must be Git's own, found case-insensitively", async (t) => {
     shAt: "C:\\PROGRAM FILES\\GIT\\USR\\BIN\\SH.EXE",
   });
   assert.equal(await runRemote(RUN_ID, SHA, shouting), 0);
+
+  // As on CI's runners: Git's launcher for its sh first on PATH.
+  const launcher = "C:\\Program Files\\Git\\bin\\sh.exe";
+  const ready = fakeSys({ home: tempDir(t), shAt: launcher });
+  assert.equal(await runRemote(RUN_ID, SHA, ready), 0);
+  const mute = await refusedRun(t, { shAt: launcher, shSays: null });
+  assert.match(
+    mute.printed,
+    /sh at C:\\Program Files\\Git\\bin\\sh\.exe is on PATH but would not run a command/,
+  );
 });
 
 void test("each kind of link must be possible: to a file, a folder and nothing", async (t) => {
