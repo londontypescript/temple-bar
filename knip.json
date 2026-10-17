@@ -1,0 +1,7 @@
+{
+  "workspaces": {
+    ".": {
+      "entry": ["e2e/release/*.release.ts"]
+    }
+  }
+}
