@@ -84,7 +84,7 @@ void test("Git's launcher on PATH is accepted, and the shell it starts is what i
   const missing = await findGitSh(
     deps({ shAt: LAUNCHER, real: { [LAUNCHER]: LAUNCHER } }),
   );
-  assert.ok("problem" in missing);
+  assert.ok("problem" in missing, "a launcher without its shell is refused");
   assert.equal(
     missing.problem,
     `Git's shell ${GIT_SH} is missing, though git --exec-path names that install`,
