@@ -10,13 +10,15 @@ import { test } from "node:test";
 import { realDeps } from "./run-tests.ts";
 
 // Says it is ready, complains on stderr, and exits 0 once its input closes:
-// the anchor's part, played by Node so it runs on every system.
+// the anchor's part, played by Node so it runs on every system. It gives up
+// with code 3 after a while, so a broken pipe fails the test, not hangs it.
 const ANCHOR_LIKE = `
 process.stdout.write("rea");
 setTimeout(() => process.stdout.write("dy\\r\\n"), 20);
 process.stderr.write("a warning\\n");
 process.stdin.resume();
-process.stdin.on("end", () => process.exit(0));`;
+process.stdin.on("end", () => process.exit(0));
+setTimeout(() => process.exit(3), 5000);`;
 
 void test("a piped process reports whole lines and stderr, and exits once its input closes", async () => {
   const deps = realDeps();
@@ -24,13 +26,14 @@ void test("a piped process reports whole lines and stderr, and exits once its in
     env: process.env,
     piped: true,
   });
-  await new Promise<void>((resolve) => {
+  const ready = new Promise<"ready">((resolve) => {
     proc.onLine((line) => {
       if (line === "ready") {
-        resolve();
+        resolve("ready");
       }
     });
   });
+  assert.equal(await Promise.race([ready, proc.ended]), "ready");
   proc.closeStdin();
   assert.deepEqual(await proc.ended, { kind: "exit", code: 0, signal: null });
   assert.equal(proc.stderr(), "a warning\n");

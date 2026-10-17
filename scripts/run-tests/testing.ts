@@ -90,7 +90,9 @@ export interface Scenario {
   cygpath?: Captured;
   /** The folders that exist, each mapped to its canonical path. */
   dirs?: Record<string, string>;
-  /** How the runner ends: exit 0 unless given. */
+  /** How the runner ends: exit 0 unless given. "until-killed" ends when it
+   * is stopped, or with exit 0 a moment later if nothing stops it, so a
+   * broken stop fails its test instead of hanging it. */
   runner?: Ended | "until-killed";
   /** The waits, by length in ms, that run out instead of waiting forever. */
   expire?: number[];
@@ -141,7 +143,11 @@ export function harness(scenario: Scenario = {}) {
       started.push({ command, args, ...options, proc });
       if (command === EXEC_PATH) {
         const ends = scenario.runner ?? exited(0);
-        if (ends !== "until-killed") {
+        if (ends === "until-killed") {
+          setTimeout(() => {
+            proc.end(exited(0));
+          }, 20);
+        } else {
           queueMicrotask(() => {
             proc.end(ends);
           });
