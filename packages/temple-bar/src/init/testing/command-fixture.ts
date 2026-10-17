@@ -113,6 +113,7 @@ export function setUpFiles(overrides: Record<string, string> = {}) {
       COMPANION_FILES.map((file) => [`/repo/${file.path}`, file.content]),
     ),
     "/repo/.gitignore": `${GITIGNORE_LINES.join("\n")}\n`,
+    "/repo/.prettierignore": "pnpm-lock.yaml\n",
     [`/repo/${JUDGE_WORKFLOW_PATH}`]: judgeWorkflow(),
     ...Object.fromEntries(
       CHECKED_WORKFLOWS.map((file) => [`/repo/${file.path}`, file.content]),

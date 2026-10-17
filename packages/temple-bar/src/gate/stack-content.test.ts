@@ -24,6 +24,7 @@ void test("ownContentExists: false when the repo holds only the files every proj
     "pnpm-lock.yaml",
     "package-lock.json",
     ".gitignore",
+    ".prettierignore",
     "temple-bar.config.json",
     "README.md",
     "LICENSE",

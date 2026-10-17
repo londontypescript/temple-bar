@@ -213,6 +213,7 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
       ".github/workflows/temple-bar-judge.yml",
       ".github/workflows/temple-bar-pr-title.yml",
       ".gitignore",
+      ".prettierignore",
       "AGENTS.md",
       "CLAUDE.md",
       "docs/adr/0000-template.md",

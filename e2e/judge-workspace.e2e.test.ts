@@ -10,33 +10,26 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 
-import type { FakeFile } from "./support/fake-git-objects.ts";
-import { serveFakeGithubApi } from "./support/fake-github-api.ts";
+import {
+  judgePullRequest,
+  PASSED,
+  PR,
+  type Files,
+  type Serving,
+} from "./support/judge.ts";
 import {
   launch,
   makeProject,
   startPackedLauncher,
   type PackedLauncher,
 } from "./support/launcher.ts";
-import {
-  describe,
-  run,
-  type RunOptions,
-  type RunResult,
-} from "./support/run.ts";
+import { describe, type RunOptions, type RunResult } from "./support/run.ts";
 import {
   checkedWorkspace,
   packageManifest,
   PASSING_COMMAND,
   PASSING_SCRIPTS,
 } from "./support/workspace.ts";
-
-type Files = Readonly<Record<string, FakeFile>>;
-
-const PR = 7;
-const BASE_SHA = "b".repeat(40);
-const HEAD_SHA = "c".repeat(40);
-const LATER_HEAD_SHA = "d".repeat(40);
 
 let launcher: PackedLauncher | undefined;
 let project: RunOptions | undefined;
@@ -91,70 +84,15 @@ function without(files: Files, ...paths: readonly string[]): Files {
   );
 }
 
-interface Serving {
-  /** Which side's tree GitHub can't list whole. */
-  readonly truncated?: "base" | "head";
-  /** The head moves to a commit with the same files after the first read
-   * of the pull request. */
-  readonly headMoves?: boolean;
-}
-
 /** Runs the installed judge on a pull request from `base` to `head`. */
 async function judge(
   base: Files,
   head: Files,
-  { truncated, headMoves = false }: Serving = {},
+  serving: Serving = {},
 ): Promise<RunResult> {
   assert.ok(project, "the workspace was not set up");
-  const api = await serveFakeGithubApi(
-    "acme",
-    "widgets",
-    [
-      {
-        number: PR,
-        headShas: headMoves ? [HEAD_SHA, LATER_HEAD_SHA] : [HEAD_SHA],
-        baseRef: "main",
-        baseShas: [BASE_SHA],
-      },
-    ],
-    {
-      trees: {
-        [BASE_SHA]: base,
-        [HEAD_SHA]: head,
-        [LATER_HEAD_SHA]: head,
-      },
-      branches: { main: [BASE_SHA] },
-      truncated:
-        truncated === undefined
-          ? []
-          : [truncated === "base" ? BASE_SHA : HEAD_SHA],
-    },
-  );
-  try {
-    // Not a GitHub Actions job, whatever runs this suite, and no real token
-    // is ever sent to the fake API.
-    const env: NodeJS.ProcessEnv = {
-      ...Object.fromEntries(
-        Object.entries(project.env).filter(
-          ([name]) => !/^(GITHUB_ACTIONS|GH_TOKEN|GITHUB_TOKEN)$/.test(name),
-        ),
-      ),
-      GITHUB_API_URL: api.url,
-      GITHUB_REPOSITORY: "acme/widgets",
-    };
-    return await run(
-      "pnpm",
-      ["exec", "temple-bar", "judge", "--pr", String(PR)],
-      { cwd: project.cwd, env },
-    );
-  } finally {
-    await api.close();
-  }
+  return judgePullRequest(project, base, head, serving);
 }
-
-const PASSED = new RegExp(
-  `pull request #${String(PR)} leaves the checks alone`,
-);
 
 function assertPasses(result: RunResult): void {
   assert.equal(result.code, 0, describe(result));
