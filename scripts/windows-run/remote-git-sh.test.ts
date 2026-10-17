@@ -11,6 +11,8 @@ function deps(
     execPath?: { code: number; stdout: string };
     shAt?: string | null;
     shComAt?: string | null;
+    /** Canonical paths by path; a path not listed can't be read. */
+    real?: Record<string, string>;
   } = {},
 ): GitShDeps {
   return {
@@ -20,6 +22,10 @@ function deps(
         options.execPath ?? { code: 0, stdout: `${EXEC_PATH}\n` },
       );
     },
+    realpath: (file) =>
+      Promise.resolve(
+        options.real === undefined ? file : (options.real[file] ?? null),
+      ),
     where: (command) =>
       Promise.resolve(
         command === "sh.exe"
@@ -77,4 +83,28 @@ void test("any other sh, or none, is refused saying what was found", async () =>
     assert.ok("problem" in found, `refused: ${JSON.stringify(options)}`);
     assert.match(found.problem, message);
   }
+});
+
+void test("one install spelled two ways is one sh, by its canonical path", async () => {
+  const short = "C:\\PROGRA~1\\Git\\usr\\bin\\sh.exe";
+  const junction = "C:\\Git-link\\usr\\bin\\sh.exe";
+  for (const shAt of [short, junction]) {
+    const found = await findGitSh(
+      deps({ shAt, real: { [shAt]: GIT_SH, [GIT_SH]: GIT_SH } }),
+    );
+    assert.deepEqual(found, { sh: shAt }, shAt);
+  }
+  // Without canonical paths, the spelling is all there is to compare.
+  const unreadable = await findGitSh(deps({ shAt: short, real: {} }));
+  assert.ok("problem" in unreadable);
+  assert.match(unreadable.problem, /^sh on PATH is C:\\PROGRA~1.*not Git's/);
+  assert.deepEqual(await findGitSh(deps({ real: {} })), { sh: GIT_SH });
+  // A different install stays different, however it is reached.
+  const other = await findGitSh(
+    deps({
+      shAt: junction,
+      real: { [junction]: "C:\\msys64\\usr\\bin\\sh.exe", [GIT_SH]: GIT_SH },
+    }),
+  );
+  assert.ok("problem" in other);
 });

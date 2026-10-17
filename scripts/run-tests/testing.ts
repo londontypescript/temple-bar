@@ -132,6 +132,7 @@ export function harness(scenario: Scenario = {}) {
           : null,
       );
     },
+    realpath: (file) => Promise.resolve(file),
     start(command, args, options) {
       const proc = new FakeProc();
       started.push({ command, args, ...options, proc });

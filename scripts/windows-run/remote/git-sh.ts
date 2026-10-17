@@ -14,13 +14,26 @@ export interface GitShDeps {
   git(args: readonly string[]): Promise<{ code: number; stdout: string }>;
   /** Where the command resolves on PATH, or null. */
   where(command: string): Promise<string | null>;
+  /** The file's canonical path (links followed, short names made long), or
+   * null if it can't be read. */
+  realpath(file: string): Promise<string | null>;
 }
 
 /** Git's own `sh.exe`, or why it can't be used, printable as it stands. */
 export type GitSh = { readonly sh: string } | { readonly problem: string };
 
-function sameFile(a: string, b: string): boolean {
-  return win.normalize(a).toLowerCase() === win.normalize(b).toLowerCase();
+/** Whether two paths name one file. One install can be spelled several
+ * ways (C:\PROGRA~1 for C:\Program Files, a junction to the folder), so
+ * each is compared by its canonical path, or as written if that can't be
+ * read. */
+async function sameFile(
+  deps: GitShDeps,
+  a: string,
+  b: string,
+): Promise<boolean> {
+  const spelled = async (file: string): Promise<string> =>
+    win.normalize((await deps.realpath(file)) ?? file).toLowerCase();
+  return (await spelled(a)) === (await spelled(b));
 }
 
 /** `sh` must be the one Git for Windows ships, as on CI's runners: other
@@ -45,7 +58,7 @@ export async function findGitSh(deps: GitShDeps): Promise<GitSh> {
       problem: `no sh on PATH: add ${win.dirname(expected)} to this account's PATH`,
     };
   }
-  if (!sameFile(found, expected)) {
+  if (!(await sameFile(deps, found, expected))) {
     return { problem: `sh on PATH is ${found}, not Git's (${expected})` };
   }
   // In each folder on PATH Node tries sh.com before sh.exe, so any sh.com

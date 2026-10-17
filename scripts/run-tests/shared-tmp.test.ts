@@ -4,15 +4,32 @@
 // since this run's own shell is part of what is being tested.
 
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { SHARED_TMP_VARIABLE, withTemp } from "./lifecycle.ts";
+import { realDeps } from "./real.ts";
 
 const skip = process.platform !== "win32";
+/** How long a shell gets to start, or to leave once its input closes. */
+const WAIT_MS = 30_000;
+
+/** The promise's value, or null if it takes longer than WAIT_MS. */
+async function within<T>(promise: Promise<T>): Promise<T | null> {
+  const giveUp = new AbortController();
+  try {
+    return await Promise.race([
+      promise,
+      delay(WAIT_MS, null, { signal: giveUp.signal }),
+    ]);
+  } finally {
+    giveUp.abort();
+  }
+}
 const WARNING = /could not find \/tmp/;
 
 void test(
@@ -47,29 +64,39 @@ void test(
   { skip },
   async (t) => {
     const dir = mkdtempSync(path.join(tmpdir(), "first-owner-"));
-    const keeper = spawn("sh", ["-c", "echo up; read _"], {
+    // The same process handling the run's own shell uses: whole lines, and
+    // an end that also reports a shell that could not start.
+    const keeper = realDeps().start("sh", ["-c", "echo up; read _"], {
       env: withTemp(process.env, dir),
-      stdio: "pipe",
-      windowsHide: true,
-    });
-    const gone = new Promise((resolve) => {
-      keeper.on("exit", resolve);
-      keeper.on("error", resolve);
+      piped: true,
     });
     t.after(async () => {
-      keeper.stdin.end();
-      await gone;
+      keeper.closeStdin();
+      const ended = await within(keeper.ended);
+      if (ended === null) {
+        keeper.kill();
+      }
       rmSync(dir, { recursive: true, force: true });
+      assert.ok(
+        ended !== null,
+        `the first shell did not exit within ${String(WAIT_MS / 1000)}s of its input closing`,
+      );
     });
-    keeper.stdout.setEncoding("utf8");
-    await new Promise<void>((resolve, reject) => {
-      keeper.stdout.on("data", (text: string) => {
-        if (text.includes("up")) {
-          resolve();
+    const up = new Promise<"up">((resolve) => {
+      keeper.onLine((line) => {
+        if (line === "up") {
+          resolve("up");
         }
       });
-      keeper.on("error", reject);
     });
+    const first = await within(Promise.race([up, keeper.ended]));
+    assert.equal(
+      first,
+      "up",
+      first === null
+        ? `the first shell did not say it was up within ${String(WAIT_MS / 1000)}s`
+        : `the first shell ended before it was up: ${JSON.stringify(first)} ${keeper.stderr()}`,
+    );
     rmSync(dir, { recursive: true, force: true });
 
     const later = spawnSync("sh", ["-c", "true"], { encoding: "utf8" });

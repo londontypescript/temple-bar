@@ -223,6 +223,7 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
                 : options.shSays
               : "git version 2.55.0.windows.1\n",
       ),
+    realpath: (file) => Promise.resolve(file),
     where: (command) =>
       Promise.resolve(
         command === "sh.com"
