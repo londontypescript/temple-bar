@@ -4,10 +4,13 @@
 // pull request the judge must stop (the judge's rows of the failure table in
 // docs/adr/0015-every-package-checked-and-guarded.md) sits next to a control:
 // the same workspace with only code inside a package changed, which passes.
-// The judge reads GitHub and never the project on disk, so one installed
+// A child package's own temple-bar pin is guarded twice, in its manifest
+// and in the lockfile, and each finding is shown on its own. The judge reads GitHub and never the project on disk, so one installed
 // project serves every test.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { after, before, test } from "node:test";
 
 import {
@@ -23,7 +26,12 @@ import {
   startPackedLauncher,
   type PackedLauncher,
 } from "./support/launcher.ts";
-import { describe, type RunOptions, type RunResult } from "./support/run.ts";
+import {
+  describe,
+  run,
+  type RunOptions,
+  type RunResult,
+} from "./support/run.ts";
 import {
   checkedWorkspace,
   packageManifest,
@@ -33,6 +41,8 @@ import {
 
 let launcher: PackedLauncher | undefined;
 let project: RunOptions | undefined;
+/** pnpm-lock.yaml as pnpm writes it once package a pins temple-bar too. */
+let childPinLockfile = "";
 
 before(async () => {
   launcher = await startPackedLauncher("temple-bar-judge-workspace-");
@@ -40,6 +50,14 @@ before(async () => {
   const setup = await launch(launcher, options);
   assert.equal(setup.code, 0, describe(setup));
   project = options;
+  // Package a pins temple-bar too, installed for real so the lockfile is
+  // pnpm's own. The judge never reads the project on disk.
+  const pin = `@londontypescript/temple-bar@${launcher.version}`;
+  const add = ["--filter", "pkg-a", "add", "-D", "--save-exact", pin];
+  const added = await run("pnpm", add, options);
+  assert.equal(added.code, 0, describe(added));
+  const lockfile = path.join(options.cwd, "pnpm-lock.yaml");
+  childPinLockfile = readFileSync(lockfile, "utf8");
 });
 
 after(async () => {
@@ -309,5 +327,67 @@ void test(
       /changed while the judge read it/,
     );
     assertPasses(await judge(BASE, head));
+  },
+);
+
+const A_MANIFEST = "packages/a/package.json";
+
+/** BASE with package a pinning temple-bar at `version`, and `lockfile`. */
+function withChildPin(version: string, lockfile = childPinLockfile): Files {
+  const pin = { "@londontypescript/temple-bar": version };
+  const manifest = JSON.parse(
+    packageManifest("pkg-a", DELEGATING_SCRIPTS),
+  ) as Record<string, unknown>;
+  const text = JSON.stringify({ ...manifest, devDependencies: pin }, null, 2);
+  return { ...BASE, [A_MANIFEST]: `${text}\n`, "pnpm-lock.yaml": lockfile };
+}
+
+/** Package a's own temple-bar entry under the lockfile's `importers`. */
+function childEntry(specifier: string, version: string): string {
+  return `  packages/a:\n    devDependencies:\n      '@londontypescript/temple-bar':\n        specifier: ${specifier}\n        version: ${version}\n`;
+}
+
+/** The lockfile with package a's entry moved from the packed version. */
+function childEntryMoved(specifier: string, version: string): string {
+  const packed = childEntry(packedVersion(), packedVersion());
+  assert.ok(childPinLockfile.includes(packed), childPinLockfile);
+  return childPinLockfile.replace(packed, childEntry(specifier, version));
+}
+
+function packedVersion(): string {
+  assert.ok(launcher, "the packed launcher was not started");
+  return launcher.version;
+}
+
+const CHILD_LOCK_ENTRY =
+  "pnpm-lock.yaml: temple-bar's entries: importers > packages/a > devDependencies > @londontypescript/temple-bar (changed)";
+
+void test(
+  "judge in a workspace: a child package's temple-bar pin changed, with the lockfile to match, is refused for the manifest itself",
+  TIMEOUT,
+  async () => {
+    const [packed, other] = [packedVersion(), "0.0.1"];
+    const base = withChildPin(packed);
+    const head = withChildPin(other, childEntryMoved(other, other));
+    assertRefuses(
+      await judge(base, head),
+      `${A_MANIFEST}: the temple-bar version in devDependencies["@londontypescript/temple-bar"] ("${packed}" on the base branch, "${other}" here)`,
+      CHILD_LOCK_ENTRY,
+    );
+    assertPasses(await judge(base, withCodeChange(base)));
+  },
+);
+
+void test(
+  "judge in a workspace: a lockfile-only change to a child package's temple-bar entry is refused",
+  TIMEOUT,
+  async () => {
+    const base = withChildPin(packedVersion());
+    const lockfile = childEntryMoved(packedVersion(), "0.0.1");
+    const result = await judge(base, { ...base, "pnpm-lock.yaml": lockfile });
+    assertRefuses(result, CHILD_LOCK_ENTRY);
+    // Both manifests are the same, so only the lockfile finding is there.
+    assert.doesNotMatch(result.stderr, /package\.json/, describe(result));
+    assertPasses(await judge(base, withCodeChange(base)));
   },
 );
