@@ -1,5 +1,5 @@
 // Writes AGENTS.md and the docs it links to, the judge, gate and title
-// workflows and .gitignore, and runs every file step of setup in order
+// workflows, .gitignore and .prettierignore, and runs every file step of setup in order
 // (package.json's step lives in package-json.ts).
 // Everything here goes through ctx.fs, which has no delete method: nothing
 // is ever removed. Setup rewrites only its own marked block in AGENTS.md
@@ -32,6 +32,7 @@ import {
   type PackageJsonOutcome,
 } from "./package-json.ts";
 import { writeWorkflows, type WorkflowOutcome } from "./workflow-update.ts";
+import { ensurePrettierIgnore } from "./prettier-ignore.ts";
 
 /** Writes `content` at `relativePath` only if nothing is there yet;
  * returns whether it wrote. A copy that differs is left alone: once written,
@@ -227,6 +228,8 @@ export interface SetupFilesOutcome {
   /** Every path setup refused to write through, with why and its fix. */
   readonly refusedPaths: ReadonlyMap<string, RefusedTarget>;
   readonly wroteGitignore: boolean;
+  /** Whether this run created .prettierignore or added the lockfile to it. */
+  readonly wrotePrettierIgnore: boolean;
   readonly wroteAgents: boolean;
   /** Set when setup left AGENTS.md alone; see AgentsMdOutcome. */
   readonly agentsProblem?: string;
@@ -250,6 +253,7 @@ export async function writeSetupFiles(
   targets = setupWriteTargets(ctx, repoRoot),
 ): Promise<SetupFilesOutcome> {
   const wroteGitignore = await ensureGitignore(ctx, repoRoot, targets);
+  const wrotePrettierIgnore = await ensurePrettierIgnore(targets);
   const agents = await writeAgentsMd(ctx, repoRoot, targets);
   const wroteCompanions = await writeCompanionFiles(ctx, repoRoot, targets);
   const claudeMdAdded = await updateClaudeMd(ctx, repoRoot, targets);
@@ -258,6 +262,7 @@ export async function writeSetupFiles(
   return {
     refusedPaths: targets.refusals,
     wroteGitignore,
+    wrotePrettierIgnore,
     wroteAgents: agents.wrote,
     ...(agents.problem === undefined ? {} : { agentsProblem: agents.problem }),
     ...(agents.sizeWarning === undefined
