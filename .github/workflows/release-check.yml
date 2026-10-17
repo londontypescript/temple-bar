@@ -1,0 +1,105 @@
+name: Release check
+
+# The release tier of tests, `pnpm test:release`: temple-bar packed the way
+# a release is, set up on a five-package stack with its real frameworks
+# installed from npm. Too slow and too dependent on npm for every pull
+# request, so it runs by hand during a milestone (Actions, "Run workflow",
+# on any branch once this file is on main), and the release workflow calls
+# it: nothing is staged on npm unless it passed on the commit being
+# released.
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+# Every run is a group of its own, so no other run can cancel a release's
+# check or take its place in a queue. The prefix is its own: inside a
+# called workflow, github.workflow names the caller, which would share a
+# group with the caller's other jobs.
+concurrency:
+  group: release-check-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  release-tier:
+    name: release tier (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      # The same operating systems and Node versions as CI's check job.
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [24, 26]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # node --test passes with no tests at all when its pattern matches no
+      # file, and counts a file that registers no tests as one passing test,
+      # so the summary it prints is checked too: as many tests ran as the
+      # release files declare, and none was skipped or left to do. A summary
+      # that can't be read fails the step. The step's own timeout leaves the
+      # job time to upload what a hung run left.
+      - name: Release tier
+        shell: bash
+        timeout-minutes: 75
+        run: |
+          set -euo pipefail
+          log=.temple-bar/release-check/release-tier.log
+          mkdir -p "$(dirname "$log")"
+          pnpm test:release 2>&1 | tee "$log"
+          count() { sed -n "s/^ℹ $1 \([0-9][0-9]*\)$/\1/p" "$log" | tail -n 1; }
+          tests=$(count tests)
+          skipped=$(count skipped)
+          todo=$(count todo)
+          declared=$(cat e2e/release/*.release.ts | grep -c '^void test(' || true)
+          declared=${declared:-0}
+          if [ -z "$tests" ] || [ "$tests" -eq 0 ] || [ "$declared" -eq 0 ]; then
+            echo "::error::The release tier ran no tests, so it proves nothing. Check that e2e/release/ holds *.release.ts files and that test:release's pattern still matches them."
+            exit 1
+          fi
+          # Node reports a file on its own line only when the file itself
+          # is the test: it registered none, or failed before it could.
+          if grep -q '^\(✔\|✖\) .*\.release\.ts\( (\|$\)' "$log"; then
+            echo "::error::A release file ran without registering its tests: every release-tier test must run."
+            exit 1
+          fi
+          if [ "$tests" -ne "$declared" ]; then
+            echo "::error::The release tier ran $tests test(s), but its files declare $declared: a file that registers no tests still counts as one, so every declared test must run."
+            exit 1
+          fi
+          if [ "$skipped" != 0 ] || [ "$todo" != 0 ]; then
+            echo "::error::The release tier skipped ${skipped:-an unknown number of} test(s) and left ${todo:-an unknown number} to do: every release-tier test must run."
+            exit 1
+          fi
+          echo "The release tier ran $tests test(s)."
+
+      # The lockfile pnpm resolved and every command's output, per test
+      # file. A failed install is then either the registry (run it again) or
+      # a graph that no longer fits (a reviewed version change, or a fix in
+      # temple-bar).
+      - name: Keep the lockfiles and logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-check-${{ matrix.os }}-node-${{ matrix.node }}
+          path: .temple-bar/release-check/
+          include-hidden-files: true
+          if-no-files-found: error

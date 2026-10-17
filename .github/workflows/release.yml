@@ -10,18 +10,27 @@ permissions:
   contents: read
 
 jobs:
-  # The full CI matrix (3 operating systems × 2 Node versions) on the exact
-  # commit being released. Nothing below runs unless every job in it passes,
-  # so a failure that only shows on one platform can't reach npm.
+  # The full CI matrix (3 operating systems × 2 Node versions) and the
+  # release tier of tests (release-check.yml: temple-bar set up on a real
+  # five-package stack, on the same six pairs), both on the exact commit
+  # being released. Nothing below runs unless every job in both passes, so a
+  # failure that only shows on one platform, or only with real frameworks
+  # installed, can't reach npm.
   ci:
     name: full CI
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
 
+  release-check:
+    name: release tier
+    uses: ./.github/workflows/release-check.yml
+    permissions:
+      contents: read
+
   publish:
     name: publish
-    needs: ci
+    needs: [ci, release-check]
     runs-on: ubuntu-latest
     permissions:
       contents: read
