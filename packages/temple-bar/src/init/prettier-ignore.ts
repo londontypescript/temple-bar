@@ -26,8 +26,23 @@ function isLockfileLine(line: string): boolean {
 }
 
 /**
+ * Whether the lockfile line already has the last word. In an ignore file a
+ * later rule wins, so a `!` line after it (`!*.yaml`, say) may bring the
+ * lockfile back; telling whether it does is the same full matching, so any
+ * negation after the last lockfile line means the line is added again at
+ * the end, where nothing can override it.
+ */
+function lockfileIgnored(lines: readonly string[]): boolean {
+  const last = lines.findLastIndex(isLockfileLine);
+  return (
+    last >= 0 &&
+    !lines.slice(last + 1).some((line) => line.trimStart().startsWith("!"))
+  );
+}
+
+/**
  * The ignore file with the lockfile line added, or undefined when it already
- * has one. Every existing line is kept as it is, and the file's own line
+ * ignores it. Every existing line is kept as it is, and the file's own line
  * ending is used (CRLF when its first line ends that way), so a file kept
  * with Windows line endings stays consistent.
  */
@@ -35,7 +50,7 @@ function withLockfileIgnored(existing: string | undefined): string | undefined {
   if (existing === undefined || existing === "") {
     return `${LOCKFILE}\n`;
   }
-  if (existing.split(/\r?\n/).some(isLockfileLine)) {
+  if (lockfileIgnored(existing.split(/\r?\n/))) {
     return undefined;
   }
   const eol = /^[^\n]*\r\n/.test(existing) ? "\r\n" : "\n";

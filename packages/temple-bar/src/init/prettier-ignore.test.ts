@@ -68,6 +68,25 @@ void test("prettierignore: a commented-out or negated lockfile line doesn't coun
   );
 });
 
+void test("prettierignore: a negation after the lockfile line gets the line again after it", async () => {
+  // `!*.yaml` brings the lockfile back, since a later rule wins; setup
+  // doesn't try to work out which negations match, and adds the line last.
+  const fs = createFakeFs({ [IGNORE]: "pnpm-lock.yaml\n!*.yaml\n" });
+  assert.equal(await ensure(fs), true);
+  assert.equal(
+    fs.files.get(IGNORE),
+    "pnpm-lock.yaml\n!*.yaml\npnpm-lock.yaml\n",
+  );
+  assert.equal(await ensure(fs), false);
+});
+
+void test("prettierignore: a negation before the lockfile line leaves it alone", async () => {
+  const original = "!*.yaml\npnpm-lock.yaml\n";
+  const fs = createFakeFs({ [IGNORE]: original });
+  assert.equal(await ensure(fs), false);
+  assert.equal(fs.files.get(IGNORE), original);
+});
+
 void test("prettierignore: a second run writes nothing, from an absent file or an existing one", async () => {
   for (const fs of [createFakeFs(), createFakeFs({ [IGNORE]: "dist/" })]) {
     assert.equal(await ensure(fs), true);

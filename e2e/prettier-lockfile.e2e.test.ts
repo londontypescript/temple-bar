@@ -13,8 +13,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
-import type { FakeFile } from "./support/fake-git-objects.ts";
-import { serveFakeGithubApi } from "./support/fake-github-api.ts";
+import { judgePullRequest, PASSED, type Files } from "./support/judge.ts";
 import {
   launch,
   makeProject,
@@ -29,11 +28,6 @@ import {
 } from "./support/run.ts";
 import { PASSING_SCRIPTS } from "./support/workspace.ts";
 
-type Files = Readonly<Record<string, FakeFile>>;
-
-const PR = 7;
-const BASE_SHA = "b".repeat(40);
-const HEAD_SHA = "c".repeat(40);
 const LOCKFILE = "pnpm-lock.yaml";
 
 /** Prettier, pinned, and the version the ordinary update moves it to. Both
@@ -135,48 +129,9 @@ function text(files: Files, file: string): string {
 /** Runs the installed judge on a pull request from `from` to `to`. */
 async function judge(from: Files, to: Files): Promise<RunResult> {
   assert.ok(project, "the project was not set up");
-  const api = await serveFakeGithubApi(
-    "acme",
-    "widgets",
-    [
-      {
-        number: PR,
-        headShas: [HEAD_SHA],
-        baseRef: "main",
-        baseShas: [BASE_SHA],
-      },
-    ],
-    {
-      trees: { [BASE_SHA]: from, [HEAD_SHA]: to },
-      branches: { main: [BASE_SHA] },
-      truncated: [],
-    },
-  );
-  try {
-    // Not a GitHub Actions job, whatever runs this suite, and no real token
-    // is ever sent to the fake API.
-    const env: NodeJS.ProcessEnv = {
-      ...Object.fromEntries(
-        Object.entries(project.env).filter(
-          ([name]) => !/^(GITHUB_ACTIONS|GH_TOKEN|GITHUB_TOKEN)$/.test(name),
-        ),
-      ),
-      GITHUB_API_URL: api.url,
-      GITHUB_REPOSITORY: "acme/widgets",
-    };
-    return await run(
-      "pnpm",
-      ["exec", "temple-bar", "judge", "--pr", String(PR)],
-      { cwd: project.cwd, env },
-    );
-  } finally {
-    await api.close();
-  }
+  return judgePullRequest(project, from, to);
 }
 
-const PASSED = new RegExp(
-  `pull request #${String(PR)} leaves the checks alone`,
-);
 const TIMEOUT = { timeout: 600_000 };
 
 void test(

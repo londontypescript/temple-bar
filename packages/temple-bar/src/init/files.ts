@@ -1,6 +1,6 @@
 // Writes AGENTS.md and the docs it links to, the judge, gate and title
-// workflows, .gitignore and .prettierignore, and runs every file step of setup in order
-// (package.json's step lives in package-json.ts).
+// workflows, .gitignore and .prettierignore, and runs every file step of
+// setup in order (package.json's step lives in package-json.ts).
 // Everything here goes through ctx.fs, which has no delete method: nothing
 // is ever removed. Setup rewrites only its own marked block in AGENTS.md
 // and authentic earlier generated workflows. All other content
