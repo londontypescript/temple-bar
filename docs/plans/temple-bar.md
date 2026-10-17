@@ -103,11 +103,14 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 72  | Phase 6: one builder; its packed judge tests are written apart and integrated         | [0.1.0](0.1.0.md)                                         |
 | 73  | Phases 6 and 7 build at the same time in separate worktrees and land in order         | [0.1.0](0.1.0.md)                                         |
 | 74  | temple-bar generates no knip config; the gate attributes knip's findings per package  | [0.1.0](0.1.0.md)                                         |
+| 75  | Real-install tests form a release tier: run by hand, required before a release stages | [0.1.0](0.1.0.md)                                         |
 
 Decision 68 was settled on 2026-10-15 for phase 5 (on #311, with four
 smaller points recorded there); decisions 69 to 74 were approved on
 2026-10-15 for the rest of 0.1.0, after ChatGPT Sol 6.1's adversarial
-review of the plan.
+review of the plan. Decision 75 was approved on 2026-10-17, after the
+maintainer found real installs on every pull request unsustainable and
+ChatGPT Sol 6.1 reviewed the design.
 
 Decision 59 was approved on 2026-10-09 after Claude Sonnet reviewed the precise content-only contract.
 
