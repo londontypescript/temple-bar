@@ -8,24 +8,29 @@ import {
   GIT_SH,
   harness,
   OWN_TEMP,
-  SETUP,
   signalled,
 } from "./testing.ts";
 
+// As `pnpm test` gives them: the root script's flags, then what was typed.
 const ARGS = [
+  "--import",
+  "./scripts/isolate-git-config.ts",
+  "--import",
+  "./scripts/isolate-temp-folder.ts",
+  "--test",
   "--test-name-pattern",
   "a name with spaces",
   "packages/a folder/x.test.ts",
 ];
 
-void test("off Windows the runner gets the setup files and every argument as given, and no shell starts", async () => {
+void test("off Windows the runner gets every argument exactly as given, and no shell starts", async () => {
   for (const platform of ["linux", "darwin"] as const) {
     const h = harness({ platform });
     assert.equal(await runTests(h.deps, ARGS), 0);
     assert.equal(h.started.length, 1);
     const [runner] = h.started;
     assert.equal(runner?.command, EXEC_PATH);
-    assert.deepEqual(runner.args, [...SETUP, "--test", ...ARGS]);
+    assert.deepEqual(runner.args, ARGS);
     assert.equal(runner.env, h.deps.env);
     assert.equal(runner.piped, false);
     assert.deepEqual(h.asked, [], "nothing looks for Git's sh");
@@ -83,7 +88,7 @@ void test("on Windows the anchor is Git's sh, on this process's temp folder, rea
   });
   assert.deepEqual(h.asked.at(-1), `${GIT_SH} -c /usr/bin/cygpath -w /tmp`);
 
-  assert.deepEqual(runner?.args, [...SETUP, "--test", ...ARGS]);
+  assert.deepEqual(runner?.args, ARGS);
   assert.equal(runner.env[SHARED_TMP_VARIABLE], OWN_TEMP);
   assert.equal(runner.env.Temp, "C:\\elsewhere", "the runner's own is kept");
   // Ctrl+C reaches the runner from the terminal; the wrapper only waits.

@@ -7,12 +7,6 @@ import type { Captured, Ended, Proc, RunTestsDeps } from "./lifecycle.ts";
 export const EXEC_PATH = "C:\\node\\node.exe";
 export const GIT_SH = "C:\\Program Files\\Git\\usr\\bin\\sh.exe";
 export const OWN_TEMP = "C:\\Users\\dev\\AppData\\Local\\Temp";
-export const SETUP = [
-  "--import",
-  "./scripts/isolate-git-config.ts",
-  "--import",
-  "./scripts/isolate-temp-folder.ts",
-];
 
 export const exited = (code: number): Ended => ({
   kind: "exit",

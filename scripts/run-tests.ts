@@ -1,5 +1,7 @@
-// Runs the test suite: `node --test` with the two setup files every test file
-// loads, and the arguments given passed on exactly. `pnpm test` runs this.
+// Runs the test suite: starts Node with the arguments given, passed on
+// exactly. `pnpm test` runs this with the two setup files every test file
+// loads and `--test` (see the root package.json), and pnpm adds any files
+// named after them.
 //
 // On Windows it first starts one long-lived shell of Git's own install, and
 // keeps it for the whole run. Git for Windows' shells share one `/tmp`, taken

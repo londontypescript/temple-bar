@@ -8,15 +8,6 @@ import path from "node:path";
 
 import { findGitSh, type GitShDeps } from "../windows-run/remote/git-sh.ts";
 
-/** The setup files: one shuts git off from the machine's own config, the
- * other gives each test file its own temp folder. */
-const SETUP = [
-  "--import",
-  "./scripts/isolate-git-config.ts",
-  "--import",
-  "./scripts/isolate-temp-folder.ts",
-];
-
 /** The anchor's whole command, fixed text: nothing from the environment or the
  * arguments reaches it. It says it is ready, then waits for its input to
  * close, which happens when the run ends (or when this process dies). Passed
@@ -275,7 +266,10 @@ export async function runTests(
     env = { ...deps.env, [SHARED_TMP_VARIABLE]: started.tmp };
   }
 
-  const runner = deps.start(deps.execPath, [...SETUP, "--test", ...args], {
+  // Node's own arguments, passed on untouched: the root package.json's
+  // `test` script names the setup files and `--test`, where tools that read
+  // scripts (knip finds test files and setup files there) can see them.
+  const runner = deps.start(deps.execPath, args, {
     env,
     piped: false,
   });
