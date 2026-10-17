@@ -98,7 +98,7 @@ export interface Scenario {
   expire?: number[];
 }
 
-export interface Started {
+interface Started {
   readonly command: string;
   readonly args: readonly string[];
   readonly env: NodeJS.ProcessEnv;
