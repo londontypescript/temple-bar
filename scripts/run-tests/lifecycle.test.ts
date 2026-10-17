@@ -127,6 +127,14 @@ void test("Git's sh must be Git's own before anything starts", async () => {
   assert.equal(await runTests(h.deps, []), 1);
   assert.match(h.printed(), /run-tests: sh on PATH is C:\\msys64.*not Git's/);
   assert.deepEqual(h.started, []);
+
+  // With Git's launcher first on PATH, as on CI, the shell it starts is
+  // the one run directly.
+  const launched = harness({ shAt: "C:\\Program Files\\Git\\bin\\sh.exe" });
+  assert.equal(await runTests(launched.deps, []), 0);
+  assert.equal(launched.anchor()?.stdinClosed, true);
+  assert.equal(launched.started[0]?.command, GIT_SH);
+  assert.ok(launched.asked.includes(`${GIT_SH} -c /usr/bin/cygpath -w /tmp`));
 });
 
 void test("the shared /tmp must exist and be outside this run's temp folder", async () => {

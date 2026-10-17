@@ -25,7 +25,7 @@ async function shProblem(sys: Sys): Promise<string | null> {
   }
   const ran = await sys.probe("sh", ["-c", "echo ready"]);
   if (ran?.trim() !== "ready") {
-    return `sh at ${found.sh} is on PATH but would not run a command`;
+    return `sh at ${found.onPath} is on PATH but would not run a command`;
   }
   return null;
 }
