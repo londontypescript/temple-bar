@@ -5,10 +5,10 @@
 // through git, so the next test starts from the same commit.
 //
 // What a failure needs to be diagnosed is kept outside the test's temporary
-// folder, in this checkout's gitignored .temple-bar/release-check/: the
-// lockfile pnpm resolved and every command's output, written as each one
-// runs, so a hung or killed run leaves them too. The release-check workflow
-// uploads that folder when a run fails. A failed install is then either the
+// folder, in this checkout's gitignored .temple-bar/release-check/: every
+// command's output, written as it arrives, so a hung or killed run leaves
+// it too, and the lockfile pnpm resolved once setup ends. The release-check
+// workflow uploads that folder when a run fails or times out. A failed install is then either the
 // registry (run it again) or a graph that no longer fits (a reviewed version
 // change, or a fix in temple-bar), never a reason to loosen a test.
 
@@ -79,15 +79,19 @@ function retainedFolder(name: string): string {
 export async function startStack(name: string): Promise<StackProject> {
   const retained = retainedFolder(name);
   const log = path.join(retained, "commands.log");
-  /** Runs `start`, keeping its output and how long it took in the log. */
+  /** Runs `start`, writing its output to the log as it arrives, then its
+   * exit code and how long it took. */
   const keep = async (
     label: string,
-    start: () => Promise<RunResult>,
+    start: (onOutput: (text: string) => void) => Promise<RunResult>,
   ): Promise<RunResult> => {
+    appendFileSync(log, `$ ${label}\n`);
     const began = Date.now();
-    const result = await start();
+    const result = await start((text) => {
+      appendFileSync(log, text);
+    });
     const seconds = ((Date.now() - began) / 1000).toFixed(1);
-    appendFileSync(log, `$ ${label} (${seconds} s)\n${describe(result)}\n\n`);
+    appendFileSync(log, `\n(exit ${String(result.code)}, ${seconds} s)\n\n`);
     return result;
   };
   const launcher = await startPackedLauncher(`tb-${name}-`);
@@ -97,8 +101,8 @@ export async function startStack(name: string): Promise<StackProject> {
     // tsx keeps a cache in the temp folder, which the launcher checks is
     // left empty: a cache, not a leak, so it is turned off.
     const env = { ...options.env, TSX_DISABLE_CACHE: "1" };
-    const setup = await keep("packed launcher", () =>
-      launch(launcher, options),
+    const setup = await keep("packed launcher", (onOutput) =>
+      launch(launcher, { ...options, onOutput }),
     );
     const lockfile = path.join(cwd, "pnpm-lock.yaml");
     if (existsSync(lockfile)) {
@@ -113,7 +117,7 @@ export async function startStack(name: string): Promise<StackProject> {
     ): Promise<RunResult> =>
       keep(
         `${path.relative(launcher.folder, at) || "."}: ${command} ${args.join(" ")}`,
-        () => run(command, args, { cwd: at, env }),
+        (onOutput) => run(command, args, { cwd: at, env, onOutput }),
       );
     const ok = async (args: readonly string[]): Promise<void> => {
       const result = await inStack("git", args);

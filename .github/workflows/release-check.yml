@@ -52,11 +52,14 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # node --test passes with no tests at all when its pattern matches no
-      # file, so the summary it prints is checked too: at least one test
-      # ran, and none was skipped or left to do. A summary that can't be
-      # read fails the step.
+      # file, and counts a file that registers no tests as one passing test,
+      # so the summary it prints is checked too: as many tests ran as the
+      # release files declare, and none was skipped or left to do. A summary
+      # that can't be read fails the step. The step's own timeout leaves the
+      # job time to upload what a hung run left.
       - name: Release tier
         shell: bash
+        timeout-minutes: 75
         run: |
           set -euo pipefail
           log=.temple-bar/release-check/release-tier.log
@@ -66,8 +69,14 @@ jobs:
           tests=$(count tests)
           skipped=$(count skipped)
           todo=$(count todo)
-          if [ -z "$tests" ] || [ "$tests" -eq 0 ]; then
+          declared=$(cat e2e/release/*.release.ts | grep -c '^void test(' || true)
+          declared=${declared:-0}
+          if [ -z "$tests" ] || [ "$tests" -eq 0 ] || [ "$declared" -eq 0 ]; then
             echo "::error::The release tier ran no tests, so it proves nothing. Check that e2e/release/ holds *.release.ts files and that test:release's pattern still matches them."
+            exit 1
+          fi
+          if [ "$tests" -ne "$declared" ]; then
+            echo "::error::The release tier ran $tests test(s), but its files declare $declared: a file that registers no tests still counts as one, so every declared test must run."
             exit 1
           fi
           if [ "$skipped" != 0 ] || [ "$todo" != 0 ]; then
@@ -81,7 +90,7 @@ jobs:
       # a graph that no longer fits (a reviewed version change, or a fix in
       # temple-bar).
       - name: Keep the lockfiles and logs
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-check-${{ matrix.os }}-node-${{ matrix.node }}

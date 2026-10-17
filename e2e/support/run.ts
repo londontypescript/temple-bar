@@ -19,6 +19,9 @@ export interface RunResult {
 export interface RunOptions {
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
+  /** Called with each piece of output as it arrives, so a command that
+   * hangs still leaves what it printed. */
+  readonly onOutput?: (text: string) => void;
 }
 
 function quoteForWindowsShell(arg: string): string {
@@ -46,10 +49,14 @@ export function run(
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
+      const text = chunk.toString("utf8");
+      stdout += text;
+      options.onOutput?.(text);
     });
     child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf8");
+      const text = chunk.toString("utf8");
+      stderr += text;
+      options.onOutput?.(text);
     });
     child.on("error", (error) => {
       resolve({ code: 127, stdout, stderr: `${stderr}${error.message}\n` });

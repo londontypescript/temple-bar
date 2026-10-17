@@ -5,8 +5,9 @@
 // docs/adr/0015-every-package-checked-and-guarded.md) sits next to a control:
 // the same workspace with only code inside a package changed, which passes.
 // A child package's own temple-bar pin is guarded twice, in its manifest
-// and in the lockfile, and each finding is shown on its own. The judge reads GitHub and never the project on disk, so one installed
-// project serves every test.
+// and in the lockfile, and each finding is shown on its own. The judge
+// reads GitHub and never the project on disk, so one installed project
+// serves every test.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
