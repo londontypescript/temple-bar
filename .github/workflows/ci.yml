@@ -72,10 +72,9 @@ jobs:
         run: pnpm build
 
   # pnpm's standalone executable (@pnpm/exe), which the gate starts directly
-  # rather than through Node. The pinned temple-bar's gate can't run under
-  # it, since this is the code that fixes that, so the job runs the whole
-  # suite directly: its packed tests start the gate through this pnpm. Once a
-  # temple-bar with the fix is pinned, `pnpm test` becomes `pnpm gate`.
+  # rather than through Node. The job runs the pinned gate under it, so the
+  # published gate itself is shown to list the workspace and run the root's
+  # and every package's scripts through this pnpm, every test file included.
   standalone:
     name: standalone (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -120,7 +119,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test (the whole suite, through this pnpm)
-        run: pnpm test
+      - name: Gate (every check, through this pnpm)
+        run: pnpm gate
         env:
           GH_TOKEN: ${{ github.token }}

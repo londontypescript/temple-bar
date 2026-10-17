@@ -31,7 +31,7 @@ same pull request as any change to a mechanism.
 | Tracker updated per subtask                            | nothing                                                     | **Prose only**                      |
 | Milestone scope stays the user's                       | nothing                                                     | **Prose only**                      |
 | Whether wide changes mean duplication                  | nothing: judgement                                          | **Prose only**                      |
-| Worktree per branch; merge steps (§2)                  | `temple-bar merge`; nothing forces its use                  | **Prose only**                      |
+| Worktree per branch; merge steps (§2)                  | `pnpm merge` (`temple-bar merge`); nothing forces its use   | **Prose only**                      |
 | Main checkout stays on the default branch              | `post-checkout` hook warns on a switch or detach            | **Warned** only                     |
 | Issues closed need a `One concern:` line               | `temple-bar merge` refuses without it                       | **Blocked** by merge                |
 | Push once, after the gate passed                       | `ready` + `pre-push` from the pin that ships them           | **Blocked** locally                 |
@@ -57,22 +57,22 @@ same pull request as any change to a mechanism.
 | Incident asked about, filed as an issue                | nothing until theme F                                       | **Prose only**                      |
 | Incident issues labelled, whoever files them           | `incident-label.yml` labels an `incident:` title            | **Detected** after                  |
 
-Markdown integrity in the pinned 0.0.10 gate uses markdownlint's
+Markdown integrity in the gate, from 0.0.10, uses markdownlint's
 public structural tokens for actual local links/images and undefined explicit
 full/collapsed reference labels. Comments, code and HTML raw-text examples do
 not create references; balanced destinations are preserved. The fixed set
 reads no project style configuration and cannot be disabled by generic lint
 directives. Inline-code path mentions are not existence assertions. Packed
 delivery regressions preserve framework documents and show genuine missing
-targets and labels still fail. This repo now pins the published 0.0.10 gate;
-see the [approved plan](plans/0.0.10.md).
+targets and labels still fail. See the 0.0.10
+[approved plan](plans/0.0.10.md).
 
-Historical generated-output upgrades are provided by published 0.0.10:
+Historical generated-output upgrades arrived in published 0.0.10:
 setup replaces authentic published older hooks/workflows,
 preserves edited or unrecognized content, and reports workflow conflicts.
 Independent frozen npm output, release inventories and installed packed
 regressions defend ownership and preservation. Existing shim/workflow bytes
-and exact hook/workflow policy are unchanged; published 0.0.10 judges this repo.
+and exact hook/workflow policy were unchanged by it.
 
 Known limits of the required gate and title checks: the gate reads the rules
 GitHub enforces on `main`, which don't show who may bypass them, so it can say
@@ -118,7 +118,7 @@ A rule that exists only as prose is a rule that will eventually be violated. If
 you find one drifting, the fix is a mechanism, not stronger wording. When a
 mechanism ships, shrink its rule in AGENTS.md to one line.
 
-The pinned 0.0.10 gate accepts only verified comment-only unused
+From 0.0.10, the gate accepts only verified comment-only unused
 JavaScript/TypeScript file findings (decision 59). A public Knip capture
 reporter and bounded strict file reader preserve native diagnostics and all
 real unused code, exports, types and analyzer failures. Packed SvelteKit
@@ -129,6 +129,12 @@ shared package's code that only its sibling packages use counts as used. The
 gate names the packages that hold Knip's findings, or the root; that naming
 never turns a failure into a pass. temple-bar writes no Knip config: entries
 that Knip's plugins don't find are declared in the project's own.
+
+This repo pins published 0.1.0, so the rules marked "from 0.1.0" apply to it:
+each of its two packages runs its own four scripts. The root's `test` runs
+`scripts/` and `e2e/`, each package's runs its own `src/`, and a test in the
+suite (`scripts/selected-tests.test.ts`) fails if any tracked test file is run
+by none of them or by more than one.
 
 The release scaffold checker validates the packed gate's complete check report,
 exact per-framework missing-script expectations, verdict and exit code. Every

@@ -104,6 +104,10 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 73  | Phases 6 and 7 build at the same time in separate worktrees and land in order         | [0.1.0](0.1.0.md)                                         |
 | 74  | temple-bar generates no knip config; the gate attributes knip's findings per package  | [0.1.0](0.1.0.md)                                         |
 | 75  | Real-install tests form a release tier: run by hand, required before a release stages | [0.1.0](0.1.0.md)                                         |
+| 76  | At the 0.1.0 pin each package checks its own files; root `test` runs scripts/, e2e/   | [0.1.0](0.1.0.md)                                         |
+| 77  | A test fails if a tracked test file is run by no test script, or by more than one     | [0.1.0](0.1.0.md)                                         |
+| 78  | The standalone CI job runs `pnpm gate` once the pin can start standalone pnpm         | [0.1.0](0.1.0.md)                                         |
+| 79  | This repo merges with `pnpm merge <N>`; the baseline refresh lands before the pin     | [0.1.0](0.1.0.md)                                         |
 
 Decision 68 was settled on 2026-10-15 for phase 5 (on #311, with four
 smaller points recorded there); decisions 69 to 74 were approved on
@@ -111,6 +115,13 @@ smaller points recorded there); decisions 69 to 74 were approved on
 review of the plan. Decision 75 was approved on 2026-10-17, after the
 maintainer found real installs on every pull request unsustainable and
 ChatGPT Sol 6.1 reviewed the design.
+
+Decisions 76 to 79 were approved on 2026-10-17 for the 0.1.0 pin bump
+([#366](https://github.com/londontypescript/temple-bar/issues/366)), one at
+a time, after ChatGPT Sol 6.1 reviewed them adversarially. Under 76, the
+packages' typecheck, lint and format checks repeat cheaply what the root
+checks whole, while each test file runs once; AGENTS.md now says the gate runs
+every test file, rather than that `pnpm test` runs in full.
 
 Decision 59 was approved on 2026-10-09 after Claude Sonnet reviewed the precise content-only contract.
 
