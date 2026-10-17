@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { after, before, test } from "node:test";
+import { stripVTControlCharacters } from "node:util";
 
 import { extraApp, PACKAGE_SCRIPTS } from "../fixtures/stack-packages.ts";
 import { STACK_PACKAGES, stackKnipConfig } from "../fixtures/stack.ts";
@@ -98,8 +99,11 @@ void test(
     // knip saw the installed graph: the shared package's exports, used only
     // by its sibling apps, are used.
     assertReports(result, /^ {2}passed {3}unused code \(knip\)$/m);
-    // The real tools ran, once at the root and once in each package.
-    const runs = (pattern: RegExp) => result.stdout.match(pattern)?.length ?? 0;
+    // The real tools ran, once at the root and once in each package. Vitest
+    // colours its summary on Windows even into a pipe, so the colour codes
+    // are taken out before counting.
+    const plain = stripVTControlCharacters(result.stdout);
+    const runs = (pattern: RegExp) => plain.match(pattern)?.length ?? 0;
     assert.equal(
       runs(/^> tsc --noEmit -p tsconfig\.json$/gm),
       6,
