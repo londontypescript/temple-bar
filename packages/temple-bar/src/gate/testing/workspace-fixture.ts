@@ -103,13 +103,16 @@ function isListing(call: RecordedProcCall): boolean {
 }
 
 /** The files a tool lists when run in `folder` ("" the root), relative to
- * the root and "/"-separated. */
-export type FakeListings = (folder: string) => readonly string[];
+ * the root and "/"-separated, or a line it fails with. */
+export type FakeListings = (
+  folder: string,
+) => readonly string[] | { readonly error: string };
 
 /** Answers a tool the coverage check runs through the package manager's
  * `exec`, as tsc (`--listFilesOnly`) and Vitest (`list --json`) list
- * `listings`' files; `--showConfig` prints a config with no references.
- * Undefined for any call that isn't an `exec`. */
+ * `listings`' files, or fail with its error on stdout and exit 1;
+ * `--showConfig` prints a config with no references. Undefined for any
+ * call that isn't an `exec`. */
 export function answerExec(
   call: RecordedProcCall,
   run: ProcRunOptions,
@@ -119,10 +122,13 @@ export function answerExec(
     return undefined;
   }
   const relative = path.relative(path.normalize("/repo"), call.cwd);
+  const listed = listings(relative.split(path.sep).join("/"));
+  if ("error" in listed) {
+    run.stdout.write(`${listed.error}\n`);
+    return 1;
+  }
   // Forward slashes, as tsc and Vitest print them on every platform.
-  const files = listings(relative.split(path.sep).join("/")).map(
-    (file) => `/repo/${file}`,
-  );
+  const files = listed.map((file) => `/repo/${file}`);
   if (call.args.includes("--showConfig")) {
     run.stdout.write("{}\n");
   } else if (call.args.includes("--listFilesOnly")) {
