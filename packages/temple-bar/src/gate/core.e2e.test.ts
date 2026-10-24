@@ -1,6 +1,6 @@
 // The core-setup check against a real repo, set up by setup's own code:
 // deleting a hook fails the gate and restoring it passes; an edited hook
-// fails too.
+// fails too. So do an AGENTS.md without temple-bar's block, and none.
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -65,6 +65,33 @@ void test("core e2e: a deleted hook fails, the reinstalled one passes, an edited
       edited.err,
       /the pre-commit hook differs from the one temple-bar installs/,
     );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("core e2e: AGENTS.md without its block fails, and so does no AGENTS.md; setup puts each right", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-gate-core-agents-"));
+  try {
+    initTestRepo(dir);
+    await installCore(dir);
+    assert.equal((await check(dir)).status, "passed");
+
+    const agents = path.join(dir, "AGENTS.md");
+    writeFileSync(agents, "# Our own rules\n");
+    const noBlock = await check(dir);
+    assert.equal(noBlock.status, "failed");
+    assert.match(noBlock.err, /AGENTS\.md has no temple-bar block/);
+    await installCore(dir);
+    assert.equal((await check(dir)).status, "passed");
+    assert.match(readFileSync(agents, "utf8"), /^# Our own rules\n/);
+
+    unlinkSync(agents);
+    const missing = await check(dir);
+    assert.equal(missing.status, "failed");
+    assert.match(missing.err, /AGENTS\.md is missing/);
+    await installCore(dir);
+    assert.equal((await check(dir)).status, "passed");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -1,9 +1,10 @@
 // The AGENTS.md size check against a real temp git repo and the real seams:
-// a 201-line AGENTS.md refuses, the same file trimmed to 200 lines passes.
+// setup's AGENTS.md grown to 201 lines refuses, the same file trimmed to
+// 200 lines passes.
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -25,6 +26,14 @@ import { installCore } from "./testing/core-fixture.ts";
 
 function linesOf(count: number): string {
   return `${Array.from({ length: count }, (_, i) => `rule ${String(i)}`).join("\n")}\n`;
+}
+
+/** The AGENTS.md setup wrote, with the project's own rules added after
+ * its block until the file is `count` lines long: the block stays, so the
+ * core check passes and only the size can fail. */
+function grownTo(setUp: string, count: number): string {
+  const own = count - setUp.split("\n").length + 1;
+  return `${setUp}${linesOf(own)}`;
 }
 
 async function runGateIn(dir: string) {
@@ -52,9 +61,10 @@ void test("gate e2e: a 201-line AGENTS.md is refused, and trimmed to 200 lines i
   try {
     initTestRepo(dir);
     writeFileSync(path.join(dir, "README.md"), "hello\n");
-    // After setup, which would otherwise add its own rules to the file.
     await installCore(dir);
-    writeFileSync(path.join(dir, "AGENTS.md"), linesOf(201));
+    const agents = path.join(dir, "AGENTS.md");
+    const setUp = readFileSync(agents, "utf8");
+    writeFileSync(agents, grownTo(setUp, 201));
     execFileSync("git", ["add", "-A"], { cwd: dir });
 
     const over = await runGateIn(dir);
@@ -64,7 +74,7 @@ void test("gate e2e: a 201-line AGENTS.md is refused, and trimmed to 200 lines i
     assert.match(over.err, /201 lines \(limit 200\)/);
     assert.equal(over.code, 1);
 
-    writeFileSync(path.join(dir, "AGENTS.md"), linesOf(200));
+    writeFileSync(agents, grownTo(setUp, 200));
     const trimmed = await runGateIn(dir);
     assert.equal(trimmed.code, 0);
     assert.match(trimmed.out, /passed {3}AGENTS\.md size/);
