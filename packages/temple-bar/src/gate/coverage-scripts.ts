@@ -190,11 +190,22 @@ function narrowsVitest(value: string): boolean {
 }
 
 function readVitest(words: readonly Word[]): TestPart | undefined {
-  const second = words[1]?.value ?? "";
-  if (VITEST_OTHER_COMMANDS.includes(second)) {
+  const rest = words.slice(words[1]?.value === "run" ? 2 : 1);
+  // Vitest takes its first positional word as its command, wherever it
+  // stands among the options, so a word naming another command anywhere,
+  // or `run` anywhere but second, could run something other than the list
+  // shows. A file filter or an option's value that happens to be named
+  // like a command is refused too: telling them apart would mean knowing
+  // which options take values.
+  if (
+    rest.some(
+      (word) =>
+        VITEST_OTHER_COMMANDS.includes(word.value) || word.value === "run",
+    )
+  ) {
     return undefined;
   }
-  const args = words.slice(second === "run" ? 2 : 1).map((word) => word.value);
+  const args = rest.map((word) => word.value);
   return args.some(narrowsVitest)
     ? undefined
     : {

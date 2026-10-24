@@ -151,6 +151,45 @@ void test("tsc -b follows references depth first, lists a shared one once, and s
   );
 });
 
+void test("a linked config is listed, and its references followed, by the path tsc reaches it by; an alias of one already seen is skipped", async () => {
+  // tsconfig.json links to configs/base.json. tsc reads the link's
+  // include and references from /repo, the folder its path names, so
+  // ./app.json is /repo/app.json, never configs/app.json.
+  const references: Readonly<Record<string, Reply>> = {
+    "tsconfig.json": showing("./app.json"),
+    "app.json": showing("./configs/base.json"),
+  };
+  const { ctx, fs, proc } = repo(
+    {
+      "/repo/tsconfig.json": "",
+      "/repo/configs/base.json": "",
+      "/repo/app.json": "",
+      "/repo/configs/app.json": "",
+    },
+    (args) => {
+      const config = args[args.indexOf("-p") + 1] ?? "";
+      return args.includes("--showConfig")
+        ? (references[config] ?? { code: 1, stdout: `no ${config}\n` })
+        : {};
+    },
+  );
+  fs.realpaths.set("/repo/tsconfig.json", "/repo/configs/base.json");
+
+  const listings = await listTypeScript(await rootListing(ctx), {
+    tool: "tsc-build",
+    projects: [],
+  });
+
+  assert.deepEqual(
+    listings.map((listing) => listing.command),
+    ["tsc -p tsconfig.json", "tsc -p app.json"],
+  );
+  assert.deepEqual(calls(proc, "--showConfig"), [
+    "-p tsconfig.json --showConfig",
+    "-p app.json --showConfig",
+  ]);
+});
+
 void test("tsc -b on a project, or reaching a reference, that doesn't exist fails the listing", async () => {
   const { ctx } = repo(PROJECTS, (args) =>
     args.includes("--showConfig") ? showing("./missing.json") : {},
@@ -219,12 +258,16 @@ void test("a listing fails with tsc's first error, a diagnostic among the files,
     [{ stdout: "/repo/src/a.ts\nwarning: odd\n" }, "warning: odd"],
     [
       {
+        // pnpm's own shape when it can't find the tool: all on stdout.
         code: 254,
-        stdout: "undefined\n",
-        stderr:
-          ' ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "tsc" not found\n',
+        stdout:
+          'undefined\n ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "tsc" not found\n',
       },
       'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "tsc" not found',
+    ],
+    [
+      { code: 1, stdout: "undefined\n", stderr: "\nnode: bad option\n" },
+      "node: bad option",
     ],
     [{ code: 3 }, "exited with 3"],
   ] as const) {

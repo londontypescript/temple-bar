@@ -52,9 +52,10 @@ export function readListedFiles(
   return { paths, diagnostics };
 }
 
-/** Why a call failed, said in one line: tsc's first error, else what the
- * package manager said (a missing tool is reported on stderr), else the
- * first line that isn't a file. */
+/** Why a call failed, said in one line: tsc's first error; else, when it
+ * exited non-zero, what went to stderr or the first line on stdout that
+ * says something (a pnpm that can't find the tool prints a bare
+ * `undefined` before its error); else the first line that isn't a file. */
 function failureOf(
   output: ToolOutput,
   diagnostics: readonly string[],
@@ -62,12 +63,20 @@ function failureOf(
   if (output.code === 0 && diagnostics.length === 0) {
     return undefined;
   }
-  return (
-    diagnostics.find((line) => TS_ERROR.test(line)) ??
-    (output.code === 0 ? undefined : firstLine(output.stderr)) ??
-    diagnostics[0] ??
-    `exited with ${String(output.code)}`
-  );
+  const tsError = diagnostics.find((line) => TS_ERROR.test(line));
+  if (tsError !== undefined) {
+    return tsError;
+  }
+  if (output.code !== 0) {
+    return (
+      firstLine(output.stderr) ??
+      diagnostics
+        .map((line) => line.trim())
+        .find((line) => line !== "" && line !== "undefined") ??
+      `exited with ${String(output.code)}`
+    );
+  }
+  return diagnostics[0];
 }
 
 /** The references `--showConfig` printed, or why it can't be read. */
@@ -169,51 +178,66 @@ function listProgram(
   );
 }
 
-/** The real path of the config `given` names from `folder`: a folder means
- * its tsconfig.json. Undefined when there is none. */
+/** A config as tsc reaches it, and the file it really is. */
+interface Config {
+  /** Joined from the folder that names it without following links: tsc
+   * reads a config's `include` and `references` from the folder its path
+   * names, so a linked config must be listed by that path too. */
+  readonly path: string;
+  /** With every link resolved: what identifies it, so a linked alias or a
+   * cycle is visited once. */
+  readonly real: string;
+}
+
+/** The config `given` names from `folder` (a folder means its
+ * tsconfig.json), or undefined when there is none. */
 async function configAt(
   lc: ListingContext,
   folder: string,
   given: string,
-): Promise<string | undefined> {
+): Promise<Config | undefined> {
+  const named = path.isAbsolute(given)
+    ? path.normalize(given)
+    : path.join(folder, given);
   try {
-    const real = await lc.ctx.fs.realpath(
-      path.isAbsolute(given) ? given : path.join(folder, given),
-    );
-    return (await lc.ctx.fs.classify(real)) === "directory"
-      ? await lc.ctx.fs.realpath(path.join(real, "tsconfig.json"))
-      : real;
+    const real = await lc.ctx.fs.realpath(named);
+    if ((await lc.ctx.fs.classify(real)) !== "directory") {
+      return { path: named, real };
+    }
+    const inside = path.join(named, "tsconfig.json");
+    return { path: inside, real: await lc.ctx.fs.realpath(inside) };
   } catch {
     return undefined;
   }
 }
 
-/** Every config `tsc -b <projects>` builds, depth first, each once by its
- * real path, so a cycle or a linked alias can't loop or list one twice;
- * or why the references can't be followed. */
+/** Every config `tsc -b <projects>` builds, depth first, each once, as
+ * the paths tsc reaches them by; or why the references can't be followed. */
 async function buildClosure(
   lc: ListingContext,
   projects: readonly string[],
 ): Promise<{ readonly configs: string[] } | { readonly failure: string }> {
+  const visited = new Set<string>();
   const configs: string[] = [];
   const shown = (config: string): string =>
     path.relative(lc.realFolder, config).split(path.sep).join("/");
-  const visit = async (config: string): Promise<string | undefined> => {
-    if (configs.includes(config)) {
+  const visit = async (config: Config): Promise<string | undefined> => {
+    if (visited.has(config.real)) {
       return undefined;
     }
-    configs.push(config);
+    visited.add(config.real);
+    configs.push(shown(config.path));
     const read = readShowConfig(
-      await lc.run("tsc", ["-p", shown(config), "--showConfig"]),
+      await lc.run("tsc", ["-p", shown(config.path), "--showConfig"]),
     );
     if ("failure" in read) {
-      return `tsc -p ${shown(config)} --showConfig: ${read.failure}`;
+      return `tsc -p ${shown(config.path)} --showConfig: ${read.failure}`;
     }
     for (const reference of read.references) {
-      const next = await configAt(lc, path.dirname(config), reference);
+      const next = await configAt(lc, path.dirname(config.path), reference);
       const failed =
         next === undefined
-          ? `${shown(config)} references ${reference}, which doesn't exist`
+          ? `${shown(config.path)} references ${reference}, which doesn't exist`
           : await visit(next);
       if (failed !== undefined) {
         return failed;
@@ -229,7 +253,7 @@ async function buildClosure(
       return { failure: failed };
     }
   }
-  return { configs: configs.map(shown) };
+  return { configs };
 }
 
 /** The listings one `tsc` command of a typecheck script makes, in order. */

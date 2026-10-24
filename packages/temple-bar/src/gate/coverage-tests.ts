@@ -6,7 +6,9 @@
 // does and prints a JSON array of `{ "file": <absolute path> }`. `--json`
 // must come last, or Vitest takes the next word as a file to write to. It
 // needs Vitest 2.1 or later, which added `list`; an older one rejects it,
-// and that is a failed listing.
+// and that is a failed listing. Stated limit: a listed file proves it is
+// run, not which of its tests are, so a `testNamePattern` set in a Vitest
+// config isn't seen.
 //
 // Node's test runner has no list mode, so its patterns are expanded the
 // way it expands them, from the package's folder, skipping node_modules.

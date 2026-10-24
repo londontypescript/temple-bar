@@ -148,6 +148,13 @@ void test("coverage scripts: a test script that could run fewer files or tests t
     "vitest run --shard=1/2",
     "vitest run --changed",
     "vitest --related src/a.ts",
+    // Vitest's command is its first positional word, wherever it stands.
+    "vitest --config x related src/a.ts",
+    "vitest --root . watch",
+    "vitest run list",
+    "vitest --config x run",
+    // A filter named like a command is refused too.
+    "vitest run bench",
     'node --test-shard=1/2 --test "a/**"',
     'node --test --test-only "a/**"',
     'node --test-name-pattern=x --test "a/**"',
