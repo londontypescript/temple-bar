@@ -43,7 +43,12 @@ void test("every test script is the command a targeted run builds, over the fold
       ...folders.map((folder) => `"${folder}/**/*${TEST_FILE_SUFFIX}"`),
     ].join(" ");
   assert.equal(testScript(""), expected("", ROOT_TEST_FOLDERS));
-  const packages = readdirSync(path.join(repo, "packages"));
+  // Folders only: a stray file such as .DS_Store is not a package.
+  const packages = readdirSync(path.join(repo, "packages"), {
+    withFileTypes: true,
+  })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
   assert.ok(packages.length > 0);
   for (const name of packages) {
     const workspace = `packages/${name}`;
