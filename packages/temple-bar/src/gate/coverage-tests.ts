@@ -26,7 +26,7 @@ import type { TestPart } from "./coverage-scripts.ts";
 
 /** The names Node's test runner runs when given no patterns (probed on
  * Node 24 against a folder holding every kind of name). */
-export const NODE_DEFAULT_PATTERNS: readonly string[] = [
+const NODE_DEFAULT_PATTERNS: readonly string[] = [
   "**/*.test.{cjs,mjs,js,cts,mts,ts}",
   "**/*-test.?(c|m)[jt]s",
   "**/*_test.?(c|m)[jt]s",
