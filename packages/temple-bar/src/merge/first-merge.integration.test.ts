@@ -1,7 +1,8 @@
 // The first merge on a repo that adopts temple-bar, on real git with the
 // real hook shims: main has no temple-bar, and the merged branch's worktree
-// is the only checkout that does. cleanUp must do everything that runs a
-// hook before it removes that worktree.
+// is the only checkout that does. The hooks that run during cleanup (moving
+// main, and the leased push that deletes the remote branch) find temple-bar
+// there, and merge keeps that worktree and its branch afterwards.
 
 import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
@@ -19,10 +20,9 @@ import {
 import { createGitSeam } from "../seams/git.ts";
 import { createFakeContext } from "../testing/fakes.ts";
 import { configureTestRepo } from "../testing/git-repo.ts";
-import { createWorktreeRemover } from "./finish-removal.ts";
 import { cleanUp } from "./local.ts";
 
-void test("first merge: main fast-forwards and the remote branch goes while the worktree's temple-bar still exists", async () => {
+void test("first merge: main fast-forwards and the remote branch goes through the real hooks, and the worktree and its branch are kept", async () => {
   const fixture = createHookFixture();
   try {
     const primary = fixture.repoDir;
@@ -38,7 +38,7 @@ void test("first merge: main fast-forwards and the remote branch goes while the 
     const bin = writeFakeBin(worktree);
     const install = runSh(bin, ["hook", "install"], worktree);
     assert.equal(install.code, 0, install.stdout + install.stderr);
-    // Setup's .gitignore keeps node_modules from blocking the removal.
+    // Setup's commit, whose .gitignore keeps node_modules out of it.
     writeFileSync(path.join(worktree, ".gitignore"), "node_modules\n");
     runGit(worktree, ["add", ".gitignore"]);
     assert.equal(
@@ -76,7 +76,6 @@ void test("first merge: main fast-forwards and the remote branch goes while the 
       branch: "feat/x",
       defaultBranch: "main",
       mergedSha: tip,
-      remover: createWorktreeRemover(),
     });
 
     assert.deepEqual(report.problems, []);
@@ -90,11 +89,26 @@ void test("first merge: main fast-forwards and the remote branch goes while the 
       "",
       "remote branch gone",
     );
-    assert.equal(existsSync(worktree), false, "worktree removed");
+    assert.ok(
+      report.done.includes(
+        `deleted origin/feat/x, whose tip was still the merged ${tip}`,
+      ),
+      report.done.join("\n"),
+    );
+    assert.ok(existsSync(worktree), "the worktree is kept");
     assert.equal(
-      runGit(primary, ["branch", "--list", "feat/x"]).stdout,
-      "",
-      "local branch gone",
+      runGit(primary, ["rev-parse", "refs/heads/feat/x"]).stdout.trim(),
+      tip,
+      "the local branch is kept at the merged commit",
+    );
+    // git names the folder in its own form (a real path, and forward
+    // slashes on Windows), so only the folder's name is matched.
+    assert.match(
+      report.done.join("\n"),
+      new RegExp(
+        `^kept the worktree at .*setup on feat/x \\(${tip}\\); your harness removes it when it is done, or inspect it with temple-bar leftovers$`,
+        "m",
+      ),
     );
   } finally {
     fixture.cleanup();

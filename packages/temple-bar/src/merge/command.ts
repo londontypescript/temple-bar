@@ -8,7 +8,6 @@ import type { Context } from "../context.ts";
 import type { CommandEntry } from "../registry.ts";
 import { gateCommand } from "../gate/command.ts";
 import { GUARDED_CHECKS } from "../judge/guarded-checks.ts";
-import { createWorktreeRemover } from "./finish-removal.ts";
 import { runMerge, type MergeDeps } from "./run.ts";
 
 interface ParsedArgs {
@@ -39,7 +38,6 @@ export const realMergeDeps: MergeDeps = {
     await delay(ms);
   },
   runGate: (ctx) => gateCommand.run([], ctx),
-  worktreeRemover: createWorktreeRemover(),
 };
 
 export function createMergeCommand(deps: MergeDeps): CommandEntry {
@@ -79,9 +77,13 @@ export function createMergeCommand(deps: MergeDeps): CommandEntry {
       "co-author once. Without bullets the title stands alone. A change",
       "merged with --maintainer-approved gets a `Maintainer-Approved:` line",
       "naming it, so `git log` shows the claim.",
-      "Afterwards removes the worktree and the local branch, confirms the",
-      "remote branch is gone, fast-forwards the default branch, and reports",
-      "alerts on the default branch and leftovers.",
+      "Afterwards fast-forwards the default branch and deletes the remote",
+      "branch, but only while its tip is still the merged commit: a newer",
+      "tip is kept and reported. It never removes the branch's worktree or",
+      "local branch, since a session may be working there: it says where",
+      "they are, for the harness that made the worktree to remove, and",
+      "`temple-bar leftovers` lists them. Then reports alerts on the default",
+      "branch and leftovers.",
       "",
       "Refuses a change to the checks that judge the repository",
       `(${GUARDED_CHECKS}):`,
