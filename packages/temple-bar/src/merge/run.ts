@@ -247,7 +247,14 @@ async function mergeAndReport(
   await checkAndMerge(
     ctx,
     deps,
-    { repository, prNumber: options.prNumber, sha, upstream, message },
+    {
+      repository,
+      prNumber: options.prNumber,
+      sha,
+      upstream,
+      message,
+      pullRequest,
+    },
     root,
   );
   ctx.stdout.write(

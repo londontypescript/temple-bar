@@ -1,7 +1,8 @@
 # ADR 0003: How a change reaches `main`
 
-Date: 2026-10-01. Status: accepted (decisions 4, 17, 18, 24, 33 and 35; 35
-is built as described in [ADR 0012](0012-push-once-with-ready.md)).
+Date: 2026-10-01, updated 2026-10-24. Status: accepted (decisions 4, 17, 18,
+24, 33, 35 and 54; 35 is built as described in
+[ADR 0012](0012-push-once-with-ready.md)).
 
 ## Context
 
@@ -86,6 +87,19 @@ maintainer's yes in chat and is recorded in the squash message (see
 the ruleset. Built in 0.0.5
 ([#64](https://github.com/londontypescript/temple-bar/issues/64)); this repo
 uses it once it pins that release.
+
+**Decision 54: a pull request closing several issues says why it is one
+concern** (decided 2026-10-03, after the judge's trial). `temple-bar merge`
+refuses a pull request that closes two or more issues unless its description
+has a `One concern:` line. Merge checks only that the line is there; whether
+the reason holds is for review. The reasons that count, and those that don't,
+are listed in [docs/agents-rationale.md](../agents-rationale.md). The
+incident: [#201](https://github.com/londontypescript/temple-bar/pull/201)
+closed two issues on the strength of a plan's phase grouping alone, with no
+reason written, and merged past a warning. Built in 0.0.7
+([#216](https://github.com/londontypescript/temple-bar/pull/216)). Until
+2026-10-24 this decision's home was the rationale doc; it moved here under
+decision 89 ([ADR 0016](0016-agent-rules-and-the-merge-loop.md)).
 
 ## What would end it
 

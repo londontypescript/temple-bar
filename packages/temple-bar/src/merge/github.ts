@@ -4,7 +4,7 @@
 
 import type { Context } from "../context.ts";
 import type { GhResult } from "../seams/gh.ts";
-import { newestRunPerCheck } from "./check-runs.ts";
+import { newestRunPerCheck, type WorkflowRun } from "./check-runs.ts";
 import { refuse } from "./refusal.ts";
 
 export interface Repository {
@@ -165,12 +165,14 @@ export async function readChecks(
   if (runs.result.code !== 0) {
     refuse(`could not read the checks on ${sha}: ${failure(runs.result)}`);
   }
-  // Which workflow each check suite belongs to, so runs are only compared
-  // with earlier runs of the same workflow.
+  // The workflow runs on the commit. Each check suite's workflow keeps runs
+  // compared only with runs of the same workflow; each workflow run's id
+  // and status tell which run is newer, and whether a newer one is still to
+  // make its check runs.
   const workflowRuns = await apiLines(
     ctx,
     `repos/${repository.nameWithOwner}/actions/runs?head_sha=${sha}&per_page=100`,
-    ".workflow_runs[] | {suite: .check_suite_id, workflow: .workflow_id}",
+    ".workflow_runs[] | {suite: .check_suite_id, workflow: .workflow_id, run: .id, status}",
     cwd,
   );
   if (workflowRuns.result.code !== 0) {
@@ -178,10 +180,15 @@ export async function readChecks(
       `could not read the workflow runs on ${sha}: ${failure(workflowRuns.result)}`,
     );
   }
-  const workflowOf = new Map<number, number>();
+  const allWorkflowRuns: WorkflowRun[] = [];
   for (const item of workflowRuns.items) {
     if (typeof item.suite === "number" && typeof item.workflow === "number") {
-      workflowOf.set(item.suite, item.workflow);
+      allWorkflowRuns.push({
+        suite: item.suite,
+        workflow: item.workflow,
+        run: typeof item.run === "number" ? item.run : undefined,
+        status: typeof item.status === "string" ? item.status : undefined,
+      });
     }
   }
   const statuses = await apiLines(
@@ -198,7 +205,7 @@ export async function readChecks(
 
   // The combined status endpoint already gives only the newest status of
   // each context, so only the check runs need narrowing.
-  const checks: Check[] = newestRunPerCheck(runs.items, workflowOf).map(
+  const checks: Check[] = newestRunPerCheck(runs.items, allWorkflowRuns).map(
     (run) => {
       const status = text(run.status);
       const conclusion = text(run.conclusion);

@@ -1,6 +1,6 @@
 // `temple-bar pr-size`: warns when a pull request is too big or mixes
-// concerns. A size warning exits 0, because it must never block a merge.
-// Failing to measure exits 1: that means the check itself isn't working (for
+// concerns. A size warning exits 0: here it is advice, and `temple-bar
+// merge` is where it is enforced. Failing to measure exits 1: that means the check itself isn't working (for
 // example a CI checkout without the base branch), and a check that quietly
 // does nothing is worse than a red one. 2 is a usage mistake (a flag it
 // doesn't know, or no base to compare against).
@@ -80,16 +80,22 @@ export const prSizeCommandEntry: CommandEntry = {
   args: "[--base <ref>] [--head <ref>] [--pr <number>]",
   details: [
     "Squash merges make each pull request one commit on main, so a pull",
-    "request should hold one concern. Measures lines changed and files",
-    "touched from the merge base of --base and --head (defaults: origin/",
-    "$GITHUB_BASE_REF and HEAD), ignoring lockfiles, files marked",
-    "linguist-generated in .gitattributes, and pure renames. Also counts",
-    "the issues the title and body close (read from the GitHub Actions event,",
-    "or from `gh pr view`, for --pr when given).",
+    "request should hold one concern. Measures source lines and test lines",
+    "changed (a test is a *.test.* or *.spec.* file, anything under",
+    "__tests__/, or a .snap file) and files touched, from the merge base of",
+    "--base and --head (defaults: origin/$GITHUB_BASE_REF and HEAD),",
+    "ignoring lockfiles, files marked linguist-generated in .gitattributes,",
+    "and pure renames. Also counts the issues the title and body close (read",
+    "from the GitHub Actions event, or from `gh pr view`, for --pr when",
+    "given).",
     "",
-    "Limits are maxPullRequestLines and maxPullRequestFiles in",
-    "temple-bar.config.json. In GitHub Actions the warning is also an",
-    "annotation on the pull request.",
+    "Limits are maxPullRequestLines (source lines), maxPullRequestTestLines",
+    "(test lines) and maxPullRequestFiles (all files) in",
+    "temple-bar.config.json. A pull request over a limit, or closing several",
+    "issues, needs a line in its description starting `One concern:` that",
+    "says why it is one change: with one, there is no warning, and",
+    "`temple-bar merge` refuses one without it. In GitHub Actions the",
+    "warning is also an annotation on the pull request.",
     "",
     "Exits 0 whether or not it warns, 1 when it can't measure the pull",
     "request (in CI, check out with fetch-depth: 0), 2 when called wrongly.",
