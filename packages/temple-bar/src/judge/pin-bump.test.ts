@@ -110,6 +110,16 @@ void test("a manifest the judge can't read as one counts as moving the pin", () 
   );
 });
 
+void test("a package.json guarded as a whole workflow file is no pin bump, and isn't read", () => {
+  // The reader hands it over without its text, as it does every file that
+  // is guarded whole.
+  const unread: FileState = { kind: "regular", mode: "100644" };
+  assert.deepEqual(
+    pinBumpPaths([change(".github/workflows/package.json", unread, unread)]),
+    [],
+  );
+});
+
 void test("the disclosure names every other path, or says there are none", () => {
   const bump = [
     change("package.json", pinned("0.1.0"), pinned("0.2.0")),

@@ -103,13 +103,14 @@ void test("judge: a nested package's changed script is refused, one finding a li
   );
 });
 
-/** A base pinning temple-bar 0.1.0 in package.json and the lockfile, and
- * a head moving both to 0.2.0 with `extra` on top. */
-function pinBump(t: TestContext, extra: Files = {}) {
+/** A base pinning temple-bar 0.1.0 in package.json and the lockfile, with
+ * `baseExtra` on top, and a head moving both to 0.2.0 with `extra` on top. */
+function pinBump(t: TestContext, extra: Files = {}, baseExtra: Files = {}) {
   const pinned = {
     ...BASE,
     "package.json": pinnedManifest("0.1.0"),
     "pnpm-lock.yaml": pinnedLockfile("0.1.0"),
+    ...baseExtra,
   };
   const bumped = {
     ...pinned,
@@ -161,6 +162,25 @@ void test("judge: a pin bump with other changes lists each of them, guarded or n
       "This pull request also changes:\n" +
       "  .github/workflows/ci.yml\n" +
       "  packages/a/src/index.ts\n" +
+      WHO_DECIDES,
+  );
+});
+
+void test("judge: a pin bump beside a workflow folder's package.json judges that file whole and lists it", async (t) => {
+  const workflowManifest = ".github/workflows/package.json";
+  const { ctx, stderr } = pinBump(
+    t,
+    { [workflowManifest]: JSON.stringify({ name: "w", private: true }) },
+    { [workflowManifest]: JSON.stringify({ name: "w" }) },
+  );
+  assert.equal(await judgeCommand.run([], ctx), 1);
+  assert.equal(
+    stderr.lines.join(""),
+    REFUSED +
+      "  .github/workflows/package.json (modified)\n" +
+      PIN_FINDINGS +
+      "This pull request also changes:\n" +
+      "  .github/workflows/package.json\n" +
       WHO_DECIDES,
   );
 });

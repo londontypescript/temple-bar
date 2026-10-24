@@ -10,7 +10,11 @@
 // of every changed path, and reads nothing itself.
 
 import { textOf, type FileState, type PathChange } from "./file-state.ts";
-import { isManifest, isRootLockfile } from "./guarded-paths.ts";
+import {
+  isManifest,
+  isRootLockfile,
+  isWholeFileGuarded,
+} from "./guarded-paths.ts";
 import { lockfileFindings } from "./lockfile.ts";
 import {
   parseManifest,
@@ -42,8 +46,16 @@ function textOrNothing(file: string, state: FileState): string | undefined {
   return state.kind === "regular" ? textOf(file, state) : undefined;
 }
 
+/** A package.json the findings read as a manifest. One that is guarded as
+ * a whole file, such as `.github/workflows/package.json`, is judged as that
+ * file alone and its text is never read, so it isn't one here either. No
+ * pin bump is missed: a temple-bar pin in such a package changes the root
+ * lockfile's entries too, and those are compared. */
+const readAsManifest = (file: string): boolean =>
+  isManifest(file) && !isWholeFileGuarded(file);
+
 function movesPin({ path: file, base, head }: PathChange): boolean {
-  if (isManifest(file)) {
+  if (readAsManifest(file)) {
     const before = manifestOf(file, base);
     const after = manifestOf(file, head);
     return (
