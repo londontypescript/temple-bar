@@ -86,14 +86,14 @@ void test("coverage scripts: each supported test form reads as the run's own arg
         },
       ],
     ],
-    // Unquoted, a pattern is read as a plain word.
+    // Unquoted, a file name with no glob in it is read as a plain word.
     [
-      "node --test src/**/*.test.ts",
+      "node --test src/a.test.ts",
       [
         {
           tool: "node",
-          patterns: ["src/**/*.test.ts"],
-          text: "node --test src/**/*.test.ts",
+          patterns: ["src/a.test.ts"],
+          text: "node --test src/a.test.ts",
         },
       ],
     ],
@@ -159,6 +159,13 @@ void test("coverage scripts: a test script that could run fewer files or tests t
     'node --test "a/**" --test "b/**"',
     "node a.test.js",
     "node --test 'a/**'",
+    // Unquoted, a glob is expanded by the shell before Node sees it, and sh
+    // reads `**` as `*`: the run takes fewer files than the pattern names.
+    "node --test src/**/*.test.ts",
+    'node --test "src/**" src/*.test.ts',
+    "node --test src/a?.test.ts",
+    "node --test src/[ab].test.ts",
+    "node --test src/{a,b}.test.ts",
     'node --test "a/**"; true',
     'node --test "a/**" | cat',
     'node --test "a/(b|c)/**"',
@@ -182,5 +189,6 @@ void test("coverage scripts: the message names the package, the script as writte
     "supported: tsc [-p <config>] [flags], tsc -b [<project>...] [flags], joined with &&; flags: --noEmit, --pretty [true|false], --incremental, --skipLibCheck, --noCheck, and after -b also --force, -f, --verbose, -v; no shell syntax but && and double quotes around words",
   );
   assert.match(SUPPORTED_FORMS.test, /no entry script before --test/);
+  assert.match(SUPPORTED_FORMS.test, /globs double-quoted/);
   assert.match(SUPPORTED_FORMS.test, /vitest without -t, --testNamePattern/);
 });

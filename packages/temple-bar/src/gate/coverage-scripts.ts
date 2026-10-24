@@ -263,8 +263,15 @@ function readNode(words: readonly Word[]): TestPart | undefined {
     }
     index += taken;
   }
-  const patterns = words.slice(at + 1).map((word) => word.value);
-  return patterns.some((pattern) => pattern.startsWith("-"))
+  const operands = words.slice(at + 1);
+  const patterns = operands.map((word) => word.value);
+  // Unquoted, a glob reaches the shell first, which expands it by its own
+  // rules (`**` as `*` in sh) before Node sees the files: the run would
+  // take fewer than the pattern names. A plain file name is safe.
+  const shellGlob = operands.some(
+    (word) => !word.text.startsWith('"') && /[*?[{]/.test(word.value),
+  );
+  return shellGlob || patterns.some((pattern) => pattern.startsWith("-"))
     ? undefined
     : {
         tool: "node",
@@ -306,7 +313,7 @@ export const SUPPORTED_FORMS = {
   )}, and after -b also ${TSC_BUILD_FLAGS.join(", ")}; ${SHELL_RULE}`,
   test: `supported: vitest [run] [<arguments>], node [<option>...] --test [<pattern>...], joined with &&; vitest without ${VITEST_NARROWING.join(
     ", ",
-  )}, and no other command than run; node with no entry script before --test, and only these options: --import <file>, --require <file>, ${[
+  )}, and no other command than run; node with no entry script before --test, globs double-quoted, and only these options: --import <file>, --require <file>, ${[
     ...NODE_VALUE_OPTIONS,
     ...NODE_SWITCHES,
   ].join(", ")}; ${SHELL_RULE}`,
