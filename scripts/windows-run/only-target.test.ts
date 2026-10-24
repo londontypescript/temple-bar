@@ -10,7 +10,7 @@ import {
   runnerArgs,
   TEST_FILE_SUFFIX,
   testTarget,
-} from "./remote/test-target.ts";
+} from "./remote/only-target.ts";
 
 const repo = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

@@ -2,7 +2,7 @@
 // lock, build what is sent from the recorded commit, send it, run the runner,
 // and decide from what came back how the run ended. With `--only <file>` the
 // run is the same from end to end, but runs that one test file (checked here
-// first: test-file.ts) instead of the full install, check and build.
+// first: only-file.ts) instead of the full install, check and build.
 //
 // Exit codes: 0 every step passed (a targeted run's skipped install counts);
 // 1 a step failed or Windows refused the run; 2 refused here before
@@ -29,7 +29,7 @@ import {
 } from "./remote/record.ts";
 import type { LocalDeps } from "./seams.ts";
 import { summarize, type LocalRefusal, type SummaryInput } from "./summary.ts";
-import { pathProblem, trackedProblem } from "./test-file.ts";
+import { pathProblem, trackedProblem } from "./only-file.ts";
 import { judge } from "./verdict.ts";
 
 const USAGE =

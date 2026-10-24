@@ -18,7 +18,7 @@ export function stagingForCmd(runId: string): string {
 
 /** The command that starts the runner. cmd is the SSH server's shell: the
  * run id and commit are hex the local side built, and a targeted run's test
- * file has passed the path rule (remote/test-target.ts), which allows only
+ * file has passed the path rule (remote/only-target.ts), which allows only
  * characters cmd reads as plain text. */
 export function runnerCommand(
   runId: string,

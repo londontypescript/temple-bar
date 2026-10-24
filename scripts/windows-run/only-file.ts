@@ -3,7 +3,7 @@
 // recorded commit tracks. The tree is already required clean, so that commit
 // is what is on disk.
 
-import { testTarget } from "./remote/test-target.ts";
+import { testTarget } from "./remote/only-target.ts";
 import type { LocalDeps } from "./seams.ts";
 
 /** Why `file` can't be run, for the terminal; undefined when it can. */

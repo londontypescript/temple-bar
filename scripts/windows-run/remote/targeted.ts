@@ -20,7 +20,7 @@ import {
 } from "./steps.ts";
 import type { Layout } from "./sweep.ts";
 import type { Sys } from "./sys.ts";
-import { testCommand, testTarget } from "./test-target.ts";
+import { testCommand, testTarget } from "./only-target.ts";
 
 const BLOB_ID = /^[0-9a-f]{40}$|^[0-9a-f]{64}$/;
 const VERSION = /\d+\.\d+\.\d+/;
