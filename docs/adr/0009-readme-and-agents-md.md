@@ -1,7 +1,7 @@
 # ADR 0009: The README, AGENTS.md and who writes them
 
-Date: 2026-10-01. Status: accepted (decisions 1, 12, 19 and 36; the gate's
-check of 36 is not built yet).
+Date: 2026-10-01, updated 2026-10-24. Status: accepted (decisions 1, 12, 19,
+36 and 56; the gate's check of 36 is not built yet).
 
 ## Context
 
@@ -26,14 +26,24 @@ as the npm and GitHub descriptions, followed by the quote "A rule that exists
 only as prose is a rule that will eventually be violated." The plain intro
 still comes first.
 
-**Decision 12: the TypeScript trademark.** temple-bar never uses the
-TypeScript logo, and always writes "TypeScript" with a capital S. Its README
-and packages carry no trademark disclaimer, because the name temple-bar
-doesn't use the mark. Microsoft's guidelines, read on 2026-09-28,
-discourage marks in community names, while TypeScript's branding page only
-restricts product use; this was judged low risk. The decision also placed a
-disclaimer on the London TypeScript org profile; that half is organisation
-work, out of temple-bar's scope since 2026-09-30.
+**Decision 12: the TypeScript trademark.** temple-bar's README and packages
+carry no trademark disclaimer, because the name temple-bar doesn't use the
+mark. Microsoft's guidelines, read on 2026-09-28, discourage marks in
+community names, while TypeScript's branding page only restricts product use;
+this was judged low risk. How "TypeScript" is written, and whether the
+TypeScript logo is used, are the organisation's guidance, not temple-bar's.
+
+Until 2026-10-24 the decision also said temple-bar never uses the logo and
+always writes "TypeScript" with a capital S, and AGENTS.md carried that line.
+It moved to the organisation
+([#356](https://github.com/londontypescript/temple-bar/issues/356)): it is
+branding, which applies to everything London TypeScript publishes; it was
+never needed, since no file, commit or pull request here has spelled the name
+with a lower-case s or carried the logo; and every agent reads all of
+AGENTS.md in every session. The gate check proposed for it
+([#232](https://github.com/londontypescript/temple-bar/issues/232)) closed
+with it. The decision's other half, a disclaimer on the org profile, became
+organisation work on 2026-09-30.
 
 **Decision 19: the maintainer owns the README's shape; agents keep it
 accurate.** Agents update the README themselves when a change is minor:
