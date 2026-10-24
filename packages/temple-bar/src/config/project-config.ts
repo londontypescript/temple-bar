@@ -1,5 +1,5 @@
 // The one place that reads a project's temple-bar.config.json. Every check
-// that has a limit (the file-length cap, the pull request size warning) gets
+// that has a limit (the file-length cap, the pull request size limits) gets
 // it from here, so a key's name, its default and its validation live in one
 // spot and a broken file is reported the same way everywhere.
 
@@ -11,9 +11,16 @@ export const CONFIG_FILE_NAME = "temple-bar.config.json";
 export interface ProjectConfig {
   /** Longest a tracked text file may be, in lines. */
   readonly maxFileLines: number;
-  /** Most lines (added plus deleted) one pull request should change. */
+  /** Most source lines (added plus deleted) one pull request may change
+   * without a `One concern:` line. Test files count against
+   * `maxPullRequestTestLines` instead. */
   readonly maxPullRequestLines: number;
-  /** Most files one pull request should touch. */
+  /** Most test lines (added plus deleted) one pull request may change
+   * without a `One concern:` line. Higher than the source limit, because a
+   * change that is well tested is bigger than one that isn't. */
+  readonly maxPullRequestTestLines: number;
+  /** Most files, source and test together, one pull request may touch
+   * without a `One concern:` line. */
   readonly maxPullRequestFiles: number;
 }
 
@@ -30,6 +37,7 @@ export interface ProjectConfig {
 export const DEFAULT_CONFIG: ProjectConfig = {
   maxFileLines: 400,
   maxPullRequestLines: 500,
+  maxPullRequestTestLines: 1_000,
   maxPullRequestFiles: 15,
 };
 
@@ -61,6 +69,9 @@ function parseProjectConfig(value: unknown): ProjectConfig {
     maxPullRequestLines:
       readLimit(value, "maxPullRequestLines") ??
       DEFAULT_CONFIG.maxPullRequestLines,
+    maxPullRequestTestLines:
+      readLimit(value, "maxPullRequestTestLines") ??
+      DEFAULT_CONFIG.maxPullRequestTestLines,
     maxPullRequestFiles:
       readLimit(value, "maxPullRequestFiles") ??
       DEFAULT_CONFIG.maxPullRequestFiles,

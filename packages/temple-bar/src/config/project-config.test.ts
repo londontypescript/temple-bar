@@ -23,7 +23,19 @@ void test("a key in the config overrides only its own default", async () => {
   );
   assert.equal(config.maxPullRequestLines, 77);
   assert.equal(config.maxPullRequestFiles, DEFAULT_CONFIG.maxPullRequestFiles);
+  assert.equal(
+    config.maxPullRequestTestLines,
+    DEFAULT_CONFIG.maxPullRequestTestLines,
+  );
   assert.equal(config.maxFileLines, DEFAULT_CONFIG.maxFileLines);
+});
+
+void test("test lines have their own limit, read from the config", async () => {
+  const config = await readProjectConfig(
+    withConfig(JSON.stringify({ maxPullRequestTestLines: 99 })),
+  );
+  assert.equal(config.maxPullRequestTestLines, 99);
+  assert.equal(config.maxPullRequestLines, DEFAULT_CONFIG.maxPullRequestLines);
 });
 
 void test("a broken config is an error naming the file, never a silent default", async () => {
@@ -33,6 +45,7 @@ void test("a broken config is an error naming the file, never a silent default",
     JSON.stringify({ maxPullRequestFiles: 0 }),
     JSON.stringify({ maxPullRequestLines: "100" }),
     JSON.stringify({ maxPullRequestLines: 1.5 }),
+    JSON.stringify({ maxPullRequestTestLines: -1 }),
   ]) {
     await assert.rejects(
       readProjectConfig(withConfig(content)),
