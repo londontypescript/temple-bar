@@ -132,17 +132,17 @@ reminder stays. A warning that's wrong teaches readers to skip warnings.
 For a pull request the judge will refuse, and the maintainer therefore merges
 as admin on GitHub, the AGENTS.md template says: the description is exactly
 the squash commit's body, one bullet per change (none when the title says it
-all), then the co-author lines, with no "Generated with" line and no note to
-the maintainer; the title supplies the subject. What the maintainer should
-check goes in a separate comment headed "Before merging as admin, check": the
-judge's refusal names only what's expected; every other check is green;
-GitHub's merge preview shows the right subject, body and co-author trailers; a
-`One concern:` line when the pull request closes several issues or is over the
-size limits, because an admin merge skips merge's own enforcement; and
-anything specific to the change, such as a pin bump's lockfile integrity hash
-matching the one npm publishes. Setup doesn't set GitHub's squash-message
-default, so the template doesn't promise it in every adopting repo; the
-preview item covers it.
+all), then the co-author and reviewer lines, with no "Generated with" line and
+no note to the maintainer; the title supplies the subject. What the maintainer
+should check goes in a separate comment headed "Before merging as admin,
+check": the judge's refusal names only what's expected; every other check is
+green; GitHub's merge preview shows the right subject, body and co-author and
+reviewer trailers; a `One concern:` line when the pull request closes several
+issues or is over the size limits, because an admin merge skips merge's own
+enforcement; and anything specific to the change, such as a pin bump's
+lockfile integrity hash matching the one npm publishes. Setup doesn't set
+GitHub's squash-message default, so the template doesn't promise it in every
+adopting repo; the preview item covers it.
 ([#270](https://github.com/londontypescript/temple-bar/issues/270))
 
 **Decision 87: a pin bump's mixing is disclosed, not yet refused.** AGENTS.md
