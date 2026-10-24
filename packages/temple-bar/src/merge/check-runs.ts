@@ -40,8 +40,9 @@ interface Placed {
  * later workflow run is newer. Within one workflow run, which is how a
  * re-run's attempts are recorded, the higher check run id is: GitHub gives
  * each new check run a higher id. Start time is no use here: while a run is
- * queued, GitHub reports its creation time as its start, so a run cancelled
- * before it started can look newer than the run that replaced it. */
+ * queued, GitHub reports its creation time as its start, and resets it when
+ * the run leaves the queue, so a run that waited longer in the queue can
+ * look newer than one created after it. */
 function isNewer(a: Placed, b: Placed): boolean {
   const aWorkflowRun = a.workflowRun?.run;
   const bWorkflowRun = b.workflowRun?.run;
@@ -161,9 +162,12 @@ function deciding(
  * workflows never replace each other, even with the same name: a pull
  * request can add a workflow whose job copies a required check's name, and
  * GitHub still holds the real check's failure against it. `workflowRuns`
- * lists the commit's workflow runs; a run whose check suite isn't among
- * them (any run outside GitHub Actions) is grouped by its app and ordered
- * by check run id. */
+ * lists the commit's workflow runs. A run whose check suite isn't among
+ * them (any run outside GitHub Actions, or an Actions run whose workflow
+ * run isn't listed yet) is compared only with runs in its own check suite,
+ * by check run id: its workflow isn't known, so a run in another suite
+ * might belong to a copycat workflow and must not replace it. A run with
+ * no suite at all is grouped by its app. */
 export function newestRunPerCheck(
   runs: readonly Record<string, unknown>[],
   workflowRuns: readonly WorkflowRun[] = [],
@@ -181,10 +185,13 @@ export function newestRunPerCheck(
     } else if (app !== undefined) {
       actionsApps.add(app);
     }
+    const appKey = `app ${app === undefined ? "" : String(app)}`;
     const source =
-      workflowRun === undefined
-        ? `app ${app === undefined ? "" : String(app)}`
-        : `workflow ${String(workflowRun.workflow)}`;
+      workflowRun !== undefined
+        ? `workflow ${String(workflowRun.workflow)}`
+        : suite === undefined
+          ? appKey
+          : `${appKey} suite ${String(suite)}`;
     const key = `${source}\n${text(run.name)}`;
     const candidate = { run, workflowRun };
     const seen = newest.get(key);

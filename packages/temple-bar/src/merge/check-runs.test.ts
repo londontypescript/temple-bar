@@ -55,9 +55,11 @@ void test("a newer workflow run that hasn't made the check's run yet keeps the c
 });
 
 void test("a run cancelled in an older workflow run doesn't count, even when it reports a later start", () => {
-  // A run cancelled while queued reports its creation as its start, and a
-  // run reports its start again when it leaves the queue, so start times
-  // can put the cancelled run after the run that replaced it.
+  // The shape the issue first guessed: the cancelled run reports a later
+  // start than its replacement. On real GitHub it reported an earlier one,
+  // but a queued run reports its creation time and resets it when it leaves
+  // the queue, so start times can't be trusted either way. Ordering by
+  // workflow run gets this right whatever the times say.
   const runs = [
     checkRun(120918405226, 2, "completed", "success", "2026-10-24T10:00:33Z"),
     checkRun(120918275598, 1, "completed", "cancelled", "2026-10-24T10:00:40Z"),
@@ -115,7 +117,7 @@ void test("a later Actions run whose workflow run isn't listed yet keeps a check
   ];
   assert.deepEqual(outcome(runs, workflowRuns), [
     [TITLE, "queued", null],
-    // The unplaced run itself is still judged on its own, by its app.
+    // The unplaced run itself is still judged on its own, within its suite.
     [TITLE, "queued", null],
   ]);
 });
@@ -184,4 +186,26 @@ void test("a newer workflow run of a different workflow doesn't hold a check bac
   assert.deepEqual(outcome(runs, workflowRuns), [
     [TITLE, "completed", "cancelled"],
   ]);
+});
+
+void test("unlisted runs in different check suites never replace each other", () => {
+  // With no workflow run listed, which workflow a run belongs to isn't
+  // known. A copycat workflow's passing run, created later, must not hide
+  // the real check's failure in another suite.
+  const runs = [
+    checkRun(120918275598, 1, "completed", "failure"),
+    checkRun(120918405226, 2, "completed", "success"),
+  ];
+  assert.deepEqual(outcome(runs, []), [
+    [TITLE, "completed", "failure"],
+    [TITLE, "completed", "success"],
+  ]);
+});
+
+void test("a re-run from an app outside GitHub Actions replaces its earlier run in the same suite", () => {
+  const runs = [
+    { ...checkRun(120918275598, 1, "completed", "failure"), app: 999 },
+    { ...checkRun(120918405226, 1, "completed", "success"), app: 999 },
+  ];
+  assert.deepEqual(outcome(runs, []), [[TITLE, "completed", "success"]]);
 });
