@@ -90,7 +90,7 @@ void test("pr-size e2e: an oversized diff closing three issues is warned about, 
       out,
       /warning: this pull request may be too big or mix concerns/,
     );
-    assert.match(out, /it changes 30 lines \(limit 20\)/);
+    assert.match(out, /30 lines of source changed, limit 20/);
     assert.match(out, /it closes 3 issues: #1, #2, #3/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -104,7 +104,10 @@ void test("pr-size e2e: a huge lockfile-only change is not warned about", async 
     commitAll(dir);
     const { code, out } = await run(dir, "Closes #1");
     assert.equal(code, 0);
-    assert.match(out, /^pr-size: ok: 0 lines changed across 0 files/);
+    assert.match(
+      out,
+      /^pr-size: ok: 0 source lines and 0 test lines changed across 0 files/,
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -123,7 +126,10 @@ void test("pr-size e2e: a pure rename is not counted, a file marked linguist-gen
     const { code, out } = await run(dir);
     assert.equal(code, 0);
     // Only .gitattributes itself (1 line) counts.
-    assert.match(out, /^pr-size: ok: 1 line changed across 1 file/);
+    assert.match(
+      out,
+      /^pr-size: ok: 1 source line and 0 test lines changed across 1 file/,
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

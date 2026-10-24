@@ -1,6 +1,12 @@
-// Measures how big a pull request is: lines changed and files touched
-// between the merge base of two refs and the head. Reads `git diff` only
-// through the git seam.
+// Measures how big a pull request is: source lines and test lines changed,
+// and files touched, between the merge base of two refs and the head. Reads
+// `git diff` only through the git seam.
+//
+// Test lines are counted apart from source lines because a well-tested
+// change is bigger than an untested one, and one limit for both would
+// reward leaving the tests out. A file is a test by its name alone (see
+// `isTestPath`), so moving code into a folder can't move it out of the
+// source count.
 //
 // What does not count, so the number reflects what a reviewer reads:
 //   - lockfiles (the same list the file-length cap skips): a dependency
@@ -9,15 +15,37 @@
 //     git attribute (GitHub hides those from the diff view too), so a
 //     project opts a file out in .gitattributes, not in a list here;
 //   - pure renames: a moved file with no edits changes no content.
-// A rename that is also edited counts its edited lines, once.
+// A rename that is also edited counts its edited lines, once, as source or
+// test by its new name.
 
 import path from "node:path";
 import type { Context } from "../context.ts";
 import { LOCKFILE_NAMES } from "../gate/lengths.ts";
 
 export interface DiffSize {
-  readonly linesChanged: number;
+  /** Lines added plus deleted in files that aren't tests. */
+  readonly sourceLines: number;
+  /** Lines added plus deleted in test files. */
+  readonly testLines: number;
+  /** Files touched, source and test together. */
   readonly filesTouched: number;
+}
+
+/** A test file's name: `*.test.*` or `*.spec.*`. */
+const TEST_NAME = /\.(?:test|spec)\.[^/]+$/;
+
+/** True for a test file, judged by its path as git writes it (`/` between
+ * folders): a name like `*.test.*` or `*.spec.*`, anything under a
+ * `__tests__` folder, or a `.snap` snapshot. Folders such as `fixtures/`,
+ * `test/` or `testing/` don't make a file a test: they often hold real code
+ * the tests share, and that is reviewed like any other source. */
+export function isTestPath(file: string): boolean {
+  const basename = path.posix.basename(file);
+  return (
+    TEST_NAME.test(basename) ||
+    path.posix.extname(basename) === ".snap" ||
+    path.posix.dirname(file).split("/").includes("__tests__")
+  );
 }
 
 interface NumstatEntry {
@@ -104,8 +132,14 @@ export async function measureDiff(
     counted.map((entry) => entry.path),
   );
   const kept = counted.filter((entry) => !generated.has(entry.path));
-  return {
-    linesChanged: kept.reduce((sum, entry) => sum + entry.lines, 0),
-    filesTouched: kept.length,
-  };
+  let sourceLines = 0;
+  let testLines = 0;
+  for (const entry of kept) {
+    if (isTestPath(entry.path)) {
+      testLines += entry.lines;
+    } else {
+      sourceLines += entry.lines;
+    }
+  }
+  return { sourceLines, testLines, filesTouched: kept.length };
 }
