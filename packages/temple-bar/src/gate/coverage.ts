@@ -54,9 +54,13 @@ interface Coverage {
   readonly requires: (file: string) => boolean;
   /** The files it requires, counted: "TypeScript file(s)". */
   readonly files: string;
+  /** The skip's detail when the repo has no such file. */
   readonly none: string;
+  /** Said of the files nothing covers. */
   readonly uncovered: string;
+  /** What a listing's tool does with its files, in the log. */
   readonly verb: "checks" | "runs";
+  /** Said of the files a pass covers, and of those a failure misses. */
   readonly done: string;
   readonly missed: string;
   readonly fix: string;
@@ -156,8 +160,9 @@ async function gather(
     const command = scriptsOf(await readPackageManifest(ctx, target.folder))[
       coverage.script
     ];
-    // A missing or empty script contributes no listing; the gate has
-    // already failed it, and its files are reported like any other.
+    // A script that is missing or does nothing contributes no listing:
+    // the gate has already failed it, and its package's files are
+    // reported like any other.
     if (command === undefined) {
       gathered.notes.set(
         target.where,
