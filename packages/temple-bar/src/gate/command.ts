@@ -21,6 +21,7 @@
 // Every run ends with the same report, pass or fail: each check and its
 // outcome, then the verdict (see report.ts).
 
+import { readProjectConfig } from "../config/project-config.ts";
 import type { CommandEntry } from "../registry.ts";
 import type { Context } from "../context.ts";
 import {
@@ -157,13 +158,11 @@ async function runGate(ctx: Context, tools: GateTools): Promise<number> {
   const stack = await runStackChecks(ctx, listed);
   const outcomes = [
     ...stack.outcomes,
-    // Exclusions come from temple-bar.config.json once its field lands
-    // with the pull request size limits; until then there are none.
     ...(await runCoverageCheck(ctx, {
       listed,
       launcher: stack.launcher,
       inventory: stack.inventory,
-      exclusions: [],
+      exclusions: (await readProjectConfig(ctx)).coverageExclusions,
     })),
     await runCoreCheck(ctx),
     await runWorkflowCopiesCheck(ctx),

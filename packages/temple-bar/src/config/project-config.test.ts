@@ -46,10 +46,35 @@ void test("a broken config is an error naming the file, never a silent default",
     JSON.stringify({ maxPullRequestLines: "100" }),
     JSON.stringify({ maxPullRequestLines: 1.5 }),
     JSON.stringify({ maxPullRequestTestLines: -1 }),
+    JSON.stringify({ coverageExclusions: "src/generated/" }),
+    JSON.stringify({ coverageExclusions: ["src/a.ts", ""] }),
+    JSON.stringify({ coverageExclusions: ["src/a.ts", 1] }),
+    JSON.stringify({ coverageExclusions: null }),
   ]) {
     await assert.rejects(
       readProjectConfig(withConfig(content)),
       /temple-bar\.config\.json/,
     );
   }
+});
+
+void test("coverage exclusions are read as given, and none by default", async () => {
+  assert.deepEqual(DEFAULT_CONFIG.coverageExclusions, []);
+  const config = await readProjectConfig(
+    withConfig(
+      JSON.stringify({ coverageExclusions: ["src/generated/", "src/a.ts"] }),
+    ),
+  );
+  assert.deepEqual(config.coverageExclusions, ["src/generated/", "src/a.ts"]);
+  assert.equal(config.maxFileLines, DEFAULT_CONFIG.maxFileLines);
+});
+
+void test("an exclusion list that isn't non-empty paths is refused with the file's usual error", async () => {
+  await assert.rejects(
+    readProjectConfig(withConfig(JSON.stringify({ coverageExclusions: [""] }))),
+    {
+      message:
+        'temple-bar.config.json: "coverageExclusions" must be a list of non-empty paths',
+    },
+  );
 });
