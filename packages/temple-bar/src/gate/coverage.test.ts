@@ -16,6 +16,7 @@ import { listGitPaths } from "./lengths.ts";
 import { testGateCommand as gateCommand } from "./testing/fake-tools.ts";
 import {
   ALL_SCRIPTS,
+  NPM_EXEC,
   PNPM_EXEC,
   workspace,
   type WorkspaceOptions,
@@ -160,6 +161,39 @@ void test("identical listings are made once: a repeated command, and Vitest's ru
     run.out,
     /^gate: listing the files tsc -p tsconfig\.json checks in the root$/m,
   );
+});
+
+void test("a tool runs through the package manager that started the gate, the way its scripts run, with no shell", async () => {
+  const listing = (env: NodeJS.ProcessEnv) =>
+    runGate({
+      workspaceFile: false,
+      packages: {},
+      extraTracked: ["src/a.ts"],
+      env,
+    }).then(({ proc }) =>
+      proc.calls.filter((call) => call.args.includes("exec")),
+    );
+
+  const [pnpm] = await listing({ npm_execpath: PNPM_EXEC });
+  assert.equal(pnpm?.command, process.execPath);
+  assert.deepEqual(pnpm.args, [PNPM_EXEC, "exec", "tsc", "--listFilesOnly"]);
+  assert.equal(pnpm.cwd, path.normalize("/repo"));
+
+  const [npm] = await listing({ npm_execpath: NPM_EXEC });
+  assert.equal(npm?.command, process.execPath);
+  assert.deepEqual(npm.args, [
+    NPM_EXEC,
+    "exec",
+    "--no",
+    "--",
+    "tsc",
+    "--listFilesOnly",
+  ]);
+
+  // Run by hand, through the package manager the project names.
+  const [byHand] = await listing({});
+  assert.equal(byHand?.command, "pnpm");
+  assert.deepEqual(byHand.args, ["exec", "tsc", "--listFilesOnly"]);
 });
 
 void test("a failed listing fails its outcome with tsc's line, and the other package's listing still runs", async () => {
