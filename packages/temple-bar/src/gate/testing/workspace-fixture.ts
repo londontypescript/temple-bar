@@ -1,6 +1,7 @@
 // A pnpm workspace as the gate sees it through fakes: git's file list, the
 // files on disk, and a pnpm (named by npm_execpath) that answers
-// `pnpm list` and runs scripts with whatever exit codes a test chooses. Not
+// `pnpm list`, lists files for the tools the coverage check asks through
+// `exec`, and runs scripts with whatever exit codes a test chooses. Not
 // shipped: the build tsconfig excludes every `testing/` folder.
 
 import path from "node:path";
@@ -55,6 +56,8 @@ export interface WorkspaceOptions {
   };
   /** The exit code for `script` run in `folder` (relative, "" the root). */
   readonly exitCode?: (folder: string, script: string) => number;
+  /** What tools list in each folder; by default every tracked file in it. */
+  readonly listings?: FakeListings;
 }
 
 export interface Workspace {
@@ -99,6 +102,39 @@ function isListing(call: RecordedProcCall): boolean {
   return call.args.includes("list");
 }
 
+/** The files a tool lists when run in `folder` ("" the root), relative to
+ * the root and "/"-separated. */
+export type FakeListings = (folder: string) => readonly string[];
+
+/** Answers a tool the coverage check runs through the package manager's
+ * `exec`, as tsc (`--listFilesOnly`) and Vitest (`list --json`) list
+ * `listings`' files; `--showConfig` prints a config with no references.
+ * Undefined for any call that isn't an `exec`. */
+export function answerExec(
+  call: RecordedProcCall,
+  run: ProcRunOptions,
+  listings: FakeListings,
+): number | undefined {
+  if (!call.args.includes("exec")) {
+    return undefined;
+  }
+  const relative = path.relative(path.normalize("/repo"), call.cwd);
+  // Forward slashes, as tsc and Vitest print them on every platform.
+  const files = listings(relative.split(path.sep).join("/")).map(
+    (file) => `/repo/${file}`,
+  );
+  if (call.args.includes("--showConfig")) {
+    run.stdout.write("{}\n");
+  } else if (call.args.includes("--listFilesOnly")) {
+    run.stdout.write(files.map((file) => `${file}\n`).join(""));
+  } else if (call.args.includes("--json")) {
+    run.stdout.write(JSON.stringify(files.map((file) => ({ file }))));
+  } else {
+    return 1;
+  }
+  return 0;
+}
+
 export function workspace(options: WorkspaceOptions = {}): Workspace {
   const packages = options.packages ?? {
     "packages/a": ALL_SCRIPTS,
@@ -134,7 +170,15 @@ export function workspace(options: WorkspaceOptions = {}): Workspace {
   const listing = options.listing ?? {
     stdout: pnpmListing(["", ...Object.keys(packages)]),
   };
+  const listings: FakeListings =
+    options.listings ??
+    ((folder) =>
+      tracked.filter((file) => folder === "" || file.startsWith(`${folder}/`)));
   const proc = createFakeProc((call, run: ProcRunOptions) => {
+    const listed = answerExec(call, run, listings);
+    if (listed !== undefined) {
+      return listed;
+    }
     if (isListing(call)) {
       run.stdout.write(listing.stdout);
       run.stderr.write(listing.stderr ?? "");

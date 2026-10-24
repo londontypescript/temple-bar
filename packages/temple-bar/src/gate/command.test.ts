@@ -18,6 +18,7 @@ import {
   coreFiles,
   withCoreGit,
 } from "./testing/core-fixture.ts";
+import { answerExec } from "./testing/workspace-fixture.ts";
 
 function registryWithGate(): CommandRegistry {
   const registry = new CommandRegistry();
@@ -26,6 +27,18 @@ function registryWithGate(): CommandRegistry {
 }
 
 const SMALL_FILE = "one\ntwo\nthree\n";
+
+/** tsc's listing names the project's one TypeScript file, as a tsconfig
+ * that includes it would. */
+const LISTS_INDEX = () => ["src/index.ts"];
+
+/** The script each run was for, leaving out the tools the coverage check
+ * runs through `exec`. */
+function scriptRuns(proc: ReturnType<typeof createFakeProc>): string[] {
+  return proc.calls
+    .filter((call) => call.args[0] === "run")
+    .map((call) => call.args[1] ?? "");
+}
 
 const ALL_SCRIPTS = {
   typecheck: "tsc",
@@ -50,7 +63,10 @@ function codeProject(
       stderr: "",
     })),
   );
-  const proc = createFakeProc((call) => exitCodeFor(call.args[1]));
+  const proc = createFakeProc(
+    (call, run) =>
+      answerExec(call, run, LISTS_INDEX) ?? exitCodeFor(call.args[1]),
+  );
   const fs = createFakeFs({
     ...coreFiles(),
     "/repo/package.json": JSON.stringify({
@@ -72,7 +88,9 @@ void test("gate: a passing project (stack + length cap both pass) exits 0", asyn
       stderr: "",
     })),
   );
-  const proc = createFakeProc(() => 0);
+  const proc = createFakeProc(
+    (call, run) => answerExec(call, run, LISTS_INDEX) ?? 0,
+  );
   const fs = createFakeFs({
     ...coreFiles(),
     "/repo/package.json": JSON.stringify({
@@ -85,7 +103,7 @@ void test("gate: a passing project (stack + length cap both pass) exits 0", asyn
   const code = await route(["gate"], ctx, registryWithGate());
 
   assert.equal(code, 0);
-  assert.equal(proc.calls.length, 4);
+  assert.equal(scriptRuns(proc).length, 4);
 });
 
 void test("gate: a failing test script exits 1, but the other scripts still run", async () => {
@@ -96,7 +114,10 @@ void test("gate: a failing test script exits 1, but the other scripts still run"
       stderr: "",
     })),
   );
-  const proc = createFakeProc((call) => (call.args[1] === "test" ? 1 : 0));
+  const proc = createFakeProc(
+    (call, run) =>
+      answerExec(call, run, LISTS_INDEX) ?? (call.args[1] === "test" ? 1 : 0),
+  );
   const fs = createFakeFs({
     ...coreFiles(),
     "/repo/package.json": JSON.stringify({
@@ -109,10 +130,12 @@ void test("gate: a failing test script exits 1, but the other scripts still run"
   const code = await route(["gate"], ctx, registryWithGate());
 
   assert.equal(code, 1);
-  assert.deepEqual(
-    proc.calls.map((c) => c.args[1]),
-    ["typecheck", "lint", "format:check", "test"],
-  );
+  assert.deepEqual(scriptRuns(proc), [
+    "typecheck",
+    "lint",
+    "format:check",
+    "test",
+  ]);
 });
 
 void test("gate: content exists but package.json has no scripts exits 2, naming every required script", async () => {
@@ -153,10 +176,7 @@ void test("gate: format:check is required: a project without it exits 2, and the
   const code = await route(["gate"], ctx, registryWithGate());
 
   assert.equal(code, 2);
-  assert.deepEqual(
-    proc.calls.map((c) => c.args[1]),
-    ["typecheck", "lint", "test"],
-  );
+  assert.deepEqual(scriptRuns(proc), ["typecheck", "lint", "test"]);
   const text = stderr.lines.join("");
   assert.match(text, /missing script\(s\): format:check\n/);
   assert.match(
@@ -178,12 +198,15 @@ void test("gate: a pass lists every check that ran, each passed, on stdout", asy
   assert.equal(
     stdout.lines.join(""),
     [
+      "gate: listing the files tsc checks in the root",
       "gate: checks:",
       "  passed   workspace packages (the root alone: no pnpm-workspace.yaml)",
       "  passed   typecheck",
       "  passed   lint",
       "  passed   format:check",
       "  passed   test",
+      "  passed   type-check coverage (all 1 TypeScript file(s) checked by 1 listing(s))",
+      "  skipped  test coverage (no test files)",
       "  passed   core setup (5 hooks unchanged, git config, .gitignore, package.json scripts)",
       "  passed   gate and title workflows (2 exact copies)",
       `  passed   file-length cap (all 2 tracked text file(s) are within the ${String(DEFAULT_MAX_FILE_LINES)}-line cap)`,
@@ -209,7 +232,7 @@ void test("gate: a failure lists every check the same way, on stderr, and names 
   const code = await route(["gate"], ctx, registryWithGate());
 
   assert.equal(code, 1);
-  assert.equal(stdout.lines.join(""), "");
+  assert.doesNotMatch(stdout.lines.join(""), /gate: checks:/);
   const text = stderr.lines.join("");
   assert.match(text, /^ {2}passed {3}typecheck$/m);
   assert.match(text, /^ {2}failed {3}lint \(exit 1\)$/m);
@@ -251,7 +274,9 @@ void test("gate: the length cap fails the gate even when the stack checks pass",
       stderr: "",
     })),
   );
-  const proc = createFakeProc(() => 0);
+  const proc = createFakeProc(
+    (call, run) => answerExec(call, run, LISTS_INDEX) ?? 0,
+  );
   const fs = createFakeFs({
     ...coreFiles(),
     "/repo/temple-bar.config.json": JSON.stringify({ maxFileLines: 2 }),

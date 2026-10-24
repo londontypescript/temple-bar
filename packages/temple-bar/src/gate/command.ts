@@ -31,13 +31,14 @@ import {
   AGENTS_MAX_LINES,
 } from "./agents-size.ts";
 import { runCoreCheck } from "./core.ts";
+import { runCoverageCheck } from "./coverage.ts";
 import {
   checkFileLengths,
   formatLengthFailure,
   listGitPaths,
 } from "./lengths.ts";
 import { runLinkCheck, runMarkdownLint } from "./markdown.ts";
-import { resolveLauncher } from "./launcher.ts";
+import { resolveLauncher, type Launcher } from "./launcher.ts";
 import { runPackageScripts } from "./package-scripts.ts";
 import { takeInventory, type Inventory } from "./packages.ts";
 import { runRulesetChecks } from "./ruleset.ts";
@@ -60,6 +61,8 @@ interface StackResult {
   readonly scriptsIncomplete: boolean;
   /** The packages, for checks that say which package a finding is in. */
   readonly inventory: Inventory;
+  /** How the scripts were started, for checks that run the same tools. */
+  readonly launcher: Launcher;
 }
 
 /** The scripts of the root, then of every package the inventory lists,
@@ -101,6 +104,7 @@ async function runStackChecks(
     ],
     scriptsIncomplete: results.some((result) => result.incomplete),
     inventory,
+    launcher,
   };
 }
 
@@ -153,6 +157,14 @@ async function runGate(ctx: Context, tools: GateTools): Promise<number> {
   const stack = await runStackChecks(ctx, listed);
   const outcomes = [
     ...stack.outcomes,
+    // Exclusions come from temple-bar.config.json once its field lands
+    // with the pull request size limits; until then there are none.
+    ...(await runCoverageCheck(ctx, {
+      listed,
+      launcher: stack.launcher,
+      inventory: stack.inventory,
+      exclusions: [],
+    })),
     await runCoreCheck(ctx),
     await runWorkflowCopiesCheck(ctx),
     await runLengthCheck(ctx),
@@ -203,6 +215,14 @@ export function createGateCommand(tools: GateTools): CommandEntry {
       "never inside a pull request's worktree: pnpm runs whatever the",
       "current folder's package.json says. A tracked package.json that is",
       "neither the root's nor a listed package's fails.",
+      "Then checks that every tracked TypeScript file (declarations aside) is",
+      "in a program a typecheck script checks, and every .test. or .spec. code",
+      "file is run by a test script, asking the tools those scripts run, in",
+      "the root and every package; it can list tsc [-p <config>], tsc -b",
+      "[<project>...], vitest [run] and node --test (no entry script before",
+      "--test), joined with &&, and fails any other form, naming those it",
+      "can list. Exclusions go under coverageExclusions in",
+      "temple-bar.config.json.",
       "Started by a package manager, the gate runs every script through it,",
       "with no shell: a JavaScript entry point through Node, or pnpm's",
       "standalone executable directly. Any other launcher, such as a .cmd",
