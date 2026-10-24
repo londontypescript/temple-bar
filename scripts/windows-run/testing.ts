@@ -99,6 +99,9 @@ export interface FakeSysOptions {
   blobs?: Record<string, string>;
   /** What `node --version` and `pnpm --version` print. */
   versions?: { node?: string; pnpm?: string };
+  /** What `rev-parse --show-toplevel` prints; the folder it runs in
+   * otherwise. */
+  toplevel?: string;
   refs?: string[];
   /** Every listing from this call on (1 = the first) fails. */
   failListingFrom?: number;
@@ -138,6 +141,8 @@ export interface FakeSys extends Sys {
   treePids: number[];
   /** Every step started, as it was asked for. */
   specs: StepSpec[];
+  /** Every probe, with the folder it ran in. */
+  probes: { command: string; cwd: string | undefined }[];
 }
 
 const GIT_EXEC_PATH = "C:/Program Files/Git/mingw64/libexec/git-core";
@@ -167,6 +172,7 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
     deletedRefs: [],
     treePids: [],
     specs: [],
+    probes: [],
     procs: [
       { pid: 100, name: "node", startMs: RUNNER_START },
       { pid: 90, name: "cmd", startMs: RUNNER_START - 1_000 },
@@ -222,6 +228,8 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
           ...ok,
           stdout: `${options.blobs?.[file] ?? "b".repeat(40)}\n`,
         };
+      } else if (verb === "rev-parse" && args.includes("--show-toplevel")) {
+        return { ...ok, stdout: `${options.toplevel ?? cwd ?? ""}\n` };
       } else if (verb === "rev-parse") {
         return { ...ok, stdout: `${options.headSha ?? SHA}\n` };
       } else if (verb === "for-each-ref") {
@@ -242,13 +250,23 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
       }
       sys.clock += script.takes ?? 1_000;
       sys.procs.push(...(script.leaves ?? []));
+      const exitCode = script.timedOut === true ? null : (script.exitCode ?? 0);
+      if (name === "install" && exitCode === 0) {
+        // What pnpm writes once an install has finished.
+        await nodeFs.mkdir(path.join(spec.cwd, "node_modules"));
+        await nodeFs.writeFile(
+          path.join(spec.cwd, "node_modules", ".modules.yaml"),
+          "",
+        );
+      }
       return Promise.resolve({
         exitCode: script.timedOut === true ? null : (script.exitCode ?? 0),
         timedOut: script.timedOut ?? false,
       });
     },
-    probe: (command) =>
-      Promise.resolve(
+    probe: (command, _args, cwd) => {
+      sys.probes.push({ command, cwd });
+      return Promise.resolve(
         command === "node"
           ? `v${options.versions?.node ?? "24.20.0"}\n`
           : command === "pnpm"
@@ -258,7 +276,8 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
                 ? "ready\n"
                 : options.shSays
               : "git version 2.55.0.windows.1\n",
-      ),
+      );
+    },
     realpath: (file) => Promise.resolve(file),
     where: (command) =>
       Promise.resolve(

@@ -37,7 +37,9 @@ const UNCHANGED = "unchanged since the last install";
  * - Node's version: what an install built or chose under one Node may not
  *   work under another;
  * - pnpm's version: another pnpm may lay node_modules out differently, or
- *   refuse one an earlier pnpm wrote.
+ *   refuse one an earlier pnpm wrote. It is asked from inside the kept
+ *   worktree, because pnpm run there switches to the version the project's
+ *   `packageManager` names, which is the one the install uses.
  * Null when any of them can't be read: then the install always runs, and no
  * record is written.
  */
@@ -55,7 +57,9 @@ async function installKey(
     return result.code === 0 && BLOB_ID.test(id) ? id : null;
   };
   const version = async (tool: string): Promise<string | null> =>
-    VERSION.exec((await sys.probe(tool, ["--version"])) ?? "")?.[0] ?? null;
+    VERSION.exec(
+      (await sys.probe(tool, ["--version"], layout.only)) ?? "",
+    )?.[0] ?? null;
   const key = {
     lockfile: await blob("pnpm-lock.yaml"),
     workspace: await blob("pnpm-workspace.yaml"),
@@ -77,20 +81,45 @@ function forgetInstall(sys: Sys, layout: Layout): Promise<void> {
   return removeWithRetry(sys.fs, (ms) => sys.sleep(ms), layout.onlyInstall);
 }
 
-/** Brings the kept worktree to `sha`, leaving only node_modules from what
- * an earlier file left. False when it isn't a worktree or git failed. */
-async function refresh(
-  sys: Sys,
-  worktree: string,
-  sha: string,
-): Promise<boolean> {
+/** Whether git, run in `worktree`, works on that folder and nothing else.
+ * The checkout and clean that follow throw away changes, so anything less
+ * would let them change some other checkout. */
+async function isOwnWorktree(sys: Sys, worktree: string): Promise<boolean> {
+  // A link (or, on Windows, a junction, which Node reports as one) would
+  // send them into the folder it points at.
+  const own = await sys.fs.lstat(worktree);
+  if (own.isSymbolicLink() || !own.isDirectory()) {
+    return false;
+  }
   // A worktree's .git is a file. Without one, git would look further up
-  // for a repository, and the clean below could empty some other folder.
+  // for a repository.
   try {
     if ((await sys.fs.lstat(path.join(worktree, ".git"))).isDirectory()) {
       return false;
     }
   } catch {
+    return false;
+  }
+  // And git must agree that this folder is the top of the checkout. Both
+  // sides are compared as canonical paths: git prints forward slashes, and
+  // Windows can spell one folder with short names or another case.
+  const top = await sys.git(["rev-parse", "--show-toplevel"], worktree);
+  const [gitSays, expected] = await Promise.all([
+    sys.realpath(top.stdout.trim()),
+    sys.realpath(worktree),
+  ]);
+  return top.code === 0 && gitSays !== null && gitSays === expected;
+}
+
+/** Brings the kept worktree to `sha`, leaving only node_modules from what
+ * an earlier file left. False when it isn't its own worktree or git failed:
+ * then it is made again. */
+async function refresh(
+  sys: Sys,
+  worktree: string,
+  sha: string,
+): Promise<boolean> {
+  if (!(await isOwnWorktree(sys, worktree))) {
     return false;
   }
   const checkedOut = await gitNoHooks(
@@ -156,7 +185,16 @@ export async function runTargeted(
   }
   await prepareWorktree(sys, layout, sha, say);
   const key = await installKey(sys, layout, sha);
-  const installed = key !== null && (await recordedKey(sys, layout)) === key;
+  // pnpm writes node_modules/.modules.yaml at the end of an install, so a
+  // node_modules deleted or half-written since the record was made installs
+  // again whatever the record says.
+  const installed =
+    key !== null &&
+    (await recordedKey(sys, layout)) === key &&
+    (await pathExists(
+      sys.fs,
+      path.join(layout.only, "node_modules", ".modules.yaml"),
+    ));
   const problems: string[] = [];
   if (!installed) {
     // Deleted before the install starts and written only once it passes, so

@@ -62,8 +62,13 @@ export interface Sys {
     timeoutMs: number,
     onLine: (line: string) => void,
   ): Promise<StepOutcome>;
-  /** Runs a fixed command and returns its stdout, or null if it failed. */
-  probe(command: string, args: readonly string[]): Promise<string | null>;
+  /** Runs a fixed command, from `cwd` when given, and returns its stdout,
+   * or null if it failed. */
+  probe(
+    command: string,
+    args: readonly string[],
+    cwd?: string,
+  ): Promise<string | null>;
   /** Where the command resolves on PATH, or null. */
   where(command: string): Promise<string | null>;
   /** The file's canonical path, or null if it can't be read. */

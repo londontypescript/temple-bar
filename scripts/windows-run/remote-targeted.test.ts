@@ -223,6 +223,7 @@ void test("the kept worktree is updated in place with hooks off, and one that ca
     .filter((call) => call.cwd === worktree)
     .map((call) => call.args.join(" "));
   assert.deepEqual(inWorktree, [
+    "rev-parse --show-toplevel",
     `-c core.hooksPath=NUL checkout --quiet --detach --force ${SHA}`,
     "-c core.hooksPath=NUL clean -ffdx --quiet -e node_modules",
     "rev-parse HEAD",
