@@ -58,6 +58,24 @@ export function makeRecord(
   };
 }
 
+/** A passing targeted run of `file`, its install skipped. */
+export function makeTargetedRecord(
+  file: string,
+  overrides: Partial<ResultRecord> = {},
+): ResultRecord {
+  return makeRecord({
+    mode: "only",
+    file,
+    gate: null,
+    steps: [
+      { name: "install", status: "skipped", exitCode: null, durationMs: 0 },
+      { name: "test", status: "passed", exitCode: 0, durationMs: 9000 },
+    ],
+    tests: { tests: 14, passed: 14, failed: 0, skipped: 0 },
+    ...overrides,
+  });
+}
+
 export function recordLine(record: ResultRecord = makeRecord()): string {
   return formatRecord(record);
 }
@@ -77,6 +95,10 @@ export interface FakeSysOptions {
   >;
   /** The commit the worktree reports. */
   headSha?: string;
+  /** Blob ids by file, for `rev-parse <sha>:<file>`; a fixed id otherwise. */
+  blobs?: Record<string, string>;
+  /** What `node --version` and `pnpm --version` print. */
+  versions?: { node?: string; pnpm?: string };
   refs?: string[];
   /** Every listing from this call on (1 = the first) fails. */
   failListingFrom?: number;
@@ -114,6 +136,8 @@ export interface FakeSys extends Sys {
   deletedRefs: string[];
   /** The pids of the trial tree, top first, once it has started. */
   treePids: number[];
+  /** Every step started, as it was asked for. */
+  specs: StepSpec[];
 }
 
 const GIT_EXEC_PATH = "C:/Program Files/Git/mingw64/libexec/git-core";
@@ -142,6 +166,7 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
     seenAtStep: {},
     deletedRefs: [],
     treePids: [],
+    specs: [],
     procs: [
       { pid: 100, name: "node", startMs: RUNNER_START },
       { pid: 90, name: "cmd", startMs: RUNNER_START - 1_000 },
@@ -185,9 +210,18 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
       if (verb === "init") {
         await nodeFs.mkdir(path.join(args.at(-1) ?? "", ".git"));
       } else if (verb === "worktree" && args.includes("add")) {
-        await nodeFs.mkdir(args.at(-2) ?? "");
+        // A linked worktree's .git is a file naming the clone.
+        const worktree = args.at(-2) ?? "";
+        await nodeFs.mkdir(worktree);
+        await nodeFs.writeFile(path.join(worktree, ".git"), "gitdir: x\n");
       } else if (verb === "--exec-path") {
         return { ...ok, stdout: `${GIT_EXEC_PATH}\n` };
+      } else if (verb === "rev-parse" && args.includes("--verify")) {
+        const file = (args.at(-1) ?? "").split(":")[1] ?? "";
+        return {
+          ...ok,
+          stdout: `${options.blobs?.[file] ?? "b".repeat(40)}\n`,
+        };
       } else if (verb === "rev-parse") {
         return { ...ok, stdout: `${options.headSha ?? SHA}\n` };
       } else if (verb === "for-each-ref") {
@@ -198,8 +232,8 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
       return ok;
     },
     async runStep(spec: StepSpec, _timeout, onLine): Promise<StepOutcome> {
-      const name =
-        spec.args[0] === "install" ? "install" : (spec.args[0] ?? "");
+      sys.specs.push(spec);
+      const name = spec.command === "node" ? "test" : (spec.args[0] ?? "");
       sys.stepsRun.push(name);
       sys.seenAtStep[name] = sys.procs.map((proc) => proc.pid);
       const script = options.steps?.[name] ?? {};
@@ -216,9 +250,9 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
     probe: (command) =>
       Promise.resolve(
         command === "node"
-          ? "v24.20.0\n"
+          ? `v${options.versions?.node ?? "24.20.0"}\n`
           : command === "pnpm"
-            ? "10.34.5\n"
+            ? `${options.versions?.pnpm ?? "10.34.5"}\n`
             : command === "sh"
               ? options.shSays === undefined
                 ? "ready\n"

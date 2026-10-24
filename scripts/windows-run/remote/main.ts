@@ -16,7 +16,8 @@ import { runRemote } from "./runner.ts";
 import { testTarget } from "./test-target.ts";
 
 /** Exit code: the run's, or 2 for arguments that are not a run id, a commit
- * and optionally a test file the suite runs. */
+ * and optionally a test file the suite runs. `start` is the runner; tests
+ * pass a stand-in, so the argument check is tested without running one. */
 export async function main(
   args: readonly string[],
   start: typeof runRemote = runRemote,
