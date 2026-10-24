@@ -1,7 +1,8 @@
 # ADR 0002: What temple-bar is for, and what it will not be
 
-Date: 2026-10-01, updated 2026-10-03 and 2026-10-04. Status: accepted (decisions 2, 3, 11, 28, 29 and 31, and
-three choices settled before the first planning session).
+Date: 2026-10-01, updated 2026-10-03, 2026-10-04 and 2026-10-24. Status:
+accepted (decisions 2, 3, 11, 28, 29 and 31, and three choices settled before
+the first planning session).
 
 ## Context
 
@@ -63,14 +64,16 @@ so a mode without GitHub would have nothing to enforce that rule with.
 not a date.
 
 **Decision 28: a solid foundation first.** temple-bar and grand-union are the
-foundation of the London TypeScript GitHub org. grand-union starts once
-temple-bar's release candidate, 0.5.0, ships: a first run that works, an
-enforced merge path, worktrees that work safely wherever a tool puts them,
-everything the earlier template did, a setup that works on projects made by
-the popular framework scaffolders, rules that can't be quietly weakened,
-subagents kept to their own scope, checks for leaked secrets, and status you
-can trust. The remaining themes continue alongside grand-union, so it
-starts on a foundation that holds rather than waiting for every theme.
+foundation of the London TypeScript GitHub org. grand-union adopts temple-bar,
+in place, once 0.2.0 ships: the release that freezes the agent rules and the
+merge loop for it ([0.2.0 plan](../plans/0.2.0.md)). The remaining themes
+(worktrees that work safely wherever a tool puts them, rules that can't be
+quietly weakened, subagents kept to their own scope, checks for leaked secrets,
+status you can trust) continue alongside, ordered by the incidents grand-union
+and tate-modern raise, so grand-union starts on a foundation that holds rather
+than waiting for every theme. Its start moves again only if scope leaves at
+the same time: every earlier move added scope, and the history below is why
+that rule now exists.
 Until 2026-10-01 this decision said every theme (A to F) came first; it
 changed once the releases up to 0.0.7 were
 planned and the rest proved to be later, separable work. On 2026-10-02 a small
@@ -83,8 +86,12 @@ work. 0.0.10 was added to carry it, with scoped subagents, secrets checks and
 trustworthy status, and grand-union moved after it. On 2026-10-08 the release
 candidate became its own milestone, with fresh scaffolds and workspaces ahead
 of it, and grand-union moved after the candidate. On 2026-10-11 releases were
-renumbered (decision 2), making the candidate 0.5.0. Each move so far has added
-scope rather than replaced it; a further move should be weighed against that.
+renumbered (decision 2), making the candidate 0.5.0. Each of those moves added
+scope rather than replaced it. On 2026-10-24 the maintainer went the other
+way: 0.2.0, frozen that day with the rules and merge fixes grand-union would
+meet in its first weeks, became the release it adopts temple-bar at, in place,
+as tate-modern had on a published release; the candidate's remaining themes
+now follow adoption instead of preceding it.
 
 **Decision 29: working, well-made code first; a showcase second.** The code
 must first work and follow sound standards, in both the code and the

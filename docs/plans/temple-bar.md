@@ -25,7 +25,7 @@ Settled before this session:
 - Models: phases rated routine / involved / delicate; the maintainer picks models, temple-bar never does: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 - What became of the earlier hardening plan's D2, D3, D4 and D7: [ADR 0002](../adr/0002-what-temple-bar-is-for.md)
 
-Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), after the judge's trial on 2026-10-03 (46–54), while planning 0.0.8 on 2026-10-04 (55), while building it on 2026-10-05 (56–58), and while building 0.1.0 on 2026-10-11 (60–62). Decision 38 was revised on 2026-10-05: incidents are titled, not labelled. Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds, and 28 again on 2026-10-04, when 0.0.10 was added. Decisions 2 and 28 were revised on 2026-10-11, when releases were renumbered to 0.MINOR.PATCH:
+Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36), 2026-10-01 with the move to GitHub issues (37–40), while building 0.0.5 on 2026-10-01 and 2 (41–45), after the judge's trial on 2026-10-03 (46–54), while planning 0.0.8 on 2026-10-04 (55), while building it on 2026-10-05 (56–58), while building 0.1.0 on 2026-10-11 (60–62), and in the 0.2.0 decide-first pass on 2026-10-24 (80–89). Decision 38 was revised on 2026-10-05: incidents are titled, not labelled. Decisions 5, 23 and 28 were revised on 2026-10-03, after setup was first tried on framework scaffolds, and 28 again on 2026-10-04, when 0.0.10 was added. Decisions 2 and 28 were revised on 2026-10-11, when releases were renumbered to 0.MINOR.PATCH, and 28 again on 2026-10-24, when 0.2.0 was frozen as the release grand-union adopts temple-bar at:
 
 | #   | Decision                                                                              | ADR                                                       |
 | --- | ------------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -56,7 +56,7 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 25  | CodeQL is a required check on the `main` ruleset                                      | [0004](../adr/0004-github-settings-temple-bar-applies.md) |
 | 26  | The test suite runs shut off from the machine's git config                            | [0006](../adr/0006-building-and-releasing-temple-bar.md)  |
 | 27  | _Superseded by 37._ A gitignored `planning/` folder held progress and the handoff     | [0010](../adr/0010-plans-progress-and-incidents.md)       |
-| 28  | grand-union starts once the release candidate (0.5.0) ships; others go alongside      | [0002](../adr/0002-what-temple-bar-is-for.md)             |
+| 28  | grand-union adopts temple-bar, in place, once 0.2.0 ships; others go alongside        | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 29  | Working, standards-following code first; a showcase for TypeScript devs second        | [0002](../adr/0002-what-temple-bar-is-for.md)             |
 | 30  | Worktree location stays each harness's choice; one inside the repo is made safe       | [0005](../adr/0005-setup-hooks-and-worktrees.md)          |
 | 31  | Built for every London TypeScript repo; GitHub, `gh` and pnpm required                | [0002](../adr/0002-what-temple-bar-is-for.md)             |
@@ -108,6 +108,16 @@ Decided 2026-09-28 (1–16), in the post-phase-1 review from 2026-09-29 (17–36
 | 77  | A test fails if a tracked test file is run by no test script, or by more than one     | [0.1.0](0.1.0.md)                                         |
 | 78  | The standalone CI job runs `pnpm gate` once the pin can start standalone pnpm         | [0.1.0](0.1.0.md)                                         |
 | 79  | This repo merges with `pnpm merge <N>`; the baseline refresh lands before the pin     | [0.1.0](0.1.0.md)                                         |
+| 80  | Merge keeps the merged branch's worktree and local branch, and reports them           | [0016](../adr/0016-agent-rules-and-the-merge-loop.md)     |
+| 81  | One GitHub reference per line; in a pull request, nested under its change bullet      | [0016](../adr/0016-agent-rules-and-the-merge-loop.md)     |
+| 82  | `ready` fetches the default branch first, refuses a behind branch and fails closed    | [0016](../adr/0016-agent-rules-and-the-merge-loop.md)     |
+| 83  | The gate requires the AGENTS.md block in every repo set up with temple-bar            | [0016](../adr/0016-agent-rules-and-the-merge-loop.md)     |
+| 84  | Agents create worktrees only through their harness, never with `git worktree add`     | [0016](../adr/0016-agent-rules-and-the-merge-loop.md)     |
+| 85  | An oversized pull request needs `One concern:`; source and test lines count apart     | [0016](../adr/0016-agent-rules-and-the-merge-loop.md)     |
+| 86  | A pull request the judge refuses: description is the squash body, checklist a comment | [0016](../adr/0016-agent-rules-and-the-merge-loop.md)     |
+| 87  | A pin bump's mixing is disclosed by the judge's refusal, not yet refused              | [0016](../adr/0016-agent-rules-and-the-merge-loop.md)     |
+| 88  | The gate checks every tracked file is type-checked and tested, as the gate runs them  | [0016](../adr/0016-agent-rules-and-the-merge-loop.md)     |
+| 89  | Every decision lives in an ADR; this list becomes an index in `docs/adr/`             | [0016](../adr/0016-agent-rules-and-the-merge-loop.md)     |
 
 Decision 68 was settled on 2026-10-15 for phase 5 (on #311, with four
 smaller points recorded there); decisions 69 to 74 were approved on
@@ -122,6 +132,14 @@ a time, after ChatGPT Sol 6.1 reviewed them adversarially. Under 76, the
 packages' typecheck, lint and format checks repeat cheaply what the root
 checks whole, while each test file runs once; AGENTS.md now says the gate runs
 every test file, rather than that `pnpm test` runs in full.
+
+Decisions 80 to 89 were approved on 2026-10-24 in 0.2.0's decide-first pass
+([#397](https://github.com/londontypescript/temple-bar/issues/397)), one at
+a time, each reviewed adversarially by ChatGPT Sol 6.1 first.
+[ADR 0016](../adr/0016-agent-rules-and-the-merge-loop.md) holds them with
+what each rejected, and the [0.2.0 plan](0.2.0.md) runs them. Under decision
+89 this list retires: that plan's P1 turns it into an index in `docs/adr/`,
+keeping the numbering.
 
 Decision 59 was approved on 2026-10-09 after Claude Sonnet reviewed the precise content-only contract.
 
