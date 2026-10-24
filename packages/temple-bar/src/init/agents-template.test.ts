@@ -2,6 +2,7 @@
 // temple-bar's marked block goes into a file that already exists.
 
 import assert from "node:assert/strict";
+import { posix } from "node:path";
 import test from "node:test";
 
 import { measureAgentsFile } from "../gate/agents-size.ts";
@@ -17,6 +18,7 @@ import {
   withTempleBarBlock,
 } from "./agents-template.ts";
 import { COMPANION_FILES } from "./companion-docs.ts";
+import { AGENTS_MD_0_1_0 } from "./testing/agents-md-0-1-0.ts";
 
 /** Next.js's own AGENTS.md, in the shape it ships: a marked block of its
  * own, which setup must keep exactly as it is. */
@@ -47,37 +49,94 @@ void test("a new AGENTS.md starts with a heading and holds temple-bar's rules in
   assert.ok(content.endsWith(`${BLOCK_END}\n`));
 });
 
+/** A text with its line breaks flattened, so rewrapping is not a failure. */
+function flat(text: string): string {
+  return text.replace(/\s+/g, " ");
+}
+
+function companion(path: string): string {
+  const file = COMPANION_FILES.find((candidate) => candidate.path === path);
+  assert.ok(file, `${path} is not written`);
+  return file.content;
+}
+
 void test("the rules carry what every project needs from them", () => {
-  // Compared with line breaks flattened, so rewrapping the text is not a
-  // failure.
-  const block = templeBarBlock().replace(/\s+/g, " ");
+  const block = flat(templeBarBlock());
   for (const required of [
     "ask the user what we're building",
     "`typecheck`, `lint`, `format:check` and `test`",
     "never no-ops",
     "Two strikes, then stop",
+    "post it only after the user has seen the exact text and said yes",
+    "Commit at every point where the checks pass",
+    "`One concern:`",
+    "Check every premise against the ADRs and git history",
+    "placing issues in a milestone",
+    "One GitHub reference per line",
+    "Never run `git worktree add`",
+  ]) {
+    assert.ok(block.includes(required), required);
+  }
+});
+
+void test("the update before work stops keeps its fields in the guide the block sends agents to", () => {
+  const block = flat(templeBarBlock());
+  assert.ok(block.includes("read [docs/phase-boundaries.md]"));
+  const guide = flat(companion("docs/phase-boundaries.md"));
+  for (const required of [
     "the base commit (SHA) and the branch",
     "the exact command that reproduces the problem",
     "what has been ruled out, with the reason for each",
-    "post it only after their yes",
-    "Commit at every point where the checks pass",
-    "`One concern:`",
-    "every issue's premise",
-    "placing issues in a milestone",
+    "the next action",
   ]) {
-    assert.ok(block.includes(required), required);
+    assert.ok(guide.includes(required), required);
   }
 });
 
 void test("every doc the rules link to is one setup writes", () => {
   const written = new Set(COMPANION_FILES.map((file) => file.path));
   const links = [...templeBarBlock().matchAll(/\]\((docs\/[^)]+)\)/g)].map(
-    (match) => match[1],
+    (match) => match[1] ?? "",
   );
-  assert.ok(links.length >= 4);
-  for (const link of links) {
-    assert.ok(written.has(link ?? ""), `${link ?? ""} is not written`);
+  for (const guide of [
+    "docs/planning.md",
+    "docs/phase-boundaries.md",
+    "docs/pull-requests.md",
+    "docs/delegation.md",
+    "docs/incidents.md",
+  ]) {
+    assert.ok(links.includes(guide), `the block doesn't link to ${guide}`);
   }
+  for (const link of links) {
+    assert.ok(written.has(link), `${link} is not written`);
+  }
+});
+
+void test("every relative link in a doc setup writes points at a file setup writes", () => {
+  const written = new Set([
+    "AGENTS.md",
+    ...COMPANION_FILES.map((file) => file.path),
+  ]);
+  let checked = 0;
+  for (const file of COMPANION_FILES) {
+    for (const match of file.content.matchAll(/\]\(([^)]+)\)/g)) {
+      const target = match[1] ?? "";
+      if (/^[a-z]+:/i.test(target) || target.startsWith("#")) {
+        continue;
+      }
+      const resolved = posix.normalize(
+        posix.join(posix.dirname(file.path), target.split("#")[0] ?? ""),
+      );
+      assert.ok(
+        written.has(resolved),
+        `${file.path} links to ${target}, which setup doesn't write`,
+      );
+      checked += 1;
+    }
+  }
+  // The rationale links AGENTS.md; the planning and pull request guides
+  // link the ADR template and the rationale.
+  assert.ok(checked >= 3, `only ${String(checked)} links checked`);
 });
 
 void test("nothing setup writes points into temple-bar's own plans or issue numbers", () => {
@@ -138,6 +197,21 @@ void test("a block edited by hand is refused, not overwritten", () => {
     withTempleBarBlock(`${OUR_BEFORE}${OLDER_BLOCK}`).kind,
     "refused",
   );
+});
+
+void test("our own AGENTS.md as 0.1.0 left it gets the new block in place, our section above kept byte for byte", () => {
+  const location = locateTempleBarBlock(AGENTS_MD_0_1_0);
+  assert.equal(location.kind, "found");
+  assert.ok(
+    EARLIER_BLOCK_SHA256.includes(blockHash(location.block)),
+    "the block 0.1.0 wrote is not recorded",
+  );
+  const update = withTempleBarBlock(AGENTS_MD_0_1_0);
+  assert.equal(update.kind, "updated");
+  const ours = AGENTS_MD_0_1_0.slice(0, AGENTS_MD_0_1_0.indexOf("<!-- BEGIN"));
+  assert.ok(ours.includes("## This repo"));
+  assert.equal(update.content, `${ours}${templeBarBlock()}${location.after}`);
+  assert.deepEqual(withTempleBarBlock(update.content), { kind: "unchanged" });
 });
 
 void test("the earlier releases' hashes never include today's block", () => {
