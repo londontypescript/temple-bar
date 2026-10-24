@@ -152,7 +152,7 @@ temple-bar has no install scripts: installing it never changes your repo by itse
 
 ## Built for London TypeScript
 
-temple-bar is the foundation every repository in the [London TypeScript](https://github.com/londontypescript) organisation is built on: our meetup's websites, tools and experiments are all developed by AI agents working under these rules. It's public, and you're welcome to use it, but it's shaped around how we work rather than configured for everyone's. The plan and its decisions are in [docs/plans/temple-bar.md](docs/plans/temple-bar.md).
+temple-bar is the foundation every repository in the [London TypeScript](https://github.com/londontypescript) organisation is built on: our meetup's websites, tools and experiments are all developed by AI agents working under these rules. It's public, and you're welcome to use it, but it's shaped around how we work rather than configured for everyone's. Its decisions, and the reasons for them, are in [docs/adr/](docs/adr/README.md).
 
 ## Why "Temple Bar"
 
