@@ -23,8 +23,8 @@ licence.
 **routine**, **involved** or **delicate**, so the maintainer can choose which
 model does it. The maintainer picks the models; temple-bar and the agents
 working on it never pick or switch one. This replaces an earlier default that
-named fixed models for orchestrating and implementing; AGENTS.md §1 holds the
-rule today.
+named fixed models for orchestrating and implementing; AGENTS.md's Plans
+section holds the rule today.
 
 **Settled before planning: the earlier hardening plan.** temple-bar grew out of
 a frozen hardening plan for an earlier version, whose items were numbered D1
@@ -101,8 +101,9 @@ developers of every level can learn from comes second, and never at the cost
 of correctness. Every contested choice needs a written rationale: a decision
 in the plan or an ADR. Until 2026-10-01 this decision led with the code having
 to impress; the order changed so that correctness and standards always come
-first. New code follows the comment convention in AGENTS.md §5:
-comments explain why in plain words, with no internal plan IDs. Once every
+first. New code follows the comment convention in
+[docs/conventions.md](../conventions.md): comments explain why in plain words,
+with no internal plan IDs. Once every
 theme is built, one full quality pass goes over the settled code: plain
 comments in place of the plan IDs, repetition removed, a newcomer's map of the
 code, and the ADRs behind it.
