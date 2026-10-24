@@ -1,10 +1,10 @@
-// The last step before anything changes on GitHub: wait for the checks,
-// refuse on open code-scanning alerts, then ask GitHub for the squash. When
-// GitHub refuses because it started new check runs after merge read them,
-// wait for those and ask again.
+// The last step before anything changes on GitHub: measure the pull
+// request's size, wait for the checks, refuse on open code-scanning alerts,
+// then ask GitHub for the squash. When GitHub refuses because it started new
+// check runs after merge read them, wait for those and ask again.
 
 import type { Context } from "../context.ts";
-import { warnAboutPullRequestSize } from "../pr/size.ts";
+import { checkPullRequestSize, formatSizeReport } from "../pr/size.ts";
 import {
   describeAlerts,
   describeGhFailure,
@@ -13,9 +13,11 @@ import {
   readRequiredChecks,
   squashMerge,
   type Check,
+  type PullRequest,
   type Repository,
 } from "./github.ts";
 import type { SquashMessage } from "./message.ts";
+import { checkOneConcern } from "./one-concern.ts";
 import { refuse } from "./refusal.ts";
 import {
   DEFAULT_TIMING,
@@ -88,13 +90,51 @@ export interface Landing {
   readonly repository: Repository;
   readonly prNumber: number;
   readonly sha: string;
-  /** The default branch on origin, which the size warning measures from. */
+  /** The default branch on origin, which the size check measures from. */
   readonly upstream: string;
   readonly message: SquashMessage;
+  /** The pull request as merge last read it, the copy the squash message is
+   * built from. The size check reads the description here, so it judges
+   * the text that merges, not an earlier one. */
+  readonly pullRequest: PullRequest;
 }
 
-/** Waits for the checks on `landing.sha`, then squash-merges it. Returns
- * once GitHub has accepted the merge; refuses otherwise. */
+/** Refuses a pull request over the size limits, or closing several issues,
+ * whose description has no `One concern:` line; prints the size report
+ * otherwise. A size that can't be measured refuses too: merge can't tell
+ * whether the line is needed without it. */
+async function checkSize(
+  ctx: Context,
+  landing: Landing,
+  root: string,
+): Promise<void> {
+  const { pullRequest, repository } = landing;
+  const report = await checkPullRequestSize(
+    { ...ctx, cwd: root },
+    {
+      base: landing.upstream,
+      head: landing.sha,
+      pullRequestText: {
+        title: pullRequest.title,
+        body: pullRequest.body,
+        repository: repository.nameWithOwner,
+      },
+    },
+  ).catch((error: unknown) =>
+    refuse(
+      `could not measure pull request #${String(landing.prNumber)}'s size: ${error instanceof Error ? error.message : String(error)}. ` +
+        "Merge needs the size to know whether the pull request needs a `One concern:` line. " +
+        "Fix what stopped the measurement and run merge again.",
+    ),
+  );
+  checkOneConcern(pullRequest, repository.nameWithOwner, report.overages);
+  ctx.stdout.write(formatSizeReport(report));
+}
+
+/** Checks the pull request's size, waits for the checks on `landing.sha`,
+ * then squash-merges it. Returns once GitHub has accepted the merge;
+ * refuses otherwise. The size comes first, so a pull request that needs a
+ * `One concern:` line hears it before the long wait. */
 export async function checkAndMerge(
   ctx: Context,
   deps: { readonly sleep: Sleep; readonly timing?: Timing },
@@ -103,6 +143,7 @@ export async function checkAndMerge(
 ): Promise<void> {
   const { repository, prNumber, sha } = landing;
   const timing = deps.timing ?? DEFAULT_TIMING;
+  await checkSize(ctx, landing, root);
   const required = await readRequiredChecks(ctx, repository, root);
   for (let attempt = 1; ; attempt++) {
     const checks = await waitForChecks(
@@ -116,18 +157,6 @@ export async function checkAndMerge(
       `merge: all ${String(checks.length)} checks passed on ${sha}\n`,
     );
     await refuseOnOpenAlerts(ctx, repository, prNumber, root);
-
-    if (attempt === 1) {
-      // Advice only: a failure to measure must not stop the merge.
-      await warnAboutPullRequestSize(
-        { ...ctx, cwd: root },
-        { base: landing.upstream, head: sha, prNumber: String(prNumber) },
-      ).catch((error: unknown) => {
-        ctx.stdout.write(
-          `merge: could not measure the pull request's size: ${error instanceof Error ? error.message : String(error)}\n`,
-        );
-      });
-    }
 
     const merged = await squashMerge(
       ctx,
