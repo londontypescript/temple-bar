@@ -86,9 +86,14 @@ function forgetInstall(sys: Sys, layout: Layout): Promise<void> {
  * would let them change some other checkout. */
 async function isOwnWorktree(sys: Sys, worktree: string): Promise<boolean> {
   // A link (or, on Windows, a junction, which Node reports as one) would
-  // send them into the folder it points at.
-  const own = await sys.fs.lstat(worktree);
-  if (own.isSymbolicLink() || !own.isDirectory()) {
+  // send them into the folder it points at. One that has gone since it was
+  // seen is made again too.
+  try {
+    const own = await sys.fs.lstat(worktree);
+    if (own.isSymbolicLink() || !own.isDirectory()) {
+      return false;
+    }
+  } catch {
     return false;
   }
   // A worktree's .git is a file. Without one, git would look further up
