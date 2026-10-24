@@ -2,6 +2,7 @@
 // temple-bar's marked block goes into a file that already exists.
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { posix } from "node:path";
 import test from "node:test";
 
@@ -213,6 +214,49 @@ void test("our own AGENTS.md as 0.1.0 left it gets the new block in place, our s
   assert.equal(update.content, `${ours}${templeBarBlock()}${location.after}`);
   assert.deepEqual(withTempleBarBlock(update.content), { kind: "unchanged" });
 });
+
+// The gate requires this exact block in every repo from the next pin bump,
+// so a change to it must be deliberate and update this hash.
+const APPROVED_BLOCK_SHA256 =
+  "945d73cb5dfe857fb5d79f9021730e94795d058413a6284b2dfe10c52c78bc59";
+
+void test("the block is exactly the approved text", () => {
+  assert.equal(
+    blockHash(templeBarBlock()),
+    APPROVED_BLOCK_SHA256,
+    "the block differs from the approved text: if the change is deliberate, update APPROVED_BLOCK_SHA256",
+  );
+});
+
+// Setup writes these texts into every repo and the block links to them, so
+// a change to one must be deliberate and update its hash here.
+const APPROVED_COMPANION_SHA256: Readonly<Record<string, string>> = {
+  "docs/agents-rationale.md":
+    "6a751af2ca6b1a6b49dbcc02521d3acdc29340de014cb8a5da8d634de010a03b",
+  "docs/phase-boundaries.md":
+    "caf57ee44818ca76eee2fc6a7a93e813742820c5f6c14ea6a318fd3563bb549e",
+  "docs/planning.md":
+    "ee559110a2f256aefa79dad96f586e0040cce933c65ed7ab6a189899a6996354",
+  "docs/pull-requests.md":
+    "16b83a2e5cf4e9c2b48b89142ea3e19ad1d714095da80b963667c19170de512d",
+  "docs/delegation.md":
+    "7009360c6ea13e60e3d0c1a55fb4085cb05fa7c9b5f95a82b98ef4da8bcb327b",
+  "docs/incidents.md":
+    "074c3b80e20eb0281ae76c17ff83b45ff49fd4e2afa3e7756015918ae9501467",
+};
+
+for (const [docPath, approved] of Object.entries(APPROVED_COMPANION_SHA256)) {
+  void test(`${docPath} is exactly the approved text`, () => {
+    const sha = createHash("sha256")
+      .update(companion(docPath), "utf8")
+      .digest("hex");
+    assert.equal(
+      sha,
+      approved,
+      `${docPath} differs from the approved text: if the change is deliberate, update its hash in APPROVED_COMPANION_SHA256`,
+    );
+  });
+}
 
 void test("the earlier releases' hashes never include today's block", () => {
   assert.equal(
