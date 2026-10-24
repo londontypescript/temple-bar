@@ -56,7 +56,7 @@ void test("pr-size warns, names size and issues, suggests one pull request per i
   const out = stdout.lines.join("");
   assert.equal(code, 0);
   assert.match(out, /warning/);
-  assert.match(out, /1,178 lines/);
+  assert.match(out, /1,178 lines of source changed/);
   assert.match(out, /closes 3 issues: #101, #104, #125/);
   assert.match(out, /one pull request per issue/);
   // Merge accepts several closed issues when a One concern: line explains
@@ -70,7 +70,7 @@ void test("pr-size says all is well for a small one-issue pull request", async (
   assert.equal(await prSizeCommandEntry.run(["--base", "origin/main"], ctx), 0);
   assert.match(
     stdout.lines.join(""),
-    /^pr-size: ok: 6 lines changed across 1 file; closes 1 issue/,
+    /^pr-size: ok: 6 source lines and 0 test lines changed across 1 file; closes 1 issue/,
   );
 });
 
@@ -80,7 +80,7 @@ void test("pr-size honours the limits in the project's config", async () => {
     config: { maxPullRequestFiles: 1 },
   });
   await prSizeCommandEntry.run(["--base", "main"], ctx);
-  assert.match(stdout.lines.join(""), /touches 2 files \(limit 1\)/);
+  assert.match(stdout.lines.join(""), /2 files touched, limit 1/);
 });
 
 void test("in GitHub Actions the warning is also an annotation, on one line", async () => {
@@ -94,7 +94,7 @@ void test("in GitHub Actions the warning is also an annotation, on one line", as
     .split("\n")
     .filter((line) => line.startsWith("::warning title=Pull request size::"));
   assert.equal(annotation.length, 1);
-  assert.match(annotation[0] ?? "", /1,178 lines/);
+  assert.match(annotation[0] ?? "", /1,178 lines of source/);
   assert.match(annotation[0] ?? "", /`One concern:`/);
 });
 
