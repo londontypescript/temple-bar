@@ -1,6 +1,6 @@
 // `temple-bar pr-size`: warns when a pull request is too big or mixes
-// concerns. A size warning exits 0, because it must never block a merge.
-// Failing to measure exits 1: that means the check itself isn't working (for
+// concerns. A size warning exits 0: here it is advice, and `temple-bar
+// merge` is where it is enforced. Failing to measure exits 1: that means the check itself isn't working (for
 // example a CI checkout without the base branch), and a check that quietly
 // does nothing is worse than a red one. 2 is a usage mistake (a flag it
 // doesn't know, or no base to compare against).

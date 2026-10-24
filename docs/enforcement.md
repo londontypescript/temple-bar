@@ -10,7 +10,7 @@ same pull request as any change to a mechanism.
 | `main` changes only through pull requests              | GitHub ruleset on `main`                                    | **Blocked** on GitHub               |
 | No force-push or deletion of `main`                    | GitHub ruleset on `main`                                    | **Blocked** on GitHub               |
 | CI passes before merge                                 | required status checks (U6)                                 | **Blocked** on GitHub               |
-| One concern per pull request                           | `temple-bar pr-size` in CI                                  | **Warned** only                     |
+| One concern per pull request, or a `One concern:` line | `merge` refuses oversize or 2+ issues without it; CI warns  | **Blocked** by merge                |
 | CodeQL passes before merge                             | ruleset `code_scanning` rule, checked by the gate           | **Blocked** on GitHub               |
 | Squash merges only on `main`                           | ruleset: squash only, linear history; repo settings         | **Blocked** on GitHub               |
 | Signed commits on `main`                               | ruleset: required signatures (GitHub signs squashes)        | **Blocked** on GitHub               |
@@ -33,7 +33,6 @@ same pull request as any change to a mechanism.
 | Whether wide changes mean duplication                  | nothing: judgement                                          | **Prose only**                      |
 | Worktree per branch; merge steps (§2)                  | `pnpm merge` (`temple-bar merge`); nothing forces its use   | **Prose only**                      |
 | Main checkout stays on the default branch              | `post-checkout` hook warns on a switch or detach            | **Warned** only                     |
-| Issues closed need a `One concern:` line               | `temple-bar merge` refuses without it                       | **Blocked** by merge                |
 | Push once, after the gate passed                       | `ready` + `pre-push` from the pin that ships them           | **Blocked** locally                 |
 | Maintainer asked in chat before a push                 | `ready` and `pre-push` warn; see the limits below           | **Warned** only                     |
 | Maintainer's yes for an AGENTS.md merge                | `merge` needs `--maintainer-approved`, records it           | **Detected** after                  |

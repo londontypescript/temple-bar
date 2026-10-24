@@ -12,8 +12,10 @@
 //      full CI run, and a push that skipped the gate is bound to fail it.
 //   3. A branch that is too big gets the pull request size warning, but is
 //      never blocked: planning should have kept it small long before this
-//      last look. The CI step is the strict one, so if measuring fails here
-//      the reason is printed and the push goes ahead.
+//      last look. `temple-bar merge` is the strict step: it refuses an
+//      oversized pull request without a `One concern:` line, and refuses
+//      when it can't measure. So if measuring fails here the reason is
+//      printed and the push goes ahead.
 //   4. A branch that needs the maintainer's yes (AGENTS.md, or the checks
 //      that judge the repo) gets the same warning `ready` printed, as the
 //      last thing seen before it leaves. It is never blocked: nothing on
