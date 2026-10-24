@@ -3,7 +3,8 @@
 // every commit on the branch ("wip", "fix typo", ...). The written message
 // is instead: the title with the pull request number, one bullet per
 // distinct change when the description lists them, then trailers: whether
-// the maintainer approved a change that needs them, and each co-author once.
+// the maintainer approved a change that needs them, each co-author once, and
+// each reviewer once.
 
 import type { Context } from "../context.ts";
 import { refuse } from "./refusal.ts";
@@ -74,36 +75,68 @@ export function topLevelBullets(body: string): string[] {
   return bullets.filter((bullet) => bullet !== "");
 }
 
-/** Co-authors named in the trailers of the commits in `range`, each once,
- * in the order first seen. Names are compared without case, because the
- * same person is often typed two ways across commits. */
-export async function readCoAuthors(
+/** The people the branch's commits credit in their trailers: who wrote
+ * the change with the author, and who reviewed it. */
+export interface CommitTrailers {
+  readonly coAuthors: readonly string[];
+  readonly reviewers: readonly string[];
+}
+
+const CO_AUTHOR_KEY = "Co-authored-by";
+const REVIEWER_KEY = "Reviewed-by";
+
+/** Co-authors and reviewers named in the trailers of the commits in `range`,
+ * each once, in the order first seen, oldest commit first. Names are
+ * compared without case, because the same person is often typed two ways
+ * across commits. */
+export async function readTrailers(
   ctx: Context,
   range: string,
   cwd: string,
-): Promise<string[]> {
+): Promise<CommitTrailers> {
+  // `unfold` joins a value wrapped onto a second line, which would otherwise
+  // be cut at the wrap.
   const result = await ctx.git.run(
     [
       "log",
       "--reverse",
-      "--format=%(trailers:key=Co-authored-by,valueonly)",
+      `--format=%(trailers:key=${CO_AUTHOR_KEY},key=${REVIEWER_KEY},unfold)`,
       range,
     ],
     cwd,
   );
   if (result.code !== 0) {
     refuse(
-      `could not read the branch's commits for co-authors: ${result.stderr.trim()}`,
+      `could not read the branch's commits for co-authors and reviewers: ${result.stderr.trim()}`,
     );
   }
-  const seen = new Map<string, string>();
+  const coAuthors = new Map<string, string>();
+  const reviewers = new Map<string, string>();
+  // Git matches the keys without case and prints each as the commit spells
+  // it ("Co-Authored-By" and "Co-authored-by" both occur), so lines are
+  // sorted by their key compared the same way.
+  const lists = new Map([
+    [CO_AUTHOR_KEY.toLowerCase(), coAuthors],
+    [REVIEWER_KEY.toLowerCase(), reviewers],
+  ]);
   for (const line of result.stdout.split("\n")) {
-    const author = line.trim().replace(/\s+/g, " ");
-    if (author !== "" && !seen.has(author.toLowerCase())) {
-      seen.set(author.toLowerCase(), author);
+    const colon = line.indexOf(":");
+    if (colon === -1) {
+      continue;
+    }
+    const list = lists.get(line.slice(0, colon).trim().toLowerCase());
+    const name = line
+      .slice(colon + 1)
+      .trim()
+      .replace(/\s+/g, " ");
+    if (list !== undefined && name !== "" && !list.has(name.toLowerCase())) {
+      list.set(name.toLowerCase(), name);
     }
   }
-  return [...seen.values()];
+  return {
+    coAuthors: [...coAuthors.values()],
+    reviewers: [...reviewers.values()],
+  };
 }
 
 export interface SquashMessage {
@@ -123,7 +156,7 @@ export function buildSquashMessage(
     readonly title: string;
     readonly body: string;
   },
-  coAuthors: readonly string[],
+  credited: CommitTrailers,
   maintainerApproved: readonly string[] = [],
 ): SquashMessage {
   // Bullets are optional: a pull request is one concern, so its title can
@@ -140,7 +173,8 @@ export function buildSquashMessage(
     ...(maintainerApproved.length > 0
       ? [`${MAINTAINER_APPROVED_TRAILER}: ${maintainerApproved.join("; ")}`]
       : []),
-    ...coAuthors.map((author) => `Co-Authored-By: ${author}`),
+    ...credited.coAuthors.map((author) => `Co-Authored-By: ${author}`),
+    ...credited.reviewers.map((reviewer) => `${REVIEWER_KEY}: ${reviewer}`),
   ];
   const lines =
     bullets.length > 0 && trailers.length > 0
