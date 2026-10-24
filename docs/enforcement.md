@@ -49,6 +49,7 @@ same pull request as any change to a mechanism.
 | Every workspace package's four scripts present and run | the gate, from 0.1.0                                        | **Blocked** via CI                  |
 | Every package's scripts unchanged                      | the judge, from 0.1.0                                       | **Blocked** on GitHub               |
 | pnpm's install settings unchanged at any depth         | the judge, from 0.1.0                                       | **Blocked** on GitHub               |
+| Pin bump in its own pull request                       | the judge's refusal lists every other path, from 0.2.0      | **Prose only**                      |
 | Release notes finished before publishing               | `pnpm release:publish` refuses unfinished notes             | **Blocked** locally                 |
 | Release tier passes before a release stages            | `release.yml`'s `publish` needs `release-check`, from 0.1.0 | **Blocked** in the release workflow |
 | Every promise keeps a pull-request-tier test           | the coverage map, checked in review                         | **Prose only**                      |
