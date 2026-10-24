@@ -109,6 +109,10 @@ async function checkSize(
   root: string,
 ): Promise<void> {
   const { pullRequest, repository } = landing;
+  // Measured in the primary checkout, which stays on the default branch, so
+  // the limits in temple-bar.config.json and the linguist-generated marks
+  // are the default branch's, not the pull request's: a pull request can't
+  // loosen the check that judges it.
   const report = await checkPullRequestSize(
     { ...ctx, cwd: root },
     {

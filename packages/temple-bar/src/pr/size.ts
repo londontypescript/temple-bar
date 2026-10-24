@@ -140,7 +140,7 @@ function describe(report: PullRequestSizeReport): string {
 }
 
 const SPLIT_OR_SAY_WHY =
-  "split it (one pull request per issue), or add a line to the description starting `One concern:` that says why it is one change";
+  "split it into pull requests that each hold one concern, or add a line to the description starting `One concern:` that says why it is one change";
 const MERGE_REQUIRES_IT =
   "`temple-bar merge` requires that line for a pull request over the size limits or closing several issues";
 

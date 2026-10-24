@@ -47,7 +47,7 @@ function setup(options: {
 const SMALL = "5\t1\ta.ts\0";
 const HUGE = "1000\t178\ta.ts\0";
 
-void test("pr-size warns, names size and issues, suggests one pull request per issue, and still exits 0", async () => {
+void test("pr-size warns, names size and issues, suggests splitting it, and still exits 0", async () => {
   const { ctx, stdout } = setup({
     numstat: HUGE,
     body: "Closes #101\nCloses #104\nCloses #125",
@@ -58,7 +58,7 @@ void test("pr-size warns, names size and issues, suggests one pull request per i
   assert.match(out, /warning/);
   assert.match(out, /1,178 lines of source changed/);
   assert.match(out, /closes 3 issues: #101, #104, #125/);
-  assert.match(out, /one pull request per issue/);
+  assert.match(out, /split it into pull requests that each hold one concern/);
   // Merge accepts several closed issues when a One concern: line explains
   // them, so the warning names that way out too.
   assert.match(out, /`One concern:`/);
