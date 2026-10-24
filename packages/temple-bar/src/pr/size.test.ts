@@ -79,7 +79,11 @@ void test("two closed issues with a valid One concern line are not a problem", a
     ...OPTIONS,
     pullRequestText: text("Closes #1\nCloses #2\n\nOne concern: same cause."),
   });
-  assert.deepEqual(report.problems, []);
+  assert.deepEqual(
+    report.problems,
+    [],
+    "a valid One concern line drops the closes-several-issues problem",
+  );
   assert.equal(report.oneConcernLine, true);
   assert.match(
     out(),

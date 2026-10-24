@@ -97,14 +97,18 @@ for (const [name, numstat, limit] of [
 ] as const) {
   void test(`too many ${name} without a One concern line refuses before any check is read`, async () => {
     const { land, gh } = setup(numstat, "");
-    await assert.rejects(land(), (error: Error) => {
-      assert.match(
-        error.message,
-        /^pull request #7 is over the size limits \(.*\) but its description has no `One concern:` line\. Add a line to the description starting `One concern:`/,
-      );
-      assert.match(error.message, limit);
-      return true;
-    });
+    await assert.rejects(
+      land(),
+      (error: Error) => {
+        assert.match(
+          error.message,
+          /^pull request #7 is over the size limits \(.*\) but its description has no `One concern:` line\. Add a line to the description starting `One concern:`/,
+        );
+        assert.match(error.message, limit);
+        return true;
+      },
+      `an oversized pull request with no One concern line must be refused (${name})`,
+    );
     assert.deepEqual(
       gh.calls.map((call) => call.args.join(" ")),
       [],
@@ -131,6 +135,7 @@ void test("a size that can't be measured refuses, before any check is read", asy
   await assert.rejects(
     land(),
     /^MergeRefusal: could not measure pull request #7's size: git diff origin\/main\.\.\.a+ failed: fatal: bad revision 'origin\/main'\. Merge needs the size/,
+    "a failed measurement must refuse the merge, not be printed and ignored",
   );
   assert.equal(gh.calls.length, 0);
 });
@@ -149,6 +154,7 @@ void test("closing two issues without the line refuses on the snapshot that merg
   await assert.rejects(
     land(),
     /closes 2 issues \(#1, #2\) but its description has no `One concern:` line/,
+    "the snapshot that merges must be checked for several closed issues",
   );
   assert.equal(gh.calls.length, 0);
 });
