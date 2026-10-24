@@ -114,7 +114,7 @@ export function defaultWorld(): World {
       '{"devDependencies":{"@londontypescript/temple-bar":"0.0.4"}}',
     otherFiles: {},
     coAuthors:
-      "Ada <ada@example.com>\n\nada <ADA@example.com>\nBob <bob@example.com>\n",
+      "Co-authored-by: Ada <ada@example.com>\n\nCo-Authored-By: ada <ADA@example.com>\nCo-authored-by: Bob <bob@example.com>\n",
     mergeRefusals: 0,
     remoteBranchAfterMerge: false,
     incidents: 3,

@@ -188,13 +188,36 @@ void test("a re-run in the same workflow still replaces the run before it", () =
       { name: "gate", conclusion: "cancelled", id: 1, suite: 100 },
       { name: "gate", conclusion: "success", id: 2, suite: 200 },
     ],
-    new Map([
-      [100, 10],
-      [200, 10],
-    ]),
+    [
+      { suite: 100, workflow: 10 },
+      { suite: 200, workflow: 10 },
+    ],
   );
   assert.deepEqual(
     newest.map((r) => r.conclusion),
     ["success"],
   );
+});
+
+void test("waits while a newer workflow run hasn't made its check run yet, then merges", async () => {
+  // Merge refused a pull request on a cancelled title check: a description
+  // edit's workflow run was listed, waiting for the first run's
+  // cancellation, but its check run didn't exist yet. GitHub creates it
+  // once the first run is cancelled; the second read sees it passed.
+  const cancelled = { ...run("title", "cancelled", 10, 0), suite: 100 };
+  const replacement = { ...run("title", "success", 20, 1), suite: 200 };
+  const world = defaultWorld();
+  world.checkRuns = [[cancelled], [cancelled, replacement]];
+  // world.ts types these as { suite, workflow }; the extra run and status
+  // fields type-check from a separate array and the fake passes them on.
+  const workflowRuns = [
+    { suite: 100, workflow: 10, run: 1000, status: "completed" },
+    { suite: 200, workflow: 10, run: 2000, status: "pending" },
+  ];
+  world.workflowRuns = workflowRuns;
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
+  assert.match(h.out(), /waiting for title\n/);
+  assert.match(h.out(), /all 1 checks passed/);
+  assert.match(h.out(), /merged #7/);
 });

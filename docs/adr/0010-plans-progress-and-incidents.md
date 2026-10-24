@@ -1,7 +1,7 @@
 # ADR 0010: Where plans, progress and incidents live
 
-Date: 2026-10-01. Status: accepted (decisions 37, 38 and 39; decision 27 is
-superseded by 37 and kept here as history).
+Date: 2026-10-01, updated 2026-10-24. Status: accepted (decisions 37, 38, 39,
+55 and 57; decision 27 is superseded by 37 and kept here as history).
 
 ## Context
 
@@ -47,8 +47,9 @@ TypeScript-wide one; that is decided when it's needed. Until then, labels,
 milestones and saved views on temple-bar's own issues are enough.
 
 **Decision 57: a short plan file per milestone; decisions in ADRs**
-(decided 2026-10-05, for the AGENTS.md template; temple-bar's own plan file
-moves to it in 0.0.9). A milestone's plan is `docs/plans/<milestone>.md`: its
+(decided 2026-10-05, for the AGENTS.md template; temple-bar's own plan moved
+to it in 0.2.0, when its decisions list became an index of the ADRs under
+decision 89, [ADR 0016](0016-agent-rules-and-the-merge-loop.md)). A milestone's plan is `docs/plans/<milestone>.md`: its
 phases, the files each owns and each phase's `One concern:` reason, approved
 through a pull request. Decisions are ADRs in `docs/adr/`, and briefs are
 checked against them. Progress stays on the issues. Plans were not moved into
@@ -57,6 +58,18 @@ offline and without a GitHub login, tied to the commits it describes, and
 safe from two agents overwriting each other's edit to an issue body. One file
 per milestone, rather than one plan for the whole project, keeps it short
 enough to read on every resume.
+
+**Decision 55: work is planned by milestone across the organisation**
+(decided 2026-10-04, while planning 0.0.8). The user sets scope by placing
+issues in a milestone, in every London TypeScript repo. When a milestone is
+planned, the agent groups its issues into phases by the files each change
+touches, and the user approves the plan. Placing an issue in a milestone is
+the user's judgement of what matters and when; grouping by files is something
+an agent sees better, so the agent proposes it and the plan's approval covers
+it. It replaced the rule that the user writes a grouped intake of the work.
+Until 2026-10-24 this decision's home was
+[docs/agents-rationale.md](../agents-rationale.md); it moved here under
+decision 89.
 
 ## What ended decision 27
 

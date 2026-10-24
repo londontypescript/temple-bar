@@ -35,7 +35,7 @@ import {
 } from "./local.ts";
 import { readChanges } from "./manifests.ts";
 import { checkOneConcern } from "./one-concern.ts";
-import { buildSquashMessage, readCoAuthors } from "./message.ts";
+import { buildSquashMessage, readTrailers } from "./message.ts";
 import { MergeRefusal, refuse } from "./refusal.ts";
 import {
   DEFAULT_TIMING,
@@ -244,14 +244,21 @@ async function mergeAndReport(
   }
   const message = buildSquashMessage(
     pullRequest,
-    await readCoAuthors(ctx, `${upstream}..${sha}`, root),
+    await readTrailers(ctx, `${upstream}..${sha}`, root),
     reasons,
   );
 
   await checkAndMerge(
     ctx,
     deps,
-    { repository, prNumber: options.prNumber, sha, upstream, message },
+    {
+      repository,
+      prNumber: options.prNumber,
+      sha,
+      upstream,
+      message,
+      pullRequest,
+    },
     root,
   );
   ctx.stdout.write(

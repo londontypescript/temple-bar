@@ -33,7 +33,8 @@ fails a new job and a deleted gate step alike.
    step that puts a fake `pnpm` on the PATH. While other steps share the
    job, checking the text of one step can't prove what it runs, and a YAML
    library wouldn't change that. temple-bar also has no YAML parser, and
-   its machinery uses Node built-ins only (AGENTS.md §5).
+   its machinery uses Node built-ins only
+   ([docs/conventions.md](../conventions.md)).
 2. **A fixed gate workflow, checked as an exact copy.** Projects never edit
    it; their own jobs go in workflows of their own. Each job runs on a
    fresh runner, so nothing in another workflow can change what the gate
