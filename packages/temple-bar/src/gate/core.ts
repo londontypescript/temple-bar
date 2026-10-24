@@ -20,9 +20,9 @@
 //
 // The AGENTS.md size check skips a repo with no AGENTS.md (see
 // docs/adr/0007-what-the-gate-checks.md); this check is the one that fails
-// it, so one cause gives one failure. What a project writes itself after
-// setup (its other scripts and .gitignore lines, its own text around the
-// block) is its own: only setup's exact lines count.
+// it, so the size check doesn't fail it a second time. What a project
+// writes itself after setup (its other scripts and .gitignore lines, its
+// own text around the block) is its own: only setup's exact lines count.
 
 import { createHash } from "node:crypto";
 import path from "node:path";

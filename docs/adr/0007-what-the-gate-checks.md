@@ -120,7 +120,7 @@ no AGENTS.md skips the check (reported as skipped) rather than failing: setup
 writes one, and a docs-only or mid-setup repo must still be able to pass. The
 core-setup check fails a missing AGENTS.md since decision 83
 ([ADR 0016](0016-agent-rules-and-the-merge-loop.md)); the size check still
-skips it, so one cause gives one failure.
+skips it, rather than failing it a second time.
 
 **Ruleset (decision 43, recorded in
 [ADR 0004](0004-github-settings-temple-bar-applies.md)).** The gate reads the
