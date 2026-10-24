@@ -45,6 +45,8 @@ export function makeRecord(
   return {
     runId: RUN_ID,
     sha: SHA,
+    mode: "full",
+    file: null,
     refusal: null,
     steps: passedSteps(),
     versions: { node: "24.20.0", pnpm: "10.34.5", git: "2.55.0" },

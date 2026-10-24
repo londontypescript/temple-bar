@@ -1,9 +1,12 @@
 // The local half of `pnpm windows-run`: check the local conditions, take the
 // lock, build what is sent from the recorded commit, send it, run the runner,
-// and decide from what came back how the run ended.
+// and decide from what came back how the run ended. With `--only <file>` the
+// run is the same from end to end, but runs that one test file (checked here
+// first: test-file.ts) instead of the full install, check and build.
 //
-// Exit codes: 0 every step passed; 1 a step failed or Windows refused the run;
-// 2 refused here before contacting anything; 3 incomplete (no valid result).
+// Exit codes: 0 every step passed (a targeted run's skipped install counts);
+// 1 a step failed or Windows refused the run; 2 refused here before
+// contacting anything; 3 incomplete (no valid result).
 
 import path from "node:path";
 
@@ -19,26 +22,43 @@ import { BundleError, buildPayload } from "./payload.ts";
 import { LineBuffer } from "./remote/lines.ts";
 import { removeWithRetry } from "./remote/fsx.ts";
 import { acquireLock, releaseLock, type LockDeps } from "./remote/lock.ts";
-import { RUN_ID_PATTERN, SHA_PATTERN } from "./remote/record.ts";
+import {
+  RUN_ID_PATTERN,
+  SHA_PATTERN,
+  type RunRequest,
+} from "./remote/record.ts";
 import type { LocalDeps } from "./seams.ts";
 import { summarize, type LocalRefusal, type SummaryInput } from "./summary.ts";
+import { pathProblem, trackedProblem } from "./test-file.ts";
 import { judge } from "./verdict.ts";
 
-const USAGE = "Usage: pnpm windows-run [--host <ssh-destination>]";
+const USAGE =
+  "Usage: pnpm windows-run [--host <ssh-destination>] [--only <path/to/file.test.ts>]";
 
 type ParsedArgs =
-  | { readonly ok: true; readonly host: string | undefined }
+  | {
+      readonly ok: true;
+      readonly host: string | undefined;
+      readonly only: string | undefined;
+    }
   | { readonly ok: false };
 
+/** `--host` and `--only`, each at most once, in either order. */
 function parseArgs(args: readonly string[]): ParsedArgs {
-  if (args.length === 0) {
-    return { ok: true, host: undefined };
+  const given = new Map<string, string>();
+  for (let index = 0; index < args.length; index += 2) {
+    const flag = args[index] ?? "";
+    const value = args[index + 1];
+    if (
+      !["--host", "--only"].includes(flag) ||
+      given.has(flag) ||
+      value === undefined
+    ) {
+      return { ok: false };
+    }
+    given.set(flag, value);
   }
-  const [flag, value, ...rest] = args;
-  if (flag !== "--host" || value === undefined || rest.length > 0) {
-    return { ok: false };
-  }
-  return { ok: true, host: value };
+  return { ok: true, host: given.get("--host"), only: given.get("--only") };
 }
 
 /** A refusal before anything is contacted: `detail` is for the terminal, the
@@ -104,6 +124,11 @@ export async function runLocal(
       "the SSH destination must be an alias or hostname, optionally with user@, using only letters, digits, dots, underscores and hyphens (a port belongs in ~/.ssh/config)",
     );
   }
+  const badPath =
+    parsed.only === undefined ? undefined : pathProblem(parsed.only);
+  if (badPath !== undefined) {
+    return refuse(deps, "not-a-test-file", badPath);
+  }
 
   const listing = await deps.git.run(
     ["worktree", "list", "--porcelain"],
@@ -132,6 +157,17 @@ export async function runLocal(
   if (head.code !== 0 || !SHA_PATTERN.test(sha)) {
     return refuse(deps, "not-a-checkout", "HEAD is not a commit");
   }
+  const untracked =
+    parsed.only === undefined
+      ? undefined
+      : await trackedProblem(deps, sha, parsed.only);
+  if (untracked !== undefined) {
+    return refuse(deps, "not-a-test-file", untracked);
+  }
+  const request: RunRequest =
+    parsed.only === undefined
+      ? { mode: "full" }
+      : { mode: "only", file: parsed.only };
   const runId = deps.randomHex(4);
   if (!RUN_ID_PATTERN.test(runId)) {
     return refuse(deps, "not-a-checkout", "could not make a run id");
@@ -161,7 +197,7 @@ export async function runLocal(
     if (lock.tookOver !== undefined) {
       deps.stderr.write(`windows-run: took over ${lock.tookOver}\n`);
     }
-    return await sendAndRun(deps, host, sha, runId, () =>
+    return await sendAndRun(deps, host, sha, runId, request, () =>
       parsed.host === undefined
         ? Promise.resolve()
         : saveHost(deps.fs, primary.dir, parsed.host, runId),
@@ -178,8 +214,10 @@ async function sendAndRun(
   host: string,
   sha: string,
   runId: string,
+  request: RunRequest,
   saveChosenHost: () => Promise<void>,
 ): Promise<number> {
+  const file = request.mode === "only" ? request.file : undefined;
   const folder = await deps.makeTempDir();
   try {
     let payload;
@@ -193,7 +231,16 @@ async function sendAndRun(
     }
 
     const incomplete = (why: "unreachable" | "connection" | "no-result") =>
-      finishWith(deps, { kind: "incomplete", sha, why }, 3);
+      finishWith(
+        deps,
+        {
+          kind: "incomplete",
+          sha,
+          why,
+          ...(file === undefined ? {} : { file }),
+        },
+        3,
+      );
     const unreachable = (step: string): number => {
       deps.stderr.write(
         `windows-run: ${step} failed. The saved machine (${host}) may be asleep or unreachable; nothing was switched to another host.\n`,
@@ -203,7 +250,9 @@ async function sendAndRun(
 
     // Saved only now: every local refusal, the bundle's included, has passed.
     await saveChosenHost();
-    deps.stderr.write(`windows-run: running ${sha.slice(0, 7)} on ${host}\n`);
+    deps.stderr.write(
+      `windows-run: running ${file === undefined ? "" : `${file} at `}${sha.slice(0, 7)} on ${host}\n`,
+    );
     const staged = await deps.ssh.exec(
       host,
       ["mkdir", stagingForCmd(runId)],
@@ -227,7 +276,7 @@ async function sendAndRun(
     const buffer = new LineBuffer();
     const sshExit = await deps.ssh.exec(
       host,
-      runnerCommand(runId, sha),
+      runnerCommand(runId, sha, file),
       (chunk) => {
         deps.stdout.write(chunk.toString("utf8"));
         lines.push(...buffer.push(chunk));
@@ -238,7 +287,7 @@ async function sendAndRun(
     );
     lines.push(...buffer.end());
 
-    const verdict = judge(lines, runId, sha, sshExit);
+    const verdict = judge(lines, runId, sha, sshExit, request);
     if (verdict.code === 3) {
       deps.stderr.write(
         verdict.reason === "connection"
@@ -249,7 +298,11 @@ async function sendAndRun(
     }
     return finishWith(
       deps,
-      { kind: "result", record: verdict.record },
+      {
+        kind: "result",
+        record: verdict.record,
+        ...(file === undefined ? {} : { file }),
+      },
       verdict.code,
     );
   } finally {

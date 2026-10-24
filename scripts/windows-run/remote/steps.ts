@@ -1,40 +1,73 @@
-// The three steps CI runs, in CI's order, each timed, logged and followed by
-// a sweep of whatever it left running. A failed step stops the rest.
+// Running a run's steps in order, each timed, logged and followed by a sweep
+// of whatever it left running. A failed step stops the rest. The full run's
+// steps are CI's three, in CI's order; a targeted run's are in targeted.ts.
 
 import type { RunLog } from "./log.ts";
 import { describeProcess, startedSince, stopProcesses } from "./processes.ts";
-import type { StepName, StepRecord } from "./record.ts";
-import { STEP_NAMES } from "./record.ts";
+import {
+  STEPS_FOR,
+  type RunMode,
+  type StepName,
+  type StepRecord,
+} from "./record.ts";
 import type { CheckScanner } from "./scan.ts";
 import type { Sys } from "./sys.ts";
 
-const MINUTE = 60_000;
+export const MINUTE = 60_000;
 
-interface StepPlan {
+export interface StepPlan {
   readonly name: StepName;
+  readonly command: string;
   readonly args: readonly string[];
+  readonly cwd: string;
   readonly timeoutMs: number;
+  /** Whether its output holds the test totals the summary reports. */
+  readonly scan: boolean;
+  /** Not run, and recorded as skipped, with this reason for the terminal. */
+  readonly skipped?: string;
+  /** Runs once the step has passed, its leftovers stopped. */
+  readonly afterPass?: () => Promise<void>;
 }
 
 // Fixed commands and arguments only: pnpm is a .cmd on Windows and needs a
 // shell, so nothing but these may ever reach it. The check takes tens of
 // minutes on this machine.
-const PLANS: readonly StepPlan[] = [
-  {
-    name: "install",
-    args: ["install", "--frozen-lockfile"],
-    timeoutMs: 20 * MINUTE,
-  },
-  { name: "check", args: ["check"], timeoutMs: 120 * MINUTE },
-  { name: "build", args: ["build"], timeoutMs: 20 * MINUTE },
-];
+function pnpmPlan(
+  name: StepName,
+  args: string[],
+  minutes: number,
+  worktree: string,
+): StepPlan {
+  return {
+    name,
+    command: "pnpm",
+    args,
+    cwd: worktree,
+    timeoutMs: minutes * MINUTE,
+    scan: name === "check",
+  };
+}
 
-function notRun(name: StepName): StepRecord {
+/** The frozen install, the first step of either kind of run. */
+export function installPlan(worktree: string): StepPlan {
+  return pnpmPlan("install", ["install", "--frozen-lockfile"], 20, worktree);
+}
+
+/** The full run's steps. */
+export function fullPlans(worktree: string): StepPlan[] {
+  return [
+    installPlan(worktree),
+    pnpmPlan("check", ["check"], 120, worktree),
+    pnpmPlan("build", ["build"], 20, worktree),
+  ];
+}
+
+export function notRun(name: StepName): StepRecord {
   return { name, status: "not-run", exitCode: null, durationMs: 0 };
 }
 
-export function allNotRun(): StepRecord[] {
-  return STEP_NAMES.map(notRun);
+export function allNotRun(mode: RunMode): StepRecord[] {
+  return STEPS_FOR[mode].map(notRun);
 }
 
 export interface StepsResult {
@@ -45,7 +78,7 @@ export interface StepsResult {
 
 export async function runSteps(
   sys: Sys,
-  worktree: string,
+  plans: readonly StepPlan[],
   log: RunLog,
   scanner: CheckScanner,
   say: (line: string) => void,
@@ -54,24 +87,34 @@ export async function runSteps(
   const problems: string[] = [];
   let stopped = false;
 
-  for (const plan of PLANS) {
+  for (const plan of plans) {
     if (stopped) {
       steps.push(notRun(plan.name));
       continue;
     }
-    const command = `pnpm ${plan.args.join(" ")}`;
+    if (plan.skipped !== undefined) {
+      say(`windows-run: step ${plan.name}: skipped (${plan.skipped})`);
+      steps.push({
+        name: plan.name,
+        status: "skipped",
+        exitCode: null,
+        durationMs: 0,
+      });
+      continue;
+    }
+    const command = [plan.command, ...plan.args].join(" ");
     say(`windows-run: step ${plan.name}: ${command}`);
     log.startStep(command);
     const startedAt = sys.now();
     const outcome = await sys.runStep(
-      { command: "pnpm", args: plan.args, cwd: worktree },
+      { command: plan.command, args: plan.args, cwd: plan.cwd },
       plan.timeoutMs,
       (line) => {
         // Indented, so nothing a step prints can look like the runner's own
         // lines, the result record above all.
         sys.print(`  ${line}\n`);
         log.line(line);
-        if (plan.name === "check") {
+        if (plan.scan) {
           scanner.feed(line);
         }
       },
@@ -115,6 +158,9 @@ export async function runSteps(
       durationMs,
     });
     stopped = status !== "passed";
+    if (!stopped && plan.afterPass !== undefined) {
+      await plan.afterPass();
+    }
   }
   return { steps, problems };
 }

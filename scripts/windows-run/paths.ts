@@ -16,10 +16,15 @@ export function stagingForCmd(runId: string): string {
   return `${ROOT}\\incoming\\${runId}`;
 }
 
-/** The command that starts the runner. cmd is the SSH server's shell, and
- * both arguments are hex the local side built, so nothing a person typed
- * reaches it. */
-export function runnerCommand(runId: string, sha: string): string[] {
+/** The command that starts the runner. cmd is the SSH server's shell: the
+ * run id and commit are hex the local side built, and a targeted run's test
+ * file has passed the path rule (remote/test-target.ts), which allows only
+ * characters cmd reads as plain text. */
+export function runnerCommand(
+  runId: string,
+  sha: string,
+  file?: string,
+): string[] {
   const entry = `${stagingForCmd(runId)}\\${REMOTE_DIR.replaceAll("/", "\\")}\\main.ts`;
-  return ["node", entry, runId, sha];
+  return ["node", entry, runId, sha, ...(file === undefined ? [] : [file])];
 }

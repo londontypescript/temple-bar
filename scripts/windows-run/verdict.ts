@@ -1,7 +1,9 @@
 // Deciding how a run ended from what came back, and only from that. A pass
 // needs everything at once: ssh exited 0, exactly one record for this run
-// arrived last, it is valid and for the requested commit, and it lists
-// install, check and build as passed. Anything less is not a pass.
+// arrived last, it is valid and for the requested commit and the requested
+// kind of run (the full run, or that one test file), and it lists every step
+// as passed (install, check and build; or install, which may be skipped, and
+// test). Anything less is not a pass.
 //
 // ssh exits with the runner's own exit code, which is 0 when every step
 // passed and 1 when one failed or the run was refused. So the record and the
@@ -11,8 +13,10 @@
 
 import {
   markerFor,
+  stepsPassed,
   validateRecord,
   type ResultRecord,
+  type RunRequest,
 } from "./remote/record.ts";
 
 type IncompleteReason = "connection" | "no-result";
@@ -31,6 +35,7 @@ export function judge(
   runId: string,
   sha: string,
   sshExit: number,
+  request: RunRequest,
 ): Verdict {
   if (sshExit !== 0 && sshExit !== 1) {
     return { code: 3, reason: "connection" };
@@ -48,13 +53,11 @@ export function judge(
   } catch {
     return { code: 3, reason: "no-result" };
   }
-  const record = validateRecord(parsed, runId, sha);
+  const record = validateRecord(parsed, runId, sha, request);
   if (record === undefined) {
     return { code: 3, reason: "no-result" };
   }
-  const passed =
-    record.refusal === null &&
-    record.steps.every((step) => step.status === "passed");
+  const passed = record.refusal === null && stepsPassed(record.steps);
   if (sshExit !== (passed ? 0 : 1)) {
     return { code: 3, reason: "connection" };
   }
