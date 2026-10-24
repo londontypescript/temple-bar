@@ -19,6 +19,7 @@ import {
 } from "../../testing/github-from-git.ts";
 import { readFixedChanges } from "../github-changes.ts";
 import type { PullRequestRef } from "../github.ts";
+import { TEMPLE_BAR_PACKAGE } from "../manifests.ts";
 
 export const PR: PullRequestRef = {
   api: "https://api.github.com",
@@ -57,6 +58,31 @@ export const NESTED_CHANGE: Files = {
   ...BASE,
   "packages/a/package.json": CHANGED_MANIFEST,
 };
+
+/** A root package.json pinning temple-bar at `version`. */
+export const pinnedManifest = (
+  version: string,
+  scripts: Readonly<Record<string, string>> = { test: "x" },
+): string =>
+  JSON.stringify({
+    name: "root",
+    scripts,
+    devDependencies: { [TEMPLE_BAR_PACKAGE]: version },
+  });
+
+/** A lockfile as pnpm writes it, with temple-bar at `version` and one
+ * other package at `other`. */
+export const pinnedLockfile = (version: string, other = "1.0.0"): string =>
+  "lockfileVersion: '9.0'\n" +
+  "importers:\n" +
+  "  .:\n" +
+  "    devDependencies:\n" +
+  `      '${TEMPLE_BAR_PACKAGE}':\n` +
+  `        specifier: ${version}\n` +
+  `        version: ${version}\n` +
+  "      left-pad:\n" +
+  `        specifier: ${other}\n` +
+  `        version: ${other}\n`;
 
 export function newRepo(t: TestContext): string {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-judge-trees-"));

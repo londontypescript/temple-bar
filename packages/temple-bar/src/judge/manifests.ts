@@ -113,20 +113,35 @@ function pinEntries(manifest: Manifest): Map<string, unknown> {
   return entries;
 }
 
-function pinFindings(file: string, before: Manifest, after: Manifest) {
+interface PinChange {
+  readonly label: string;
+  /** Each side's value as JSON, or "nothing" where it isn't set. */
+  readonly was: string;
+  readonly now: string;
+}
+
+/** Each place temple-bar's version is set differently on the two sides.
+ * The judge's findings and its pin-bump disclosure (pin-bump.ts) both ask
+ * this, so both compare a manifest's pins the same way. */
+export function pinChanges(before: Manifest, after: Manifest): PinChange[] {
   const pinsBefore = pinEntries(before);
   const pinsAfter = pinEntries(after);
-  const findings: string[] = [];
+  const changed: PinChange[] = [];
   for (const label of new Set([...pinsBefore.keys(), ...pinsAfter.keys()])) {
     const was = show(pinsBefore.get(label));
     const now = show(pinsAfter.get(label));
     if (was !== now) {
-      findings.push(
-        `${file}: the temple-bar version in ${label} (${was} on the base branch, ${now} here)`,
-      );
+      changed.push({ label, was, now });
     }
   }
-  return findings;
+  return changed;
+}
+
+function pinFindings(file: string, before: Manifest, after: Manifest) {
+  return pinChanges(before, after).map(
+    ({ label, was, now }) =>
+      `${file}: the temple-bar version in ${label} (${was} on the base branch, ${now} here)`,
+  );
 }
 
 function fieldFindings(file: string, before: Manifest, after: Manifest) {

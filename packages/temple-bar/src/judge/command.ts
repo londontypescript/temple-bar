@@ -17,6 +17,7 @@ import { ASK_FOR_ADMIN_MERGE, findCheckChanges } from "./changes.ts";
 import { GUARDED_CHECKS } from "./guarded-checks.ts";
 import { readFixedChanges } from "./github-changes.ts";
 import type { PullRequestRef } from "./github.ts";
+import { pinBumpDisclosure } from "./pin-bump.ts";
 
 const DEFAULT_API = "https://api.github.com";
 
@@ -90,14 +91,17 @@ const NEEDS_TOKEN =
 
 /** What the maintainer and the agent read when the judge fails. It says what
  * the pull request touched and who decides, in the same words merge uses
- * when it refuses such a change. */
+ * when it refuses such a change. `alsoChanges` is empty unless the pull
+ * request moves the pinned temple-bar version (see pin-bump.ts). */
 function formatCheckChanges(
   findings: readonly string[],
+  alsoChanges: string,
   baseRef: string,
 ): string {
   return (
     "judge: this pull request changes the checks that judge it:\n" +
     findings.map((line) => `  ${line}\n`).join("") +
+    alsoChanges +
     "Its own CI can't vouch for a change to that CI, so the maintainer " +
     `decides. ${ASK_FOR_ADMIN_MERGE} Keep a change like this in a pull ` +
     "request of its own, with other work in another one.\n" +
@@ -152,11 +156,13 @@ async function runJudge(
   if (!read.ok) {
     return cantRead(read.reason);
   }
-  const { baseRef, baseSha, headSha, changes } = read.value;
+  const { baseRef, baseSha, headSha, changes, paths } = read.value;
   const findings = findCheckChanges(changes);
 
   if (findings.length > 0) {
-    ctx.stderr.write(formatCheckChanges(findings, baseRef));
+    ctx.stderr.write(
+      formatCheckChanges(findings, pinBumpDisclosure(changes, paths), baseRef),
+    );
     return 1;
   }
   ctx.stdout.write(
@@ -174,7 +180,9 @@ export const judgeCommand: CommandEntry = {
     "Reads the base branch's tip and the pull request's head from GitHub " +
     "as two whole trees, without checking out or running any of their " +
     `code, and fails when the head changes ${GUARDED_CHECKS}. ` +
-    "Setup's judge workflow runs it on every pull request.\n\n" +
+    "Setup's judge workflow runs it on every pull request. When the pull " +
+    "request moves the pinned temple-bar version, the refusal also lists " +
+    "every other path it changes, so the maintainer sees what rides along.\n\n" +
     "Options:\n" +
     "  --pr <number>  The pull request to judge. In GitHub Actions it comes\n" +
     "                 from the event, and the repository from\n" +

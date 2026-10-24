@@ -39,6 +39,9 @@ export interface FixedChanges {
   /** Each guarded path that differs, or that isn't a regular file at the
    * head, with both sides' state. */
   readonly changes: readonly PathChange[];
+  /** Every path that differs between the two trees, guarded or not, in
+   * plain code-unit order. Names only: none of them is read for this. */
+  readonly paths: readonly string[];
 }
 
 export const MOVED_WHILE_READ =
@@ -50,6 +53,20 @@ function differs(
   head: TreeEntry | undefined,
 ): boolean {
   return base?.mode !== head?.mode || base?.id !== head?.id;
+}
+
+/** A path the pull request changes, for the list of everything it touches.
+ * The recursive trees list folders too, and a folder's id changes whenever
+ * anything inside it does, so a path that is only ever a folder (or not
+ * there) is left out: the files inside it are listed by their own paths. A
+ * folder replaced by a file, a symlink or a submodule still counts. */
+function changedPath(
+  base: TreeEntry | undefined,
+  head: TreeEntry | undefined,
+): boolean {
+  const onlyFolder = (entry: TreeEntry | undefined) =>
+    entry === undefined || entry.type === "tree";
+  return differs(base, head) && !(onlyFolder(base) && onlyFolder(head));
 }
 
 /** A guarded path is judged when it changed, or when the head has it as
@@ -89,14 +106,16 @@ async function stateOf(
     : text;
 }
 
-/** The guarded paths that differ between the two trees, read. */
+/** The guarded paths that differ between the two trees, read, and the
+ * names of every path that differs. */
 async function compareTrees(
   ctx: Context,
   pr: PullRequestRef,
   base: ReadonlyMap<string, TreeEntry>,
   head: ReadonlyMap<string, TreeEntry>,
-): Promise<Read<PathChange[]>> {
+): Promise<Read<Pick<FixedChanges, "changes" | "paths">>> {
   const changes: PathChange[] = [];
+  const paths: string[] = [];
   const seen = (tree: ReadonlyMap<string, TreeEntry>, file: string) => {
     const entry = tree.get(file);
     return entry === undefined || isWorkflowFolder(file, entry)
@@ -104,6 +123,9 @@ async function compareTrees(
       : entry;
   };
   for (const file of new Set([...base.keys(), ...head.keys()])) {
+    if (changedPath(base.get(file), head.get(file))) {
+      paths.push(file);
+    }
     const before = seen(base, file);
     const after = seen(head, file);
     if (!isGuarded(file) || !judged(before, after)) {
@@ -119,7 +141,10 @@ async function compareTrees(
     }
     changes.push({ path: file, base: was.value, head: now.value });
   }
-  return { ok: true, value: changes };
+  // The default sort compares UTF-16 code units, the order every other
+  // list of paths in the judge uses.
+  paths.sort();
+  return { ok: true, value: { changes, paths } };
 }
 
 /** Fixes the two commits, reads them, then checks that neither the pull
@@ -146,9 +171,9 @@ export async function readFixedChanges(
   if (!headTree.ok) {
     return headTree;
   }
-  const changes = await compareTrees(ctx, pr, baseTree.value, headTree.value);
-  if (!changes.ok) {
-    return changes;
+  const compared = await compareTrees(ctx, pr, baseTree.value, headTree.value);
+  if (!compared.ok) {
+    return compared;
   }
 
   const last = await readPullRequest(ctx, pr);
@@ -167,6 +192,6 @@ export async function readFixedChanges(
   }
   return {
     ok: true,
-    value: { baseRef, baseSha: baseSha.value, headSha, changes: changes.value },
+    value: { baseRef, baseSha: baseSha.value, headSha, ...compared.value },
   };
 }
