@@ -62,7 +62,7 @@ export function fullPlans(worktree: string): StepPlan[] {
   ];
 }
 
-export function notRun(name: StepName): StepRecord {
+function notRun(name: StepName): StepRecord {
   return { name, status: "not-run", exitCode: null, durationMs: 0 };
 }
 
