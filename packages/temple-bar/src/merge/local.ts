@@ -263,7 +263,7 @@ async function deleteRemoteBranch(
     );
   } else {
     const why = stale
-      ? `git refused to delete it because its tip was not the merged ${mergedSha} when it pushed`
+      ? `git refused to delete it because it was no longer at the merged ${mergedSha} when it pushed`
       : "the push failed";
     const tip =
       now.kind === "at"
