@@ -13,7 +13,14 @@ import { commitFiles } from "../testing/git-commits.ts";
 import { API, githubFromGit } from "../testing/github-from-git.ts";
 import { ASK_FOR_ADMIN_MERGE } from "./changes.ts";
 import { judgeCommand } from "./command.ts";
-import { BASE, CODE_ONLY, newRepo, type Files } from "./testing/trees.ts";
+import {
+  BASE,
+  CODE_ONLY,
+  newRepo,
+  pinnedLockfile,
+  pinnedManifest,
+  type Files,
+} from "./testing/trees.ts";
 
 const EVENT = "/runner/event.json";
 
@@ -93,6 +100,84 @@ void test("judge: a nested package's changed script is refused, one finding a li
   assert.match(
     stderr.lines.join(""),
     /\n {2}packages\/a\/package\.json: the "test" script\n/,
+  );
+});
+
+/** A base pinning temple-bar 0.1.0 in package.json and the lockfile, and
+ * a head moving both to 0.2.0 with `extra` on top. */
+function pinBump(t: TestContext, extra: Files = {}) {
+  const pinned = {
+    ...BASE,
+    "package.json": pinnedManifest("0.1.0"),
+    "pnpm-lock.yaml": pinnedLockfile("0.1.0"),
+  };
+  const bumped = {
+    ...pinned,
+    "package.json": pinnedManifest("0.2.0"),
+    "pnpm-lock.yaml": pinnedLockfile("0.2.0"),
+    ...extra,
+  };
+  return actionsContext(github(t, bumped, pinned));
+}
+
+const REFUSED = "judge: this pull request changes the checks that judge it:\n";
+
+const PIN_FINDINGS =
+  '  package.json: the temple-bar version in devDependencies["@londontypescript/temple-bar"] ("0.1.0" on the base branch, "0.2.0" here)\n' +
+  "  pnpm-lock.yaml: temple-bar's entries: importers > . > devDependencies > @londontypescript/temple-bar (changed)\n";
+
+/** How every refusal ends, word for word as before pin bumps were
+ * disclosed. */
+const WHO_DECIDES =
+  "Its own CI can't vouch for a change to that CI, so the maintainer " +
+  `decides. ${ASK_FOR_ADMIN_MERGE} Keep a change like this in a pull ` +
+  "request of its own, with other work in another one.\n" +
+  "If the branch is behind main, bring it up to date first: main's " +
+  "newer changes show up here as if this pull request undid them.\n";
+
+void test("judge: a pin bump on its own is refused, saying it changes nothing else", async (t) => {
+  const { ctx, stderr } = pinBump(t);
+  assert.equal(await judgeCommand.run([], ctx), 1);
+  assert.equal(
+    stderr.lines.join(""),
+    REFUSED +
+      PIN_FINDINGS +
+      "This pull request changes nothing else.\n" +
+      WHO_DECIDES,
+  );
+});
+
+void test("judge: a pin bump with other changes lists each of them, guarded or not", async (t) => {
+  const { ctx, stderr } = pinBump(t, {
+    "packages/a/src/index.ts": "export const a = 2;\n",
+    ".github/workflows/ci.yml": "name: CI\non: {}\n",
+  });
+  assert.equal(await judgeCommand.run([], ctx), 1);
+  assert.equal(
+    stderr.lines.join(""),
+    REFUSED +
+      "  .github/workflows/ci.yml (modified)\n" +
+      PIN_FINDINGS +
+      "This pull request also changes:\n" +
+      "  .github/workflows/ci.yml\n" +
+      "  packages/a/src/index.ts\n" +
+      WHO_DECIDES,
+  );
+});
+
+void test("judge: a refusal that leaves the pin alone says nothing about other paths", async (t) => {
+  const { ctx, stderr } = actionsContext(
+    github(t, {
+      ...CODE_ONLY,
+      "package.json": JSON.stringify({ name: "root", scripts: { test: "y" } }),
+    }),
+  );
+  assert.equal(await judgeCommand.run([], ctx), 1);
+  // The whole refusal, word for word as before pin bumps were disclosed,
+  // though another path changed alongside.
+  assert.equal(
+    stderr.lines.join(""),
+    REFUSED + '  package.json: the "test" script\n' + WHO_DECIDES,
   );
 });
 
