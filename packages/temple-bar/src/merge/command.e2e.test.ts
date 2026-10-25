@@ -1,6 +1,7 @@
 // End to end against real git repositories, with only GitHub faked, so
-// merge's local work (merging main in, the plain push, removing the
-// worktree and both branches, and fast-forwarding main) runs on real git.
+// merge's local work (merging main in, the plain push, fast-forwarding
+// main, deleting the remote branch under its lease, and keeping the
+// worktree and the local branch) runs on real git.
 
 import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
@@ -17,9 +18,9 @@ import {
   setUp,
 } from "./testing/e2e-repos.ts";
 
-void test("merges a behind branch end to end: main merged in, plain push, squash, everything tidied", async (t) => {
+void test("merges a behind branch end to end: main merged in, plain push, squash, remote branch deleted, worktree and branch kept", async (t) => {
   const setup = setUp(t);
-  const { gh, calls } = fakeGitHub(setup, "- add x\n");
+  const { gh, calls } = fakeGitHub(setup, { state: "open", body: "- add x\n" });
   const { ctx, stdout, stderr } = context(setup.worktree, gh);
 
   const code = await createMergeCommand(deps).run(["7"], ctx);
@@ -36,11 +37,11 @@ void test("merges a behind branch end to end: main merged in, plain push, squash
     "feat: add x (#7)\n\n- add x\n\nCo-Authored-By: Ada <ada@example.com>",
   );
 
-  assert.equal(existsSync(setup.worktree), false, "worktree removed");
+  assert.ok(existsSync(setup.worktree), "the worktree is kept");
   assert.equal(
-    git(setup.clone, "branch", "--list", "feat/x"),
-    "",
-    "local branch deleted",
+    git(setup.clone, "rev-parse", "refs/heads/feat/x"),
+    mergedHead,
+    "the local branch is kept at the merged head",
   );
   assert.equal(
     git(setup.origin, "branch", "--list", "feat/x"),
@@ -52,9 +53,29 @@ void test("merges a behind branch end to end: main merged in, plain push, squash
     git(setup.origin, "rev-parse", "main"),
     "main fast-forwarded",
   );
+  const out = stdout.lines.join("");
+  assert.ok(
+    out.includes(
+      `merge: deleted origin/feat/x, whose tip was still the merged ${mergedHead}\n`,
+    ),
+    out,
+  );
   assert.match(
-    stdout.lines.join(""),
-    /deleted origin\/feat\/x and confirmed it is gone/,
+    out,
+    new RegExp(
+      `merge: kept the worktree at .*wt-x on feat/x \\(${mergedHead}\\);`,
+    ),
+  );
+  // GitHub lists the pull request at the head it accepted, so the kept
+  // worktree and branch are listed next, for whoever removes them.
+  assert.match(out, /merge: leftovers: 2 left behind/);
+  assert.match(
+    out,
+    /leftovers: {3}worktree .*wt-x: its branch feat\/x's pull request #7 is merged/,
+  );
+  assert.match(
+    out,
+    /leftovers: {3}local branch feat\/x: pull request #7 merged/,
   );
 });
 
@@ -62,7 +83,10 @@ void test("a branch of several commits with no bullets merges with its title and
   const setup = setUp(t);
   commitFile(setup.worktree, "z.ts", "export const z = 3;\n", "wip");
   git(setup.worktree, "push", "origin", "feat/x");
-  const { gh } = fakeGitHub(setup, "Adds x, in one change.\n");
+  const { gh } = fakeGitHub(setup, {
+    state: "open",
+    body: "Adds x, in one change.\n",
+  });
   const { ctx, stderr } = context(setup.worktree, gh);
 
   const code = await createMergeCommand(deps).run(["7"], ctx);
@@ -77,7 +101,7 @@ void test("a branch of several commits with no bullets merges with its title and
 void test("refuses a behind branch whose worktree has uncommitted work, and changes nothing", async (t) => {
   const setup = setUp(t);
   writeFileSync(path.join(setup.worktree, "x.ts"), "export const x = 2;\n");
-  const { gh, calls } = fakeGitHub(setup, "- add x\n");
+  const { gh, calls } = fakeGitHub(setup, { state: "open", body: "- add x\n" });
   const { ctx, stderr } = context(setup.clone, gh);
 
   const code = await createMergeCommand(deps).run(["7"], ctx);

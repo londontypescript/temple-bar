@@ -1,7 +1,7 @@
 // Reads `git worktree list --porcelain`: which folder has which branch
-// checked out. Both `temple-bar merge` (to find the worktree to update and
-// later remove) and `temple-bar leftovers` (to find worktrees left behind)
-// need the same answer, so it is parsed once, here.
+// checked out. Both `temple-bar merge` (to find the worktree to update, and
+// to say where it kept it afterwards) and `temple-bar leftovers` (to find
+// worktrees left behind) need the same answer, so it is parsed once, here.
 
 import type { Context } from "../context.ts";
 
