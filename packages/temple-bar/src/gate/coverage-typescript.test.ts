@@ -165,12 +165,11 @@ void test("when the outcome fails, an empty tsc -p listing says whether it was a
       solutionAnd("/lib/lib.d.ts", showConfig),
     );
     assert.equal(outcomes[0]?.status, "failed");
-    assert.match(
+    // Compared as a whole line, not a pattern: nothing to escape.
+    const expected = `  listings made: tsc -p solution.json (${said}), tsc -p real.json`;
+    assert.ok(
+      stderr.lines.join("").split("\n").includes(expected),
       stderr.lines.join(""),
-      new RegExp(
-        `^ {2}listings made: tsc -p solution\\.json \\(${said.replace(/[().]/g, "\\$&")}\\), tsc -p real\\.json$`,
-        "m",
-      ),
     );
     assert.deepEqual(calls(proc, "--showConfig"), [
       "-p solution.json --showConfig",
