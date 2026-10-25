@@ -209,3 +209,80 @@ void test("ready: an AGENTS.md change is marked with a warning to ask the mainta
     fixture.cleanup();
   }
 });
+
+// The case the fetch is for: this clone's origin/main is older than
+// GitHub's, so only a fresh fetch shows the branch is behind.
+void test("ready: a branch behind a default branch this clone hasn't fetched is refused; once merged in, it is marked and pushed", async () => {
+  const fixture = setUp(TESTS_PASS);
+  try {
+    pushToOriginMain(
+      fixture.root,
+      fixture.originDir,
+      "news.txt",
+      "landed meanwhile\n",
+      fixture.branch,
+    );
+    // A second mapping of origin's main, which the fetch must leave alone.
+    const backup = "refs/remotes/backup/main";
+    runGit(fixture.repoDir, [
+      "config",
+      "--add",
+      "remote.origin.fetch",
+      `+refs/heads/main:${backup}`,
+    ]);
+
+    const behind = await runReady(fixture.repoDir);
+
+    assert.equal(behind.code, 1, "a branch behind the fetched main is refused");
+    assert.equal(
+      behind.stderr.lines.join(""),
+      "ready: this branch is 1 commit behind origin/main: merge it in (git merge origin/main), then run ready again.\n",
+    );
+    assert.doesNotMatch(behind.stdout.lines.join(""), /gate:/);
+    assert.notEqual(
+      runGit(fixture.repoDir, ["rev-parse", "--verify", "-q", backup]).code,
+      0,
+      "the fetch moves origin/main only, not another ref mapping it",
+    );
+    const refused = pushFeature(fixture);
+    assert.notEqual(refused.code, 0);
+    assert.match(refused.stderr, /has not been marked ready to push/);
+
+    const merged = runGit(fixture.repoDir, [
+      "merge",
+      "-q",
+      "--no-edit",
+      "origin/main",
+    ]);
+    assert.equal(merged.code, 0, merged.stderr);
+    const ready = await runReady(fixture.repoDir);
+    assert.equal(ready.code, 0, ready.stderr.lines.join(""));
+    const push = pushFeature(fixture);
+    assert.equal(push.code, 0, push.stderr);
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+void test("ready: when origin can't be reached it refuses rather than trust an old ref, and marks nothing", async () => {
+  const fixture = setUp(TESTS_PASS);
+  try {
+    const url = runGit(fixture.repoDir, ["remote", "get-url", "origin"]);
+    const missing = path.join(fixture.root, "no-such-origin.git");
+    runGit(fixture.repoDir, ["remote", "set-url", "origin", missing]);
+
+    const ready = await runReady(fixture.repoDir);
+
+    assert.equal(ready.code, 1, "a fetch that fails is refused");
+    assert.match(
+      ready.stderr.lines.join(""),
+      /could not fetch main from origin, so ready can't tell whether this branch is behind it:\nfatal: [\s\S]+\nFix the fetch and run ready again\./,
+    );
+    runGit(fixture.repoDir, ["remote", "set-url", "origin", url.stdout.trim()]);
+    const push = pushFeature(fixture);
+    assert.notEqual(push.code, 0);
+    assert.match(push.stderr, /has not been marked ready to push/);
+  } finally {
+    fixture.cleanup();
+  }
+});
