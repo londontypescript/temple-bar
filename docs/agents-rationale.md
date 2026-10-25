@@ -7,11 +7,6 @@ wrote this file; add your own project's reasons as you add rules.
 - **AGENTS.md stays within 200 lines and 32 KiB.** Every agent loads all of
   it in every session. Agent guidance is under 200 lines, and some agents
   stop reading past 32 KiB by default.
-- **Rules live in the block, one or two lines each.** Reasons, examples
-  and procedure live in the companion docs the block links to, each linked
-  with when to read it. A link is read only when an agent thinks it worth
-  reading, so a rule itself never moves out of the block (decision 56,
-  [ADR 0009](adr/0009-readme-and-agents-md.md)).
 - **Ask what we're building first.** An agent that starts coding from a
   vague request builds its own guess, and the rework costs more than the
   question.
@@ -85,8 +80,6 @@ wrote this file; add your own project's reasons as you add rules.
   - a plan grouping counts only when the line states one of these reasons.
 
   What doesn't count: both small, same area, already in the file, quicker.
-  Pull request #201 closed two issues on the strength of a plan's phase
-  grouping alone, with no reason written, and merged past a warning.
 
 - **A pull request over the size limits says why it is one concern.**
   Merge checks only that a `One concern:` line is there. What counts: a
@@ -106,13 +99,3 @@ wrote this file; add your own project's reasons as you add rules.
   that is already tracked costs the user a decision each time, and agents
   kept doing it. The `incident` label alone misses incidents filed by
   people who can't set labels, so titles are searched too.
-- **The test run's global setup starts one shell on Windows.** Git for
-  Windows' shells share one `/tmp` mapping, set from the `TEMP` of the first
-  one to start and kept while any of them is alive. The suite gives each test
-  file its own temp folder and deletes it when the file ends, so without a
-  long-lived shell of Git's own install holding `/tmp` on a folder that
-  outlives the run, a shell started later can find `/tmp` gone and warn.
-  Every `test` script names a global setup (Node's `--test-global-setup`),
-  which the test runner runs once, before the first test file: it starts that
-  shell, and closes it after the last. Only an MSYS process of that install
-  can hold it, so this one command can't be Node.

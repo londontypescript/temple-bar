@@ -28,7 +28,7 @@ import { findGitSh, type GitShDeps } from "../windows-run/remote/git-sh.ts";
  * with `-c` rather than fed through stdin, so the pipe carries no code: this
  * process never writes to it, only closes it. It has to be a shell, the one
  * place outside a hook shim where this repo runs one: only a process of Git's
- * own runtime can hold that runtime's shared /tmp (docs/agents-rationale.md). */
+ * own runtime can hold that runtime's shared /tmp (docs/conventions.md). */
 const ANCHOR_SCRIPT = "echo ready; read _; exit 0";
 const READY_LINE = "ready";
 /** Asked of a fresh shell, which joins the anchor's shared state. */
