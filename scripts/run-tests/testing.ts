@@ -1,10 +1,9 @@
-// A fake machine for the test run's lifecycle: processes that end when a test
-// says, a resolver for Git's sh, a `cygpath` answer, a set of folders that
-// exist, and waits that expire only when a test asks them to.
+// A fake machine for the test run's lifecycle: an anchor that ends when a
+// test says, a resolver for Git's sh, a `cygpath` answer, a set of folders
+// that exist, and waits that expire only when a test asks them to.
 
 import type { Captured, Ended, Proc, RunTestsDeps } from "./lifecycle.ts";
 
-export const EXEC_PATH = "C:\\node\\node.exe";
 export const GIT_SH = "C:\\Program Files\\Git\\usr\\bin\\sh.exe";
 export const OWN_TEMP = "C:\\Users\\dev\\AppData\\Local\\Temp";
 
@@ -76,7 +75,6 @@ export interface Scenario {
     ready?: boolean;
     endsBeforeReady?: Ended;
     endsDuringCheck?: Ended;
-    endsDuringRun?: Ended;
     /** How it ends when its input closes: exit 0 unless given. */
     onClose?: Ended | "hangs";
     stderr?: string;
@@ -84,10 +82,6 @@ export interface Scenario {
   cygpath?: Captured;
   /** The folders that exist, each mapped to its canonical path. */
   dirs?: Record<string, string>;
-  /** How the runner ends: exit 0 unless given. "until-killed" ends when it
-   * is stopped, or with exit 0 a moment later if nothing stops it, so a
-   * broken stop fails its test instead of hanging it. */
-  runner?: Ended | "until-killed";
   /** The waits, by length in ms, that run out instead of waiting forever. */
   expire?: number[];
 }
@@ -96,7 +90,6 @@ interface Started {
   readonly command: string;
   readonly args: readonly string[];
   readonly env: NodeJS.ProcessEnv;
-  readonly piped: boolean;
   readonly proc: FakeProc;
 }
 
@@ -104,16 +97,14 @@ export function harness(scenario: Scenario = {}) {
   const printed: string[] = [];
   const started: Started[] = [];
   const asked: string[] = [];
-  const signals = new Map<NodeJS.Signals, () => void>();
+  const left: number[] = [];
   const anchorSpec = scenario.anchor ?? {};
-  const byRole = (role: "runner" | "anchor"): FakeProc | undefined =>
-    started.find((one) => (one.command === EXEC_PATH) === (role === "runner"))
-      ?.proc;
+  // The only process the run starts is the anchor.
+  const anchor = (): FakeProc | undefined => started[0]?.proc;
 
   const deps: RunTestsDeps = {
     platform: scenario.platform ?? "win32",
-    execPath: EXEC_PATH,
-    env: scenario.env ?? { PATH: "C:\\bin" },
+    env: { ...(scenario.env ?? { PATH: "C:\\bin" }) },
     tmpdir: OWN_TEMP,
     git: (args) => {
       asked.push(`git ${args.join(" ")}`);
@@ -136,26 +127,6 @@ export function harness(scenario: Scenario = {}) {
     start(command, args, options) {
       const proc = new FakeProc();
       started.push({ command, args, ...options, proc });
-      if (command === EXEC_PATH) {
-        const ends = scenario.runner ?? exited(0);
-        if (ends === "until-killed") {
-          setTimeout(() => {
-            proc.end(exited(0));
-          }, 20);
-        } else {
-          queueMicrotask(() => {
-            proc.end(ends);
-          });
-        }
-        const during = anchorSpec.endsDuringRun;
-        const anchor = byRole("anchor");
-        if (during !== undefined && anchor !== undefined) {
-          queueMicrotask(() => {
-            anchor.end(during);
-          });
-        }
-        return proc;
-      }
       proc.stderrText = anchorSpec.stderr ?? "";
       const onClose = anchorSpec.onClose ?? exited(0);
       if (onClose !== "hangs") {
@@ -176,7 +147,7 @@ export function harness(scenario: Scenario = {}) {
       asked.push(`${command} ${args.join(" ")}`);
       const during = anchorSpec.endsDuringCheck;
       if (during !== undefined) {
-        byRole("anchor")?.end(during);
+        anchor()?.end(during);
       }
       return Promise.resolve(
         scenario.cygpath ?? { code: 0, stdout: `${OWN_TEMP}\n`, stderr: "" },
@@ -188,9 +159,6 @@ export function harness(scenario: Scenario = {}) {
       scenario.expire?.includes(ms) === true
         ? Promise.resolve()
         : new Promise(() => undefined),
-    onSignal(signal, handler) {
-      signals.set(signal, handler);
-    },
     print(text) {
       printed.push(text);
     },
@@ -199,9 +167,14 @@ export function harness(scenario: Scenario = {}) {
     deps,
     started,
     asked,
-    signals,
+    /** The exit codes the run tried to leave with, in order. */
+    left,
+    /** Records the code; settles at once, so a test can see what follows. */
+    leave: (code: number): Promise<void> => {
+      left.push(code);
+      return Promise.resolve();
+    },
     printed: () => printed.join(""),
-    runner: () => byRole("runner"),
-    anchor: () => byRole("anchor"),
+    anchor,
   };
 }

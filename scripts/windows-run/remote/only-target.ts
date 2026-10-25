@@ -61,22 +61,22 @@ export function testTarget(repoPath: string): TestTarget | undefined {
 
 /**
  * The arguments for `node` that the workspace's `test` script passes before
- * its globs: the repo's test runner and the two setup files every test file
- * loads, reached from the workspace's folder. `pnpm test` itself can't run
- * one file: pnpm adds extra arguments after the script's globs, so the whole
- * suite would still run.
+ * its globs: the runner's global setup, which holds Git's shared /tmp on
+ * Windows, and the two setup files every test file loads, reached from the
+ * workspace's folder. `pnpm test` itself can't run one file: pnpm adds extra
+ * arguments after the script's globs, so the whole suite would still run.
  */
 export function runnerArgs(workspace: string): string[] {
-  const up = workspace === "" ? "" : "../".repeat(workspace.split("/").length);
   // An `--import` value is a module specifier, so at the root it needs the
   // `./` that a bare relative path lacks, exactly as the root script has it.
-  const imported = up === "" ? "./" : up;
+  const up =
+    workspace === "" ? "./" : "../".repeat(workspace.split("/").length);
   return [
-    `${up}scripts/run-tests.ts`,
+    `--test-global-setup=${up}scripts/run-tests/anchor.ts`,
     "--import",
-    `${imported}scripts/isolate-git-config.ts`,
+    `${up}scripts/isolate-git-config.ts`,
     "--import",
-    `${imported}scripts/isolate-temp-folder.ts`,
+    `${up}scripts/isolate-temp-folder.ts`,
     "--test",
   ];
 }

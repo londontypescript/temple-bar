@@ -46,7 +46,7 @@ void test("a targeted run runs exactly the named file, from its workspace's fold
       file: FILE,
       cwd: [] as string[],
       args: [
-        "scripts/run-tests.ts",
+        "--test-global-setup=./scripts/run-tests/anchor.ts",
         "--import",
         "./scripts/isolate-git-config.ts",
         "--import",
@@ -59,7 +59,7 @@ void test("a targeted run runs exactly the named file, from its workspace's fold
       file: "packages/temple-bar/src/gate/core.test.ts",
       cwd: ["packages", "temple-bar"],
       args: [
-        "../../scripts/run-tests.ts",
+        "--test-global-setup=../../scripts/run-tests/anchor.ts",
         "--import",
         "../../scripts/isolate-git-config.ts",
         "--import",

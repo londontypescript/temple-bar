@@ -29,7 +29,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "format:check": "prettier --check . --ignore-path ../../.gitignore --ignore-path ../../.prettierignore",
-    "test": "node ../../scripts/run-tests.ts --import ../../scripts/isolate-git-config.ts --import ../../scripts/isolate-temp-folder.ts --test \"src/**/*.test.ts\""
+    "test": "node --test-global-setup=../../scripts/run-tests/anchor.ts --import ../../scripts/isolate-git-config.ts --import ../../scripts/isolate-temp-folder.ts --test \"src/**/*.test.ts\""
   },
   "bin": {
     "temple-bar": "dist/cli.js"
