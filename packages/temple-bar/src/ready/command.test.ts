@@ -308,7 +308,7 @@ void test("ready: a branch behind the default branch is refused before the gate,
     [3, "3 commits"],
   ] as const) {
     const t = setup({ behind });
-    assert.equal(await t.run(), 1);
+    assert.equal(await t.run(), 1, `${commits} behind is refused`);
     assert.equal(t.gateRuns(), 0, "the gate never runs");
     assert.equal(t.mark(), "", "an older mark is cleared, nothing new marked");
     assert.equal(
@@ -322,7 +322,7 @@ void test("ready: a failed fetch stops before the gate, with git's reason, rathe
   const t = setup({
     fetchError: "fatal: could not read from remote repository",
   });
-  assert.equal(await t.run(), 1);
+  assert.equal(await t.run(), 1, "a failed fetch is refused");
   assert.equal(t.gateRuns(), 0);
   assert.equal(t.mark(), "");
   const out = t.stderr.lines.join("");
@@ -353,7 +353,7 @@ void test("ready: fetches the default branch alone, without tags, into its remot
 
 void test("ready: with origin/HEAD at master, fetches and compares with master", async () => {
   const t = setup({ defaultBranch: "master", behind: 2 });
-  assert.equal(await t.run(), 1);
+  assert.equal(await t.run(), 1, "2 commits behind master is refused");
   assert.deepEqual(t.gitCalls("fetch"), [
     [
       "fetch",
@@ -374,7 +374,7 @@ void test("ready: with origin/HEAD at master, fetches and compares with master",
 
 void test("ready: a count that fails stops before the gate, nothing marked", async () => {
   const t = setup({ countFails: true });
-  assert.equal(await t.run(), 1);
+  assert.equal(await t.run(), 1, "a failed count is refused");
   assert.equal(t.gateRuns(), 0);
   assert.equal(t.mark(), "");
   assert.match(

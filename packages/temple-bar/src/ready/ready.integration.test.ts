@@ -214,7 +214,7 @@ void test("ready: a branch behind a default branch this clone hasn't fetched is 
 
     const behind = await runReady(fixture.repoDir);
 
-    assert.equal(behind.code, 1);
+    assert.equal(behind.code, 1, "a branch behind the fetched main is refused");
     assert.equal(
       behind.stderr.lines.join(""),
       "ready: this branch is 1 commit behind origin/main: merge it in (git merge origin/main), then run ready again.\n",
@@ -249,7 +249,7 @@ void test("ready: when origin can't be reached it refuses rather than trust an o
 
     const ready = await runReady(fixture.repoDir);
 
-    assert.equal(ready.code, 1);
+    assert.equal(ready.code, 1, "a fetch that fails is refused");
     assert.match(
       ready.stderr.lines.join(""),
       /could not fetch main from origin, so ready can't tell whether this branch is behind it:\nfatal: [\s\S]+\nFix the fetch and run ready again\./,
