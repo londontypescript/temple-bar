@@ -43,8 +43,8 @@ import {
   type Timing,
 } from "./wait.ts";
 import { listWorktrees } from "./worktrees.ts";
+import { clearOldMark, markAfterGate } from "../ready/after-gate.ts";
 import type { RunGate } from "../ready/command.ts";
-import { writeMark } from "../ready/mark.ts";
 
 export interface MergeDeps {
   readonly sleep: Sleep;
@@ -139,6 +139,15 @@ async function upToDateTip(
     branch,
     repository.defaultBranch,
     async (mergedTip) => {
+      // A mark left from before describes some other commit; it goes first,
+      // so nothing below can leave it standing.
+      const uncleared = await clearOldMark(ctx, worktree.path);
+      if (uncleared !== undefined) {
+        refuse(
+          `${uncleared.reason}, so the gate did not run on ${branch} and nothing was pushed. ` +
+            `Fix that in ${worktree.path} and run merge again.`,
+        );
+      }
       ctx.stdout.write(
         `merge: running the gate on ${branch} with ${upstream} merged in\n`,
       );
@@ -149,7 +158,16 @@ async function upToDateTip(
             "run `pnpm ready`, push, and run merge again.",
         );
       }
-      await writeMark(ctx, worktree.path, mergedTip);
+      // The same checks ready makes after its gate: the gate ran the
+      // project's scripts, which could have committed or changed files.
+      const unmarked = await markAfterGate(ctx, worktree.path, mergedTip);
+      if (unmarked !== undefined) {
+        refuse(
+          `with ${upstream} merged in, the gate left ${worktree.path} changed: ${unmarked.reason}\n` +
+            "So nothing was marked or pushed. Look at what the gate changed, commit or discard it, " +
+            "run `pnpm ready`, push, and run merge again.",
+        );
+      }
     },
   );
 }

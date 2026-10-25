@@ -14,6 +14,9 @@ import {
   REMOTE_NEWER,
 } from "./testing/world.ts";
 
+// The ready mark in the branch's worktree.
+const MARK = "/wt/x/.git/temple-bar-ready";
+
 function mergeCall(h: ReturnType<typeof harness>): readonly string[] {
   const call = h.gh.calls.find(
     (c) => c.args[0] === "pr" && c.args[1] === "merge",
@@ -334,7 +337,7 @@ void test("a branch brought up to date passes the gate and is marked ready befor
     "the gate runs in the branch's worktree",
   );
   assert.equal(
-    (await h.ctx.fs.readText("/wt/x/.git/temple-bar-ready"))?.trim(),
+    (await h.ctx.fs.readText(MARK))?.trim(),
     MERGED_IN,
     "the merge commit is marked, so the pre-push hook lets it out",
   );
@@ -360,8 +363,35 @@ void test("a branch that fails the gate once main is merged in is not pushed or 
     "nothing is pushed after a failing gate",
   );
   assert.equal(h.ran("gh", "pr", "merge"), false);
-  assert.equal(
-    await h.ctx.fs.readText("/wt/x/.git/temple-bar-ready"),
-    undefined,
-  );
+  assert.equal(await h.ctx.fs.readText(MARK), "", "nothing is marked");
 });
+
+// The gate runs the project's own scripts, which can commit or change files
+// as they go. Its pass then doesn't describe the merge commit as pushed.
+for (const [effect, why] of [
+  ["commits", /changed: the checked-out commit changed while the gate ran\n/],
+  ["dirties", /aren't committed.*:\n {3}M file\.ts\n/],
+] as const) {
+  void test(`a gate that ${effect === "commits" ? "commits" : "changes tracked files"} while it runs leaves the caught-up branch unmarked and unpushed`, async () => {
+    const world = defaultWorld();
+    world.behind = true;
+    world.heads = [HEAD, MERGED_IN];
+    world.gateEffect = effect;
+    const h = harness(world);
+    await h.ctx.fs.writeText(MARK, `${HEAD}\n`);
+    assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 1);
+    assert.deepEqual(h.marksAtGate, [""], "an older mark is gone before it");
+    assert.match(
+      h.err(),
+      /merge: refused: with origin\/main merged in, the gate left \/wt\/x changed: /,
+    );
+    assert.match(h.err(), why);
+    assert.match(
+      h.err(),
+      /So nothing was marked or pushed\. Look at what the gate changed, commit or discard it, run `pnpm ready`, push, and run merge again\./,
+    );
+    assert.equal(await h.ctx.fs.readText(MARK), "", "nothing is marked");
+    assert.equal(h.pushedBranch(), false, "the branch is not pushed");
+    assert.equal(h.ran("gh", "pr", "merge"), false, "nothing is merged");
+  });
+}
