@@ -5,7 +5,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createMergeCommand } from "./command.ts";
-import { defaultWorld, harness, HEAD, MERGED_IN } from "./testing/world.ts";
+import {
+  defaultWorld,
+  harness,
+  HEAD,
+  LOCAL_NEWER,
+  MERGED_IN,
+  REMOTE_NEWER,
+} from "./testing/world.ts";
 
 function mergeCall(h: ReturnType<typeof harness>): readonly string[] {
   const call = h.gh.calls.find(
@@ -57,7 +64,7 @@ void test("never bypasses a ruleset or forces a push", async () => {
   const world = defaultWorld();
   world.behind = true;
   world.heads = [HEAD, MERGED_IN];
-  world.remoteBranchAfterMerge = true;
+  world.remoteAfterMerge = "accepted";
   const h = harness(world);
   assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
   const everything = [...h.git.calls, ...h.gh.calls].flatMap((c) => c.args);
@@ -65,6 +72,22 @@ void test("never bypasses a ruleset or forces a push", async () => {
     assert.equal(everything.includes(flag), false, flag);
   }
   assert.ok(!everything.some((arg) => arg.startsWith("+")), "no +refspec");
+  // The one lease narrows deleting the merged branch to the head GitHub
+  // accepted, here the commit that brought it up to date.
+  const leased = h.git.calls.filter((c) =>
+    c.args.some((arg) => arg.startsWith("--force-with-lease")),
+  );
+  assert.deepEqual(
+    leased.map((c) => c.args),
+    [
+      [
+        "push",
+        `--force-with-lease=refs/heads/feat/x:${MERGED_IN}`,
+        "origin",
+        ":refs/heads/feat/x",
+      ],
+    ],
+  );
 });
 
 void test("a branch behind main gets main merged in and pushed, then merges at the new head", async () => {
@@ -152,24 +175,45 @@ void test("a repository without code scanning merges and says there was nothing 
   assert.match(h.out(), /code scanning isn't set up here/);
 });
 
-void test("after merging: removes the worktree, deletes the branch, fast-forwards main, reports", async () => {
+void test("after merging: fast-forwards main, keeps the worktree and the branch, and lists them as leftovers", async () => {
   const h = harness(defaultWorld());
   assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
-  const remove = h.git.calls.find(
-    (c) => c.args[0] === "worktree" && c.args[1] === "remove",
-  );
-  assert.deepEqual(remove?.args, ["worktree", "remove", "/wt/x"]);
-  assert.equal(remove.cwd, "/repo", "runs from the primary checkout");
-  assert.ok(h.ran("git", "branch", "-D", "feat/x"));
+  assert.equal(h.ran("git", "worktree", "remove"), false, "worktree removed");
+  assert.equal(h.ran("git", "branch", "-D"), false, "local branch deleted");
   assert.ok(h.ran("git", "merge", "--ff-only", "--quiet", "origin/main"));
   const out = h.out();
-  assert.match(out, /removed the worktree at \/wt\/x/);
-  assert.match(out, /deleted the local branch feat\/x/);
   assert.match(out, /confirmed origin\/feat\/x is gone/);
+  assert.match(
+    out,
+    /merge: kept the worktree at \/wt\/x on feat\/x \(a{40}\); your harness removes it when it is done, or inspect it with temple-bar leftovers\n/,
+  );
   assert.match(out, /no open code-scanning alerts on main/);
-  assert.match(out, /no leftover branches or worktrees/);
+  // What merge kept on purpose is next listed for whoever removes it.
+  assert.match(
+    out,
+    /merge: leftovers: 2 left behind \(nothing deleted; check each before removing it\):\nmerge: leftovers: {3}worktree \/wt\/x: its branch feat\/x's pull request #7 is merged \(git worktree remove \/wt\/x\)\nmerge: leftovers: {3}local branch feat\/x: pull request #7 merged \(git branch -D feat\/x\)\n/,
+  );
   assert.match(out, /incidents: 3 open issues labelled incident\n/);
   assert.match(out, /pr-size: ok/);
+});
+
+void test("a commit made on the branch after the merge is kept, said so, and left out of the leftovers", async () => {
+  const world = defaultWorld();
+  world.localCommitAfterMerge = true;
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
+  const out = h.out();
+  assert.match(
+    out,
+    new RegExp(
+      `kept the worktree at /wt/x on feat/x \\(${LOCAL_NEWER}, which is not the merged ${HEAD}\\)`,
+    ),
+  );
+  assert.match(
+    out,
+    /merge: leftovers: none finished, so check what merge kept above before removing it\n/,
+  );
+  assert.doesNotMatch(out, /local branch feat\/x:/);
 });
 
 void test("after the first merge, advises pnpm install when the primary checkout lists temple-bar but has none installed", async () => {
@@ -208,13 +252,41 @@ void test("no pnpm install advice when the primary checkout already has temple-b
   assert.doesNotMatch(h.out(), /pnpm install/);
 });
 
-void test("deletes a remote branch gh left behind, and confirms it is gone", async () => {
+void test("deletes a remote branch gh left behind, leased to the merged head", async () => {
   const world = defaultWorld();
-  world.remoteBranchAfterMerge = true;
+  world.remoteAfterMerge = "accepted";
   const h = harness(world);
   assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
-  assert.ok(h.ran("git", "push", "origin", "--delete", "feat/x"));
-  assert.match(h.out(), /deleted origin\/feat\/x and confirmed it is gone/);
+  assert.ok(
+    h.ran(
+      "git",
+      "push",
+      `--force-with-lease=refs/heads/feat/x:${HEAD}`,
+      "origin",
+      ":refs/heads/feat/x",
+    ),
+  );
+  assert.match(
+    h.out(),
+    /deleted origin\/feat\/x, whose tip was still the merged a{40}\n/,
+  );
+  assert.doesNotMatch(h.out(), /remote branch origin\/feat\/x:/);
+});
+
+void test("a remote branch pushed to after the merge is kept, and merge exits 1", async () => {
+  const world = defaultWorld();
+  world.remoteAfterMerge = "moved";
+  const h = harness(world);
+  assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 1);
+  assert.match(
+    h.err(),
+    new RegExp(
+      `left behind: kept origin/feat/x: its tip is ${REMOTE_NEWER}, not the merged ${HEAD}, so it holds work that didn't merge`,
+    ),
+  );
+  // Newer work isn't finished, so the leftovers never suggest deleting it.
+  assert.doesNotMatch(h.out(), /remote branch origin\/feat\/x:/);
+  assert.match(h.out(), /merged #7/);
 });
 
 void test("alerts open on main after the merge are reported and exit 1", async () => {

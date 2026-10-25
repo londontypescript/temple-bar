@@ -371,10 +371,11 @@ export function createRealSys(): Sys {
       return capture("git", args, cwd === undefined ? {} : { cwd });
     },
     runStep,
-    async probe(command, args) {
+    async probe(command, args, cwd) {
       const result = await capture(command, args, {
         shell: needsShell(command, args),
         timeoutMs: PROBE_TIMEOUT_MS,
+        ...(cwd === undefined ? {} : { cwd }),
       });
       return result.code === 0 ? result.stdout : null;
     },

@@ -132,7 +132,10 @@ void test("the local verdict reads the runner's real output and exit code as the
     const lines = sys.printed
       .split("\n")
       .map((line) => line.replace(/\r$/, ""));
-    assert.equal(judge(lines, RUN_ID, SHA, exit).code, expected);
+    assert.equal(
+      judge(lines, RUN_ID, SHA, exit, { mode: "full" }).code,
+      expected,
+    );
   }
 });
 

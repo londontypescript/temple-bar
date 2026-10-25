@@ -20,6 +20,10 @@ import type { MergeDeps } from "../run.ts";
 export const HEAD = "a".repeat(40);
 export const MERGED_IN = "b".repeat(40);
 const BASE = "c".repeat(40);
+/** What a push made after GitHub accepted the merge moved origin's branch to. */
+export const REMOTE_NEWER = "9".repeat(40);
+/** A commit made on the local branch after GitHub accepted the merge. */
+export const LOCAL_NEWER = "8".repeat(40);
 
 /** A check run as GitHub's API returns it. `id` and `started_at` tell
  * which of several runs with one name is the newest. */
@@ -51,9 +55,6 @@ export interface World {
   behind: boolean;
   /** Exit code of the gate merge runs after bringing a branch up to date. */
   gateExit: number;
-  /** What git leaves in the merged worktree's folder after removing it;
-   * undefined when the folder is gone. */
-  folderLeft: readonly string[] | undefined;
   dirty: boolean;
   /** Extra worktree entries after the primary one, in porcelain form. */
   worktrees: string;
@@ -75,7 +76,14 @@ export interface World {
   coAuthors: string;
   /** How many merge requests GitHub refuses before it accepts one. */
   mergeRefusals: number;
-  remoteBranchAfterMerge: boolean;
+  /** origin's branch once GitHub has merged: deleted with the merge, still
+   * at the head GitHub accepted, or moved on to REMOTE_NEWER by a push. */
+  remoteAfterMerge: "deleted" | "accepted" | "moved";
+  /** The local branch gains LOCAL_NEWER once GitHub has merged. */
+  localCommitAfterMerge: boolean;
+  /** stderr of a deletion push that fails for a reason other than its lease
+   * (a rule or a permission, say); undefined when origin applies the lease. */
+  deletionError: string | undefined;
   incidents: number;
   /** Bypassed rule suites on the default branch, one JSON object a line, as
    * the listing's --jq prints them. Each one went past the judge. */
@@ -98,7 +106,6 @@ export function defaultWorld(): World {
     localTip: HEAD,
     behind: false,
     gateExit: 0,
-    folderLeft: undefined,
     dirty: false,
     worktrees: `worktree /wt/x\nHEAD ${HEAD}\nbranch refs/heads/feat/x\n`,
     checkRuns: [[{ name: "gate", status: "completed", conclusion: "success" }]],
@@ -116,7 +123,9 @@ export function defaultWorld(): World {
     coAuthors:
       "Co-authored-by: Ada <ada@example.com>\n\nCo-Authored-By: ada <ADA@example.com>\nCo-authored-by: Bob <bob@example.com>\n",
     mergeRefusals: 0,
-    remoteBranchAfterMerge: false,
+    remoteAfterMerge: "deleted",
+    localCommitAfterMerge: false,
+    deletionError: undefined,
     incidents: 3,
     bypasses: "",
   };
@@ -156,9 +165,10 @@ export function harness(world: World): Harness {
   let checkReads = 0;
   let mergeRequests = 0;
   let tip = world.localTip;
-  let remoteDeleted = false;
-  let worktreeRemoved = false;
-  let branchDeleted = false;
+  // origin's tip of the branch, and the head GitHub accepted when it merged.
+  let remoteTip = world.heads[0];
+  let accepted: string | undefined;
+  const branch = world.pr.headRefName;
 
   // Each side's files: every changed file, with text that differs, then
   // package.json and the other files as the world gives them.
@@ -193,18 +203,15 @@ export function harness(world: World): Harness {
     const joined = args.join(" ");
     switch (command) {
       case "worktree":
-        if (rest[0] === "list") {
-          return ok(
-            `worktree /repo\nHEAD ${BASE}\nbranch refs/heads/main\n\n${worktreeRemoved ? "" : world.worktrees}`,
-          );
-        }
-        worktreeRemoved = rest[0] === "remove";
-        return ok();
-      case "branch":
-        branchDeleted = rest[0] === "-D";
-        return ok();
+        return rest[0] === "list"
+          ? ok(
+              `worktree /repo\nHEAD ${BASE}\nbranch refs/heads/main\n\n${world.worktrees}`,
+            )
+          : ok();
       case "for-each-ref":
-        return ok(branchDeleted ? "main\n" : `main\n${world.pr.headRefName}\n`);
+        return ok(
+          `main ${BASE}\n${tip === undefined ? "" : `${branch} ${tip}\n`}`,
+        );
       case "rev-parse":
         if (rest[0] === "--git-path") {
           return ok(`.git/${rest[1] ?? ""}\n`);
@@ -212,7 +219,13 @@ export function harness(world: World): Harness {
         return tip === undefined ? fail("") : ok(`${tip}\n`);
       case "merge-base":
         if (rest[0] === "--is-ancestor") {
-          return world.behind ? fail("") : ok();
+          // Merge asks if the branch has origin/main in it; leftovers asks if
+          // a tip is inside the merged head, which a later commit never is.
+          const [, ancestor = "", descendant] = rest;
+          const inside = ancestor.startsWith("origin/")
+            ? !world.behind
+            : ancestor === descendant || ancestor === HEAD;
+          return inside ? ok() : fail("");
         }
         return ok(`${BASE}\n`);
       case "status":
@@ -231,15 +244,24 @@ export function harness(world: World): Harness {
         return ok(world.coAuthors);
       case "ls-remote":
         return ok(
-          world.remoteBranchAfterMerge && !remoteDeleted
-            ? `${HEAD}\trefs/heads/${world.pr.headRefName}\n`
-            : "",
+          remoteTip === undefined ? "" : `${remoteTip}\trefs/heads/${branch}\n`,
         );
-      case "push":
-        if (rest.includes("--delete")) {
-          remoteDeleted = true;
+      case "push": {
+        const lease = rest.find((arg) => arg.startsWith("--force-with-lease="));
+        if (lease === undefined) {
+          remoteTip = tip;
+          return ok();
         }
+        // As in git, origin deletes the branch only while it is at the
+        // commit the lease names.
+        const at = `--force-with-lease=refs/heads/${branch}:${remoteTip ?? ""}`;
+        if (world.deletionError !== undefined || lease !== at) {
+          const stale = ` ! [rejected] (delete) -> ${branch} (stale info)`;
+          return fail(world.deletionError ?? stale);
+        }
+        remoteTip = undefined;
         return ok();
+      }
       default:
         return ok();
     }
@@ -294,10 +316,17 @@ export function harness(world: World): Harness {
         return fail("Repository rule violations found");
       }
       merged = true;
+      accepted = args[args.indexOf("--match-head-commit") + 1];
+      const after = { deleted: undefined, accepted, moved: REMOTE_NEWER };
+      remoteTip = after[world.remoteAfterMerge];
+      if (world.localCommitAfterMerge) {
+        tip = LOCAL_NEWER;
+      }
       return ok();
     }
     if (joined.startsWith("pr list")) {
-      return ok("[]");
+      const pr = { ...world.pr, headRefOid: accepted, state: "MERGED" };
+      return ok(JSON.stringify(merged ? [pr] : []));
     }
     if (joined.includes("rulesets/rule-suites?")) {
       return ok(world.bypasses);
@@ -331,19 +360,6 @@ export function harness(world: World): Harness {
   const gateRuns: string[] = [];
   const timedCtx: Context = { ...ctx, clock: { now: () => new Date(now) } };
   const deps: MergeDeps = {
-    // Never the real filesystem: the worktree paths here are made up.
-    worktreeRemover: {
-      inspect: () =>
-        Promise.resolve(
-          world.folderLeft === undefined
-            ? { kind: "missing" }
-            : { kind: "directory", identity: "1:1", entries: world.folderLeft },
-        ),
-      removeTree: () => {
-        world.folderLeft = undefined;
-        return Promise.resolve();
-      },
-    },
     runGate: (gateCtx) => {
       gateRuns.push(gateCtx.cwd);
       return Promise.resolve(world.gateExit);

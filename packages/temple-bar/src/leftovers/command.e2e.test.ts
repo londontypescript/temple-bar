@@ -21,7 +21,7 @@ import { leftoversCommandEntry } from "./command.ts";
 
 void test("leftovers reports a merged branch and its worktree, and deletes nothing", async (t) => {
   const setup = setUp(t);
-  const { gh } = fakeGitHub(setup, "- add x\n");
+  const { gh } = fakeGitHub(setup, { state: "merged", head: setup.pushedTip });
   const { ctx, stdout } = context(setup.clone, gh);
 
   assert.equal(await leftoversCommandEntry.run([], ctx), 0);
@@ -41,7 +41,7 @@ void test("leftovers reports a merged branch and its worktree, and deletes nothi
 
 void test("leftovers leaves out a branch that reuses a merged pull request's name for new work", async (t) => {
   const setup = setUp(t);
-  const { gh } = fakeGitHub(setup, "- add x\n");
+  const { gh } = fakeGitHub(setup, { state: "merged", head: setup.pushedTip });
   // New, unpushed work on a branch named like pull request #7's.
   commitFile(setup.worktree, "new.ts", "export const n = 1;\n", "feat: new");
   const { ctx, stdout } = context(setup.clone, gh);

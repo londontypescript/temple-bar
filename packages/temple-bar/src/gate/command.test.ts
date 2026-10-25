@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 
 import { route } from "../router.ts";
@@ -13,6 +14,13 @@ import {
 } from "../testing/fakes.ts";
 import { testGateCommand as gateCommand } from "./testing/fake-tools.ts";
 import { DEFAULT_MAX_FILE_LINES } from "./lengths.ts";
+import {
+  AGENTS_MAX_BYTES,
+  AGENTS_MAX_LINES,
+  measureAgentsFile,
+} from "./agents-size.ts";
+import { freshAgentsMd } from "../init/agents-template.ts";
+import { COMPANION_FILES } from "../init/companion-docs.ts";
 import {
   CORE_SCRIPTS,
   coreFiles,
@@ -190,6 +198,7 @@ void test("gate: format:check is required: a project without it exits 2, and the
 
 void test("gate: a pass lists every check that ran, each passed, on stdout", async () => {
   const { ctx, stdout, stderr } = codeProject(ALL_SCRIPTS);
+  const agents = measureAgentsFile(freshAgentsMd());
 
   const code = await route(["gate"], ctx, registryWithGate());
 
@@ -207,10 +216,10 @@ void test("gate: a pass lists every check that ran, each passed, on stdout", asy
       "  passed   test",
       "  passed   type-check coverage (all 1 TypeScript file(s) checked by 1 listing(s))",
       "  skipped  test coverage (no test files)",
-      "  passed   core setup (5 hooks unchanged, git config, .gitignore, package.json scripts)",
+      "  passed   core setup (5 hooks unchanged, git config, .gitignore, package.json scripts, AGENTS.md block)",
       "  passed   gate and title workflows (2 exact copies)",
       `  passed   file-length cap (all 2 tracked text file(s) are within the ${String(DEFAULT_MAX_FILE_LINES)}-line cap)`,
-      "  skipped  AGENTS.md size (no AGENTS.md)",
+      `  passed   AGENTS.md size (${String(agents.lines)}/${String(AGENTS_MAX_LINES)} lines, ${String(agents.bytes)}/${String(AGENTS_MAX_BYTES)} bytes)`,
       "  skipped  markdown lint (no markdown files)",
       "  skipped  local links (no markdown files)",
       "  passed   unused code (knip)",
@@ -243,20 +252,37 @@ void test("gate: a failure lists every check the same way, on stderr, and names 
 });
 
 void test("gate: a repo with only its starting files and setup's scripts passes on the base checks alone", async () => {
+  // Setup's AGENTS.md (from coreFiles) and the docs it links to are
+  // tracked, as setup leaves them.
+  const companions = COMPANION_FILES.map((file) => file.path);
   const git = createFakeGit(
     withCoreGit(() => ({
       code: 0,
-      stdout: "README.md\0LICENSE\0AGENTS.md\0.gitignore\0package.json\0",
+      stdout: [
+        "README.md",
+        "LICENSE",
+        "AGENTS.md",
+        ".gitignore",
+        "package.json",
+        ...companions,
+      ]
+        .map((name) => `${name}\0`)
+        .join(""),
       stderr: "",
     })),
   );
   const proc = createFakeProc();
   const fs = createFakeFs({
     ...coreFiles(),
+    ...Object.fromEntries(
+      COMPANION_FILES.map((file) => [
+        path.join("/repo", ...file.path.split("/")),
+        file.content,
+      ]),
+    ),
     "/repo/package.json": JSON.stringify({ scripts: CORE_SCRIPTS }),
     "/repo/README.md": SMALL_FILE,
     "/repo/LICENSE": SMALL_FILE,
-    "/repo/AGENTS.md": SMALL_FILE,
   });
   const ctx = createFakeContext({ git, proc, fs });
 

@@ -16,6 +16,11 @@ export interface Layout {
   readonly logs: string;
   readonly lock: string;
   readonly incoming: string;
+  /** The targeted runs' one persistent worktree, kept between runs so its
+   * node_modules survives, and the record of its last install. Both sit
+   * outside runs\, which the sweep empties. */
+  readonly only: string;
+  readonly onlyInstall: string;
 }
 
 export function layoutFor(home: string): Layout {
@@ -27,6 +32,8 @@ export function layoutFor(home: string): Layout {
     logs: path.join(root, "logs"),
     lock: path.join(root, "lock"),
     incoming: path.join(root, "incoming"),
+    only: path.join(root, "only"),
+    onlyInstall: path.join(root, "only-install.json"),
   };
 }
 

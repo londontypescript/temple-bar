@@ -219,7 +219,11 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
       "docs/adr/0000-template.md",
       "docs/agents-rationale.md",
       "docs/conventions.md",
+      "docs/delegation.md",
+      "docs/incidents.md",
       "docs/phase-boundaries.md",
+      "docs/planning.md",
+      "docs/pull-requests.md",
       "keep.txt",
       "package.json",
     ]);

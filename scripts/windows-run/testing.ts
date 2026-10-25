@@ -45,6 +45,8 @@ export function makeRecord(
   return {
     runId: RUN_ID,
     sha: SHA,
+    mode: "full",
+    file: null,
     refusal: null,
     steps: passedSteps(),
     versions: { node: "24.20.0", pnpm: "10.34.5", git: "2.55.0" },
@@ -54,6 +56,24 @@ export function makeRecord(
     cleanup: [],
     ...overrides,
   };
+}
+
+/** A passing targeted run of `file`, its install skipped. */
+export function makeTargetedRecord(
+  file: string,
+  overrides: Partial<ResultRecord> = {},
+): ResultRecord {
+  return makeRecord({
+    mode: "only",
+    file,
+    gate: null,
+    steps: [
+      { name: "install", status: "skipped", exitCode: null, durationMs: 0 },
+      { name: "test", status: "passed", exitCode: 0, durationMs: 9000 },
+    ],
+    tests: { tests: 14, passed: 14, failed: 0, skipped: 0 },
+    ...overrides,
+  });
 }
 
 export function recordLine(record: ResultRecord = makeRecord()): string {
@@ -75,6 +95,13 @@ export interface FakeSysOptions {
   >;
   /** The commit the worktree reports. */
   headSha?: string;
+  /** Blob ids by file, for `rev-parse <sha>:<file>`; a fixed id otherwise. */
+  blobs?: Record<string, string>;
+  /** What `node --version` and `pnpm --version` print. */
+  versions?: { node?: string; pnpm?: string };
+  /** What `rev-parse --show-toplevel` prints; the folder it runs in
+   * otherwise. */
+  toplevel?: string;
   refs?: string[];
   /** Every listing from this call on (1 = the first) fails. */
   failListingFrom?: number;
@@ -112,6 +139,10 @@ export interface FakeSys extends Sys {
   deletedRefs: string[];
   /** The pids of the trial tree, top first, once it has started. */
   treePids: number[];
+  /** Every step started, as it was asked for. */
+  specs: StepSpec[];
+  /** Every probe, with the folder it ran in. */
+  probes: { command: string; cwd: string | undefined }[];
 }
 
 const GIT_EXEC_PATH = "C:/Program Files/Git/mingw64/libexec/git-core";
@@ -140,6 +171,8 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
     seenAtStep: {},
     deletedRefs: [],
     treePids: [],
+    specs: [],
+    probes: [],
     procs: [
       { pid: 100, name: "node", startMs: RUNNER_START },
       { pid: 90, name: "cmd", startMs: RUNNER_START - 1_000 },
@@ -183,9 +216,20 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
       if (verb === "init") {
         await nodeFs.mkdir(path.join(args.at(-1) ?? "", ".git"));
       } else if (verb === "worktree" && args.includes("add")) {
-        await nodeFs.mkdir(args.at(-2) ?? "");
+        // A linked worktree's .git is a file naming the clone.
+        const worktree = args.at(-2) ?? "";
+        await nodeFs.mkdir(worktree);
+        await nodeFs.writeFile(path.join(worktree, ".git"), "gitdir: x\n");
       } else if (verb === "--exec-path") {
         return { ...ok, stdout: `${GIT_EXEC_PATH}\n` };
+      } else if (verb === "rev-parse" && args.includes("--verify")) {
+        const file = (args.at(-1) ?? "").split(":")[1] ?? "";
+        return {
+          ...ok,
+          stdout: `${options.blobs?.[file] ?? "b".repeat(40)}\n`,
+        };
+      } else if (verb === "rev-parse" && args.includes("--show-toplevel")) {
+        return { ...ok, stdout: `${options.toplevel ?? cwd ?? ""}\n` };
       } else if (verb === "rev-parse") {
         return { ...ok, stdout: `${options.headSha ?? SHA}\n` };
       } else if (verb === "for-each-ref") {
@@ -196,8 +240,8 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
       return ok;
     },
     async runStep(spec: StepSpec, _timeout, onLine): Promise<StepOutcome> {
-      const name =
-        spec.args[0] === "install" ? "install" : (spec.args[0] ?? "");
+      sys.specs.push(spec);
+      const name = spec.command === "node" ? "test" : (spec.args[0] ?? "");
       sys.stepsRun.push(name);
       sys.seenAtStep[name] = sys.procs.map((proc) => proc.pid);
       const script = options.steps?.[name] ?? {};
@@ -206,23 +250,34 @@ export function fakeSys(options: FakeSysOptions): FakeSys {
       }
       sys.clock += script.takes ?? 1_000;
       sys.procs.push(...(script.leaves ?? []));
+      const exitCode = script.timedOut === true ? null : (script.exitCode ?? 0);
+      if (name === "install" && exitCode === 0) {
+        // What pnpm writes once an install has finished.
+        await nodeFs.mkdir(path.join(spec.cwd, "node_modules"));
+        await nodeFs.writeFile(
+          path.join(spec.cwd, "node_modules", ".modules.yaml"),
+          "",
+        );
+      }
       return Promise.resolve({
         exitCode: script.timedOut === true ? null : (script.exitCode ?? 0),
         timedOut: script.timedOut ?? false,
       });
     },
-    probe: (command) =>
-      Promise.resolve(
+    probe: (command, _args, cwd) => {
+      sys.probes.push({ command, cwd });
+      return Promise.resolve(
         command === "node"
-          ? "v24.20.0\n"
+          ? `v${options.versions?.node ?? "24.20.0"}\n`
           : command === "pnpm"
-            ? "10.34.5\n"
+            ? `${options.versions?.pnpm ?? "10.34.5"}\n`
             : command === "sh"
               ? options.shSays === undefined
                 ? "ready\n"
                 : options.shSays
               : "git version 2.55.0.windows.1\n",
-      ),
+      );
+    },
     realpath: (file) => Promise.resolve(file),
     where: (command) =>
       Promise.resolve(

@@ -12,16 +12,17 @@
 //   hook from the shared folder) and `pull.ff` set to `only`;
 // - .gitignore with every line setup keeps there, and the `prepare`,
 //   `gate`, `ready` and `merge` scripts in package.json, as setup writes
-//   them (`prepare` may also chain after the project's own command).
+//   them (`prepare` may also chain after the project's own command);
+// - AGENTS.md with temple-bar's marked block in it, byte for byte the block
+//   this temple-bar writes. A missing file, a file with no block, an edit
+//   inside the block and markers that don't pair up all fail: each leaves
+//   agents without the rules, or with rules nobody agreed.
 //
-// - temple-bar's marked block in AGENTS.md, when the file has one: byte for
-//   byte the block this temple-bar writes, so an edit inside it fails.
-//
-// AGENTS.md itself is setup's too, but a repo without one must still be
-// able to pass the gate (the AGENTS.md size check skips it, see
-// docs/adr/0007-what-the-gate-checks.md), so its absence isn't failed here.
-// What a project writes itself after setup (its other scripts and
-// .gitignore lines) is its own: only setup's exact lines count.
+// The AGENTS.md size check skips a repo with no AGENTS.md (see
+// docs/adr/0007-what-the-gate-checks.md); this check is the one that fails
+// it, so the size check doesn't fail it a second time. What a project
+// writes itself after setup (its other scripts and .gitignore lines, its
+// own text around the block) is its own: only setup's exact lines count.
 
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -170,19 +171,32 @@ async function checkGitignore(ctx: Context): Promise<CoreProblem[]> {
   ];
 }
 
-/** AGENTS.md's temple-bar block, when there is one, must be exactly what
- * this release's setup writes, like the hook shims. A repo without
- * AGENTS.md, or one whose AGENTS.md has no markers, passes: the block is
- * how setup adds its rules, not a requirement on every AGENTS.md (this
- * repo's own, and those set up before the block existed, have none). */
+/** AGENTS.md must hold temple-bar's block, exactly as this release's setup
+ * writes it, like the hook shims. The block is how agents get the rules, so
+ * a repo without the file, or with a file that has no block (an empty one
+ * included), fails as surely as one whose block was edited: either way the
+ * agents working there don't get temple-bar's rules. Setup writes the file,
+ * or adds the block at the end of one that exists. */
 async function checkAgentsBlock(ctx: Context): Promise<CoreProblem[]> {
   const content = await ctx.fs.readText(path.join(ctx.cwd, "AGENTS.md"));
   if (content === undefined) {
-    return [];
+    return [
+      {
+        problem:
+          "AGENTS.md is missing, so agents here get none of temple-bar's rules",
+        fix: `run ${RERUN_INIT} to write it`,
+      },
+    ];
   }
   const location = locateTempleBarBlock(content);
   if (location.kind === "absent") {
-    return [];
+    return [
+      {
+        problem:
+          "AGENTS.md has no temple-bar block, so agents here get none of temple-bar's rules",
+        fix: `run ${RERUN_INIT} to add the block at the end of the file`,
+      },
+    ];
   }
   if (location.kind === "malformed") {
     return [{ problem: location.detail, fix: RESTORE_BLOCK }];
@@ -273,6 +287,6 @@ export async function runCoreCheck(ctx: Context): Promise<CheckOutcome> {
   return {
     name: CORE_CHECK,
     status: "passed",
-    detail: `${String(Object.keys(INSTALLED_SHIMS).length)} hooks unchanged, git config, .gitignore, package.json scripts`,
+    detail: `${String(Object.keys(INSTALLED_SHIMS).length)} hooks unchanged, git config, .gitignore, package.json scripts, AGENTS.md block`,
   };
 }
