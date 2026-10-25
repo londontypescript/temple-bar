@@ -8,15 +8,17 @@
 // being pushed: so the mark goes on the commit the gate was started on, and
 // only while it is still checked out and the worktree still matches it.
 //
-// A failure is returned, never thrown, so each caller stops in its own way.
+// A failure is returned, never thrown, so each caller stops in its own way:
+// merge, in particular, treats anything thrown as a crash.
 
 import type { Context } from "../context.ts";
-import { writeMark } from "./mark.ts";
+import { clearMark, writeMark } from "./mark.ts";
 
 /** Why nothing was marked: HEAD isn't the commit the gate ran on, the
- * worktree has changes, or its status couldn't be read. */
+ * worktree has changes, its status couldn't be read, or the mark itself
+ * couldn't be written. */
 export interface Unmarked {
-  readonly problem: "moved" | "changed" | "unreadable";
+  readonly problem: "moved" | "changed" | "unreadable" | "unwritable";
   /** Says what is wrong, without what to do: that is each caller's. */
   readonly reason: string;
 }
@@ -82,6 +84,35 @@ export async function markAfterGate(
   if (changes !== undefined) {
     return changes;
   }
-  await writeMark(ctx, root, expected);
-  return undefined;
+  return markWrite(
+    () => writeMark(ctx, root, expected),
+    "could not write the ready mark",
+  );
+}
+
+/** Empties the mark in the worktree at `root` before a gate runs, so an
+ * older one can't outlive it. Returns why not, if it couldn't. */
+export function clearOldMark(
+  ctx: Context,
+  root: string,
+): Promise<Unmarked | undefined> {
+  return markWrite(
+    () => clearMark(ctx, root),
+    "could not clear the old ready mark",
+  );
+}
+
+// The mark's folder comes from git and the write can fail on disk (a full
+// disk, a permission): either way it is a reason, not an exception.
+async function markWrite(
+  write: () => Promise<void>,
+  what: string,
+): Promise<Unmarked | undefined> {
+  try {
+    await write();
+    return undefined;
+  } catch (error) {
+    const why = error instanceof Error ? error.message : String(error);
+    return { problem: "unwritable", reason: `${what}: ${why}` };
+  }
 }

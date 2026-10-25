@@ -211,6 +211,14 @@ void test("ready: a branch behind a default branch this clone hasn't fetched is 
       "landed meanwhile\n",
       fixture.branch,
     );
+    // A second mapping of origin's main, which the fetch must leave alone.
+    const backup = "refs/remotes/backup/main";
+    runGit(fixture.repoDir, [
+      "config",
+      "--add",
+      "remote.origin.fetch",
+      `+refs/heads/main:${backup}`,
+    ]);
 
     const behind = await runReady(fixture.repoDir);
 
@@ -220,6 +228,11 @@ void test("ready: a branch behind a default branch this clone hasn't fetched is 
       "ready: this branch is 1 commit behind origin/main: merge it in (git merge origin/main), then run ready again.\n",
     );
     assert.doesNotMatch(behind.stdout.lines.join(""), /gate:/);
+    assert.notEqual(
+      runGit(fixture.repoDir, ["rev-parse", "--verify", "-q", backup]).code,
+      0,
+      "the fetch moves origin/main only, not another ref mapping it",
+    );
     const refused = pushFeature(fixture);
     assert.notEqual(refused.code, 0);
     assert.match(refused.stderr, /has not been marked ready to push/);

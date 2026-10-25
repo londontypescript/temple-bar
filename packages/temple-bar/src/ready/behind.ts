@@ -31,12 +31,15 @@ export async function behindDefaultBranch(
   const branch = await findProtectedBranch(ctx, root);
   const upstream = upstreamRefFor(branch);
   // The explicit refspec updates the remote-tracking ref whatever refspec
-  // the clone is configured with, and touches no other ref.
+  // the clone is configured with. The empty refmap stops git also applying
+  // the configured fetch refspecs to what it fetched, which could move some
+  // other ref that maps the same branch, so this touches no other ref.
   const fetched = await ctx.git.run(
     [
       "fetch",
       "--quiet",
       "--no-tags",
+      "--refmap=",
       "origin",
       `+refs/heads/${branch}:${upstream}`,
     ],

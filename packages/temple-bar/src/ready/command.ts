@@ -74,6 +74,7 @@ function stopUnmarked(unmarked: Unmarked, short: string): never {
           "Commit them (or remove what doesn't belong), then run ready again.",
       );
     case "unreadable":
+    case "unwritable":
       return stop(unmarked.reason);
   }
 }

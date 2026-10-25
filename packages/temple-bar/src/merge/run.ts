@@ -43,9 +43,8 @@ import {
   type Timing,
 } from "./wait.ts";
 import { listWorktrees } from "./worktrees.ts";
-import { markAfterGate } from "../ready/after-gate.ts";
+import { clearOldMark, markAfterGate } from "../ready/after-gate.ts";
 import type { RunGate } from "../ready/command.ts";
-import { clearMark } from "../ready/mark.ts";
 
 export interface MergeDeps {
   readonly sleep: Sleep;
@@ -142,7 +141,13 @@ async function upToDateTip(
     async (mergedTip) => {
       // A mark left from before describes some other commit; it goes first,
       // so nothing below can leave it standing.
-      await clearMark(ctx, worktree.path);
+      const uncleared = await clearOldMark(ctx, worktree.path);
+      if (uncleared !== undefined) {
+        refuse(
+          `${uncleared.reason}, so the gate did not run on ${branch} and nothing was pushed. ` +
+            `Fix that in ${worktree.path} and run merge again.`,
+        );
+      }
       ctx.stdout.write(
         `merge: running the gate on ${branch} with ${upstream} merged in\n`,
       );
