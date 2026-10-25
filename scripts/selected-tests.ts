@@ -28,14 +28,24 @@ export interface TestScript {
   readonly command: string;
 }
 
+/** The global setup every `test` script names first, as reached from the
+ * script's folder. On Windows it holds Git's shared /tmp for the run, so a
+ * script that drops it, or names another, is refused rather than quietly
+ * running without it. */
+function globalSetupWord(folder: string): string {
+  const up = folder === "" ? "./" : "../".repeat(folder.split("/").length);
+  return `--test-global-setup=${up}scripts/run-tests/anchor.ts`;
+}
+
 /** The file patterns a `test` script hands the test runner. A script must be
- * exactly `node <path>/scripts/run-tests.ts`, any `--import <file>` pairs, then
- * `--test` and its file patterns. A bare `--test` would let the runner
- * discover files from wherever it starts, and any other flag (`--test-shard`,
- * a name pattern) could run fewer files or tests than its patterns select;
- * nothing here models either, so both are refused. So is any shell syntax but
- * double quotes: a single-quoted flag, or a second command after `&&`, would
- * reach the runner looking like a file pattern here. */
+ * exactly `node`, `--test-global-setup=<path>scripts/run-tests/anchor.ts`, any
+ * `--import <file>` pairs, then `--test` and its file patterns. A bare
+ * `--test` would let the runner discover files from wherever it starts, and
+ * any other flag (`--test-shard`, a name pattern) could run fewer files or
+ * tests than its patterns select; nothing here models either, so both are
+ * refused. So is any shell syntax but double quotes: a single-quoted flag, or
+ * a second command after `&&`, would reach the runner looking like a file
+ * pattern here. */
 export function testPatterns(script: TestScript): string[] {
   const where = script.folder === "" ? "the root" : script.folder;
   const refuse = (why: string): never => {
@@ -60,9 +70,9 @@ export function testPatterns(script: TestScript): string[] {
     refuse("may hold only plain words and whole double-quoted patterns");
   }
   const tokens = matches.map((match) => match?.[1] ?? match?.[2] ?? "");
-  const runner = tokens[1] ?? "";
-  if (tokens[0] !== "node" || !/(?:^|\/)scripts\/run-tests\.ts$/.test(runner)) {
-    refuse("must start with node and scripts/run-tests.ts");
+  const setup = globalSetupWord(script.folder);
+  if (tokens[0] !== "node" || tokens[1] !== setup) {
+    refuse(`must start with node ${setup}`);
   }
   let at = 2;
   while (

@@ -25,7 +25,6 @@ void test("a piped process reports whole lines and stderr, and exits once its in
   const deps = realDeps();
   const proc = deps.start(process.execPath, ["-e", ANCHOR_LIKE], {
     env: process.env,
-    piped: true,
   });
   const ready = new Promise<"ready">((resolve) => {
     proc.onLine((line) => {
@@ -46,7 +45,6 @@ void test("a process that can't start, or is stopped, says so through its end", 
   const deps = realDeps();
   const missing = deps.start("tb-no-such-command", [], {
     env: process.env,
-    piped: true,
   });
   // Bounded, so an error that never reaches `ended` fails rather than hangs.
   const giveUp = new AbortController();
@@ -63,7 +61,6 @@ void test("a process that can't start, or is stopped, says so through its end", 
     ["-e", "setInterval(() => {}, 1000)"],
     {
       env: process.env,
-      piped: true,
     },
   );
   waiting.kill();

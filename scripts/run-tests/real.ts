@@ -1,6 +1,6 @@
 // The real processes, folders and clock behind the test run's lifecycle.
-// scripts/run-tests.ts starts the run with these; tests use them to check
-// the real process handling on whichever system runs the suite.
+// The runner's global setup (anchor.ts) holds /tmp with these; tests use them
+// to check the real process handling on whichever system runs the suite.
 
 import { spawn } from "node:child_process";
 import { realpathSync, statSync } from "node:fs";
@@ -17,7 +17,7 @@ const STDERR_KEEP = 4_000;
 function startProcess(
   command: string,
   args: readonly string[],
-  options: { env: NodeJS.ProcessEnv; piped: boolean },
+  options: { env: NodeJS.ProcessEnv },
 ): Proc {
   const lines = new LineBuffer();
   const listeners: ((line: string) => void)[] = [];
@@ -26,13 +26,12 @@ function startProcess(
   const ended = new Promise<Ended>((resolve) => {
     settle = resolve;
   });
-  // Hidden only when piped: hidden, with no stream shared, Node starts it on
-  // a console of its own (CREATE_NO_WINDOW), so Ctrl+C here doesn't reach
-  // it. The runner shares this terminal, as it always has.
+  // Hidden, with no stream shared, Node starts it on a console of its own
+  // (CREATE_NO_WINDOW), so Ctrl+C in the runner's terminal doesn't reach it.
   const child = spawn(command, args, {
     env: options.env,
-    stdio: options.piped ? "pipe" : "inherit",
-    windowsHide: options.piped,
+    stdio: "pipe",
+    windowsHide: true,
   });
   child.on("error", (error) => {
     settle({ kind: "error", message: error.message });
@@ -42,16 +41,16 @@ function startProcess(
   });
   // Closing the input of a process that has already gone fails with EPIPE;
   // its exit is what matters, and that is reported through `ended`.
-  child.stdin?.on("error", () => undefined);
-  child.stdout?.on("data", (chunk: Buffer) => {
+  child.stdin.on("error", () => undefined);
+  child.stdout.on("data", (chunk: Buffer) => {
     for (const line of lines.push(chunk)) {
       for (const listener of listeners) {
         listener(line);
       }
     }
   });
-  child.stderr?.setEncoding("utf8");
-  child.stderr?.on("data", (text: string) => {
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (text: string) => {
     stderr = (stderr + text).slice(0, STDERR_KEEP);
   });
   return {
@@ -61,7 +60,7 @@ function startProcess(
     },
     stderr: () => stderr,
     closeStdin: () => {
-      child.stdin?.end();
+      child.stdin.end();
     },
     kill: (signal) => {
       child.kill(signal);
@@ -84,7 +83,6 @@ export function realDeps(): RunTestsDeps {
   const sys = createRealSys();
   return {
     platform: process.platform,
-    execPath: process.execPath,
     env: process.env,
     tmpdir: tmpdir(),
     git: (args) => sys.git(args),
@@ -98,9 +96,6 @@ export function realDeps(): RunTestsDeps {
       new Promise((resolve) => {
         setTimeout(resolve, ms).unref();
       }),
-    onSignal: (signal, handler) => {
-      process.on(signal, handler);
-    },
     print: (text) => {
       process.stderr.write(text);
     },

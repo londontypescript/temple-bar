@@ -1,9 +1,9 @@
 // Finds the `sh` that Git for Windows ships, and refuses any other. Two
 // callers share it: `windows-run`'s readiness check on the Windows machine,
-// and the test runner (`scripts/run-tests.ts`), which starts a long-lived
-// shell of Git's own install before any test. It lives in this folder
-// because `windows-run` sends the folder to the Windows machine whole, so the
-// readiness check keeps everything it imports.
+// and the test runner's global setup (`scripts/run-tests/anchor.ts`), which
+// starts a long-lived shell of Git's own install before any test. It lives in
+// this folder because `windows-run` sends the folder to the Windows machine
+// whole, so the readiness check keeps everything it imports.
 
 import path from "node:path";
 

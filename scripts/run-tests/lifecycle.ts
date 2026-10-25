@@ -1,8 +1,22 @@
-// The test run's lifecycle, behind seams so it is tested with fakes on every
-// system: start the runner, and on Windows start Git's shell that holds
-// `/tmp` first, check where `/tmp` points, watch the shell for the whole run
-// and close it at the end. scripts/run-tests.ts says why, and holds the real
-// processes, files and clock.
+// The test run's lifecycle on Windows, behind seams so it is tested with fakes
+// on every system: before the first test file starts, start Git's shell that
+// holds `/tmp`, check where `/tmp` points, watch the shell for the whole run
+// and close it at the end. Off Windows it does nothing.
+//
+// Why: Git for Windows' shells share one `/tmp`, taken from the temp folder
+// of the first shell to start and kept while any of them (or a program one
+// started) is alive. Each test file gets its own temp folder, deleted when the
+// file ends, so without this shell a test's folder could become every shell's
+// `/tmp` and then vanish, and each shell started after that warns that it
+// can't find `/tmp`. Started first, with the runner's own temp folder (which
+// the suite never deletes), the shell holds `/tmp` there.
+//
+// The test runner starts it: every `test` script names ./anchor.ts as Node's
+// `--test-global-setup`, which the runner loads once, in its own process,
+// awaiting `globalSetup` before any test file and `globalTeardown` after the
+// last. An `--import` module can't do this job: the runner loads those only in
+// each test file's process. anchor.ts gives these the real processes, files
+// and clock (real.ts) and leaves the run on a problem.
 
 import path from "node:path";
 
@@ -36,13 +50,14 @@ export type Ended =
     }
   | { readonly kind: "error"; readonly message: string };
 
-/** A started process, as the run needs it. */
+/** A started process, as the run needs it: piped, with no part in the
+ * runner's terminal. */
 export interface Proc {
   /** Settles once, when the process ends or fails to start. */
   readonly ended: Promise<Ended>;
-  /** Each whole line of stdout, for a piped process. */
+  /** Each whole line of stdout. */
   onLine(listener: (line: string) => void): void;
-  /** The start of its stderr, for a piped process. */
+  /** The start of its stderr. */
   stderr(): string;
   closeStdin(): void;
   kill(signal?: NodeJS.Signals): void;
@@ -59,17 +74,16 @@ export interface RunTestsDeps extends GitShDeps {
   /** Only "win32" starts the anchor. Faking another platform on Windows is
    * the test seam that runs the suite without it. */
   readonly platform: NodeJS.Platform;
-  readonly execPath: string;
+  /** The runner's environment. The checked `/tmp` is set on it, and the
+   * runner passes it on to every test file. */
   readonly env: NodeJS.ProcessEnv;
   /** This process's own temp folder: the system's or the CI runner's, never
    * made or deleted by the suite. */
   readonly tmpdir: string;
-  /** `piped` gives the process pipes for all three streams (the anchor);
-   * otherwise it shares this process's terminal (the runner). */
   start(
     command: string,
     args: readonly string[],
-    options: { env: NodeJS.ProcessEnv; piped: boolean },
+    options: { env: NodeJS.ProcessEnv },
   ): Proc;
   capture(
     command: string,
@@ -79,7 +93,6 @@ export interface RunTestsDeps extends GitShDeps {
   /** The folder's canonical path if it exists and is a folder, else null. */
   realDir(folder: string): string | null;
   timeout(ms: number): Promise<void>;
-  onSignal(signal: NodeJS.Signals, handler: () => void): void;
   print(text: string): void;
 }
 
@@ -188,11 +201,11 @@ async function startAnchor(
   if ("problem" in found) {
     return found;
   }
-  // Piped, so it has no part in this terminal: Ctrl+C stops the runner as it
-  // always has, and the anchor holds /tmp while the runner winds down.
+  // Piped and hidden, so it has no part in this terminal: Ctrl+C reaches the
+  // runner, which handles it itself, and the anchor holds /tmp while the
+  // runner winds down.
   const proc = deps.start(found.sh, ["-c", ANCHOR_SCRIPT], {
     env: withTemp(deps.env, deps.tmpdir),
-    piped: true,
   });
   const ready = new Promise<"ready">((resolve) => {
     proc.onLine((line) => {
@@ -239,70 +252,95 @@ async function startAnchor(
   return { proc, tmp: checked.tmp };
 }
 
-/** The runner's exit code, or 1 with a message if it has none. */
-function exitCode(deps: RunTestsDeps, ended: Ended): number {
-  if (ended.kind === "exit" && ended.code !== null) {
-    return ended.code;
-  }
-  deps.print(`run-tests: the test runner ${describe(ended)}\n`);
-  return 1;
+/** Git's shared `/tmp`, held for the run. */
+export interface SharedTmpHold {
+  /** The folder checked before the first test; null off Windows. */
+  readonly tmp: string | null;
+  /** Stops watching the anchor, then closes it and waits for it to exit. */
+  release(): Promise<void>;
 }
 
-/** Runs the suite and returns the exit code to leave with. */
-export async function runTests(
+/** On Windows, starts the anchor and checks `/tmp`, then watches the anchor
+ * until the hold is released: `onLost` hears, with what went wrong, if it ends
+ * before that. Off Windows it starts nothing. */
+export async function holdSharedTmp(
   deps: RunTestsDeps,
-  args: readonly string[],
-): Promise<number> {
-  const onWindows = deps.platform === "win32";
-  let env = deps.env;
-  let anchor: Proc | null = null;
-  if (onWindows) {
-    const started = await startAnchor(deps);
-    if ("problem" in started) {
-      deps.print(`run-tests: ${started.problem}\n`);
-      return 1;
-    }
-    anchor = started.proc;
-    env = { ...deps.env, [SHARED_TMP_VARIABLE]: started.tmp };
+  onLost: (problem: string) => void,
+): Promise<SharedTmpHold | { problem: string }> {
+  if (deps.platform !== "win32") {
+    return { tmp: null, release: () => Promise.resolve() };
   }
-
-  // Node's own arguments, passed on untouched: the root package.json's
-  // `test` script names the setup files and `--test`, where tools that read
-  // scripts (knip finds test files and setup files there) can see them.
-  const runner = deps.start(deps.execPath, args, {
-    env,
-    piped: false,
+  const started = await startAnchor(deps);
+  if ("problem" in started) {
+    return started;
+  }
+  const anchor = started.proc;
+  // Armed until release: the anchor's exit when its input closes at the end
+  // is the expected one, not a loss. A `then` on a promise already settled
+  // still runs, so an exit just before this line is heard too.
+  const watch = { armed: true };
+  void anchor.ended.then((ended) => {
+    if (watch.armed) {
+      onLost(
+        withStderr(
+          `Git's sh holding /tmp ${describe(ended)} before the tests finished, so /tmp may have moved to a folder the suite deletes. The tests were stopped`,
+          anchor.stderr(),
+        ),
+      );
+    }
   });
-  if (onWindows) {
-    // Ctrl+C reaches the runner from the terminal, as it always has. Staying
-    // alive through it lets this wait for the runner, then close the anchor.
-    deps.onSignal("SIGINT", () => undefined);
-  } else {
-    for (const signal of ["SIGINT", "SIGTERM"] as const) {
-      deps.onSignal(signal, () => {
-        runner.kill(signal);
-      });
-    }
-  }
-  if (anchor === null) {
-    return exitCode(deps, await runner.ended);
-  }
+  return {
+    tmp: started.tmp,
+    release: async () => {
+      watch.armed = false;
+      await stopAnchor(deps, anchor);
+    },
+  };
+}
 
-  const first = await Promise.race([
-    runner.ended.then((ended) => ({ who: "runner" as const, ended })),
-    anchor.ended.then((ended) => ({ who: "anchor" as const, ended })),
-  ]);
-  if (first.who === "anchor") {
-    deps.print(
-      `run-tests: ${withStderr(
-        `Git's sh holding /tmp ${describe(first.ended)} before the tests finished, so /tmp may have moved to a folder the suite deletes. The tests were stopped`,
-        anchor.stderr(),
-      )}\n`,
-    );
-    runner.kill();
-    await Promise.race([runner.ended, deps.timeout(STOP_MS)]);
-    return 1;
-  }
-  await stopAnchor(deps, anchor);
-  return exitCode(deps, first.ended);
+/** Node's global setup and teardown for the test run. */
+export interface TestRunHooks {
+  readonly globalSetup: () => Promise<void>;
+  readonly globalTeardown: () => Promise<void>;
+}
+
+/**
+ * The hooks over `deps`. `leave` ends the run with an exit code once the
+ * output is flushed (in real use it never settles, so nothing runs after it).
+ * A problem leaves with code 1 and the message rather than a throw, which the
+ * runner would show as a stack trace.
+ */
+export function testRunHooks(
+  deps: RunTestsDeps,
+  leave: (code: number) => Promise<void>,
+): TestRunHooks {
+  let hold: SharedTmpHold | null = null;
+  const fail = (problem: string): Promise<void> => {
+    deps.print(`run-tests: ${problem}\n`);
+    return leave(1);
+  };
+  return {
+    async globalSetup() {
+      // Leaving ends the runner's process, so no test file starts after it;
+      // any already running are left to end on their own.
+      const held = await holdSharedTmp(deps, (problem) => {
+        void fail(problem);
+      });
+      if ("problem" in held) {
+        await fail(held.problem);
+        return;
+      }
+      hold = held;
+      if (held.tmp !== null) {
+        deps.env[SHARED_TMP_VARIABLE] = held.tmp;
+      }
+    },
+    // Not run if the runner is killed: then the anchor's input closes as the
+    // runner's process ends, and the anchor exits on its own.
+    async globalTeardown() {
+      const held = hold;
+      hold = null;
+      await held?.release();
+    },
+  };
 }

@@ -69,7 +69,8 @@ void test("patterns expand from the script's own folder, nested folders included
     [
       ...selectedFiles(dir, {
         folder: "",
-        command: 'node scripts/run-tests.ts --test "e2e/**/*.test.ts"',
+        command:
+          'node --test-global-setup=./scripts/run-tests/anchor.ts --test "e2e/**/*.test.ts"',
       }),
     ].sort(),
     ["e2e/support/nested.test.ts", "e2e/top.test.ts"],
@@ -77,7 +78,8 @@ void test("patterns expand from the script's own folder, nested folders included
   assert.deepEqual(
     selectedFiles(dir, {
       folder: "packages/x",
-      command: 'node ../../scripts/run-tests.ts --test "**/*.test.ts"',
+      command:
+        'node --test-global-setup=../../scripts/run-tests/anchor.ts --test "**/*.test.ts"',
     }),
     ["packages/x/src/deep/c.test.ts"],
   );
@@ -88,14 +90,71 @@ void test("a script that doesn't name its files, or doesn't use the runner, is r
     () =>
       testPatterns({
         folder: "packages/x",
-        command: "node ../../scripts/run-tests.ts --test",
+        command:
+          "node --test-global-setup=../../scripts/run-tests/anchor.ts --test",
       }),
     /packages\/x's test script must name its test files after --test/,
   );
   assert.throws(
     () => testPatterns({ folder: "", command: "vitest run" }),
-    /the root's test script must start with node and scripts\/run-tests.ts/,
+    /the root's test script must start with node --test-global-setup=\.\/scripts\/run-tests\/anchor\.ts: vitest run/,
   );
+});
+
+void test("a script without the global setup that holds Git's /tmp first, or with another, is refused", () => {
+  for (const [folder, command] of [
+    // Missing: Windows would run without the anchor.
+    [
+      "packages/x",
+      'node --import ../../scripts/isolate-git-config.ts --test "src/**/*.test.ts"',
+    ],
+    // Not first: an option before it could be anything.
+    [
+      "packages/x",
+      'node --import ./a.ts --test-global-setup=../../scripts/run-tests/anchor.ts --test "src/**/*.test.ts"',
+    ],
+    // Another file, or this one reached from the wrong folder.
+    ["", 'node --test-global-setup=./setup.ts --test "e2e/**/*.test.ts"'],
+    [
+      "packages/x",
+      'node --test-global-setup=./scripts/run-tests/anchor.ts --test "src/**/*.test.ts"',
+    ],
+    // As two words, which the runner reads the same but this check doesn't.
+    [
+      "",
+      'node --test-global-setup ./scripts/run-tests/anchor.ts --test "e2e/**/*.test.ts"',
+    ],
+  ] as const) {
+    const setup =
+      folder === ""
+        ? "./scripts/run-tests/anchor.ts"
+        : "../../scripts/run-tests/anchor.ts";
+    assert.throws(
+      () => testPatterns({ folder, command }),
+      new RegExp(
+        `must start with node --test-global-setup=${setup.replaceAll(".", "\\.")}: `,
+      ),
+      command,
+    );
+  }
+});
+
+void test("the old form, a wrapper script started before the runner, is refused", () => {
+  for (const [folder, command] of [
+    [
+      "",
+      'node scripts/run-tests.ts --import ./scripts/isolate-git-config.ts --test "e2e/**/*.test.ts"',
+    ],
+    [
+      "packages/x",
+      'node ../../scripts/run-tests.ts --import ../../scripts/isolate-git-config.ts --test "src/**/*.test.ts"',
+    ],
+  ] as const) {
+    assert.throws(
+      () => testPatterns({ folder, command }),
+      /must start with node --test-global-setup=/,
+    );
+  }
 });
 
 void test("packages come from the workspace's packages list only, never its other lists", (t) => {
@@ -103,7 +162,8 @@ void test("packages come from the workspace's packages list only, never its othe
   t.after(() => {
     rmSync(dir, { recursive: true, force: true });
   });
-  const command = 'node scripts/run-tests.ts --test "e2e/**/*.test.ts"';
+  const command =
+    'node --test-global-setup=./scripts/run-tests/anchor.ts --test "e2e/**/*.test.ts"';
   for (const folder of ["", "packages/x", "esbuild"]) {
     mkdirSync(path.join(dir, folder), { recursive: true });
     writeFileSync(
@@ -128,8 +188,8 @@ void test("packages come from the workspace's packages list only, never its othe
 
 void test("a runner flag that could run fewer files than the patterns select is refused", () => {
   for (const command of [
-    'node ../../scripts/run-tests.ts --test-shard=1/2 --test "src/**/*.test.ts"',
-    'node ../../scripts/run-tests.ts --test "src/**/*.test.ts" --test-name-pattern=x',
+    'node --test-global-setup=../../scripts/run-tests/anchor.ts --test-shard=1/2 --test "src/**/*.test.ts"',
+    'node --test-global-setup=../../scripts/run-tests/anchor.ts --test "src/**/*.test.ts" --test-name-pattern=x',
   ]) {
     assert.throws(
       () => testPatterns({ folder: "packages/x", command }),
@@ -140,7 +200,7 @@ void test("a runner flag that could run fewer files than the patterns select is 
     testPatterns({
       folder: "",
       command:
-        'node scripts/run-tests.ts --import ./a.ts --import ./b.ts --test "e2e/**/*.test.ts"',
+        'node --test-global-setup=./scripts/run-tests/anchor.ts --import ./a.ts --import ./b.ts --test "e2e/**/*.test.ts"',
     }),
     ["e2e/**/*.test.ts"],
   );
@@ -157,7 +217,7 @@ void test("a file two of one script's patterns match counts once, as the runner 
     selectedFiles(dir, {
       folder: "",
       command:
-        'node scripts/run-tests.ts --test "src/**/*.test.ts" "src/gate/**/*.test.ts"',
+        'node --test-global-setup=./scripts/run-tests/anchor.ts --test "src/**/*.test.ts" "src/gate/**/*.test.ts"',
     }),
     ["src/gate/a.test.ts"],
   );
@@ -183,8 +243,8 @@ void test("the inventory takes every name Node runs by default, empty wildcards 
 
 void test("shell syntax, unquoted patterns and patterns that match nothing are refused", (t) => {
   for (const command of [
-    "node scripts/run-tests.ts --test '--test-name-pattern=x' \"e2e/**/*.test.ts\"",
-    'node scripts/run-tests.ts --test "e2e/**/*.test.ts" && node --test x.ts',
+    "node --test-global-setup=./scripts/run-tests/anchor.ts --test '--test-name-pattern=x' \"e2e/**/*.test.ts\"",
+    'node --test-global-setup=./scripts/run-tests/anchor.ts --test "e2e/**/*.test.ts" && node --test x.ts',
   ]) {
     assert.throws(
       () => testPatterns({ folder: "", command }),
@@ -195,7 +255,8 @@ void test("shell syntax, unquoted patterns and patterns that match nothing are r
     () =>
       testPatterns({
         folder: "",
-        command: "node scripts/run-tests.ts --test e2e/a.test.ts",
+        command:
+          "node --test-global-setup=./scripts/run-tests/anchor.ts --test e2e/a.test.ts",
       }),
     /must double-quote each file pattern/,
   );
@@ -207,7 +268,8 @@ void test("shell syntax, unquoted patterns and patterns that match nothing are r
     () =>
       selectedFiles(dir, {
         folder: "",
-        command: 'node scripts/run-tests.ts --test "e2e/**/*.tset.ts"',
+        command:
+          'node --test-global-setup=./scripts/run-tests/anchor.ts --test "e2e/**/*.tset.ts"',
       }),
     /names a pattern that matches no file: e2e\/\*\*\/\*\.tset\.ts/,
   );
@@ -219,7 +281,7 @@ void test("two quoted parts written together, which the shell would join, are re
       testPatterns({
         folder: "",
         command:
-          'node scripts/run-tests.ts --test "scripts/*""[se]*/**/*.test.ts"',
+          'node --test-global-setup=./scripts/run-tests/anchor.ts --test "scripts/*""[se]*/**/*.test.ts"',
       }),
     /may hold only plain words and whole double-quoted patterns/,
   );
@@ -227,8 +289,8 @@ void test("two quoted parts written together, which the shell would join, are re
 
 void test("a line break, which would start a second command, is refused", () => {
   for (const command of [
-    'node scripts/run-tests.ts --test "scripts/**/*.test.ts"\n"echo" "e2e/**/*.test.ts"',
-    'node scripts/run-tests.ts --test "scripts/**/*.test.ts"\t"e2e/**/*.test.ts"',
+    'node --test-global-setup=./scripts/run-tests/anchor.ts --test "scripts/**/*.test.ts"\n"echo" "e2e/**/*.test.ts"',
+    'node --test-global-setup=./scripts/run-tests/anchor.ts --test "scripts/**/*.test.ts"\t"e2e/**/*.test.ts"',
   ]) {
     assert.throws(
       () => testPatterns({ folder: "", command }),
@@ -242,7 +304,8 @@ void test("a ! in a pattern, which cmd.exe can rewrite on Windows, is refused", 
     () =>
       testPatterns({
         folder: "",
-        command: 'node scripts/run-tests.ts --test "src/[!a]*.test.ts"',
+        command:
+          'node --test-global-setup=./scripts/run-tests/anchor.ts --test "src/[!a]*.test.ts"',
       }),
     /may hold only plain words and whole double-quoted patterns/,
   );

@@ -106,10 +106,13 @@ wrote this file; add your own project's reasons as you add rules.
   that is already tracked costs the user a decision each time, and agents
   kept doing it. The `incident` label alone misses incidents filed by
   people who can't set labels, so titles are searched too.
-- **The test runner starts one shell on Windows.** Git for Windows' shells
-  share one `/tmp` mapping, set from the `TEMP` of the first one to start and
-  kept while any of them is alive. The suite gives each test file its own
-  temp folder and deletes it when the file ends, so without a long-lived
-  shell of Git's own install holding `/tmp` on a folder that outlives the
-  run, a shell started later can find `/tmp` gone and warn. Only an MSYS
-  process of that install can hold it, so this one command can't be Node.
+- **The test run's global setup starts one shell on Windows.** Git for
+  Windows' shells share one `/tmp` mapping, set from the `TEMP` of the first
+  one to start and kept while any of them is alive. The suite gives each test
+  file its own temp folder and deletes it when the file ends, so without a
+  long-lived shell of Git's own install holding `/tmp` on a folder that
+  outlives the run, a shell started later can find `/tmp` gone and warn.
+  Every `test` script names a global setup (Node's `--test-global-setup`),
+  which the test runner runs once, before the first test file: it starts that
+  shell, and closes it after the last. Only an MSYS process of that install
+  can hold it, so this one command can't be Node.

@@ -1,7 +1,8 @@
 // On Windows, checks Git's shared /tmp from inside the run, as a hook's shell
 // sees it. These can only show the run's /tmp holding; that it would move
-// without the shell scripts/run-tests.ts starts is shown outside any run,
-// since this run's own shell is part of what is being tested.
+// without the shell the runner's global setup (anchor.ts) starts is shown
+// outside any run, since this run's own shell is part of what is being
+// tested.
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -39,7 +40,7 @@ void test(
     const checked = process.env[SHARED_TMP_VARIABLE];
     assert.ok(
       checked !== undefined && checked !== "",
-      `${SHARED_TMP_VARIABLE} is not set: run the suite with pnpm test, which starts it through scripts/run-tests.ts`,
+      `${SHARED_TMP_VARIABLE} is not set: run the suite with pnpm test, whose runner sets it in its global setup, scripts/run-tests/anchor.ts`,
     );
     const asked = spawnSync("sh", ["-c", "/usr/bin/cygpath -w /tmp"], {
       encoding: "utf8",
@@ -68,7 +69,6 @@ void test(
     // an end that also reports a shell that could not start.
     const keeper = realDeps().start("sh", ["-c", "echo up; read _"], {
       env: withTemp(process.env, dir),
-      piped: true,
     });
     t.after(async () => {
       keeper.closeStdin();

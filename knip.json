@@ -1,7 +1,7 @@
 {
   "workspaces": {
     ".": {
-      "entry": ["e2e/release/*.release.ts"]
+      "entry": ["e2e/release/*.release.ts", "scripts/run-tests/anchor.ts"]
     }
   }
 }
