@@ -1,7 +1,8 @@
 // Real git repositories for merge's and leftovers' end-to-end tests, with
 // only GitHub faked: an "origin" bare repo, a clone, and a worktree holding
 // the pull request's branch. The fake GitHub reads the branch's head from
-// the bare repo and squash-merges into it the way GitHub would.
+// the bare repo and squash-merges into it the way GitHub would, leaving the
+// branch on origin as `gh pr merge` does without --delete-branch.
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -15,7 +16,6 @@ import { createFsSeam } from "../../seams/fs.ts";
 import { createGitSeam } from "../../seams/git.ts";
 import { createFakeHttp, createFakeWriter } from "../../testing/fakes.ts";
 import { configureTestRepo } from "../../testing/git-repo.ts";
-import { createWorktreeRemover } from "../finish-removal.ts";
 import type { MergeDeps } from "../run.ts";
 
 export function git(dir: string, ...args: string[]): string {
@@ -84,9 +84,19 @@ export function ok(stdout = ""): GhResult {
   return { code: 0, stdout, stderr: "", notFound: false };
 }
 
+/** The pull request when the test starts: open, so merge can merge it
+ * (GitHub then lists it with the head it accepted, which can be the commit
+ * merge made to bring the branch up to date), or already merged at a fixed
+ * head from the past, so `temple-bar leftovers` has something finished to
+ * find without merge running. */
+export type FakePullRequest =
+  | { readonly state: "open"; readonly body: string }
+  | { readonly state: "merged"; readonly head: string };
+
 /** A GitHub that answers from the bare repo and squash-merges into it. */
-export function fakeGitHub(setup: Setup, body: string) {
-  let merged = false;
+export function fakeGitHub(setup: Setup, pullRequest: FakePullRequest) {
+  let accepted = pullRequest.state === "merged" ? pullRequest.head : undefined;
+  const body = pullRequest.state === "open" ? pullRequest.body : "";
   const calls: string[][] = [];
   const run = (args: readonly string[]): Promise<GhResult> => {
     calls.push([...args]);
@@ -97,9 +107,9 @@ export function fakeGitHub(setup: Setup, body: string) {
       );
     }
     if (joined.startsWith("pr view")) {
-      const head = merged
-        ? ""
-        : git(setup.origin, "rev-parse", "refs/heads/feat/x");
+      const merged = accepted !== undefined;
+      const head =
+        accepted ?? git(setup.origin, "rev-parse", "refs/heads/feat/x");
       return Promise.resolve(
         ok(
           JSON.stringify({
@@ -149,20 +159,21 @@ export function fakeGitHub(setup: Setup, body: string) {
         },
       ).trim();
       git(setup.origin, "update-ref", "refs/heads/main", squash);
-      merged = true;
+      accepted = head;
       return Promise.resolve(ok());
     }
     if (joined.startsWith("pr list")) {
+      const listed = accepted === undefined ? [] : [accepted];
       return Promise.resolve(
         ok(
-          JSON.stringify([
-            {
+          JSON.stringify(
+            listed.map((headRefOid) => ({
               number: 7,
               headRefName: "feat/x",
-              headRefOid: setup.pushedTip,
+              headRefOid,
               state: "MERGED",
-            },
-          ]),
+            })),
+          ),
         ),
       );
     }
@@ -202,8 +213,6 @@ export const deps: MergeDeps = {
   // The gate itself has its own end-to-end tests; here it passes, so the
   // merge's own git work is what is exercised.
   runGate: () => Promise.resolve(0),
-  // Real git removes real worktrees here, so the real remover finishes them.
-  worktreeRemover: createWorktreeRemover(),
   timing: {
     pollMs: 1,
     headAttempts: 2,

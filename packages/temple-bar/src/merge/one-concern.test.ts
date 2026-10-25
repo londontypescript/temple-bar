@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { PullRequest } from "./github.ts";
-import { checkOneConcern, hasOneConcernLine } from "./one-concern.ts";
+import {
+  checkOneConcern,
+  hasOneConcernLine,
+  oneConcernVerdict,
+} from "./one-concern.ts";
 
 const REPOSITORY = "acme/widgets";
 
@@ -99,5 +103,42 @@ void test("checkOneConcern ignores references GitHub doesn't read", () => {
       "Fixes #1.\n\n~~~\nFixes #2\n~~~\n\nExample: `Fixes #3`\n\n    Fixes #4\n",
     ),
     REPOSITORY,
+  );
+});
+
+void test("oneConcernVerdict needs the line for size or several issues alone", () => {
+  const over = ["612 lines of source changed, limit 500"];
+  assert.equal(oneConcernVerdict("Fixes #1.", ["#1"], []), "not needed");
+  assert.equal(oneConcernVerdict("", ["#1", "#2"], []), "missing");
+  assert.equal(oneConcernVerdict("", [], over), "missing");
+  assert.equal(oneConcernVerdict("One concern: a rename.", [], over), "given");
+  assert.equal(
+    oneConcernVerdict("One concern: <!-- say why -->", ["#1", "#2"], []),
+    "missing",
+  );
+});
+
+void test("checkOneConcern refuses an oversized pull request without the line, naming each limit", () => {
+  assert.throws(() => {
+    checkOneConcern(pullRequest("Fixes #1."), REPOSITORY, [
+      "612 lines of source changed, limit 500",
+      "16 files touched, limit 15",
+    ]);
+  }, /^MergeRefusal: pull request #7 is over the size limits \(612 lines of source changed, limit 500; 16 files touched, limit 15\) but its description has no `One concern:` line\. Add a line to the description starting `One concern:` that says why it is a single change \(see AGENTS\.md section 2/);
+});
+
+void test("checkOneConcern names both reasons when a pull request is oversized and closes several issues", () => {
+  assert.throws(() => {
+    checkOneConcern(pullRequest("Fixes #1 and fixes #2."), REPOSITORY, [
+      "16 files touched, limit 15",
+    ]);
+  }, /is over the size limits \(16 files touched, limit 15\) and closes 2 issues \(#1, #2\) but its description/);
+});
+
+void test("checkOneConcern lets an oversized pull request with the line through", () => {
+  checkOneConcern(
+    pullRequest("Fixes #1.\n\nOne concern: one rename across every file."),
+    REPOSITORY,
+    ["16 files touched, limit 15"],
   );
 });

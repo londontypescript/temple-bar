@@ -21,8 +21,53 @@ import {
   newRepo,
   PR,
   setup,
+  tipUrl,
   treeUrl,
 } from "./testing/trees.ts";
+
+void test("every changed path is named, guarded or not, with no folders and nothing more read", async (t) => {
+  const base = {
+    ...BASE,
+    "docs/old.md": "old\n",
+    "packages/c/thing/index.ts": "export {};\n",
+  };
+  const head = {
+    ...CODE_ONLY,
+    ".github/workflows/ci.yml": "name: CI\non: {}\n",
+    // A rename is the old path gone and the new one there.
+    "docs/new.md": "old\n",
+    // A folder replaced by a file: the file counts, and so does what the
+    // folder held, now gone.
+    "packages/c/thing": "a file now\n",
+  };
+  const { read, http, baseSha, headSha } = setup(t, head, {}, base);
+  const result = await read();
+  assert.ok(result.ok, result.ok ? "" : result.reason);
+  // In plain code-unit order, though "docs/new.md" is only in the head's
+  // tree and so is met last. Folders such as "packages/a" and ".github",
+  // whose ids change with anything inside them, are left out.
+  assert.deepEqual(result.value.paths, [
+    ".github/workflows/ci.yml",
+    "docs/new.md",
+    "docs/old.md",
+    "packages/a/src/index.ts",
+    "packages/c/thing",
+    "packages/c/thing/index.ts",
+  ]);
+  // Naming them costs nothing beyond the reads the judge already makes: no
+  // blob, and the same six calls.
+  assert.deepEqual(
+    http.calls.map((call) => call.url),
+    [
+      `${API}/pulls/7`,
+      tipUrl,
+      treeUrl(baseSha),
+      treeUrl(headSha),
+      `${API}/pulls/7`,
+      tipUrl,
+    ],
+  );
+});
 
 void test("a pull request changing only code inside packages leaves every guarded path alone", async (t) => {
   const { read, http } = setup(t, CODE_ONLY);
