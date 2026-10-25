@@ -151,20 +151,25 @@ void test("tsc -b follows references depth first, lists a shared one once, and s
   );
 });
 
-void test("a linked config is listed, and its references followed, by the path tsc reaches it by; an alias of one already seen is skipped", async () => {
-  // tsconfig.json links to configs/base.json. tsc reads the link's
-  // include and references from /repo, the folder its path names, so
-  // ./app.json is /repo/app.json, never configs/app.json.
+void test("linked configs are listed, and their references followed, by the paths tsc reaches them by: two links to one file are two projects, and a cycle is still visited once", async () => {
+  // a/tsconfig.json and b/tsconfig.json both link to shared/base.json. tsc
+  // tells projects apart by path and reads each link's include and
+  // references from the folder its own path names, so both are built, and
+  // b's ./app.json is b/app.json, never shared/app.json.
   const references: Readonly<Record<string, Reply>> = {
-    "tsconfig.json": showing("./app.json"),
-    "app.json": showing("./configs/base.json"),
+    "tsconfig.json": showing("./a", "./b"),
+    "a/tsconfig.json": showing("../tsconfig.json"),
+    "b/tsconfig.json": showing("./app.json"),
+    "b/app.json": showing(),
   };
   const { ctx, fs, proc } = repo(
     {
       "/repo/tsconfig.json": "",
-      "/repo/configs/base.json": "",
-      "/repo/app.json": "",
-      "/repo/configs/app.json": "",
+      "/repo/a/tsconfig.json": "",
+      "/repo/b/tsconfig.json": "",
+      "/repo/b/app.json": "",
+      "/repo/shared/base.json": "",
+      "/repo/shared/app.json": "",
     },
     (args) => {
       const config = args[args.indexOf("-p") + 1] ?? "";
@@ -173,7 +178,8 @@ void test("a linked config is listed, and its references followed, by the path t
         : {};
     },
   );
-  fs.realpaths.set("/repo/tsconfig.json", "/repo/configs/base.json");
+  fs.realpaths.set("/repo/a/tsconfig.json", "/repo/shared/base.json");
+  fs.realpaths.set("/repo/b/tsconfig.json", "/repo/shared/base.json");
 
   const listings = await listTypeScript(await rootListing(ctx), {
     tool: "tsc-build",
@@ -182,11 +188,18 @@ void test("a linked config is listed, and its references followed, by the path t
 
   assert.deepEqual(
     listings.map((listing) => listing.command),
-    ["tsc -p tsconfig.json", "tsc -p app.json"],
+    [
+      "tsc -p tsconfig.json",
+      "tsc -p a/tsconfig.json",
+      "tsc -p b/tsconfig.json",
+      "tsc -p b/app.json",
+    ],
   );
   assert.deepEqual(calls(proc, "--showConfig"), [
     "-p tsconfig.json --showConfig",
-    "-p app.json --showConfig",
+    "-p a/tsconfig.json --showConfig",
+    "-p b/tsconfig.json --showConfig",
+    "-p b/app.json --showConfig",
   ]);
 });
 
@@ -268,6 +281,16 @@ void test("a listing fails with tsc's first error, a diagnostic among the files,
     [
       { code: 1, stdout: "undefined\n", stderr: "\nnode: bad option\n" },
       "node: bad option",
+    ],
+    [
+      // A warning on stderr doesn't hide pnpm's own error on stdout.
+      {
+        code: 254,
+        stdout:
+          'undefined\n ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "tsc" not found\n',
+        stderr: ' WARN  Issue while reading "/home/me/.npmrc".\n',
+      },
+      'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "tsc" not found',
     ],
     [{ code: 3 }, "exited with 3"],
   ] as const) {

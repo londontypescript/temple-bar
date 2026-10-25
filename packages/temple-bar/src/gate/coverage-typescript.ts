@@ -52,10 +52,15 @@ export function readListedFiles(
   return { paths, diagnostics };
 }
 
-/** Why a call failed, said in one line: tsc's first error; else, when it
- * exited non-zero, what went to stderr or the first line on stdout that
- * says something (a pnpm that can't find the tool prints a bare
- * `undefined` before its error); else the first line that isn't a file. */
+/** A line pnpm or npm tags as its own error. */
+const MANAGER_ERROR = /\bERR_/;
+
+/** Why a call failed, said in one line: tsc's first error. Else, when it
+ * exited non-zero: the package manager's own error, on either stream (a
+ * pnpm that can't find the tool prints it on stdout, after a bare
+ * `undefined`, while its warnings go to stderr); else stderr's first line;
+ * else the first line on stdout that says something. Else, the first line
+ * that isn't a file. */
 function failureOf(
   output: ToolOutput,
   diagnostics: readonly string[],
@@ -68,11 +73,17 @@ function failureOf(
     return tsError;
   }
   if (output.code !== 0) {
-    return (
-      firstLine(output.stderr) ??
-      diagnostics
+    const lines = (text: string) =>
+      text
+        .split(/\r?\n/)
         .map((line) => line.trim())
-        .find((line) => line !== "" && line !== "undefined") ??
+        .filter((line) => line !== "");
+    return (
+      [...lines(output.stdout), ...lines(output.stderr)].find((line) =>
+        MANAGER_ERROR.test(line),
+      ) ??
+      firstLine(output.stderr) ??
+      lines(output.stdout).find((line) => line !== "undefined") ??
       `exited with ${String(output.code)}`
     );
   }
@@ -178,41 +189,35 @@ function listProgram(
   );
 }
 
-/** A config as tsc reaches it, and the file it really is. */
-interface Config {
-  /** Joined from the folder that names it without following links: tsc
-   * reads a config's `include` and `references` from the folder its path
-   * names, so a linked config must be listed by that path too. */
-  readonly path: string;
-  /** With every link resolved: what identifies it, so a linked alias or a
-   * cycle is visited once. */
-  readonly real: string;
-}
-
 /** The config `given` names from `folder` (a folder means its
- * tsconfig.json), or undefined when there is none. */
+ * tsconfig.json), joined without following links, or undefined when there
+ * is none. tsc reads a config's `include` and `references` from the folder
+ * its path names, and tells projects apart by that path, never by where a
+ * link leads: two links to one file are two projects. */
 async function configAt(
   lc: ListingContext,
   folder: string,
   given: string,
-): Promise<Config | undefined> {
+): Promise<string | undefined> {
   const named = path.isAbsolute(given)
     ? path.normalize(given)
     : path.join(folder, given);
   try {
     const real = await lc.ctx.fs.realpath(named);
     if ((await lc.ctx.fs.classify(real)) !== "directory") {
-      return { path: named, real };
+      return named;
     }
     const inside = path.join(named, "tsconfig.json");
-    return { path: inside, real: await lc.ctx.fs.realpath(inside) };
+    await lc.ctx.fs.realpath(inside);
+    return inside;
   } catch {
     return undefined;
   }
 }
 
-/** Every config `tsc -b <projects>` builds, depth first, each once, as
- * the paths tsc reaches them by; or why the references can't be followed. */
+/** Every config `tsc -b <projects>` builds, depth first, each once by
+ * the path tsc reaches it by, so a cycle can't loop; or why the
+ * references can't be followed. */
 async function buildClosure(
   lc: ListingContext,
   projects: readonly string[],
@@ -221,23 +226,23 @@ async function buildClosure(
   const configs: string[] = [];
   const shown = (config: string): string =>
     path.relative(lc.realFolder, config).split(path.sep).join("/");
-  const visit = async (config: Config): Promise<string | undefined> => {
-    if (visited.has(config.real)) {
+  const visit = async (config: string): Promise<string | undefined> => {
+    if (visited.has(config)) {
       return undefined;
     }
-    visited.add(config.real);
-    configs.push(shown(config.path));
+    visited.add(config);
+    configs.push(shown(config));
     const read = readShowConfig(
-      await lc.run("tsc", ["-p", shown(config.path), "--showConfig"]),
+      await lc.run("tsc", ["-p", shown(config), "--showConfig"]),
     );
     if ("failure" in read) {
-      return `tsc -p ${shown(config.path)} --showConfig: ${read.failure}`;
+      return `tsc -p ${shown(config)} --showConfig: ${read.failure}`;
     }
     for (const reference of read.references) {
-      const next = await configAt(lc, path.dirname(config.path), reference);
+      const next = await configAt(lc, path.dirname(config), reference);
       const failed =
         next === undefined
-          ? `${shown(config.path)} references ${reference}, which doesn't exist`
+          ? `${shown(config)} references ${reference}, which doesn't exist`
           : await visit(next);
       if (failed !== undefined) {
         return failed;
