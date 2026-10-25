@@ -11,6 +11,8 @@ export const BASE = "c".repeat(40);
 export const REMOTE_NEWER = "9".repeat(40);
 /** A commit made on the local branch after GitHub accepted the merge. */
 export const LOCAL_NEWER = "8".repeat(40);
+/** A commit the gate made in the branch's worktree while it ran. */
+export const GATE_COMMIT = "7".repeat(40);
 
 /** A check run as GitHub's API returns it. `id` and `started_at` tell
  * which of several runs with one name is the newest. */
@@ -42,6 +44,9 @@ export interface World {
   behind: boolean;
   /** Exit code of the gate merge runs after bringing a branch up to date. */
   gateExit: number;
+  /** What the gate leaves behind in the worktree once it has run: nothing,
+   * a new commit (GATE_COMMIT), or a changed tracked file. */
+  gateEffect: "none" | "commits" | "dirties";
   dirty: boolean;
   /** Extra worktree entries after the primary one, in porcelain form. */
   worktrees: string;
@@ -93,6 +98,7 @@ export function defaultWorld(): World {
     localTip: HEAD,
     behind: false,
     gateExit: 0,
+    gateEffect: "none",
     dirty: false,
     worktrees: `worktree /wt/x\nHEAD ${HEAD}\nbranch refs/heads/feat/x\n`,
     checkRuns: [[{ name: "gate", status: "completed", conclusion: "success" }]],

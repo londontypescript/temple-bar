@@ -29,6 +29,8 @@ interface Scenario {
   gate?: number;
   /** HEAD after the gate has run, when it moved meanwhile. */
   headAfterGate?: string;
+  /** `git status --porcelain` once the gate has run, when it changed files. */
+  statusAfterGate?: string;
   /** origin/main isn't known in this clone. */
   noUpstream?: boolean;
   /** package.json where the branch left origin/main, and at HEAD. */
@@ -88,7 +90,11 @@ function setup(scenario: Scenario = {}) {
       return ok(`${"b".repeat(40)}\n`);
     }
     if (args[0] === "status") {
-      return ok(scenario.status ?? "");
+      return ok(
+        (gateRan > 0 ? scenario.statusAfterGate : undefined) ??
+          scenario.status ??
+          "",
+      );
     }
     if (args[0] === "symbolic-ref") {
       return ok(`refs/remotes/origin/${scenario.defaultBranch ?? "main"}\n`);
@@ -177,6 +183,19 @@ void test("ready: a commit that moved while the gate ran is not marked", async (
   assert.equal(await t.run(), 1);
   assert.equal(t.mark(), "");
   assert.match(t.stderr.lines.join(""), /changed while the gate ran/);
+});
+
+void test("ready: files the gate changed while it ran leave the commit unmarked", async () => {
+  const t = setup({ statusAfterGate: " M src/a.ts\n" });
+  assert.equal(await t.run(), 1);
+  assert.equal(t.gateRuns(), 1);
+  assert.equal(t.mark(), "");
+  assert.equal(
+    t.stderr.lines.join(""),
+    "ready: the worktree has changes that aren't committed, so the gate would judge files the push won't carry:\n" +
+      "   M src/a.ts\n" +
+      "Commit them (or remove what doesn't belong), then run ready again.\n",
+  );
 });
 
 void test("ready: an AGENTS.md change is marked, with a warning to ask the maintainer in chat and no prompt", async () => {

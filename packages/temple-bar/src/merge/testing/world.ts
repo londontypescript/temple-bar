@@ -18,10 +18,11 @@ import { fakeTreeReads } from "../../testing/git-trees.ts";
 import type { MergeDeps } from "../run.ts";
 import {
   BASE,
+  GATE_COMMIT,
+  HEAD,
   LOCAL_NEWER,
   MERGED_IN,
   REMOTE_NEWER,
-  HEAD,
   type World,
 } from "./default-world.ts";
 
@@ -58,6 +59,10 @@ export interface Harness {
   readonly sleeps: number[];
   /** The directory of each gate run. */
   readonly gateRuns: string[];
+  /** The ready mark's text in the gate's worktree as each gate run starts. */
+  readonly marksAtGate: (string | undefined)[];
+  /** Whether the pull request's branch was pushed to origin (not deleted). */
+  pushedBranch(): boolean;
   out(): string;
   err(): string;
   /** Whether a git or gh call whose args start with `prefix` was made. */
@@ -70,6 +75,7 @@ export function harness(world: World): Harness {
   let checkReads = 0;
   let mergeRequests = 0;
   let tip = world.localTip;
+  let gated = false;
   // origin's tip of the branch, and the head GitHub accepted when it merged.
   let remoteTip = world.heads[0];
   let accepted: string | undefined;
@@ -134,7 +140,11 @@ export function harness(world: World): Harness {
         }
         return ok(`${BASE}\n`);
       case "status":
-        return ok(world.dirty ? " M file.ts\n" : "");
+        return ok(
+          world.dirty || (gated && world.gateEffect === "dirties")
+            ? " M file.ts\n"
+            : "",
+        );
       case "merge":
         if (rest.includes("--no-ff")) {
           tip = MERGED_IN;
@@ -263,11 +273,19 @@ export function harness(world: World): Harness {
   let now = ctx.clock.now().getTime();
   const sleeps: number[] = [];
   const gateRuns: string[] = [];
+  const marksAtGate: (string | undefined)[] = [];
   const timedCtx: Context = { ...ctx, clock: { now: () => new Date(now) } };
   const deps: MergeDeps = {
-    runGate: (gateCtx) => {
+    runGate: async (gateCtx) => {
       gateRuns.push(gateCtx.cwd);
-      return Promise.resolve(world.gateExit);
+      marksAtGate.push(
+        await ctx.fs.readText(`${gateCtx.cwd}/.git/temple-bar-ready`),
+      );
+      gated = true;
+      if (world.gateEffect === "commits") {
+        tip = GATE_COMMIT;
+      }
+      return world.gateExit;
     },
     sleep: (ms) => {
       sleeps.push(ms);
@@ -294,6 +312,15 @@ export function harness(world: World): Harness {
     deps,
     sleeps,
     gateRuns,
+    marksAtGate,
+    pushedBranch: () =>
+      git.calls.some((call) =>
+        startsWith(call.args, [
+          "push",
+          "origin",
+          `refs/heads/${branch}:refs/heads/${branch}`,
+        ]),
+      ),
     out: () => stdout.lines.join(""),
     err: () => stderr.lines.join(""),
     ran: (tool, ...prefix) =>

@@ -20,7 +20,8 @@ import type { CommandEntry } from "../registry.ts";
 import { GUARDED_CHECKS } from "../judge/guarded-checks.ts";
 import { behindDefaultBranch } from "./behind.ts";
 import { changesNeedingMaintainer, maintainerWarning } from "./maintainer.ts";
-import { clearMark, writeMark } from "./mark.ts";
+import { markAfterGate, worktreeChanges, type Unmarked } from "./after-gate.ts";
+import { clearMark } from "./mark.ts";
 
 /** Stops `ready` with a message saying what to do instead. */
 class NotReady extends Error {
@@ -60,35 +61,32 @@ async function headCommit(ctx: Context, root: string): Promise<string> {
     : stop("there is no commit here yet. Commit your work, then run ready.");
 }
 
-const MAX_LISTED = 10;
+// Each problem with what ready says to do about it, after the shared reason.
+function stopUnmarked(unmarked: Unmarked, short: string): never {
+  switch (unmarked.problem) {
+    case "moved":
+      return stop(
+        `${unmarked.reason}, so ${short} is not marked. Run ready again.`,
+      );
+    case "changed":
+      return stop(
+        `${unmarked.reason}\n` +
+          "Commit them (or remove what doesn't belong), then run ready again.",
+      );
+    case "unreadable":
+      return stop(unmarked.reason);
+  }
+}
 
-// The gate reads the files on disk, but a push carries only the commit. A
-// change that isn't committed, or a new file that was never added, would be
-// judged here and then be missing from what CI sees, so `ready` only judges a
-// worktree that matches its commit exactly. Ignored files (node_modules, build
-// output) don't count.
-async function requireClean(ctx: Context, root: string): Promise<void> {
-  const result = await git(
-    ctx,
-    ["status", "--porcelain", "--untracked-files=all"],
-    root,
-  );
-  if (!result.ok) {
-    stop(`could not read the worktree's status: ${result.stderr}`);
+async function requireClean(
+  ctx: Context,
+  root: string,
+  short: string,
+): Promise<void> {
+  const changes = await worktreeChanges(ctx, root);
+  if (changes !== undefined) {
+    stopUnmarked(changes, short);
   }
-  const lines = result.stdout.split("\n").filter((line) => line !== "");
-  if (lines.length === 0) {
-    return;
-  }
-  const listed = lines.slice(0, MAX_LISTED).map((line) => `  ${line}`);
-  if (lines.length > MAX_LISTED) {
-    listed.push(`  ...and ${String(lines.length - MAX_LISTED)} more`);
-  }
-  stop(
-    "the worktree has changes that aren't committed, so the gate would judge files the push won't carry:\n" +
-      `${listed.join("\n")}\n` +
-      "Commit them (or remove what doesn't belong), then run ready again.",
-  );
 }
 
 /** Runs the full gate in `ctx.cwd` and returns its exit code. */
@@ -103,7 +101,7 @@ async function runReady(ctx: Context, runGate: RunGate): Promise<number> {
   await clearMark(ctx, root);
   const head = await headCommit(ctx, root);
   const short = head.slice(0, 7);
-  await requireClean(ctx, root);
+  await requireClean(ctx, root, short);
 
   // Before the gate, so a branch that can't merge as it stands is told at
   // once, and before the comparison below, which then uses the fresh ref.
@@ -123,15 +121,12 @@ async function runReady(ctx: Context, runGate: RunGate): Promise<number> {
     );
   }
 
-  // The gate can take minutes; judge only the commit it actually checked.
-  if ((await headCommit(ctx, root)) !== head) {
-    stop(
-      `the checked-out commit changed while the gate ran, so ${short} is not marked. Run ready again.`,
-    );
+  // The gate can take minutes, and runs the project's own scripts: mark only
+  // the commit it actually checked, and only if they left it as it was.
+  const unmarked = await markAfterGate(ctx, root, head);
+  if (unmarked !== undefined) {
+    stopUnmarked(unmarked, short);
   }
-  await requireClean(ctx, root);
-
-  await writeMark(ctx, root, head);
   ctx.stdout.write(
     `ready: ${short} passed the gate and is marked ready to push. Any new commit needs ready again.\n`,
   );
