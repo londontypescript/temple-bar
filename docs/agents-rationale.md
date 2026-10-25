@@ -5,8 +5,8 @@ in every session. The reasons behind them live here. temple-bar's setup
 wrote this file; add your own project's reasons as you add rules.
 
 - **AGENTS.md stays within 200 lines and 32 KiB.** Every agent loads all of
-  it in every session. Anthropic's guidance is under 200 lines, and Codex
-  stops reading past 32 KiB by default.
+  it in every session. Agent guidance is under 200 lines, and some agents
+  stop reading past 32 KiB by default.
 - **Rules live in the block, one or two lines each.** Reasons, examples
   and procedure live in the companion docs the block links to, each linked
   with when to read it. A link is read only when an agent thinks it worth

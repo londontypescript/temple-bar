@@ -232,7 +232,7 @@ void test("the block is exactly the approved text", () => {
 // a change to one must be deliberate and update its hash here.
 const APPROVED_COMPANION_SHA256: Readonly<Record<string, string>> = {
   "docs/agents-rationale.md":
-    "6a751af2ca6b1a6b49dbcc02521d3acdc29340de014cb8a5da8d634de010a03b",
+    "123bcb43101a2c8e9ed4cf1f593d42a70c15b3e98cabdccea350b08b57cc2244",
   "docs/phase-boundaries.md":
     "caf57ee44818ca76eee2fc6a7a93e813742820c5f6c14ea6a318fd3563bb549e",
   "docs/planning.md":
