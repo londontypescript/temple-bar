@@ -38,7 +38,7 @@ same pull request as any change to a mechanism.
 | Maintainer asked in chat before a push                 | `ready` and `pre-push` warn; see the limits below                                                                | **Warned** only                     |
 | Maintainer's yes for an AGENTS.md merge                | `merge` needs `--maintainer-approved`, records it                                                                | **Detected** after                  |
 | AGENTS.md within 200 lines and 32 KiB                  | the pinned gate in CI                                                                                            | **Blocked** via CI                  |
-| temple-bar's AGENTS.md block present and unedited      | the pinned gate in CI; from 0.2.0's pin, also when AGENTS.md or its block is missing                             | **Blocked** via CI                  |
+| temple-bar's AGENTS.md block present and unedited      | the pinned gate in CI; from 0.2.0, also when AGENTS.md or its block is missing                                   | **Blocked** via CI                  |
 | Ruleset not deleted or loosened                        | the pinned gate in CI (public repos)                                                                             | **Blocked** via CI                  |
 | Check changes merged by the maintainer                 | judge workflow + its ruleset, from 0.0.7; see below                                                              | **Blocked** on GitHub               |
 | temple-bar's lockfile entries unchanged                | the judge, from 0.0.8                                                                                            | **Blocked** on GitHub               |
@@ -133,11 +133,11 @@ gate names the packages that hold Knip's findings, or the root; that naming
 never turns a failure into a pass. temple-bar writes no Knip config: entries
 that Knip's plugins don't find are declared in the project's own.
 
-This repo pins published 0.1.0, so the rules marked "from 0.1.0" apply to it:
-each of its two packages runs its own four scripts. The root's `test` runs
-`scripts/` and `e2e/`, each package's runs its own `src/`, and a test in the
-suite (`scripts/selected-tests.test.ts`) fails if any tracked test file is run
-by none of them or by more than one.
+This repo pins published 0.2.0, so the rules marked "from 0.2.0" and earlier
+apply to it: each of its two packages runs its own four scripts. The root's
+`test` runs `scripts/` and `e2e/`, each package's runs its own `src/`, and a
+test in the suite (`scripts/selected-tests.test.ts`) fails if any tracked test
+file is run by none of them or by more than one.
 
 The release scaffold checker validates the packed gate's complete check report,
 exact per-framework missing-script expectations, verdict and exit code. Every
