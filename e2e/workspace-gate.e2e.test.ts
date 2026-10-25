@@ -41,12 +41,17 @@ before(async () => {
   const setup = await launch(launcher, options);
   assert.equal(setup.code, 0, describe(setup));
   // The ruleset checks would read GitHub's API for a GitHub origin; this
-  // project is made up, and GitHub is never contacted.
-  await run(
-    "git",
-    ["remote", "set-url", "origin", "https://git.example.invalid/acme/w.git"],
-    options,
-  );
+  // project is made up, and GitHub is never contacted. origin is a local
+  // bare copy instead, holding the commit setup started from as its main,
+  // because ready fetches the default branch before it runs the gate.
+  const origin = path.join(launcher.folder, "workspace-origin.git");
+  for (const args of [
+    ["clone", "-q", "--bare", options.cwd, origin],
+    ["remote", "set-url", "origin", origin],
+  ]) {
+    const result = await run("git", args, options);
+    assert.equal(result.code, 0, describe(result));
+  }
   project = options;
 });
 
@@ -243,8 +248,6 @@ void test(
     await git(["switch", "-q", "-c", "feature"]);
     await git(["add", "-A"]);
     await git(["commit", "-q", "-m", "chore: set up temple-bar"]);
-    // What GitHub's default branch would be: the commit setup started from.
-    await git(["update-ref", "refs/remotes/origin/main", "main"]);
 
     const ready = await run("pnpm", ["ready"], inProject());
     assert.equal(ready.code, 0, describe(ready));
