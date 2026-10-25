@@ -7,112 +7,34 @@
 // default-branch checkout, the gate lists both packages and the merge lands.
 
 import assert from "node:assert/strict";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { after, before, test } from "node:test";
 
 import {
-  launch,
-  makeProject,
   startPackedLauncher,
   type PackedLauncher,
 } from "./support/launcher.ts";
-import { describe, run, type RunOptions } from "./support/run.ts";
-import { checkedWorkspace } from "./support/workspace.ts";
-
-// A stand-in `gh` for merge's calls. The launcher's environment already
-// puts a copy of Node named `gh` on PATH and preloads setup's fake into
-// every Node process; this preload goes first, so it answers every `gh`
-// call from here on, and does nothing in any other process. It reads the
-// pull request's head from the bare "GitHub" repository and squash-merges
-// into it the way GitHub would, keeping the merged head in a state file so
-// later calls see the pull request as merged. Node resolves the first
-// argument to an absolute path (it takes it for a script), so only its
-// basename is the subcommand.
-const MERGE_GH = `"use strict";
-const path = require("node:path");
-if (path.basename(process.execPath).replace(/\\.exe$/i, "") === "gh") {
-  const fs = require("node:fs");
-  const { execFileSync } = require("node:child_process");
-  const origin = process.env.FAKE_GH_ORIGIN;
-  const state = process.env.FAKE_GH_STATE;
-  const args = [path.basename(process.argv[1] || ""), ...process.argv.slice(2)];
-  const joined = args.join(" ");
-  const git = (...rest) =>
-    execFileSync("git", ["--git-dir", origin, ...rest], { encoding: "utf8" }).trim();
-  const merged = fs.existsSync(state) ? fs.readFileSync(state, "utf8") : "";
-  const answer = (text) => {
-    process.stdout.write(text);
-    process.exit(0);
-  };
-  const after = (flag) => args[args.indexOf(flag) + 1] || "";
-  if (joined.startsWith("repo view")) {
-    answer('{"nameWithOwner":"acme/widgets","defaultBranchRef":{"name":"main"}}');
-  }
-  if (joined.startsWith("pr view")) {
-    answer(JSON.stringify({
-      number: 7,
-      title: "docs: add x",
-      body: "- add x\\n",
-      state: merged === "" ? "OPEN" : "MERGED",
-      isDraft: false,
-      baseRefName: "main",
-      headRefName: "feat/x",
-      headRefOid: merged === "" ? git("rev-parse", "refs/heads/feat/x") : merged,
-      isCrossRepository: false,
-    }));
-  }
-  if (joined.includes("/check-runs")) {
-    answer('{"name":"gate","status":"completed","conclusion":"success"}\\n');
-  }
-  if (joined.startsWith("pr merge")) {
-    const head = after("--match-head-commit");
-    const message = after("--subject") + "\\n\\n" + after("--body");
-    const squash = git("commit-tree", head + "^{tree}", "-p", "refs/heads/main", "-m", message);
-    git("update-ref", "refs/heads/main", squash);
-    fs.writeFileSync(state, head);
-    answer("");
-  }
-  if (joined.startsWith("pr list")) {
-    answer(JSON.stringify(merged === "" ? [] : [
-      { number: 7, headRefName: "feat/x", headRefOid: merged, state: "MERGED" },
-    ]));
-  }
-  if (joined.startsWith("issue list")) {
-    answer("0");
-  }
-  // Statuses, workflow runs, required checks, alerts and bypasses: none.
-  answer("");
-}
-`;
+import {
+  startMergeProject,
+  succeed,
+  type MergeProject,
+} from "./support/merge-github.ts";
+import { describe, run } from "./support/run.ts";
 
 let launcher: PackedLauncher | undefined;
-let project: RunOptions | undefined;
+let project: MergeProject | undefined;
 
 before(async () => {
   launcher = await startPackedLauncher("temple-bar-workspace-merge-");
-  const options = await makeProject(launcher, "workspace", checkedWorkspace());
-  const setup = await launch(launcher, options);
-  assert.equal(setup.code, 0, describe(setup));
-  const preload = path.join(launcher.folder, "merge-gh-preload.cjs");
-  writeFileSync(preload, MERGE_GH);
-  // NODE_OPTIONS reads a backslash inside quotes as an escape, which would
-  // eat every separator in a Windows path; Node takes forward slashes.
-  const env = {
-    ...options.env,
-    NODE_OPTIONS:
-      `--require "${preload.replaceAll("\\", "/")}" ${options.env.NODE_OPTIONS ?? ""}`.trim(),
-    FAKE_GH_ORIGIN: path.join(launcher.folder, "origin.git"),
-    FAKE_GH_STATE: path.join(launcher.folder, "merged-head"),
-  };
-  project = { cwd: options.cwd, env };
+  project = await startMergeProject(launcher);
 });
 
 after(async () => {
   await launcher?.close();
 });
 
-function inProject(): RunOptions {
+function inProject(): MergeProject {
   assert.ok(project, "the workspace was not set up");
   return project;
 }
@@ -123,48 +45,22 @@ function folder(): string {
 }
 
 /** Runs a command that must succeed, in `cwd`, and returns its stdout. */
-async function ok(
+function ok(
   command: string,
   args: readonly string[],
   cwd = inProject().cwd,
 ): Promise<string> {
-  const result = await run(command, args, { ...inProject(), cwd });
-  assert.equal(result.code, 0, describe(result));
-  return result.stdout.trim();
+  return succeed(command, args, { ...inProject(), cwd });
 }
 
 void test(
   "workspace merge: pnpm merge from the default-branch checkout merges a behind branch, and the gate lists the packages",
   { timeout: 600_000 },
   async () => {
-    const origin = path.join(folder(), "origin.git");
+    const origin = inProject().origin;
     const worktree = path.join(folder(), "wt-x");
     const seed = path.join(folder(), "seed");
 
-    // Setup's work becomes the default branch on "GitHub": committed on a
-    // branch (the hooks refuse commits to main), fetched into the bare
-    // repository as main, and fast-forwarded into the local main.
-    await ok("git", ["switch", "-q", "-c", "setup"]);
-    await ok("git", ["add", "-A"]);
-    await ok("git", ["commit", "-q", "-m", "chore: set up temple-bar"]);
-    await ok(
-      "git",
-      ["init", "-q", "--bare", "--initial-branch=main", origin],
-      folder(),
-    );
-    await ok("git", [
-      "--git-dir",
-      origin,
-      "fetch",
-      "-q",
-      inProject().cwd,
-      "refs/heads/setup:refs/heads/main",
-    ]);
-    await ok("git", ["remote", "set-url", "origin", origin]);
-    await ok("git", ["fetch", "-q", "origin"]);
-    await ok("git", ["switch", "-q", "main"]);
-    await ok("git", ["merge", "-q", "--ff-only", "origin/main"]);
-    await ok("git", ["branch", "-q", "-d", "setup"]);
     const manifest = JSON.parse(
       await ok("git", ["show", "main:package.json"]),
     ) as { scripts?: Record<string, string> };
@@ -239,11 +135,41 @@ void test(
       ]),
       "docs: add x (#7)",
     );
-    assert.equal(existsSync(worktree), false, "the worktree is removed");
     assert.equal(
       await ok("git", ["rev-parse", "main"]),
       await ok("git", ["--git-dir", origin, "rev-parse", "main"]),
       "main fast-forwarded",
+    );
+
+    // GitHub accepted the merge commit that brought the branch up to date.
+    // Its remote branch is deleted, leased to that commit, and the worktree
+    // and the local branch stay where they are.
+    const accepted = readFileSync(path.join(folder(), "merged-head"), "utf8");
+    assert.notEqual(accepted, pushedTip);
+    assert.equal(
+      await ok("git", [
+        "--git-dir",
+        origin,
+        "for-each-ref",
+        "refs/heads/feat/x",
+      ]),
+      "",
+      "origin's branch is deleted",
+    );
+    assert.ok(existsSync(worktree), "the worktree is kept");
+    assert.equal(await ok("git", ["rev-parse", "feat/x"]), accepted);
+    assert.ok(
+      merge.stdout.includes(
+        `merge: deleted origin/feat/x, whose tip was still the merged ${accepted}\n`,
+      ),
+      describe(merge),
+    );
+    assert.match(
+      merge.stdout,
+      new RegExp(
+        `^merge: kept the worktree at .*wt-x on feat/x \\(${accepted}\\);`,
+        "m",
+      ),
     );
   },
 );

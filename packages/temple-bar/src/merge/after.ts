@@ -1,7 +1,7 @@
 // What merge does once GitHub has accepted the squash: confirm it merged,
-// tidy up the branch and worktree, and report anything left to deal with.
-// Nothing here can undo the merge, so problems are reported with exit code
-// 1 rather than thrown as refusals.
+// tidy up, say where the branch's worktree and local branch are kept, and
+// report anything left to deal with. Nothing here can undo the merge, so
+// problems are reported with exit code 1 rather than thrown as refusals.
 
 import path from "node:path";
 
@@ -14,18 +14,18 @@ import {
   readPullRequest,
   type Repository,
 } from "./github.ts";
-import type { WorktreeRemover } from "./finish-removal.ts";
 import { cleanUp } from "./local.ts";
 import { listWorktrees } from "./worktrees.ts";
 
 /** The first merge on a repo brings temple-bar onto the default branch, but
- * the only checkout that had it installed was the worktree cleanUp just
- * removed. Until some checkout installs it, the git hooks have no
- * temple-bar anywhere and refuse, so say how. When the primary checkout
- * couldn't be fast-forwarded (uncommitted changes, say), its package.json
- * doesn't list temple-bar yet and installing there would bring nothing, so
- * the advice points at a fresh worktree of the merged default branch
- * instead. Reporting only. */
+ * the primary checkout doesn't have it installed yet: the merged branch's
+ * worktree is where it was installed. Merge keeps that worktree, so the git
+ * hooks still find temple-bar there for now, but once it is removed no
+ * checkout has it and the hooks refuse. So say how to install it in the
+ * primary checkout. When that checkout couldn't be fast-forwarded
+ * (uncommitted changes, say), its package.json doesn't list temple-bar yet
+ * and installing there would bring nothing, so the advice points at a
+ * fresh worktree of the merged default branch instead. Reporting only. */
 async function adviseInstall(
   ctx: Context,
   root: string,
@@ -42,7 +42,8 @@ async function adviseInstall(
     return;
   }
   const hooks =
-    "The git hooks refuse commits and pushes while no checkout of this repo has it installed\n";
+    "Until then the git hooks use another checkout that has it, such as the merged branch's worktree, " +
+    "and refuse commits and pushes once no checkout of this repo has it installed\n";
   if (await listsTempleBar(ctx, primary.path)) {
     ctx.stdout.write(
       `merge: temple-bar is not installed in ${primary.path}: run pnpm install there. ${hooks}`,
@@ -81,7 +82,6 @@ export async function afterMerge(
     readonly sha: string;
     readonly root: string;
     readonly prNumber: number;
-    readonly remover: WorktreeRemover;
   },
 ): Promise<number> {
   let exitCode = 0;
@@ -99,7 +99,6 @@ export async function afterMerge(
     branch: merged.branch,
     defaultBranch: merged.repository.defaultBranch,
     mergedSha: merged.sha,
-    remover: merged.remover,
   });
   for (const line of cleanup.done) {
     ctx.stdout.write(`merge: ${line}\n`);
@@ -137,16 +136,21 @@ export async function afterMerge(
     );
   }
 
-  // The leftovers report counts only what git still lists, so a folder git
-  // has already let go of isn't in it: it mustn't read as all clean.
+  // What merge kept on purpose is listed next as leftovers, for a person or
+  // the harness to remove, when the report can call it finished. It leaves
+  // out a branch with work that didn't merge, as it does anything it can't
+  // check, so its "none" mustn't read as all clean when merge kept a branch
+  // or left something behind.
   const incomplete = cleanup.problems.length > 0;
   await reportLeftovers(
     ctx,
     merged.root,
-    "merge: ",
+    "merge: leftovers: ",
     incomplete
       ? "git lists no other leftover branches or worktrees"
-      : undefined,
+      : cleanup.keptBranch
+        ? "none finished, so check what merge kept above before removing it"
+        : undefined,
   ).catch((error: unknown) => {
     ctx.stdout.write(
       `merge: could not look for leftovers: ${error instanceof Error ? error.message : String(error)}\n`,
