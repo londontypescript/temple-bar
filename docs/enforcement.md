@@ -34,6 +34,7 @@ same pull request as any change to a mechanism.
 | Worktree per branch; merge steps                       | `pnpm merge` (`temple-bar merge`); nothing forces its use   | **Prose only**                      |
 | Main checkout stays on the default branch              | `post-checkout` hook warns on a switch or detach            | **Warned** only                     |
 | Push once, after the gate passed                       | `ready` + `pre-push` from the pin that ships them           | **Blocked** locally                 |
+| Branch caught up with the default branch before ready  | `ready` fetches it and refuses a behind branch, from 0.2.0  | **Blocked** locally                 |
 | Maintainer asked in chat before a push                 | `ready` and `pre-push` warn; see the limits below           | **Warned** only                     |
 | Maintainer's yes for an AGENTS.md merge                | `merge` needs `--maintainer-approved`, records it           | **Detected** after                  |
 | AGENTS.md within 200 lines and 32 KiB                  | the pinned gate in CI                                       | **Blocked** via CI                  |

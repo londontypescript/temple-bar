@@ -76,8 +76,9 @@ says "the orchestrator" today because harnesses stay neutral (decision 31).
 
 **Decision 33: `temple-bar merge` does the whole merge.** It waits for CI and
 CodeQL, refuses while code-scanning alerts are open, merges with a written
-squash message, then removes the worktree and the local branch and confirms
-the remote branch is gone. It blocks until done, so it works under any
+squash message, then deletes the remote branch only while its tip is still
+the merged commit, and keeps the worktree and the local branch, saying where
+they are (decision 80, ADR 0016). It blocks until done, so it works under any
 harness, including one that can't be woken when checks finish. A branch
 that's behind the default branch is brought up to date by merging the
 default branch into it and pushing normally, never by rewriting it. A change
