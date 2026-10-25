@@ -99,6 +99,16 @@ void test(
     // knip saw the installed graph: the shared package's exports, used only
     // by its sibling apps, are used.
     assertReports(result, /^ {2}passed {3}unused code \(knip\)$/m);
+    // Every TypeScript file is in a package's tsconfig, and every test file
+    // in the root's Vitest run over scripts/ or a package's own run.
+    assertReports(
+      result,
+      /^ {2}passed {3}type-check coverage \(all \d+ TypeScript file\(s\) checked by 6 listing\(s\)\)$/m,
+    );
+    assertReports(
+      result,
+      /^ {2}passed {3}test coverage \(all 6 test file\(s\) run by 6 listing\(s\)\)$/m,
+    );
     // The real tools ran, once at the root and once in each package. Vitest
     // colours its summary on Windows even into a pipe, so the colour codes
     // are taken out before counting.

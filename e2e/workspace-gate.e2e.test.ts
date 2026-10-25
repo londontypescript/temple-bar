@@ -199,7 +199,11 @@ void test(
     rmSync(file("tools"), { recursive: true, force: true });
     assert.equal(gate.code, 1, describe(gate));
     assert.match(gate.stderr, /^ {2}tools\/d\/package\.json$/m);
-    assert.match(gate.stderr, /^gate: failed: workspace packages$/m);
+    // Without the package list, coverage can't be trusted either.
+    assert.match(
+      gate.stderr,
+      /^gate: failed: workspace packages, type-check coverage, test coverage$/m,
+    );
   },
 );
 

@@ -21,6 +21,7 @@ import {
   coreFiles,
   withCoreGit,
 } from "./testing/core-fixture.ts";
+import { answerExec } from "./testing/workspace-fixture.ts";
 
 const ALL_SCRIPTS = {
   typecheck: "tsc",
@@ -45,7 +46,11 @@ function project(
       stderr: "",
     })),
   );
-  const proc = createFakeProc((call) => exitCodeFor(call.args[1]));
+  // tsc's listing names every file, as a tsconfig including them would.
+  const proc = createFakeProc(
+    (call, run) =>
+      answerExec(call, run, () => files) ?? exitCodeFor(call.args[1]),
+  );
   const contents: Record<string, string> = coreFiles();
   for (const file of files) {
     contents[`/repo/${file}`] = "one\n";
@@ -67,14 +72,20 @@ function project(
   return { run: () => route(["gate"], ctx, registry), proc, stderr };
 }
 
+/** The scripts that ran, leaving out the tools the coverage check runs
+ * through `exec`. */
 function ran(proc: ReturnType<typeof createFakeProc>): (string | undefined)[] {
-  return proc.calls.map((call) => call.args[1]);
+  return proc.calls
+    .filter((call) => call.args[0] === "run")
+    .map((call) => call.args[1]);
 }
 
-/** The gate's own explanation, without the closing report. */
+/** The gate's own explanation of the scripts, without the coverage
+ * check's, which follows it, or the closing report. */
 function messageBeforeReport(stderr: FakeWriter): string {
   const text = stderr.lines.join("");
-  return text.slice(0, text.indexOf("gate: checks:"));
+  const end = text.search(/^gate: \d+ TypeScript file\(s\)|^gate: checks:/m);
+  return text.slice(0, end);
 }
 
 void test("gate: a Rust project with no scripts is not waved through as 'no code yet'", async () => {
@@ -107,7 +118,11 @@ void test("gate: one missing script doesn't stop the others running, and their f
   assert.match(text, /missing script\(s\): typecheck, format:check, test\n/);
   assert.match(text, /^ {2}missing {2}typecheck \(not in package\.json\)$/m);
   assert.match(text, /^ {2}failed {3}lint \(exit 1\)$/m);
-  assert.match(text, /^gate: failed: typecheck, lint, format:check, test$/m);
+  // The missing typecheck leaves src/index.ts unchecked too.
+  assert.match(
+    text,
+    /^gate: failed: typecheck, lint, format:check, test, type-check coverage$/m,
+  );
 });
 
 void test("gate: a script that does nothing is not run, and fails with what to put there", async () => {
@@ -166,5 +181,5 @@ void test("gate: real commands next to an echo still run and pass", async () => 
   });
 
   assert.equal(await run(), 0);
-  assert.equal(proc.calls.length, 4);
+  assert.equal(ran(proc).length, 4);
 });

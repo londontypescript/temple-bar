@@ -25,6 +25,7 @@ import {
   type EntriesOptions,
 } from "./testing/entries-fixture.ts";
 import { realContext } from "./testing/real-repo.ts";
+import { linkTypeScript } from "./testing/typescript-link.ts";
 import { createRealGateTools } from "./tools.ts";
 
 const gate = createGateCommand(createRealGateTools());
@@ -74,6 +75,7 @@ async function gateOn(
       writeFileSync(file, text);
     }
     linkSharedPackage(dir);
+    linkTypeScript(dir);
     await installCore(dir);
     execFileSync("git", ["add", "-A"], { cwd: dir });
     const { ctx, stdout, stderr } = realContext(dir);

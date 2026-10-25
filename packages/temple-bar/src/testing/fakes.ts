@@ -1,7 +1,15 @@
 // In-memory fakes for every seam, for tests only. Excluded from the built
 // package (tsconfig.build.json).
 
-import { dirname, isAbsolute, join, normalize } from "node:path";
+import {
+  dirname,
+  isAbsolute,
+  join,
+  normalize,
+  posix,
+  relative,
+  sep,
+} from "node:path";
 
 import type { Context } from "../context.ts";
 import type { ClockSeam } from "../seams/clock.ts";
@@ -114,6 +122,8 @@ export interface FakeFs extends FsSeam {
   readonly realpaths: Map<string, string>;
   /** Paths whose realpath fails with the given error. */
   readonly realpathErrors: Map<string, Error>;
+  /** Glob patterns whose expansion fails with the given error. */
+  readonly globErrors: Map<string, Error>;
 }
 
 /** A Map whose keys are paths normalised the way the real filesystem
@@ -164,6 +174,7 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
   const classificationErrors = new Map<string, Error>();
   const realpaths = new PathMap();
   const realpathErrors = new Map<string, Error>();
+  const globErrors = new Map<string, Error>();
   const exists = (entry: string): boolean => {
     const folder = normalize(`${entry}/`);
     return (
@@ -181,6 +192,7 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
     classificationErrors,
     realpaths,
     realpathErrors,
+    globErrors,
     classify(path) {
       const error = classificationErrors.get(normalize(path));
       if (error !== undefined) return Promise.reject(error);
@@ -272,6 +284,24 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
       files.set(to, content);
       writes.push({ path: normalize(to), content });
       return Promise.resolve(true);
+    },
+    glob(folder, pattern) {
+      const error = globErrors.get(pattern);
+      if (error !== undefined) return Promise.reject(error);
+      // Only the stored files are matched, so a folder never is, as on a
+      // real disk; links are skipped like the real seam skips them.
+      const wanted = pattern.replace(/^\.\//, "");
+      const found = [...files.keys()]
+        .filter((file) => !symlinks.has(file) && !linkTargets.has(file))
+        .map((file) => relative(normalize(folder), file).split(sep).join("/"))
+        .filter(
+          (file) =>
+            file !== "" &&
+            !file.startsWith("../") &&
+            !file.split("/").includes("node_modules") &&
+            posix.matchesGlob(file, wanted),
+        );
+      return Promise.resolve(found);
     },
   };
 }

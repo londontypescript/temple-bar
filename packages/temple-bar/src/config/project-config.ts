@@ -1,7 +1,8 @@
 // The one place that reads a project's temple-bar.config.json. Every check
-// that has a limit (the file-length cap, the pull request size limits) gets
-// it from here, so a key's name, its default and its validation live in one
-// spot and a broken file is reported the same way everywhere.
+// that has a limit (the file-length cap, the pull request size limits) or
+// an exception (the coverage check's exclusions) gets it from here, so a
+// key's name, its default and its validation live in one spot and a broken
+// file is reported the same way everywhere.
 
 import path from "node:path";
 import type { Context } from "../context.ts";
@@ -22,6 +23,11 @@ export interface ProjectConfig {
   /** Most files, source and test together, one pull request may touch
    * without a `One concern:` line. */
   readonly maxPullRequestFiles: number;
+  /** Tracked files the coverage check doesn't require to be type-checked
+   * or run: exact paths, or folders ending in "/", "/"-separated from the
+   * root. Only here, since the judge leaves every edit to this file to the
+   * maintainer. */
+  readonly coverageExclusions: readonly string[];
 }
 
 /**
@@ -39,13 +45,14 @@ export const DEFAULT_CONFIG: ProjectConfig = {
   maxPullRequestLines: 500,
   maxPullRequestTestLines: 1_000,
   maxPullRequestFiles: 15,
+  coverageExclusions: [],
 };
 
 export const DEFAULT_MAX_FILE_LINES = DEFAULT_CONFIG.maxFileLines;
 
 function readLimit(
   object: object,
-  key: keyof ProjectConfig,
+  key: Exclude<keyof ProjectConfig, "coverageExclusions">,
 ): number | undefined {
   if (!(key in object)) {
     return undefined;
@@ -57,6 +64,24 @@ function readLimit(
     );
   }
   return value;
+}
+
+function readExclusions(object: object): readonly string[] | undefined {
+  if (!("coverageExclusions" in object)) {
+    return undefined;
+  }
+  const value: unknown = object.coverageExclusions;
+  if (
+    !Array.isArray(value) ||
+    !(value as unknown[]).every(
+      (entry) => typeof entry === "string" && entry !== "",
+    )
+  ) {
+    throw new Error(
+      `${CONFIG_FILE_NAME}: "coverageExclusions" must be a list of non-empty paths`,
+    );
+  }
+  return value as string[];
 }
 
 function parseProjectConfig(value: unknown): ProjectConfig {
@@ -75,6 +100,8 @@ function parseProjectConfig(value: unknown): ProjectConfig {
     maxPullRequestFiles:
       readLimit(value, "maxPullRequestFiles") ??
       DEFAULT_CONFIG.maxPullRequestFiles,
+    coverageExclusions:
+      readExclusions(value) ?? DEFAULT_CONFIG.coverageExclusions,
   };
 }
 

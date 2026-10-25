@@ -1,10 +1,18 @@
 // The Markdown block to paste into a pull request. It is built from
 // allowlisted fields only (short commit, tool versions, Windows release, step
-// statuses and durations, test and gate totals, fixed wording), never from
-// free text: the input types hold no string that came from a machine or an
-// error. Raw diagnostics stay in the terminal and the private logs.
+// statuses and durations, test and gate totals, fixed wording, and a targeted
+// run's test file as the local side validated it), never from free text: the
+// input types hold no string that came from a machine or an error. The test
+// file is the one checked here against the path rule and the commit's tree;
+// the record's copy only has to equal it. Raw diagnostics stay in the
+// terminal and the private logs.
 
-import type { Count, ResultRecord, StepRecord } from "./remote/record.ts";
+import {
+  stepsPassed,
+  type Count,
+  type ResultRecord,
+  type StepRecord,
+} from "./remote/record.ts";
 
 export type LocalRefusal =
   | "no-host"
@@ -12,7 +20,8 @@ export type LocalRefusal =
   | "dirty-tree"
   | "not-a-checkout"
   | "local-lock-held"
-  | "bundle-failed";
+  | "bundle-failed"
+  | "not-a-test-file";
 
 const REFUSAL_TEXT: Record<LocalRefusal, string> = {
   "no-host": "no Windows machine is saved",
@@ -21,6 +30,7 @@ const REFUSAL_TEXT: Record<LocalRefusal, string> = {
   "not-a-checkout": "this is not a usable checkout",
   "local-lock-held": "another run is in progress from this checkout",
   "bundle-failed": "the commit could not be bundled",
+  "not-a-test-file": "that is not a tracked test file the suite runs",
 };
 
 const INCOMPLETE_TEXT = {
@@ -29,14 +39,20 @@ const INCOMPLETE_TEXT = {
   "no-result": "no valid result came back",
 } as const;
 
+/** `file` is a targeted run's test file, as validated here. */
 export type SummaryInput =
   | { readonly kind: "refused"; readonly reason: LocalRefusal }
   | {
       readonly kind: "incomplete";
       readonly sha: string;
       readonly why: keyof typeof INCOMPLETE_TEXT;
+      readonly file?: string;
     }
-  | { readonly kind: "result"; readonly record: ResultRecord };
+  | {
+      readonly kind: "result";
+      readonly record: ResultRecord;
+      readonly file?: string;
+    };
 
 const WINDOWS_REFUSAL_TEXT: Record<
   NonNullable<ResultRecord["refusal"]>,
@@ -71,6 +87,9 @@ function describeStep(step: StepRecord, record: ResultRecord): string {
   if (step.status === "not-run") {
     return `${step.name} not run`;
   }
+  if (step.status === "skipped") {
+    return `${step.name} skipped (unchanged since the last install)`;
+  }
   const label =
     step.status === "timed-out"
       ? `${step.name} timed out`
@@ -79,13 +98,15 @@ function describeStep(step: StepRecord, record: ResultRecord): string {
   if (step.status === "failed" && step.exitCode !== null) {
     details.unshift(`exit ${String(step.exitCode)}`);
   }
-  if (step.name === "check") {
+  if (step.name === "check" || step.name === "test") {
     const { tests, failed, skipped } = record.tests;
     details.unshift(
       plural(tests, "tests"),
       ...(failed === 0 ? [] : [plural(failed, "failed")]),
       plural(skipped, "skipped"),
     );
+  }
+  if (step.name === "check" && record.gate !== null) {
     if (record.gate.skipped === "unknown") {
       details.push("gate skips unknown");
     } else if (record.gate.skipped !== 0) {
@@ -97,7 +118,11 @@ function describeStep(step: StepRecord, record: ResultRecord): string {
   return `${label} (${details.join(", ")})`;
 }
 
-function headline(record: ResultRecord): string {
+function runName(sha: string, file: string | undefined): string {
+  return `Windows run ${file === undefined ? "" : `of ${file} `}on ${shortSha(sha)}`;
+}
+
+function headline(record: ResultRecord, file: string | undefined): string {
   const { node, pnpm, git } = record.versions;
   const tools = [
     ...(record.windows === null ? [] : [`Windows ${record.windows.release}`]),
@@ -105,14 +130,15 @@ function headline(record: ResultRecord): string {
     `pnpm ${pnpm ?? "unknown"}`,
     `git ${git ?? "unknown"}`,
   ];
-  return `Windows run on ${shortSha(record.sha)} (${tools.join(", ")}):`;
+  return `${runName(record.sha, file)} (${tools.join(", ")}):`;
 }
 
-function summarizeResult(record: ResultRecord): string {
-  const passed =
-    record.refusal === null &&
-    record.steps.every((step) => step.status === "passed");
-  const lines = [headline(record)];
+function summarizeResult(
+  record: ResultRecord,
+  file: string | undefined,
+): string {
+  const passed = record.refusal === null && stepsPassed(record.steps);
+  const lines = [headline(record, file)];
   if (record.refusal !== null) {
     lines.push(`refused: ${WINDOWS_REFUSAL_TEXT[record.refusal]}.`);
   } else {
@@ -126,9 +152,11 @@ function summarizeResult(record: ResultRecord): string {
     );
   }
   lines.push(
-    passed
-      ? "Passes locally; CI not yet seen."
-      : "Fails on Windows; do not push.",
+    !passed
+      ? "Fails on Windows; do not push."
+      : record.mode === "only"
+        ? "This file passes on Windows; the rest of the suite was not run."
+        : "Passes locally; CI not yet seen.",
   );
   return lines.join("\n");
 }
@@ -139,10 +167,10 @@ export function summarize(input: SummaryInput): string {
       return `Windows run refused before contacting anything: ${REFUSAL_TEXT[input.reason]}.`;
     case "incomplete":
       return [
-        `Windows run on ${shortSha(input.sha)} is incomplete: ${INCOMPLETE_TEXT[input.why]}.`,
+        `${runName(input.sha, input.file)} is incomplete: ${INCOMPLETE_TEXT[input.why]}.`,
         "Not a pass; run it again.",
       ].join("\n");
     case "result":
-      return summarizeResult(input.record);
+      return summarizeResult(input.record, input.file);
   }
 }

@@ -153,7 +153,7 @@ const STARTING_FILES = new Set([
   ...LOCKFILE_NAMES,
 ]);
 
-function isOwnContent(relativePath: string): boolean {
+export function isOwnContent(relativePath: string): boolean {
   // A path ending in "/" is a nested worktree or repo: another checkout,
   // not this project's content.
   if (relativePath.endsWith("/") || STARTING_FILES.has(relativePath)) {

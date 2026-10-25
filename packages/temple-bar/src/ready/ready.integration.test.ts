@@ -30,6 +30,8 @@ import {
 } from "../testing/fakes.ts";
 import { CORE_SCRIPTS } from "../gate/testing/core-fixture.ts";
 import { withoutPackageManager } from "../gate/testing/real-repo.ts";
+import { freshAgentsMd, templeBarBlock } from "../init/agents-template.ts";
+import { COMPANION_FILES } from "../init/companion-docs.ts";
 import { GITIGNORE_LINES } from "../init/files.ts";
 import { CHECKED_WORKFLOWS } from "../init/workflows.ts";
 import { readyCommand } from "./command.ts";
@@ -72,13 +74,17 @@ function setUp(testScript: string): HookFixture {
     fixture.branch,
   );
   assert.equal(runGit(fixture.repoDir, ["pull", "-q", "--ff-only"]).code, 0);
-  // setup's workflows too, which the gate checks: on the default branch,
-  // pushed before the hooks are installed, as setup's own pull request
-  // would have landed them.
-  for (const workflow of CHECKED_WORKFLOWS) {
-    const file = path.join(fixture.repoDir, ...workflow.path.split("/"));
+  // setup's workflows, AGENTS.md and the docs it links to too, which the
+  // gate checks: on the default branch, pushed before the hooks are
+  // installed, as setup's own pull request would have landed them.
+  for (const { path: relative, content } of [
+    ...CHECKED_WORKFLOWS,
+    { path: "AGENTS.md", content: freshAgentsMd() },
+    ...COMPANION_FILES,
+  ]) {
+    const file = path.join(fixture.repoDir, ...relative.split("/"));
     mkdirSync(path.dirname(file), { recursive: true });
-    writeFileSync(file, workflow.content, "utf8");
+    writeFileSync(file, content, "utf8");
   }
   commitAll(fixture.repoDir, "chore: set up temple-bar");
   assert.equal(
@@ -176,7 +182,12 @@ void test("ready: a file that was never added is refused, since the push wouldn'
 void test("ready: an AGENTS.md change is marked with a warning to ask the maintainer, and the push warns again", async () => {
   const fixture = setUp(TESTS_PASS);
   try {
-    writeFileSync(path.join(fixture.repoDir, "AGENTS.md"), "# Rules\n", "utf8");
+    // The project's own heading, outside temple-bar's block.
+    writeFileSync(
+      path.join(fixture.repoDir, "AGENTS.md"),
+      `# Rules\n\n${templeBarBlock()}`,
+      "utf8",
+    );
     commitAll(fixture.repoDir, "docs: add the rules");
 
     const ready = await runReady(fixture.repoDir);

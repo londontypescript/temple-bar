@@ -2,7 +2,12 @@
 // machine for the commit checked out here, and prints a summary for the pull
 // request:
 //
-//   pnpm windows-run [--host <ssh-destination>]
+//   pnpm windows-run [--host <ssh-destination>] [--only <path/to/file.test.ts>]
+//
+// With `--only`, it runs just that one test file there instead, as
+// `pnpm test` would run it, installing only when the lockfile, Node or pnpm
+// changed since the last targeted run: seconds rather than twenty minutes,
+// for reproducing a failed Windows leg that one file shows.
 //
 // See scripts/windows-run/local.ts for what it does and its exit codes.
 

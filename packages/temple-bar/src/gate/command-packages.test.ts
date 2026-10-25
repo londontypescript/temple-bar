@@ -164,7 +164,10 @@ void test("gate: the inventory failing exits 1 even when every script passed", a
   assert.equal(await runGate(ctx), 1);
   const text = stderr.lines.join("");
   assert.match(text, /^ {2}tools\/c\/package\.json$/m);
-  assert.match(text, /^gate: failed: workspace packages$/m);
+  assert.match(
+    text,
+    /^gate: failed: workspace packages, type-check coverage, test coverage$/m,
+  );
 });
 
 void test("gate: an inventory failure together with a missing package script exits 2, naming both", async () => {
@@ -209,7 +212,10 @@ for (const [what, breakIt] of [
     );
     assert.match(text, /^ {2}passed {3}typecheck$/m);
     assert.match(text, /^ {2}passed {3}file-length cap /m);
-    assert.match(text, /^gate: failed: workspace packages$/m);
+    assert.match(
+      text,
+      /^gate: failed: workspace packages, type-check coverage, test coverage$/m,
+    );
   });
 }
 
