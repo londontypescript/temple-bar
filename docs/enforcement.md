@@ -47,6 +47,7 @@ same pull request as any change to a mechanism.
 | Gate and title checks required on `main`               | `main` ruleset, gate (public repos), from 0.0.9                                                                  | **Blocked** on GitHub               |
 | Gate and title workflows unchanged                     | the pinned gate in CI, from 0.0.9                                                                                | **Blocked** via CI                  |
 | Every workspace package's four scripts present and run | the gate, from 0.1.0                                                                                             | **Blocked** via CI                  |
+| TypeScript files type-checked, test files run          | the gate, from 0.2.0 (inclusion, not strictness)                                                                 | **Blocked** via CI                  |
 | Every package's scripts unchanged                      | the judge, from 0.1.0                                                                                            | **Blocked** on GitHub               |
 | pnpm's install settings unchanged at any depth         | the judge, from 0.1.0                                                                                            | **Blocked** on GitHub               |
 | Pin bump in its own pull request                       | the judge's refusal lists every other path, from 0.2.0                                                           | **Prose only**                      |

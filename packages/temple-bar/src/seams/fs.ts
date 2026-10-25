@@ -3,6 +3,7 @@
 // there is no method that would let it.
 
 import { constants, promises as fsp } from "node:fs";
+import path from "node:path";
 
 type PathKind = "missing" | "file" | "directory" | "symlink" | "other";
 
@@ -28,6 +29,12 @@ export interface FsSeam {
   /** Copies a file, keeping its permissions, but never over an existing
    * one: resolves false, and changes nothing, when `to` already exists. */
   copyNew(from: string, to: string): Promise<boolean>;
+  /** Expands a glob pattern from `folder` the way Node's test runner
+   * expands its file patterns (braces and `**` included), skipping every
+   * `node_modules` folder. Resolves the matching regular files only, never
+   * a folder or a link, as "/"-separated paths relative to `folder`;
+   * rejects when the disk can't be read. */
+  glob(folder: string, pattern: string): Promise<string[]>;
 }
 
 function isErrnoException(value: unknown): value is NodeJS.ErrnoException {
@@ -98,6 +105,24 @@ export function createFsSeam(): FsSeam {
         }
         throw error;
       }
+    },
+    async glob(folder, pattern) {
+      const found: string[] = [];
+      for await (const entry of fsp.glob(pattern, {
+        cwd: folder,
+        withFileTypes: true,
+        exclude: (skipped) => skipped.name === "node_modules",
+      })) {
+        if (entry.isFile()) {
+          found.push(
+            path
+              .relative(folder, path.join(entry.parentPath, entry.name))
+              .split(path.sep)
+              .join("/"),
+          );
+        }
+      }
+      return found;
     },
   };
 }

@@ -23,6 +23,7 @@ import {
   coreFiles,
   withCoreGit,
 } from "./testing/core-fixture.ts";
+import { answerExec } from "./testing/workspace-fixture.ts";
 
 const ALL_SCRIPTS = {
   typecheck: "tsc",
@@ -62,7 +63,9 @@ async function runGate(
         stderr: "",
       })),
     ),
-    proc: createFakeProc(() => 0),
+    proc: createFakeProc(
+      (call, run) => answerExec(call, run, () => ["src/index.ts"]) ?? 0,
+    ),
     fs,
     stdout,
     stderr,

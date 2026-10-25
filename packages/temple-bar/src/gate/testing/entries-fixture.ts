@@ -4,11 +4,22 @@
 // as files to write (path relative to the root, then text), so its sources
 // exist only in a test's temporary folder and never join this repo's own
 // knip graph. Nothing is installed: knip finds every entry from the
-// manifests, scripts and index.html alone. Not shipped: the build tsconfig
-// excludes every `testing/` folder.
+// manifests, scripts and index.html alone. Every folder holding TypeScript
+// has a tsconfig.json and a typecheck that lists its files with the tsc
+// typescript-link.ts provides, so the gate's coverage check passes; it
+// checks nothing, as no framework is installed. Not shipped: the build
+// tsconfig excludes every `testing/` folder.
+
+import { uncheckedTsconfig } from "./typescript-link.ts";
 
 /** A command that runs and passes, so the gate's scripts have work to do. */
 const PASSING = 'node -e "process.exit(0)"';
+
+/** The typecheck of a folder holding TypeScript. */
+const TYPECHECK = "tsc -p tsconfig.json";
+
+/** Every TypeScript file of a package, wherever it sits. */
+const SOURCES = uncheckedTsconfig(["**/*.ts", "**/*.tsx"]);
 
 const SCRIPTS: Readonly<Record<string, string>> = {
   typecheck: PASSING,
@@ -84,10 +95,15 @@ export function entriesWorkspace(
     "pnpm-workspace.yaml": 'packages:\n  - "apps/*"\n  - "packages/*"\n',
     "package.json": manifest({
       name: "entries-root",
+      scripts: { typecheck: TYPECHECK },
       ...(options.rootVitestConfig === undefined
         ? {}
         : { devDependencies: { vitest: "4.0.0" } }),
     }),
+    // The root's lists the whole workspace, as a root tsconfig often does;
+    // each package's lists its own. tsc fails a config that matches no
+    // file, and the root has none of its own without a Vitest config.
+    "tsconfig.json": SOURCES,
 
     // Entries are named so knip's default entry patterns (src/main.*,
     // src/cli.*, src/index.*) don't match them: each is found only through
@@ -96,7 +112,7 @@ export function entriesWorkspace(
     // Vite finds src/boot.tsx through index.html.
     "apps/web/package.json": manifest({
       name: "@entries/web",
-      scripts: { dev: "vite", build: "vite build" },
+      scripts: { dev: "vite", build: "vite build", typecheck: TYPECHECK },
       dependencies: {
         "@entries/shared": "workspace:*",
         react: "19.0.0",
@@ -119,7 +135,7 @@ export function entriesWorkspace(
     // Ink's entry is found through the tsx script that runs it.
     "apps/terminal/package.json": manifest({
       name: "@entries/terminal",
-      scripts: { "start:source": "tsx src/app.tsx" },
+      scripts: { "start:source": "tsx src/app.tsx", typecheck: TYPECHECK },
       dependencies: {
         "@entries/shared": "workspace:*",
         ink: "6.0.0",
@@ -134,14 +150,15 @@ export function entriesWorkspace(
     "apps/desktop/package.json": manifest({
       name: "@entries/desktop",
       main: "src/electron.ts",
-      ...(host
-        ? {
-            scripts: {
+      scripts: {
+        typecheck: TYPECHECK,
+        ...(host
+          ? {
               "build:host":
                 "esbuild src/host.ts --bundle --platform=node --outfile=dist/host.js",
-            },
-          }
-        : {}),
+            }
+          : {}),
+      },
       dependencies: { "@entries/shared": "workspace:*" },
       devDependencies: {
         electron: "38.0.0",
@@ -155,6 +172,7 @@ export function entriesWorkspace(
     // import them.
     "packages/shared/package.json": manifest({
       name: "@entries/shared",
+      scripts: { typecheck: TYPECHECK },
       ...(deep === undefined
         ? { exports: { ".": "./src/index.ts" } }
         : { main: "src/index.ts" }),
@@ -162,6 +180,14 @@ export function entriesWorkspace(
     "packages/shared/src/index.ts":
       "export function greet(name: string): string {\n  return `hello ${name}`;\n}\n\nexport interface Theme {\n  readonly accent: string;\n}\n",
   };
+  for (const folder of [
+    "apps/web",
+    "apps/terminal",
+    "apps/desktop",
+    "packages/shared",
+  ]) {
+    files[`${folder}/tsconfig.json`] = SOURCES;
+  }
   if (options.rootVitestConfig !== undefined) {
     files["vitest.root.config.ts"] =
       'export default { test: { include: ["**/*.test.ts"] } };\n';

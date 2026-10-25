@@ -28,6 +28,7 @@ The workflow is opinionated on purpose, and every [London TypeScript](https://gi
 - the **GitHub CLI** (`gh`), installed and signed in (`gh auth login`). Your agent can't install this for you.
 - **Node.js** 24 or newer, and **git**
 - **pnpm**, the only supported package manager (npm, yarn and bun aren't supported). Don't have it? See [pnpm's install guide](https://pnpm.io/installation): it's one command. Any of its installs works: npm (`npm install --global pnpm`), corepack, `pnpm/action-setup` in GitHub Actions, or pnpm's standalone installer. A pnpm reached only through a `.cmd` or `.bat` shim doesn't: the gate starts pnpm again without a shell, and says so when it can't.
+- The gate also checks that every TypeScript file is type-checked and every test file is run, by asking `tsc`, Vitest or Node's test runner; a project whose scripts use other tools, such as `svelte-check` (SvelteKit), `vue-tsc`, Jest or `bun test`, can't adopt temple-bar yet (see [#443](https://github.com/londontypescript/temple-bar/issues/443)).
 
 Setup stops and tells you what's missing if any of these aren't in place.
 
