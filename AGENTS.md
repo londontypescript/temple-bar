@@ -1,16 +1,15 @@
 # Agent directives
 
-Binds every agent working here (Claude Code, Codex, Antigravity or any other)
-and humans: this repo's own rules first, then temple-bar's shared block. This
-is the only copy. Harness config may duplicate a rule to fail faster, never
-replace it.
+Binds every agent and human working here: this repo's own rules first, then
+temple-bar's block below. This is the only copy; harness config may duplicate
+a rule to fail faster, never replace it.
 
 ## This repo
 
 - **Gated by the last published temple-bar.** Its own source never runs as its
-  tooling, and no feature exists to make it do so. CI runs the pinned
-  `pnpm gate`; `pnpm check` is the same. Bumping the pin is a deliberate change
-  in its own pull request, never a side effect of other work.
+  tooling, and no feature may make it do so. CI runs the pinned `pnpm gate`
+  (`pnpm check` is the same). A pin bump is its own pull request, never a side
+  effect of other work.
 - **Decisions are numbered,** indexed in [docs/adr/](docs/adr/README.md). A new
   one takes the next number and an ADR, with its row, in the same pull request.
 - **The repo is public.** Nothing committed or filed here carries anything from
@@ -20,19 +19,16 @@ replace it.
   curates them; never rank or regroup them. When you ask for a merge approval
   or report a merge, name any incident still to triage (no milestone, no
   comments).
-- **Phases:** a multi-phase plan gets one pull request per phase, merged in
-  order; a release is a milestone and a tag, never one big pull request. The
-  plan's ownership list is the claim on files. A subagent's done-condition sits
-  inside its scope ("report back with the known failure" is valid). A
-  struggling subagent is stopped and reported, never moved to another model.
-- **Worktrees** go where the harness puts them; the primary checkout stays on
-  `main`. **One concern** is settled when the work is planned; the `pre-push`
-  size warning is the last check: split the branch, or say why.
-- **An admin merge's squash message is written,** never GitHub's default: the
-  title with `(#N)`, one plain-text bullet per change, each co-author once.
-- **Never route around a refusal** through the user's terminal, and never
-  install globally (`npm i -g`, `corepack enable`, `brew install`). A
-  workaround names its cause; one you can't find is _needs a decision_.
+- **One pull request per phase,** merged in order; a release is a milestone and
+  a tag, never one big pull request. The plan's ownership list is the claim on
+  files.
+- **A subagent's done-condition sits inside its scope** ("report back with the
+  known failure" is valid). One that struggles is stopped and reported.
+- **The primary checkout stays on `main`.**
+- **Never route around a refusal through the user's terminal.**
+  `corepack enable` is a global install too, like `npm i -g` and
+  `brew install`. A workaround names its cause; one you can't find is
+  _needs a decision_.
 - **[docs/enforcement.md](docs/enforcement.md)** lists which rules are blocked
   and which are prose only: update it with any change to a mechanism. A rule
   that drifts needs a mechanism, not stronger wording.
