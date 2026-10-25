@@ -17,7 +17,8 @@ its commit made and the issue updated, is a smaller one.
 
 ## What to write down
 
-Before work stops, update the issue with:
+Before work stops (a compact, a pause, a usage limit, a change of tool;
+judge it from what the user says), update the issue with:
 
 - the base commit (SHA) and the branch;
 - the exact command that reproduces the problem or proves the work is done;
@@ -25,7 +26,8 @@ Before work stops, update the issue with:
 - the next action.
 
 Leave out private details: credentials, local paths, internal hostnames.
-Show the user the exact text and post it after their yes.
+Show the user the exact text and post it after their yes: this update
+only, not routine ones.
 
 Notes kept by one tool (its memory, its own task list) don't count: the
 next session may run in another tool. The issue and git are what every tool

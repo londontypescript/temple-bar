@@ -243,14 +243,48 @@ void test("runCoreCheck reports a failure with each problem and its fix", async 
 
 const AGENTS = path.join("/repo", "AGENTS.md");
 
-void test("AGENTS.md with this release's block, or with no block at all, passes", async () => {
+void test("AGENTS.md with this release's block passes, whatever the project wrote around it", async () => {
   for (const content of [
     freshAgentsMd(),
     `# Framework rules\n\n${templeBarBlock()}`,
-    "# Our own rules, set up before the block existed\n",
+    `# Ours\n\n${templeBarBlock()}\n## After the block\n\nKept.\n`,
   ]) {
     const { ctx } = setUpRepo((files) => files.set(AGENTS, content));
     assert.deepEqual(await findCoreProblems(ctx), [], content);
+  }
+});
+
+void test("a set-up repo with no AGENTS.md fails, saying setup writes it", async () => {
+  const { ctx, stderr } = setUpRepo((files) => files.delete(AGENTS));
+  assert.deepEqual(await findCoreProblems(ctx), [
+    {
+      problem:
+        "AGENTS.md is missing, so agents here get none of temple-bar's rules",
+      fix: "run `pnpm exec temple-bar init` to write it",
+    },
+  ]);
+  assert.equal((await runCoreCheck(ctx)).status, "failed");
+  assert.match(stderr.lines.join(""), /AGENTS\.md is missing/);
+});
+
+void test("an AGENTS.md with no temple-bar block fails, an empty one included, saying setup adds it", async () => {
+  for (const content of [
+    "# Our own rules, set up before the block existed\n",
+    "",
+    "\n",
+  ]) {
+    const { ctx } = setUpRepo((files) => files.set(AGENTS, content));
+    assert.deepEqual(
+      await findCoreProblems(ctx),
+      [
+        {
+          problem:
+            "AGENTS.md has no temple-bar block, so agents here get none of temple-bar's rules",
+          fix: "run `pnpm exec temple-bar init` to add the block at the end of the file",
+        },
+      ],
+      JSON.stringify(content),
+    );
   }
 });
 

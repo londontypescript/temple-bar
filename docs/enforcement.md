@@ -37,7 +37,7 @@ same pull request as any change to a mechanism.
 | Maintainer asked in chat before a push                 | `ready` and `pre-push` warn; see the limits below                                                                | **Warned** only                     |
 | Maintainer's yes for an AGENTS.md merge                | `merge` needs `--maintainer-approved`, records it                                                                | **Detected** after                  |
 | AGENTS.md within 200 lines and 32 KiB                  | the pinned gate in CI                                                                                            | **Blocked** via CI                  |
-| temple-bar's AGENTS.md block unedited                  | the pinned gate in CI, while its markers are present                                                             | **Blocked** via CI                  |
+| temple-bar's AGENTS.md block present and unedited      | the pinned gate in CI; from 0.2.0's pin, also when AGENTS.md or its block is missing                             | **Blocked** via CI                  |
 | Ruleset not deleted or loosened                        | the pinned gate in CI (public repos)                                                                             | **Blocked** via CI                  |
 | Check changes merged by the maintainer                 | judge workflow + its ruleset, from 0.0.7; see below                                                              | **Blocked** on GitHub               |
 | temple-bar's lockfile entries unchanged                | the judge, from 0.0.8                                                                                            | **Blocked** on GitHub               |
