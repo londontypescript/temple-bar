@@ -6,6 +6,7 @@ import { makeRecord, recordLine, RUN_ID, SHA } from "./testing.ts";
 import { summarize } from "./summary.ts";
 import { judge } from "./verdict.ts";
 
+const FULL = { mode: "full" } as const;
 const pass = (): string[] => ["  noise", recordLine()];
 const failed = (): ResultRecord =>
   makeRecord({
@@ -17,38 +18,49 @@ const failed = (): ResultRecord =>
   });
 
 void test("only a valid all-pass record with ssh exit 0 is a pass", () => {
-  assert.equal(judge(pass(), RUN_ID, SHA, 0).code, 0);
+  assert.equal(judge(pass(), RUN_ID, SHA, 0, FULL).code, 0);
 });
 
 void test("a passing record followed by ssh exit 255 is incomplete", () => {
-  assert.equal(judge(pass(), RUN_ID, SHA, 255).code, 3);
+  assert.equal(judge(pass(), RUN_ID, SHA, 255, FULL).code, 3);
 });
 
 void test("a failed-step record with the runner's exit 1 is 1, and 3 when the exit code disagrees", () => {
-  assert.equal(judge([recordLine(failed())], RUN_ID, SHA, 1).code, 1);
-  assert.equal(judge([recordLine(failed())], RUN_ID, SHA, 255).code, 3);
-  assert.equal(judge([recordLine(failed())], RUN_ID, SHA, 0).code, 3);
-  assert.equal(judge(pass(), RUN_ID, SHA, 1).code, 3);
+  assert.equal(judge([recordLine(failed())], RUN_ID, SHA, 1, FULL).code, 1);
+  assert.equal(judge([recordLine(failed())], RUN_ID, SHA, 255, FULL).code, 3);
+  assert.equal(judge([recordLine(failed())], RUN_ID, SHA, 0, FULL).code, 3);
+  assert.equal(judge(pass(), RUN_ID, SHA, 1, FULL).code, 3);
 });
 
 void test("output with no record is incomplete, even after passing steps", () => {
-  assert.equal(judge(["  install ok", "  check ok"], RUN_ID, SHA, 0).code, 3);
+  assert.equal(
+    judge(["  install ok", "  check ok"], RUN_ID, SHA, 0, FULL).code,
+    3,
+  );
 });
 
 void test("a record that is not last, doubled, for another commit or short a step never passes", () => {
   assert.equal(
-    judge([recordLine(), "windows-run: more"], RUN_ID, SHA, 0).code,
+    judge([recordLine(), "windows-run: more"], RUN_ID, SHA, 0, FULL).code,
     3,
   );
-  assert.equal(judge([recordLine(), recordLine()], RUN_ID, SHA, 0).code, 3);
   assert.equal(
-    judge([recordLine(makeRecord({ sha: "f".repeat(40) }))], RUN_ID, SHA, 0)
-      .code,
+    judge([recordLine(), recordLine()], RUN_ID, SHA, 0, FULL).code,
+    3,
+  );
+  assert.equal(
+    judge(
+      [recordLine(makeRecord({ sha: "f".repeat(40) }))],
+      RUN_ID,
+      SHA,
+      0,
+      FULL,
+    ).code,
     3,
   );
   const short = { ...makeRecord(), steps: makeRecord().steps.slice(0, 2) };
   assert.equal(
-    judge([recordLine(short as ResultRecord)], RUN_ID, SHA, 0).code,
+    judge([recordLine(short as ResultRecord)], RUN_ID, SHA, 0, FULL).code,
     3,
   );
   const contradictory = makeRecord({
@@ -58,24 +70,28 @@ void test("a record that is not last, doubled, for another commit or short a ste
       { name: "build", status: "passed", exitCode: 0, durationMs: 1 },
     ],
   });
-  assert.equal(judge([recordLine(contradictory)], RUN_ID, SHA, 0).code, 3);
+  assert.equal(
+    judge([recordLine(contradictory)], RUN_ID, SHA, 0, FULL).code,
+    3,
+  );
   const badVersion = makeRecord({
     versions: { node: "C:\\Users\\bob", pnpm: "1.0.0", git: "1.0.0" },
   });
-  assert.equal(judge([recordLine(badVersion)], RUN_ID, SHA, 0).code, 3);
+  assert.equal(judge([recordLine(badVersion)], RUN_ID, SHA, 0, FULL).code, 3);
 });
 
 void test("an indented line, or another run's record, is never read as the record", () => {
   const forged = `  ${recordLine()}`;
-  assert.equal(judge([forged], RUN_ID, SHA, 0).code, 3);
+  assert.equal(judge([forged], RUN_ID, SHA, 0, FULL).code, 3);
   const other = recordLine(makeRecord({ runId: "bbbbbbbb" })).replace(
     markerFor("bbbbbbbb"),
     markerFor("bbbbbbbb"),
   );
-  assert.equal(judge([other], RUN_ID, SHA, 0).code, 3);
+  assert.equal(judge([other], RUN_ID, SHA, 0, FULL).code, 3);
   // The real record still wins when a step echoed the marker, indented.
   assert.equal(
-    judge([`  ${markerFor(RUN_ID)}{}`, recordLine()], RUN_ID, SHA, 0).code,
+    judge([`  ${markerFor(RUN_ID)}{}`, recordLine()], RUN_ID, SHA, 0, FULL)
+      .code,
     0,
   );
 });
@@ -139,7 +155,11 @@ void test("versions accept plain numbers only, so nothing else can reach a summa
     const record = makeRecord({
       versions: { node: bad, pnpm: "1.0.0", git: "1.0.0" },
     });
-    assert.equal(judge([recordLine(record)], RUN_ID, SHA, 0).code, 3, bad);
+    assert.equal(
+      judge([recordLine(record)], RUN_ID, SHA, 0, FULL).code,
+      3,
+      bad,
+    );
   }
 });
 
@@ -160,7 +180,7 @@ void test("a planted marker in any field is rejected or never printed", () => {
   ];
   for (const variant of variants) {
     const line = `${markerFor(RUN_ID)}${JSON.stringify(variant)}`;
-    const verdict = judge([line], RUN_ID, SHA, 0);
+    const verdict = judge([line], RUN_ID, SHA, 0, FULL);
     if (verdict.code !== 3) {
       const text = summarize({ kind: "result", record: verdict.record });
       assert.equal(text.includes(marker), false, text);

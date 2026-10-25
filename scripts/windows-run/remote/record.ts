@@ -5,10 +5,29 @@
 // guards against accidents, not against hostile code on the machine, which
 // belongs to the same account.
 
-export const STEP_NAMES = ["install", "check", "build"] as const;
-export type StepName = (typeof STEP_NAMES)[number];
+/** What was asked for: the full run, or one test file (`--only`). A record
+ * says which it answers, and is only believed for that request. */
+export type RunRequest =
+  { readonly mode: "full" } | { readonly mode: "only"; readonly file: string };
+export type RunMode = RunRequest["mode"];
 
-const STEP_STATUSES = ["passed", "failed", "timed-out", "not-run"] as const;
+/** The steps of each kind of run, in order: the full run is CI's three, a
+ * targeted run installs and then runs its one file. */
+export const STEPS_FOR = {
+  full: ["install", "check", "build"],
+  only: ["install", "test"],
+} as const;
+export type StepName = (typeof STEPS_FOR)[RunMode][number];
+
+// "skipped" is only ever a targeted run's install, when nothing it depends on
+// changed since the last one that passed.
+const STEP_STATUSES = [
+  "passed",
+  "failed",
+  "timed-out",
+  "not-run",
+  "skipped",
+] as const;
 type StepStatus = (typeof STEP_STATUSES)[number];
 
 /** Why a run ended before its steps could start. */
@@ -36,6 +55,9 @@ export interface StepRecord {
 export interface ResultRecord {
   readonly runId: string;
   readonly sha: string;
+  readonly mode: RunMode;
+  /** The test file a targeted run ran; null for a full run. */
+  readonly file: string | null;
   readonly refusal: Refusal | null;
   readonly steps: readonly StepRecord[];
   readonly versions: {
@@ -53,7 +75,11 @@ export interface ResultRecord {
     readonly failed: Count;
     readonly skipped: Count;
   };
-  readonly gate: { readonly skipped: Count; readonly noGithubOrigin: boolean };
+  /** What the gate skipped. Null for a targeted run, which runs no gate. */
+  readonly gate: {
+    readonly skipped: Count;
+    readonly noGithubOrigin: boolean;
+  } | null;
   /** Cleanup problems, one line each. For the terminal; the summary only
    * counts them. */
   readonly cleanup: readonly string[];
@@ -76,6 +102,14 @@ export function markerFor(runId: string): string {
 
 export function formatRecord(record: ResultRecord): string {
   return markerFor(record.runId) + JSON.stringify(record);
+}
+
+/** Whether every step passed, a skipped install counting as passed. The one
+ * definition of a pass, for the runner's exit code and the local verdict. */
+export function stepsPassed(steps: readonly StepRecord[]): boolean {
+  return steps.every(
+    (step) => step.status === "passed" || step.status === "skipped",
+  );
 }
 
 type Obj = Record<string, unknown>;
@@ -130,15 +164,25 @@ function parseStep(value: unknown, name: StepName): StepRecord | undefined {
 
 /** The steps must tell one story: passed ones first (exit 0), at most one
  * that did not pass, and nothing after it but not-run. A refused run ran
- * nothing. */
+ * nothing. A skipped step ran nothing either (no exit code), and only a
+ * targeted run's install may be skipped; it counts as passed. */
 function storyIsConsistent(
   steps: readonly StepRecord[],
   refusal: Refusal | null,
+  mode: RunMode,
 ): boolean {
   let stopped = false;
   for (const step of steps) {
     if (stopped || refusal !== null) {
       if (step.status !== "not-run" || step.exitCode !== null) {
+        return false;
+      }
+    } else if (step.status === "skipped") {
+      if (
+        mode !== "only" ||
+        step.name !== "install" ||
+        step.exitCode !== null
+      ) {
         return false;
       }
     } else if (step.status === "passed") {
@@ -155,12 +199,13 @@ function storyIsConsistent(
   return true;
 }
 
-function parseSteps(value: unknown): StepRecord[] | undefined {
-  if (!Array.isArray(value) || value.length !== STEP_NAMES.length) {
+function parseSteps(value: unknown, mode: RunMode): StepRecord[] | undefined {
+  const names = STEPS_FOR[mode];
+  if (!Array.isArray(value) || value.length !== names.length) {
     return undefined;
   }
   const steps: StepRecord[] = [];
-  for (const [index, name] of STEP_NAMES.entries()) {
+  for (const [index, name] of names.entries()) {
     const step = parseStep(value[index], name);
     if (step === undefined) {
       return undefined;
@@ -184,7 +229,7 @@ function parseCleanup(value: unknown): string[] | undefined {
   return value as string[];
 }
 
-function figuresAreValid(value: Obj): boolean {
+function figuresAreValid(value: Obj, mode: RunMode): boolean {
   const { versions, windows, tests, gate } = value;
   if (
     !isObj(versions) ||
@@ -215,6 +260,9 @@ function figuresAreValid(value: Obj): boolean {
   ) {
     return false;
   }
+  if (mode === "only") {
+    return gate === null;
+  }
   return (
     isObj(gate) &&
     hasExactKeys(gate, ["skipped", "noGithubOrigin"]) &&
@@ -223,17 +271,22 @@ function figuresAreValid(value: Obj): boolean {
   );
 }
 
-/** The record if `value` is exactly one, for this run and commit. */
+/** The record if `value` is exactly one, for this run, this commit and what
+ * was asked for: a targeted request is never answered by a full record, nor
+ * by a record for another file, and the other way round. */
 export function validateRecord(
   value: unknown,
   runId: string,
   sha: string,
+  request: RunRequest,
 ): ResultRecord | undefined {
   if (
     !isObj(value) ||
     !hasExactKeys(value, [
       "runId",
       "sha",
+      "mode",
+      "file",
       "refusal",
       "steps",
       "versions",
@@ -243,7 +296,9 @@ export function validateRecord(
       "cleanup",
     ]) ||
     value.runId !== runId ||
-    value.sha !== sha
+    value.sha !== sha ||
+    value.mode !== request.mode ||
+    value.file !== (request.mode === "only" ? request.file : null)
   ) {
     return undefined;
   }
@@ -251,13 +306,13 @@ export function validateRecord(
   if (refusal !== null && !REFUSALS.some((known) => known === refusal)) {
     return undefined;
   }
-  const steps = parseSteps(value.steps);
+  const steps = parseSteps(value.steps, request.mode);
   const cleanup = parseCleanup(value.cleanup);
   if (
     steps === undefined ||
     cleanup === undefined ||
-    !storyIsConsistent(steps, refusal as Refusal | null) ||
-    !figuresAreValid(value)
+    !storyIsConsistent(steps, refusal as Refusal | null, request.mode) ||
+    !figuresAreValid(value, request.mode)
   ) {
     return undefined;
   }

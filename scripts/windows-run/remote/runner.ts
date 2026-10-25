@@ -1,12 +1,15 @@
 // What runs on the Windows machine: take the lock, sweep a killed run's
 // leftovers, check the machine can do what CI's runners can, check the commit
-// out in a fresh worktree (git hooks off), run install, check and build, clean
-// up, and print the result record last.
+// out (git hooks off), run the steps, clean up, and print the result record
+// last. A full run checks out a fresh worktree and runs install, check and
+// build; a targeted run uses the worktree kept for targeted runs, installs
+// only when it must, and runs its one test file (targeted.ts).
 // Everything it touches is under one folder in the account's home, and it is
 // all reached through `Sys`, so the logic is tested with fakes.
 
 import path from "node:path";
 
+import { addWorktree, Failure, fetchCommit, verifyHead } from "./checkout.ts";
 import { reportEnvironment } from "./environment.ts";
 import { pathExists, removeWithRetry } from "./fsx.ts";
 import {
@@ -23,23 +26,22 @@ import {
   stopProcesses,
 } from "./processes.ts";
 import { readinessProblems } from "./readiness.ts";
-import { formatRecord, type Refusal, type ResultRecord } from "./record.ts";
+import {
+  formatRecord,
+  stepsPassed,
+  type Refusal,
+  type ResultRecord,
+  type RunRequest,
+} from "./record.ts";
 import { CheckScanner } from "./scan.ts";
-import { allNotRun, runSteps } from "./steps.ts";
+import { allNotRun, fullPlans, runSteps, type StepsResult } from "./steps.ts";
 import { layoutFor, REF_PREFIX, sweepFiles, type Layout } from "./sweep.ts";
 import type { Sys } from "./sys.ts";
+import { runTargeted } from "./targeted.ts";
 
 /** Two start times this close are the same process: Get-Process and Node
  * measure it slightly differently. */
 const START_TOLERANCE_MS = 2_000;
-
-class Failure extends Error {
-  readonly refusal: Refusal;
-  constructor(refusal: Refusal, message: string) {
-    super(message);
-    this.refusal = refusal;
-  }
-}
 
 interface State {
   steps: ResultRecord["steps"];
@@ -68,82 +70,21 @@ function lockDeps(sys: Sys): LockDeps {
   };
 }
 
-/** The checkout: a persistent clone with no GitHub origin, and this run's own
- * detached worktree. Git hooks are off for the checkout: the clone's hooks
- * are the ones an earlier run's install wrote, pointing at a worktree since
- * deleted, and the install step is the only install, so it is recorded. */
-async function checkOut(
+/** The full run: the commit in this run's own fresh worktree, and CI's three
+ * steps there. */
+async function runFull(
   sys: Sys,
   layout: Layout,
   runId: string,
   sha: string,
-  ref: string,
-): Promise<string> {
+  log: RunLog,
+  scanner: CheckScanner,
+  say: (line: string) => void,
+): Promise<StepsResult> {
   const worktree = path.join(layout.runs, runId);
-  await sys.fs.mkdir(layout.clone);
-  if (!(await pathExists(sys.fs, path.join(layout.clone, ".git")))) {
-    const init = await sys.git(["init", "--quiet", layout.clone]);
-    if (init.code !== 0) {
-      throw new Failure("fetch-failed", "git init failed");
-    }
-  }
-  // Before any checkout: node_modules paths are long.
-  const configured = await sys.git(
-    ["config", "core.longpaths", "true"],
-    layout.clone,
-  );
-  if (configured.code !== 0) {
-    throw new Failure("fetch-failed", "git config core.longpaths failed");
-  }
-
-  const bundle = path.join(layout.incoming, runId, "run.bundle");
-  // The tags come too, as CI's full-history checkout has them, and the clone
-  // keeps exactly the bundle's: one deleted or moved since an earlier run
-  // must not linger here.
-  const fetched = await sys.git(
-    [
-      "fetch",
-      "--quiet",
-      "--prune",
-      "--force",
-      bundle,
-      `HEAD:${ref}`,
-      "+refs/tags/*:refs/tags/*",
-    ],
-    layout.clone,
-  );
-  if (fetched.code !== 0) {
-    throw new Failure(
-      "fetch-failed",
-      `git fetch failed: ${fetched.stderr.trim()}`,
-    );
-  }
-  const added = await sys.git(
-    [
-      "-c",
-      `core.hooksPath=${sys.devNull}`,
-      "worktree",
-      "add",
-      "--detach",
-      worktree,
-      sha,
-    ],
-    layout.clone,
-  );
-  if (added.code !== 0) {
-    throw new Failure(
-      "checkout-failed",
-      `git worktree add failed: ${added.stderr.trim()}`,
-    );
-  }
-  const head = await sys.git(["rev-parse", "HEAD"], worktree);
-  if (head.code !== 0 || head.stdout.trim() !== sha) {
-    throw new Failure(
-      "commit-mismatch",
-      `the worktree is at ${head.stdout.trim() || "an unknown commit"}, not ${sha}`,
-    );
-  }
-  return worktree;
+  await addWorktree(sys, layout, worktree, sha);
+  await verifyHead(sys, worktree, sha);
+  return runSteps(sys, fullPlans(worktree), log, scanner, say);
 }
 
 async function cleanUp(
@@ -187,13 +128,16 @@ async function cleanUp(
 
 /**
  * Runs everything and prints the result record last. Returns the exit code:
- * 0 only if every step passed, otherwise 1. A cleanup problem is reported and
- * never changes the result.
+ * 0 only if every step passed (or, for a targeted run's install, was
+ * skipped), otherwise 1. A cleanup problem is reported and never changes the
+ * result. The persistent worktree of a targeted run is kept, and the cleanup
+ * is otherwise the full run's.
  */
 export async function runRemote(
   runId: string,
   sha: string,
   sys: Sys,
+  request: RunRequest = { mode: "full" },
 ): Promise<number> {
   const say = (line: string): void => {
     sys.print(`${line}\n`);
@@ -201,7 +145,7 @@ export async function runRemote(
   const layout = layoutFor(sys.home);
   const ref = `${REF_PREFIX}${runId}`;
   const state: State = {
-    steps: allNotRun(),
+    steps: allNotRun(request.mode),
     refusal: null,
     versions: { node: null, pnpm: null, git: null },
     windows: null,
@@ -228,6 +172,8 @@ export async function runRemote(
     const record: ResultRecord = {
       runId,
       sha,
+      mode: request.mode,
+      file: request.mode === "only" ? request.file : null,
       refusal: state.refusal,
       steps: state.steps,
       versions: state.versions,
@@ -238,20 +184,20 @@ export async function runRemote(
         failed: totals.failed,
         skipped: totals.skipped,
       },
-      gate: {
-        skipped: totals.gateSkipped,
-        noGithubOrigin: totals.gateNoGithubOrigin,
-      },
+      gate:
+        request.mode === "only"
+          ? null
+          : {
+              skipped: totals.gateSkipped,
+              noGithubOrigin: totals.gateNoGithubOrigin,
+            },
       cleanup: state.cleanup.slice(0, 50).map((line) => line.slice(0, 400)),
     };
     for (const line of record.cleanup) {
       say(`windows-run: cleanup problem: ${line}`);
     }
     sys.print(`${formatRecord(record)}\n`);
-    return record.refusal === null &&
-      record.steps.every((step) => step.status === "passed")
-      ? 0
-      : 1;
+    return record.refusal === null && stepsPassed(record.steps) ? 0 : 1;
   };
 
   try {
@@ -311,14 +257,11 @@ export async function runRemote(
           "this machine can't do what CI's runners can (see above)",
         );
       }
-      const worktree = await checkOut(sys, layout, runId, sha, ref);
-      const { steps, problems } = await runSteps(
-        sys,
-        worktree,
-        log,
-        scanner,
-        say,
-      );
+      await fetchCommit(sys, layout, runId, ref);
+      const { steps, problems } =
+        request.mode === "only"
+          ? await runTargeted(sys, layout, sha, request.file, log, scanner, say)
+          : await runFull(sys, layout, runId, sha, log, scanner, say);
       state.steps = steps;
       state.cleanup.push(...problems);
     } catch (error) {
@@ -370,7 +313,7 @@ async function settleLog(
     const clean =
       state.refusal === null &&
       state.cleanup.length === 0 &&
-      state.steps.every((step) => step.status === "passed");
+      stepsPassed(state.steps);
     if (clean) {
       await log.delete((ms) => sys.sleep(ms));
     }
