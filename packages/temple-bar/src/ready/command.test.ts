@@ -33,6 +33,14 @@ interface Scenario {
   noUpstream?: boolean;
   /** package.json where the branch left origin/main, and at HEAD. */
   manifests?: { readonly base: object; readonly head: object };
+  /** Commits on origin's default branch that HEAD lacks; 0 by default. */
+  behind?: number;
+  /** git's stderr when fetching the default branch fails. */
+  fetchError?: string;
+  /** Counting how far HEAD is behind fails. */
+  countFails?: boolean;
+  /** Where origin/HEAD points; main by default. */
+  defaultBranch?: string;
 }
 
 function setup(scenario: Scenario = {}) {
@@ -83,7 +91,17 @@ function setup(scenario: Scenario = {}) {
       return ok(scenario.status ?? "");
     }
     if (args[0] === "symbolic-ref") {
-      return ok("refs/remotes/origin/main\n");
+      return ok(`refs/remotes/origin/${scenario.defaultBranch ?? "main"}\n`);
+    }
+    if (args[0] === "fetch") {
+      return scenario.fetchError === undefined
+        ? ok()
+        : { code: 128, stdout: "", stderr: `${scenario.fetchError}\n` };
+    }
+    if (args[0] === "rev-list") {
+      return scenario.countFails === true
+        ? { code: 128, stdout: "", stderr: "fatal: bad revision\n" }
+        : ok(`${String(scenario.behind ?? 0)}\n`);
     }
     if (args[0] === "diff") {
       return ok(changed.map((file) => `${file}\0`).join(""));
@@ -115,6 +133,8 @@ function setup(scenario: Scenario = {}) {
     run: () => command.run([], ctx),
     mark: () => fs.files.get(MARK_FILE),
     gateRuns: () => gateRan,
+    gitCalls: (command: string) =>
+      git.calls.filter((call) => call.args[0] === command).map((c) => c.args),
     promptUses: () => promptUses,
     stdout,
     stderr,
@@ -261,4 +281,85 @@ void test("ready: with no origin default branch to compare with, says to fetch",
   assert.equal(await t.run(), 1);
   assert.equal(t.gateRuns(), 0);
   assert.match(t.stderr.lines.join(""), /Run git fetch origin/);
+});
+
+void test("ready: a branch behind the default branch is refused before the gate, saying how far and how to catch up", async () => {
+  for (const [behind, commits] of [
+    [1, "1 commit"],
+    [3, "3 commits"],
+  ] as const) {
+    const t = setup({ behind });
+    assert.equal(await t.run(), 1);
+    assert.equal(t.gateRuns(), 0, "the gate never runs");
+    assert.equal(t.mark(), "", "an older mark is cleared, nothing new marked");
+    assert.equal(
+      t.stderr.lines.join(""),
+      `ready: this branch is ${commits} behind origin/main: merge it in (git merge origin/main), then run ready again.\n`,
+    );
+  }
+});
+
+void test("ready: a failed fetch stops before the gate, with git's reason, rather than trusting an old ref", async () => {
+  const t = setup({
+    fetchError: "fatal: could not read from remote repository",
+  });
+  assert.equal(await t.run(), 1);
+  assert.equal(t.gateRuns(), 0);
+  assert.equal(t.mark(), "");
+  const out = t.stderr.lines.join("");
+  assert.match(
+    out,
+    /could not fetch main from origin, so ready can't tell whether this branch is behind it:\nfatal: could not read from remote repository\n/,
+  );
+  assert.match(out, /git remote set-head origin --auto/);
+  assert.equal(t.gitCalls("rev-list").length, 0, "nothing counted after it");
+});
+
+void test("ready: fetches the default branch alone, without tags, into its remote-tracking ref", async () => {
+  const t = setup();
+  assert.equal(await t.run(), 0, t.stderr.lines.join(""));
+  assert.deepEqual(t.gitCalls("fetch"), [
+    [
+      "fetch",
+      "--quiet",
+      "--no-tags",
+      "origin",
+      "+refs/heads/main:refs/remotes/origin/main",
+    ],
+  ]);
+  assert.deepEqual(t.gitCalls("rev-list"), [
+    ["rev-list", "--count", `${HEAD}..refs/remotes/origin/main`],
+  ]);
+});
+
+void test("ready: with origin/HEAD at master, fetches and compares with master", async () => {
+  const t = setup({ defaultBranch: "master", behind: 2 });
+  assert.equal(await t.run(), 1);
+  assert.deepEqual(t.gitCalls("fetch"), [
+    [
+      "fetch",
+      "--quiet",
+      "--no-tags",
+      "origin",
+      "+refs/heads/master:refs/remotes/origin/master",
+    ],
+  ]);
+  assert.deepEqual(t.gitCalls("rev-list"), [
+    ["rev-list", "--count", `${HEAD}..refs/remotes/origin/master`],
+  ]);
+  assert.match(
+    t.stderr.lines.join(""),
+    /2 commits behind origin\/master: merge it in \(git merge origin\/master\)/,
+  );
+});
+
+void test("ready: a count that fails stops before the gate, nothing marked", async () => {
+  const t = setup({ countFails: true });
+  assert.equal(await t.run(), 1);
+  assert.equal(t.gateRuns(), 0);
+  assert.equal(t.mark(), "");
+  assert.match(
+    t.stderr.lines.join(""),
+    /could not count how far this branch is behind origin\/main, so it is not marked: fatal: bad revision/,
+  );
 });

@@ -18,6 +18,7 @@ import type { Context } from "../context.ts";
 import { gateCommand } from "../gate/command.ts";
 import type { CommandEntry } from "../registry.ts";
 import { GUARDED_CHECKS } from "../judge/guarded-checks.ts";
+import { behindDefaultBranch } from "./behind.ts";
 import { changesNeedingMaintainer, maintainerWarning } from "./maintainer.ts";
 import { clearMark, writeMark } from "./mark.ts";
 
@@ -104,6 +105,13 @@ async function runReady(ctx: Context, runGate: RunGate): Promise<number> {
   const short = head.slice(0, 7);
   await requireClean(ctx, root);
 
+  // Before the gate, so a branch that can't merge as it stands is told at
+  // once, and before the comparison below, which then uses the fresh ref.
+  const behind = await behindDefaultBranch(ctx, root, head);
+  if (behind !== undefined) {
+    stop(behind);
+  }
+
   // Worked out before the gate runs, so a clone with nothing to compare
   // with is told to fetch at once, rather than after a long gate run.
   const reasons = await changesNeedingMaintainer(ctx, root, head);
@@ -146,6 +154,9 @@ export function createReadyCommand(runGate: RunGate): CommandEntry {
       "branch until ready has marked the commit at its tip, and any new",
       "commit needs ready again. Run it in the worktree that has the branch",
       "checked out, with everything committed.",
+      "",
+      "It fetches the default branch from origin first, and refuses a branch",
+      "that is behind it, or one it can't check because the fetch failed.",
       "",
       "A commit that changes AGENTS.md, or the checks that judge the repo",
       `(${GUARDED_CHECKS}),`,
