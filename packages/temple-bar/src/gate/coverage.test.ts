@@ -177,7 +177,9 @@ void test("a tool runs through the package manager that started the gate, the wa
   const [pnpm] = await listing({ npm_execpath: PNPM_EXEC });
   assert.equal(pnpm?.command, process.execPath);
   assert.deepEqual(pnpm.args, [PNPM_EXEC, "exec", "tsc", "--listFilesOnly"]);
-  assert.equal(pnpm.cwd, path.normalize("/repo"));
+  // The root's tools run in the folder the gate was given, spelled as
+  // given, on every platform.
+  assert.equal(pnpm.cwd, "/repo");
 
   const [npm] = await listing({ npm_execpath: NPM_EXEC });
   assert.equal(npm?.command, process.execPath);
