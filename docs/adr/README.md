@@ -111,3 +111,4 @@ Settled before the numbering began:
 | 87  | A pin bump's mixing is disclosed by the judge's refusal, not yet refused              | [0016](0016-agent-rules-and-the-merge-loop.md)     |
 | 88  | The gate checks every tracked file is type-checked and tested, as the gate runs them  | [0016](0016-agent-rules-and-the-merge-loop.md)     |
 | 89  | Every decision lives in an ADR; the decisions list became this index                  | [0016](0016-agent-rules-and-the-merge-loop.md)     |
+| 90  | Setup reads git's index once per write batch, which holds no prompt or index write    | [0018](0018-one-index-read-per-batch.md)           |

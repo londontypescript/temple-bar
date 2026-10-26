@@ -59,6 +59,7 @@ same pull request as any change to a mechanism.
 | Windows run after a failed CI Windows leg              | `pnpm windows-run --only <file>` first, the full `pnpm windows-run` when the failure isn't one file, run by hand | **Prose only**                      |
 | Incident asked about, filed as an issue                | nothing until theme F                                                                                            | **Prose only**                      |
 | Incident issues labelled, whoever files them           | `incident-label.yml` labels an `incident:` title                                                                 | **Detected** after                  |
+| Setup's batch of writes holds no prompt or index write | `files-batch.test.ts` over four kinds of repo: regression coverage, not a runtime check (ADR 0018)               | **Blocked** via CI                  |
 
 Markdown integrity in the gate, from 0.0.10, uses markdownlint's
 public structural tokens for actual local links/images and undefined explicit

@@ -55,8 +55,10 @@ export async function writeWorkflows(
       before.kind === "differs" &&
       found !== undefined &&
       isEarlierOutput(workflow.path, found);
-    // WriteTargets checks the index and disk again at the write, so an old
-    // recognized copy never licenses writing through a newly linked target.
+    // WriteTargets checks the disk again at the write, so an old recognized
+    // copy never licenses writing through a newly linked target. Git's index
+    // is checked again too, except inside a batch, such as setup's, which
+    // reads it once at its first inspection (ADR 0018).
     const wrote =
       (before.kind === "missing" || earlier) &&
       (await targets.writeText(workflow.path, workflow.content));

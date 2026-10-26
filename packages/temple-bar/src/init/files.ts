@@ -246,11 +246,24 @@ export interface SetupFilesOutcome {
 }
 
 /** Writes every file setup owns. .gitignore goes first so that anything
- * committed afterwards already leaves node_modules/ out. */
+ * committed afterwards already leaves node_modules/ out.
+ *
+ * All of it is one batch, so git's index is read once for every write here,
+ * not before each one. That holds only while nothing in the batch prompts or
+ * runs a git command that writes the index: setup's `git add` and first
+ * commit come after this returns (ADR 0018). */
 export async function writeSetupFiles(
   ctx: Context,
   repoRoot: string,
   targets = setupWriteTargets(ctx, repoRoot),
+): Promise<SetupFilesOutcome> {
+  return targets.batch((batched) => writeSetupBatch(ctx, repoRoot, batched));
+}
+
+async function writeSetupBatch(
+  ctx: Context,
+  repoRoot: string,
+  targets: WriteTargets,
 ): Promise<SetupFilesOutcome> {
   const wroteGitignore = await ensureGitignore(ctx, repoRoot, targets);
   const wrotePrettierIgnore = await ensurePrettierIgnore(targets);
