@@ -148,12 +148,14 @@ function indexProblem(
   return undefined;
 }
 
-/** A batch's own state, held by its view. `index` is the batch's one index
- * read, shared by every inspection through the view, even one that starts
- * while it is in flight; it is unset until the first inspection, after a
- * failed read, and once the batch has ended. */
+/** A batch's own state, held by its view. */
 interface BatchState {
+  /** False once the callback settles: nothing new starts after that. */
   open: boolean;
+  /** Each operation started through the view and not yet finished. */
+  readonly running: Set<Promise<unknown>>;
+  /** The batch's one index read, shared even while in flight; unset before
+   * the first inspection, after a failed read, and once the batch ends. */
   index: Promise<IndexMap> | undefined;
 }
 
@@ -212,16 +214,22 @@ export class WriteTargets {
    * Runs `work` with a view of these targets whose inspections share one
    * read of git's index; a failed read isn't kept, so the next one retries.
    * The disk is still classified at every operation. Once `work` settles,
-   * the read is dropped and the view throws if used again. These targets
-   * never keep a read: inspecting them, or another batch, reads afresh.
-   * `work` must not prompt or run git that writes the index (ADR 0018).
+   * no operation can start through the view, and the batch returns only
+   * after every operation still running has finished, then drops the read.
+   * These targets never keep a read: inspecting them, or another batch,
+   * reads afresh. `work` must not prompt or run git that writes the index
+   * (ADR 0018).
    */
   async batch<T>(work: (batched: WriteTargets) => Promise<T>): Promise<T> {
     this.assertOpen();
     // A batch inside another would share the outer read while seeming to
     // start its own, so it is refused rather than given two meanings.
     if (this.batchState !== undefined) throw new Error(NESTED_BATCH);
-    const state: BatchState = { open: true, index: undefined };
+    const state: BatchState = {
+      open: true,
+      running: new Set(),
+      index: undefined,
+    };
     const view = new WriteTargets(this.ctx, this.root, {
       wording: this.wording,
     });
@@ -231,14 +239,29 @@ export class WriteTargets {
     try {
       return await work(view);
     } finally {
+      // Waiting for what is still running means none of it can act once the
+      // caller moves on, to a prompt or a `git add`, say.
       state.open = false;
+      await Promise.allSettled(state.running);
       state.index = undefined;
     }
   }
 
-  /** Throws when these targets are a batch's view and the batch has ended. */
+  /** Throws on a batch's view once its callback has settled. */
   private assertOpen(): void {
     if (this.batchState?.open === false) throw new Error(BATCH_ENDED);
+  }
+
+  /** Runs one operation; through a batch's view, the batch waits for it. */
+  private async track<T>(operation: () => Promise<T>): Promise<T> {
+    this.assertOpen();
+    const running = operation();
+    this.batchState?.running.add(running);
+    try {
+      return await running;
+    } finally {
+      this.batchState?.running.delete(running);
+    }
   }
 
   /** Git's index for setup's paths, or undefined for the hooks, which read
@@ -259,7 +282,11 @@ export class WriteTargets {
     return batch.index;
   }
 
-  async inspect(relative: string): Promise<WriteTarget> {
+  inspect(relative: string): Promise<WriteTarget> {
+    return this.track(() => this.inspectNow(relative));
+  }
+
+  private async inspectNow(relative: string): Promise<WriteTarget> {
     this.assertOpen();
     const index = await this.index();
     this.assertOpen();
@@ -325,32 +352,41 @@ export class WriteTargets {
     return state;
   }
 
-  // Each operation checks again that its batch is open just before it
-  // touches the disk, so one left running when its batch ended fails there.
+  // Each operation also checks that its batch's callback hasn't settled
+  // just before it touches the disk: one still running then fails there,
+  // unless it is already inside a disk call, which the batch waits for.
 
-  async readText(relative: string): Promise<string | undefined> {
-    const state = await this.inspect(relative);
-    if (state.kind !== "file") return undefined;
-    this.assertOpen();
-    return this.ctx.fs.readText(path.join(this.root, ...relative.split("/")));
+  readText(relative: string): Promise<string | undefined> {
+    return this.track(async () => {
+      const state = await this.inspectNow(relative);
+      if (state.kind !== "file") return undefined;
+      this.assertOpen();
+      const full = path.join(this.root, ...relative.split("/"));
+      return this.ctx.fs.readText(full);
+    });
   }
 
-  async writeText(relative: string, content: string): Promise<boolean> {
-    const state = await this.inspect(relative);
-    if (state.kind !== "missing" && state.kind !== "file") return false;
-    const full = path.join(this.root, ...relative.split("/"));
-    this.assertOpen();
-    await this.ctx.fs.mkdirp(path.dirname(full));
-    this.assertOpen();
-    await this.ctx.fs.writeText(full, content);
-    return true;
+  writeText(relative: string, content: string): Promise<boolean> {
+    return this.track(async () => {
+      const state = await this.inspectNow(relative);
+      if (state.kind !== "missing" && state.kind !== "file") return false;
+      const full = path.join(this.root, ...relative.split("/"));
+      this.assertOpen();
+      await this.ctx.fs.mkdirp(path.dirname(full));
+      this.assertOpen();
+      await this.ctx.fs.writeText(full, content);
+      return true;
+    });
   }
 
-  async chmod(relative: string, mode: number): Promise<boolean> {
-    if ((await this.inspect(relative)).kind !== "file") return false;
-    this.assertOpen();
-    await this.ctx.fs.chmod(path.join(this.root, ...relative.split("/")), mode);
-    return true;
+  chmod(relative: string, mode: number): Promise<boolean> {
+    return this.track(async () => {
+      if ((await this.inspectNow(relative)).kind !== "file") return false;
+      this.assertOpen();
+      const full = path.join(this.root, ...relative.split("/"));
+      await this.ctx.fs.chmod(full, mode);
+      return true;
+    });
   }
 }
 

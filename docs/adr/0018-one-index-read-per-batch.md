@@ -38,10 +38,14 @@ and afresh everywhere else.**
   the index for itself.
 - The view shares that object's refusals and their reporting, so each
   refusal is recorded and reported once, whichever of them found it.
-- When `work` settles, normally or by throwing, the read is dropped and the
-  view throws on any further use. An operation still running when its batch
-  ended fails before it touches the disk, rather than act on the batch's
-  read.
+- When `work` settles, normally or by throwing, no operation can start
+  through the view: any that tries throws at once. Operations still running
+  then finish before `batch` returns. Each one either fails at its next
+  check, made before every disk step, or, if it is already inside a disk
+  call or past its last check, completes. Only then is the read dropped and
+  `work`'s result returned or its error thrown. So nothing started through a
+  batch acts after the batch returns, when the caller may go on to a prompt
+  or a `git add`.
 - A failed read is not kept: the next inspection reads again.
 - The disk is never cached, inside a batch or out: every operation
   classifies its target and folders again just before it acts.
@@ -55,11 +59,12 @@ and afresh everywhere else.**
 that writes the index. Setup's questions are asked before `writeSetupFiles`
 starts, and its index writers (`git add -A` and the first commit, in
 `init/github-repo.ts`) run after it returns. Every batch starts with a fresh
-read, so nothing is carried across a question or a commit. A test runs the
-whole batch over four kinds of repo (fresh with no `package.json`, no
-`origin`, already set up, and set up by an earlier release) and fails on any
-prompt, on any git call outside a short list of read-only shapes, and on more
-than one index read.
+read, and `batch` returns only once every operation started through its view
+has finished, so neither a read nor an operation is carried across a question
+or a commit. A test runs the whole batch over four kinds of repo (fresh with
+no `package.json`, no `origin`, already set up, and set up by an earlier
+release) and fails on any prompt, on any git call outside a short list of
+read-only shapes, and on more than one index read.
 
 **What it gives up.** Before, the index was read immediately before each
 write. Inside a batch it is read once, up to a second or so before the
