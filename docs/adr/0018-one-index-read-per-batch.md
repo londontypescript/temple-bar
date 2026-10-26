@@ -40,12 +40,15 @@ and afresh everywhere else.**
   refusal is recorded and reported once, whichever of them found it.
 - When `work` settles, normally or by throwing, no operation can start
   through the view: any that tries throws at once. Operations still running
-  then finish before `batch` returns. Each one either fails at its next
-  check, made before every disk step, or, if it is already inside a disk
-  call or past its last check, completes. Only then is the read dropped and
-  `work`'s result returned or its error thrown. So nothing started through a
-  batch acts after the batch returns, when the caller may go on to a prompt
-  or a `git add`.
+  then finish before `batch` returns. An operation checks that the callback
+  hasn't settled after its index read and before it reads, writes or
+  changes a file's mode, and fails there if it has; an inspection already
+  classifying the disk carries on to its result, and a disk call already
+  under way completes. The batch waits for all of it. Only then is the read
+  dropped and `work`'s result returned or its error thrown. So nothing
+  started through a batch acts after the batch returns, when the caller may
+  go on to a prompt or a `git add`. An operation left unawaited that fails
+  this way rejects like any other ignored promise, loudly.
 - A failed read is not kept: the next inspection reads again.
 - The disk is never cached, inside a batch or out: every operation
   classifies its target and folders again just before it acts.
