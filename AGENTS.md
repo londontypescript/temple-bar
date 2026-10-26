@@ -32,6 +32,9 @@ a rule to fail faster, never replace it.
 - **[docs/enforcement.md](docs/enforcement.md)** lists which rules are blocked
   and which are prose only: update it with any change to a mechanism. A rule
   that drifts needs a mechanism, not stronger wording.
+- **Performance work freezes a baseline before building:** its plan names the
+  benchmark, the commits and the target, and it is done on that benchmark's
+  result, never on ordinary CI times.
 
 <!-- BEGIN:temple-bar: setup rewrites this block; edit outside it -->
 
