@@ -13,6 +13,7 @@ import type { Context } from "../context.ts";
 import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
 import { CLAUDE_MD_PATH, COMPANION_FILES } from "./companion-docs.ts";
 import { reportWriteTarget } from "./files-report.ts";
+import { readIndex, type IndexEntry, type IndexMap } from "./git-index.ts";
 import { CHECKED_WORKFLOWS } from "./workflows.ts";
 import { PRETTIER_IGNORE_PATH } from "./prettier-ignore.ts";
 
@@ -122,42 +123,6 @@ export async function classifyDiskTarget(
   );
 }
 
-interface IndexEntry {
-  readonly mode: string;
-  readonly stage: string;
-}
-
-/** NUL records keep whitespace and quoted-looking path names literal. */
-async function readIndex(
-  ctx: Context,
-  root: string,
-  paths: readonly string[],
-): Promise<Map<string, IndexEntry[]>> {
-  const result = await ctx.git.run(
-    ["ls-files", "-s", "-z", "--", ...paths],
-    root,
-  );
-  if (result.code !== 0)
-    throw new Error(
-      `Could not inspect setup's git index: ${result.stderr.trim()}`,
-    );
-  const entries = new Map<string, IndexEntry[]>();
-  for (const record of result.stdout.split("\0").filter(Boolean)) {
-    const match = /^(\d{6}) [0-9a-f]+ ([0-3])\t([\s\S]+)$/.exec(record);
-    if (match === null)
-      throw new Error("Could not parse setup's git index entry");
-    const mode = match[1];
-    // The regexp has three captures: mode, stage and the literal path.
-    const file = match[3];
-    if (mode === undefined || file === undefined || match[2] === undefined)
-      throw new Error("Incomplete git index entry");
-    const list = entries.get(file) ?? [];
-    list.push({ mode, stage: match[2] });
-    entries.set(file, list);
-  }
-  return entries;
-}
-
 function indexProblem(
   entries: readonly IndexEntry[] | undefined,
   relative: string,
@@ -182,8 +147,6 @@ function indexProblem(
   }
   return undefined;
 }
-
-type IndexMap = ReadonlyMap<string, readonly IndexEntry[]>;
 
 /** A batch's own state, held by its view. `index` is the batch's one index
  * read, shared by every inspection through the view, even one that starts
