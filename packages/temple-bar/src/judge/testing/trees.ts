@@ -135,15 +135,20 @@ export const treeUrl = (sha: string): string =>
 export const blobUrl = (id: string): string => `${API}/git/blobs/${id}`;
 export const tipUrl = `${API}/git/ref/heads/main`;
 
-/** Replaces GitHub's answer for exactly one URL. */
+/** Replaces GitHub's answer for exactly one URL. The URL is worked out once,
+ * when the commits are made, not on every request: working it out may start
+ * git, which is slow on Windows, and a read makes many requests. */
 export function answering(
   url: (shas: { base: string; head: string; dir: string }) => string,
   answer: HttpResult,
 ) {
-  return (shas: { base: string; head: string; dir: string }) => ({
-    override: (requested: string) =>
-      requested === url(shas) ? answer : undefined,
-  });
+  return (shas: { base: string; head: string; dir: string }) => {
+    const replaced = url(shas);
+    return {
+      override: (requested: string) =>
+        requested === replaced ? answer : undefined,
+    };
+  };
 }
 
 export async function assertCantRead(
