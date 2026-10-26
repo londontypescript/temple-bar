@@ -137,9 +137,7 @@ void test("a blob answered with an error, invalid JSON, the wrong shape or bad b
   // The fixture's base64 ends in padding, so dropping it is a change.
   assert.match(good, /=$/);
   for (const [answer, reason] of answers) {
-    const { read } = setup(t, NESTED_CHANGE, (shas) => ({
-      override: (url: string) => (url === headBlob(shas) ? answer : undefined),
-    }));
+    const { read } = setup(t, NESTED_CHANGE, answering(headBlob, answer));
     await assertCantRead(read, reason);
   }
 });

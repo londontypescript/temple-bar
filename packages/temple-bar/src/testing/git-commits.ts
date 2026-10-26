@@ -3,9 +3,14 @@
 // working tree, so a path no filesystem allows (a tab, a newline, a quote
 // on Windows) and a symlink or a submodule work the same on every platform.
 // Excluded from the built package (tsconfig.build.json).
+//
+// Starting a git process costs tens of milliseconds on Windows, against a
+// couple on Linux, and the judge's tests make hundreds of commits, so a
+// commit here starts as few git processes as it can.
 
 import { execFileSync } from "node:child_process";
-import { rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** A file as a test gives it. Text alone is a regular file. */
@@ -36,51 +41,139 @@ export function writeBlob(dir: string, text: string): string {
   return git(dir, ["hash-object", "-w", "--stdin"], text);
 }
 
-function modeAndId(dir: string, file: RepoFile): [string, string] {
+/** A file's mode, and either the text its blob holds or the commit a
+ * submodule is pinned at. */
+type Entry = { mode: string; text: string } | { mode: "160000"; id: string };
+
+function entryOf(file: RepoFile): Entry {
   if (typeof file === "string") {
-    return ["100644", writeBlob(dir, file)];
+    return { mode: "100644", text: file };
   }
   if ("text" in file) {
-    return ["100755", writeBlob(dir, file.text)];
+    return { mode: "100755", text: file.text };
   }
   if ("symlink" in file) {
-    return ["120000", writeBlob(dir, file.symlink)];
+    return { mode: "120000", text: file.symlink };
   }
-  return ["160000", file.submodule];
+  return { mode: "160000", id: file.submodule };
 }
 
-/** A commit whose tree holds exactly `files`, on top of `parent` if given.
- * `dir` must be a repo set up by initTestRepo. */
-export function commitFiles(
+/** Stores every text as a blob with one git process and gives their ids, in
+ * order. Git reads each from a numbered file in `folder`, never from the
+ * file's repository path, which may hold a name no filesystem allows. */
+function writeBlobs(
+  dir: string,
+  folder: string,
+  texts: readonly string[],
+): string[] {
+  if (texts.length === 0) {
+    return [];
+  }
+  const paths = texts.map((text, i) => {
+    const file = path.join(folder, `${String(i)}.blob`);
+    writeFileSync(file, text);
+    return file;
+  });
+  // --no-filters stores the bytes as written, as writeBlob's --stdin does,
+  // whatever line-ending settings the repo has.
+  const ids = git(
+    dir,
+    ["hash-object", "-w", "--no-filters", "--stdin-paths"],
+    paths.map((file) => `${file}\n`).join(""),
+  ).split("\n");
+  if (ids.length !== texts.length) {
+    throw new Error(
+      `commitFiles: git stored ${String(ids.length)} blobs for ${String(texts.length)} files`,
+    );
+  }
+  return ids;
+}
+
+/** The tree holding exactly `files`, built in a throwaway index. */
+function writeTree(
   dir: string,
   files: Readonly<Record<string, RepoFile>>,
-  parent?: string,
 ): string {
-  const index = path.resolve(
-    dir,
-    git(dir, ["rev-parse", "--git-dir"]),
-    "test-index",
+  const listed = Object.entries(files).map(
+    ([file, content]) => [file, entryOf(content)] as const,
   );
-  const env = { GIT_INDEX_FILE: index };
-  rmSync(index, { force: true });
-  const entries = Object.entries(files).map(([file, content]) => {
-    const [mode, id] = modeAndId(dir, content);
-    return `${mode} ${id}\t${file}\0`;
-  });
-  // Git for Windows refuses paths no Windows filesystem allows (a quote, a
-  // tab) unless core.protectNTFS is off, and --index-info skips them with
-  // only a warning. Nothing here is ever checked out, so it is safe to
-  // turn off for this throwaway index.
-  git(
-    dir,
-    ["-c", "core.protectNTFS=false", "update-index", "-z", "--index-info"],
-    entries.join(""),
-    env,
+  // The blob files and the index live in a folder of their own, deleted
+  // before this returns: the test's temp folder check runs when the test
+  // file ends and must find nothing left by a commit.
+  const folder = mkdtempSync(path.join(tmpdir(), "tb-commit-"));
+  try {
+    const ids = writeBlobs(
+      dir,
+      folder,
+      listed.flatMap(([, entry]) => ("text" in entry ? [entry.text] : [])),
+    );
+    let blob = 0;
+    const lines = listed.map(([file, entry]) => {
+      const id = "text" in entry ? ids[blob++] : entry.id;
+      return `${entry.mode} ${String(id)}\t${file}\0`;
+    });
+    const env = { GIT_INDEX_FILE: path.join(folder, "index") };
+    // Git for Windows refuses paths no Windows filesystem allows (a quote, a
+    // tab) unless core.protectNTFS is off, and --index-info skips them with
+    // only a warning. Nothing here is ever checked out, so it is safe to
+    // turn off for this throwaway index.
+    git(
+      dir,
+      ["-c", "core.protectNTFS=false", "update-index", "-z", "--index-info"],
+      lines.join(""),
+      env,
+    );
+    return git(dir, ["write-tree"], undefined, env);
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+}
+
+/** Names git reads itself, so it may refuse some forms of them: git 2.50
+ * skips a symlink named .gitmodules, in any folder and any case, with only
+ * a warning. The others get the same check in case a git version treats
+ * them alike. */
+const GIT_NAMES = new Set([
+  ".git",
+  ".gitmodules",
+  ".gitattributes",
+  ".gitignore",
+  ".mailmap",
+]);
+
+/** A path git takes into an index on every platform: letters, digits, dots,
+ * dashes and underscores between single slashes, with no "." or ".."
+ * segment and none of git's own names. Any other path may be one git
+ * skips. */
+function isPlainPath(file: string): boolean {
+  return file
+    .split("/")
+    .every(
+      (segment) =>
+        /^[\w.-]+$/.test(segment) &&
+        segment !== "." &&
+        segment !== ".." &&
+        !GIT_NAMES.has(segment.toLowerCase()),
+    );
+}
+
+/** Whether git is sure to keep every one of `files`: each path is plain and
+ * none is also a folder of another, which git would replace without a
+ * word. */
+function surelyAllKept(files: readonly string[]): boolean {
+  return (
+    files.every(isPlainPath) &&
+    !files.some((folder) => files.some((file) => file.startsWith(`${folder}/`)))
   );
-  const tree = git(dir, ["write-tree"], undefined, env);
-  rmSync(index, { force: true });
-  // Never a commit missing a path the test asked for: a skipped one would
-  // make the test judge a different change from the one it names.
+}
+
+/** Never a commit missing a path the test asked for: a skipped one would
+ * make the test judge a different change from the one it names. */
+function assertAllListed(
+  dir: string,
+  tree: string,
+  files: Readonly<Record<string, RepoFile>>,
+): void {
   const listed = execFileSync(
     "git",
     ["ls-tree", "-r", "-z", "--name-only", "--full-tree", tree],
@@ -91,6 +184,20 @@ export function commitFiles(
   const missing = Object.keys(files).filter((file) => !listed.includes(file));
   if (missing.length > 0) {
     throw new Error(`commitFiles: git left out ${JSON.stringify(missing)}`);
+  }
+}
+
+/** A commit whose tree holds exactly `files`, on top of `parent` if given.
+ * `dir` must be a repo set up by initTestRepo. */
+export function commitFiles(
+  dir: string,
+  files: Readonly<Record<string, RepoFile>>,
+  parent?: string,
+): string {
+  const tree = writeTree(dir, files);
+  // The check costs a git process, so it runs only where git might skip.
+  if (!surelyAllKept(Object.keys(files))) {
+    assertAllListed(dir, tree, files);
   }
   const parents = parent === undefined ? [] : ["-p", parent];
   return git(dir, ["commit-tree", tree, ...parents, "-m", "test"]);
