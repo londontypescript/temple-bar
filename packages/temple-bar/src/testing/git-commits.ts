@@ -129,9 +129,22 @@ function writeTree(
   }
 }
 
+/** Names git reads itself, so it may refuse some forms of them: git 2.50
+ * skips a symlink named .gitmodules, in any folder and any case, with only
+ * a warning. The others get the same check in case a git version treats
+ * them alike. */
+const GIT_NAMES = new Set([
+  ".git",
+  ".gitmodules",
+  ".gitattributes",
+  ".gitignore",
+  ".mailmap",
+]);
+
 /** A path git takes into an index on every platform: letters, digits, dots,
  * dashes and underscores between single slashes, with no "." or ".."
- * segment and no ".git". Any other path may be one git skips. */
+ * segment and none of git's own names. Any other path may be one git
+ * skips. */
 function isPlainPath(file: string): boolean {
   return file
     .split("/")
@@ -140,8 +153,18 @@ function isPlainPath(file: string): boolean {
         /^[\w.-]+$/.test(segment) &&
         segment !== "." &&
         segment !== ".." &&
-        segment.toLowerCase() !== ".git",
+        !GIT_NAMES.has(segment.toLowerCase()),
     );
+}
+
+/** Whether git is sure to keep every one of `files`: each path is plain and
+ * none is also a folder of another, which git would replace without a
+ * word. */
+function surelyAllKept(files: readonly string[]): boolean {
+  return (
+    files.every(isPlainPath) &&
+    !files.some((folder) => files.some((file) => file.startsWith(`${folder}/`)))
+  );
 }
 
 /** Never a commit missing a path the test asked for: a skipped one would
@@ -172,7 +195,8 @@ export function commitFiles(
   parent?: string,
 ): string {
   const tree = writeTree(dir, files);
-  if (!Object.keys(files).every(isPlainPath)) {
+  // The check costs a git process, so it runs only where git might skip.
+  if (!surelyAllKept(Object.keys(files))) {
     assertAllListed(dir, tree, files);
   }
   const parents = parent === undefined ? [] : ["-p", parent];
