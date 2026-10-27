@@ -26,7 +26,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Windows runs by part, in the jobs further down.
+        os: [ubuntu-latest, macos-latest]
         node: [24, 26]
     steps:
       - name: Checkout
@@ -81,7 +82,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Windows runs by part, in the jobs further down.
+        os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -90,7 +92,8 @@ jobs:
           # The suite's published-output test reads every release tag.
           fetch-depth: 0
 
-      - name: Install pnpm's standalone executable
+      - &standalone-pnpm
+        name: Install pnpm's standalone executable
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           standalone: true
@@ -103,7 +106,8 @@ jobs:
 
       # Without this, a pnpm from somewhere else first on PATH would turn the
       # job into another run of the JavaScript entry, and pass.
-      - name: Check scripts see the standalone executable
+      - &standalone-seen
+        name: Check scripts see the standalone executable
         shell: bash
         run: |
           dir="$RUNNER_TEMP/which-pnpm"
@@ -123,3 +127,192 @@ jobs:
         run: pnpm gate
         env:
           GH_TOKEN: ${{ github.token }}
+
+  # Windows, by part. Each Windows leg runs the pinned gate as one job per
+  # part (repo, root and each package: docs/adr/0018-the-gate-by-parts.md),
+  # side by side, then a verifying job that carries the leg's check name, so
+  # the ruleset is unchanged. The verifier passes only when every part job
+  # succeeded and their reports add up to one whole gate that passed, from
+  # this run and attempt, on this commit, with the same Node and pnpm.
+  #
+  # To re-run a failed Windows leg, re-run all jobs, never "re-run failed
+  # jobs": a re-run job gets a new GITHUB_RUN_ATTEMPT, and the verifier
+  # refuses reports from two attempts.
+  #
+  # Each leg has its own part jobs: a matrix's result covers all of its
+  # jobs, so a matrix shared across legs would fail every leg's verifier for
+  # one leg's failure. A reusable workflow would rename the check to
+  # "caller / job", so the legs repeat their steps through YAML anchors
+  # instead. Nothing that writes files coverage or Knip reads (such as
+  # `pnpm build`) runs before a part: the split equals the whole gate only
+  # while no part's result depends on another's side effects.
+  check-windows-node-24-parts:
+    name: check (windows-latest, node 24) part ${{ matrix.part }}
+    runs-on: windows-latest
+    # LEG ties the parts to their verifier, and prefixes their artifacts.
+    env: &check-node-24
+      LEG: check-windows-node-24
+      LEG_NODE: 24
+    strategy:
+      # Every part runs to the end, as the whole gate runs every check.
+      fail-fast: false
+      matrix:
+        # slug: the part's name in artifact and file names, which can't
+        # hold a "/".
+        include: &parts
+          - { part: repo, slug: repo }
+          - { part: root, slug: root }
+          - { part: packages/temple-bar, slug: packages-temple-bar }
+          - {
+              part: packages/create-temple-bar,
+              slug: packages-create-temple-bar,
+            }
+    steps: &check-part-steps
+      - &checkout
+        name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # The pull request size check measures from the base branch, and
+          # the suite's published-output test reads every release tag.
+          fetch-depth: 0
+
+      - &pnpm
+        name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - &node
+        name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.LEG_NODE }}
+          cache: pnpm
+
+      - &install
+        name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The default shell, PowerShell: under bash, Git Bash's tar comes
+      # first on PATH and reads a C: path as a remote host.
+      - &gate-part
+        name: Gate, one part (the pinned, published temple-bar)
+        run: pnpm gate --part $env:PART --leg $env:LEG --report $env:REPORT
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PART: ${{ matrix.part }}
+          REPORT: ${{ runner.temp }}/${{ matrix.slug }}.json
+
+      - &upload-report
+        name: Upload the part's report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: gate-part-${{ env.LEG }}-${{ matrix.slug }}
+          path: ${{ runner.temp }}/${{ matrix.slug }}.json
+          if-no-files-found: error
+          # Re-running all jobs uploads under the same names again.
+          overwrite: true
+
+  check-windows-node-24:
+    name: check (windows-latest, node 24)
+    needs: check-windows-node-24-parts
+    # always(), never !cancelled() or success(): a skipped required check
+    # counts as passing, so the verifier must run, and fail, whatever
+    # happened to its parts. Its first step fails the leg on a failed,
+    # cancelled or skipped part.
+    if: always()
+    runs-on: windows-latest
+    env: *check-node-24
+    steps: &check-verify-steps
+      - &parts-succeeded
+        name: Every part job succeeded
+        run: |
+          if ($env:PARTS -ne 'success') {
+            Write-Output "::error::This leg's part jobs ended: $env:PARTS"
+            exit 1
+          }
+        env:
+          PARTS: ${{ join(needs.*.result, ', ') }}
+
+      - *checkout
+      - *pnpm
+      - *node
+      - *install
+
+      - &download-reports
+        name: Download this leg's part reports
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: gate-part-${{ env.LEG }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/gate-parts
+
+      - &verify-parts
+        name: Gate, the parts add up to it (the pinned, published temple-bar)
+        run: pnpm gate --verify-parts $env:REPORTS --leg $env:LEG
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORTS: ${{ runner.temp }}/gate-parts
+
+      - name: Pull request size (a warning, never a failure)
+        if: github.event_name == 'pull_request'
+        run: pnpm exec temple-bar pr-size
+
+      - name: Build
+        run: pnpm build
+
+  check-windows-node-26-parts:
+    name: check (windows-latest, node 26) part ${{ matrix.part }}
+    runs-on: windows-latest
+    env: &check-node-26
+      LEG: check-windows-node-26
+      LEG_NODE: 26
+    strategy:
+      fail-fast: false
+      matrix:
+        include: *parts
+    steps: *check-part-steps
+
+  check-windows-node-26:
+    name: check (windows-latest, node 26)
+    needs: check-windows-node-26-parts
+    if: always()
+    runs-on: windows-latest
+    env: *check-node-26
+    steps: *check-verify-steps
+
+  # The standalone leg's parts and verifier all run under pnpm's standalone
+  # executable, so the verifier also proves every part ran through it.
+  standalone-windows-parts:
+    name: standalone (windows-latest) part ${{ matrix.part }}
+    runs-on: windows-latest
+    env: &standalone
+      LEG: standalone-windows
+      LEG_NODE: 24
+    strategy:
+      fail-fast: false
+      matrix:
+        include: *parts
+    steps:
+      - *checkout
+      - *standalone-pnpm
+      - *node
+      - *standalone-seen
+      - *install
+      - *gate-part
+      - *upload-report
+
+  standalone-windows:
+    name: standalone (windows-latest)
+    needs: standalone-windows-parts
+    if: always()
+    runs-on: windows-latest
+    env: *standalone
+    steps:
+      - *parts-succeeded
+      - *checkout
+      - *standalone-pnpm
+      - *node
+      - *standalone-seen
+      - *install
+      - *download-reports
+      - *verify-parts
