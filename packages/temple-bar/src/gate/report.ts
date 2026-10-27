@@ -14,8 +14,16 @@ import type { Context } from "../context.ts";
  * - skipped: deliberately not run (the repo has no content of its own yet,
  *   or the check doesn't apply here); never a failure on its own.
  */
-type CheckStatus =
-  "passed" | "failed" | "missing" | "no-op" | "not-run" | "skipped";
+export const CHECK_STATUSES = [
+  "passed",
+  "failed",
+  "missing",
+  "no-op",
+  "not-run",
+  "skipped",
+] as const;
+
+type CheckStatus = (typeof CHECK_STATUSES)[number];
 
 export interface CheckOutcome {
   readonly name: string;
@@ -23,7 +31,8 @@ export interface CheckOutcome {
   readonly detail?: string;
 }
 
-function isFailure(outcome: CheckOutcome): boolean {
+/** Whether the gate counts this outcome as failing. */
+export function isFailure(outcome: CheckOutcome): boolean {
   return (
     outcome.status === "failed" ||
     outcome.status === "missing" ||

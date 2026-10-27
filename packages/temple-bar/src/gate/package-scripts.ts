@@ -54,6 +54,14 @@ function checkName(target: ScriptsTarget, script: RequiredScript): string {
   return target.relative === "" ? script : `${script} (${target.relative})`;
 }
 
+/** The outcome names `runPackageScripts` reports for the package at
+ * `relative` ("" the root), one per required script, whatever happens. */
+export function scriptCheckNames(relative: string): string[] {
+  return REQUIRED_SCRIPTS.map((script) =>
+    checkName({ relative, folder: "" }, script),
+  );
+}
+
 function formatMissingScripts(
   target: ScriptsTarget,
   missing: readonly RequiredScript[],

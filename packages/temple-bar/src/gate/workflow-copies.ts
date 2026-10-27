@@ -21,7 +21,7 @@ import {
 import { RERUN_INIT } from "../init/requirements.ts";
 import type { CheckOutcome } from "./report.ts";
 
-const WORKFLOWS_CHECK = "gate and title workflows";
+export const WORKFLOWS_CHECK = "gate and title workflows";
 
 /** Lines with their endings kept, so a missing or extra final newline
  * changes the last line. */
