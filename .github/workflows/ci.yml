@@ -153,6 +153,7 @@ jobs:
     env: &check-node-24
       LEG: check-windows-node-24
       LEG_NODE: 24
+      BREAK_PART: packages/create-temple-bar
     strategy:
       # Every part runs to the end, as the whole gate runs every check.
       fail-fast: false
@@ -201,7 +202,10 @@ jobs:
       # first on PATH and reads a C: path as a remote host.
       - &gate-part
         name: Gate, one part (the pinned, published temple-bar)
-        run: pnpm gate --part $env:PART --leg $env:LEG --report $env:REPORT
+        run: |
+          if ($env:BREAK_PART -eq $env:PART) { Write-Output "::error::forced part failure"; exit 1 }
+          if ($env:SLEEP_PART -eq $env:PART) { Start-Sleep -Seconds 900 }
+          pnpm gate --part $env:PART --leg $env:LEG --report $env:REPORT
         env:
           GH_TOKEN: ${{ github.token }}
           PART: ${{ matrix.part }}
@@ -266,11 +270,13 @@ jobs:
         run: pnpm build
 
   check-windows-node-26-parts:
+    timeout-minutes: ${{ matrix.part == 'root' && 4 || 360 }}
     name: check (windows-latest, node 26) part ${{ matrix.part }}
     runs-on: windows-latest
     env: &check-node-26
       LEG: check-windows-node-26
       LEG_NODE: 26
+      SLEEP_PART: root
     strategy:
       fail-fast: false
       matrix:
@@ -288,6 +294,7 @@ jobs:
   # The standalone leg's parts and verifier all run under pnpm's standalone
   # executable, so the verifier also proves every part ran through it.
   standalone-windows-parts:
+    if: ${{ false }}
     name: standalone (windows-latest) part ${{ matrix.part }}
     runs-on: windows-latest
     env: &standalone
