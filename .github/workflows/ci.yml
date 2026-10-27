@@ -186,6 +186,11 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ env.LEG_NODE }}
+          # The newest patch from Node's manifest, not the runner image's
+          # cached one: the verifier refuses reports from another Node
+          # version, and during an image rollout a leg's jobs can land on
+          # images with different caches.
+          check-latest: true
           cache: pnpm
 
       - &install
