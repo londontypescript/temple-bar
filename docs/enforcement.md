@@ -136,7 +136,7 @@ gate names the packages that hold Knip's findings, or the root; that naming
 never turns a failure into a pass. temple-bar writes no Knip config: entries
 that Knip's plugins don't find are declared in the project's own.
 
-This repo pins published 0.2.0, so the rules marked "from 0.2.0" and earlier
+This repo pins published 0.2.1, so the rules marked "from 0.2.0" and earlier
 apply to it: each of its two packages runs its own four scripts. The root's
 `test` runs `scripts/` and `e2e/`, each package's runs its own `src/`, and a
 test in the suite (`scripts/selected-tests.test.ts`) fails if any tracked test
