@@ -13,7 +13,7 @@ import {
 import type { CheckOutcome } from "./report.ts";
 import type { GateTools } from "./tools.ts";
 
-const MARKDOWN_LINT_CHECK = "markdown lint";
+export const MARKDOWN_LINT_CHECK = "markdown lint";
 
 /** Only explicit undefined reference labels are universally invalid. Style
  * belongs to project scripts; configuration and lint directives cannot

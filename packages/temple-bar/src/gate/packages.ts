@@ -28,7 +28,7 @@ import type { CheckOutcome } from "./report.ts";
 
 const WORKSPACE_FILE = "pnpm-workspace.yaml";
 const MANIFEST = "package.json";
-const INVENTORY_CHECK = "workspace packages";
+export const INVENTORY_CHECK = "workspace packages";
 
 /** The commands that start the gate through pnpm, so it can list packages. */
 const START_WITH_PNPM =

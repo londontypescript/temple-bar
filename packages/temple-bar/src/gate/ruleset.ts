@@ -42,6 +42,15 @@ import {
 
 const RULESET_CHECK = "branch ruleset";
 
+/** The four outcomes this check reports on every path, skips and errors
+ * included, in order. */
+export const RULESET_CHECKS: readonly string[] = [
+  RULESET_CHECK,
+  JUDGE_RULESET_CHECK,
+  CODE_SCANNING_CHECK,
+  REQUIRED_CHECKS_CHECK,
+];
+
 const API = "https://api.github.com";
 
 type Read =
@@ -197,12 +206,7 @@ const NEEDS_TOKEN_MESSAGE =
 
 /** Every outcome alike, for an answer that judges none of the rules. */
 function every(outcome: Omit<CheckOutcome, "name">): CheckOutcome[] {
-  return [
-    { ...outcome, name: RULESET_CHECK },
-    { ...outcome, name: JUDGE_RULESET_CHECK },
-    { ...outcome, name: CODE_SCANNING_CHECK },
-    { ...outcome, name: REQUIRED_CHECKS_CHECK },
-  ];
+  return RULESET_CHECKS.map((name) => ({ ...outcome, name }));
 }
 
 /** One effective-rules read serves all four checks. A missing rule asks

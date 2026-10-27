@@ -315,6 +315,11 @@ async function checkOne(
   };
 }
 
+/** The two outcomes this check reports on every path, in order. */
+export const COVERAGE_CHECKS: readonly string[] = COVERAGES.map(
+  ({ name }) => name,
+);
+
 /** Both outcomes failed, with why no listing could be trusted. */
 function notChecked(reason: string): CheckOutcome[] {
   return COVERAGES.map(({ name }) => ({

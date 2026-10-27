@@ -20,172 +20,70 @@
 // order (packages.ts lists them; package-scripts.ts runs one package's).
 // Every run ends with the same report, pass or fail: each check and its
 // outcome, then the verdict (see report.ts).
+//
+// Every check comes from one check plan (plan.ts). With no options the gate
+// runs all of it; CI can instead run one part of it per job (`--part`,
+// part-run.ts) and then prove the parts' reports add up to the whole gate
+// (`--verify-parts`, verify-parts.ts). `ready` and `merge` always run the
+// whole gate.
 
-import { readProjectConfig } from "../config/project-config.ts";
 import type { CommandEntry } from "../registry.ts";
 import type { Context } from "../context.ts";
-import {
-  checkAgentsSize,
-  formatAgentsSizeFailure,
-  AGENTS_FILE,
-  AGENTS_MAX_BYTES,
-  AGENTS_MAX_LINES,
-} from "./agents-size.ts";
-import { runCoreCheck } from "./core.ts";
-import { runCoverageCheck } from "./coverage.ts";
-import {
-  checkFileLengths,
-  formatLengthFailure,
-  listGitPaths,
-} from "./lengths.ts";
-import { runLinkCheck, runMarkdownLint } from "./markdown.ts";
-import { resolveLauncher, type Launcher } from "./launcher.ts";
-import { runPackageScripts } from "./package-scripts.ts";
-import { takeInventory, type Inventory } from "./packages.ts";
-import { runRulesetChecks } from "./ruleset.ts";
-import { runUnusedCheck } from "./unused.ts";
-import { runWorkflowCopiesCheck } from "./workflow-copies.ts";
+import { parseGateArgs } from "./options.ts";
+import { createRealPartFiles, type PartFiles } from "./part-files.ts";
+import { runPart } from "./part-run.ts";
+import { buildPlan } from "./plan.ts";
+import { exitCodeOf, prepare, runEntries } from "./plan-run.ts";
 import { createRealGateTools, type GateTools } from "./tools.ts";
-import { writeReport, type CheckOutcome } from "./report.ts";
-import {
-  readPackageManifest,
-  REQUIRED_SCRIPTS,
-  scriptCommandFor,
-} from "./stack.ts";
+import { writeReport } from "./report.ts";
+import { REQUIRED_SCRIPTS } from "./stack.ts";
+import { verifyParts } from "./verify-parts.ts";
 
-const LENGTH_CHECK = "file-length cap";
-const AGENTS_SIZE_CHECK = "AGENTS.md size";
-
-interface StackResult {
-  readonly outcomes: CheckOutcome[];
-  /** A required script is missing or does nothing, so the gate exits 2. */
-  readonly scriptsIncomplete: boolean;
-  /** The packages, for checks that say which package a finding is in. */
-  readonly inventory: Inventory;
-  /** How the scripts were started, for checks that run the same tools. */
-  readonly launcher: Launcher;
-}
-
-/** The scripts of the root, then of every package the inventory lists,
- * with the inventory's own line first. */
-async function runStackChecks(
-  ctx: Context,
-  listed: readonly string[],
-): Promise<StackResult> {
-  // Once, so the package list and every script use the same package
-  // manager.
-  const launcher = await resolveLauncher(ctx);
-  const inventory = await takeInventory(ctx, listed, launcher);
-  const commandFor = await scriptCommandFor(
+/** Every check in the plan, in order (plan.ts). */
+async function runWholeGate(ctx: Context, tools: GateTools): Promise<number> {
+  const prepared = await prepare(ctx);
+  const run = await runEntries(
     ctx,
-    await readPackageManifest(ctx),
-    launcher,
+    prepared,
+    tools,
+    buildPlan(prepared.inventory),
   );
-  const results = [
-    await runPackageScripts(ctx, { relative: "", folder: ctx.cwd }, commandFor),
-  ];
-  for (const member of inventory.packages) {
-    results.push(await runPackageScripts(ctx, member, commandFor));
-  }
-
-  // Written after the scripts' own output, so it isn't buried under it.
-  for (const result of results) {
-    if (result.message !== "") {
-      ctx.stderr.write(result.message);
-    }
-  }
-  if (inventory.message !== undefined) {
-    ctx.stderr.write(inventory.message);
-  }
-
-  return {
-    outcomes: [
-      inventory.outcome,
-      ...results.flatMap((result) => result.outcomes),
-    ],
-    scriptsIncomplete: results.some((result) => result.incomplete),
-    inventory,
-    launcher,
-  };
+  writeReport(ctx, run.outcomes);
+  return exitCodeOf(run);
 }
 
-async function runLengthCheck(ctx: Context): Promise<CheckOutcome> {
-  const result = await checkFileLengths(ctx);
-  const cap = `${String(result.maxLines)}-line cap`;
-  if (result.offenders.length > 0) {
-    ctx.stderr.write(formatLengthFailure(result));
-    return {
-      name: LENGTH_CHECK,
-      status: "failed",
-      detail: `${String(result.offenders.length)} file(s) over the ${cap}`,
-    };
+async function runGate(
+  args: readonly string[],
+  ctx: Context,
+  tools: GateTools,
+  files: PartFiles,
+): Promise<number> {
+  const mode = parseGateArgs(args);
+  if (typeof mode === "string") {
+    // 1, not 2: the gate's 2 already means a required script is missing.
+    ctx.stderr.write(`gate: ${mode}\n`);
+    return 1;
   }
-  return {
-    name: LENGTH_CHECK,
-    status: "passed",
-    detail: `all ${String(result.totalChecked)} tracked text file(s) are within the ${cap}`,
-  };
-}
-
-async function runAgentsSizeCheck(ctx: Context): Promise<CheckOutcome> {
-  const result = await checkAgentsSize(ctx);
-  if (!result.found) {
-    // Setup writes AGENTS.md, but a docs-only or mid-setup repo may not have
-    // one yet; absence is not an oversized file.
-    return {
-      name: AGENTS_SIZE_CHECK,
-      status: "skipped",
-      detail: `no ${AGENTS_FILE}`,
-    };
+  switch (mode.kind) {
+    case "whole":
+      return runWholeGate(ctx, tools);
+    case "part":
+      return runPart(ctx, tools, files, mode);
+    case "verify":
+      return verifyParts(ctx, files, mode);
   }
-  if (result.overLines || result.overBytes) {
-    ctx.stderr.write(formatAgentsSizeFailure(result));
-    return {
-      name: AGENTS_SIZE_CHECK,
-      status: "failed",
-      detail: `${String(result.lines)} lines, ${String(result.bytes)} bytes`,
-    };
-  }
-  return {
-    name: AGENTS_SIZE_CHECK,
-    status: "passed",
-    detail: `${String(result.lines)}/${String(AGENTS_MAX_LINES)} lines, ${String(result.bytes)}/${String(AGENTS_MAX_BYTES)} bytes`,
-  };
-}
-
-async function runGate(ctx: Context, tools: GateTools): Promise<number> {
-  const listed = await listGitPaths(ctx);
-  const stack = await runStackChecks(ctx, listed);
-  const outcomes = [
-    ...stack.outcomes,
-    ...(await runCoverageCheck(ctx, {
-      listed,
-      launcher: stack.launcher,
-      inventory: stack.inventory,
-      exclusions: (await readProjectConfig(ctx)).coverageExclusions,
-    })),
-    await runCoreCheck(ctx),
-    await runWorkflowCopiesCheck(ctx),
-    await runLengthCheck(ctx),
-    await runAgentsSizeCheck(ctx),
-    await runMarkdownLint(ctx, tools, listed),
-    await runLinkCheck(ctx, listed),
-    await runUnusedCheck(ctx, tools, stack.inventory),
-    ...(await runRulesetChecks(ctx)),
-  ];
-  writeReport(ctx, outcomes);
-
-  if (stack.scriptsIncomplete) {
-    return 2;
-  }
-  return outcomes.some((outcome) => outcome.status === "failed") ? 1 : 0;
 }
 
 // Anything the gate can't determine (git failing, an unreadable config) is
 // a failure with a message, never a pass.
-async function runGateSafely(ctx: Context, tools: GateTools): Promise<number> {
+async function runGateSafely(
+  args: readonly string[],
+  ctx: Context,
+  tools: GateTools,
+  files: PartFiles,
+): Promise<number> {
   try {
-    return await runGate(ctx, tools);
+    return await runGate(args, ctx, tools, files);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     ctx.stderr.write(`gate: ${message}\n`);
@@ -193,8 +91,12 @@ async function runGateSafely(ctx: Context, tools: GateTools): Promise<number> {
   }
 }
 
-/** The gate, running `tools` for its npm-tool checks; tests pass fakes. */
-export function createGateCommand(tools: GateTools): CommandEntry {
+/** The gate, running `tools` for its npm-tool checks and writing and
+ * reading part reports through `files`; tests pass fakes. */
+export function createGateCommand(
+  tools: GateTools,
+  files: PartFiles = createRealPartFiles(),
+): CommandEntry {
   return {
     name: "gate",
     summary:
@@ -256,8 +158,23 @@ export function createGateCommand(tools: GateTools): CommandEntry {
       "",
       "Exit codes: 0 every check passed, 1 a check failed,",
       "2 a required script is missing from a package.json or does nothing.",
+      "",
+      "By part, in GitHub Actions only (GITHUB_ACTIONS=true, GITHUB_REPOSITORY,",
+      "GITHUB_RUN_ID and GITHUB_RUN_ATTEMPT set), started through pnpm:",
+      "--part <name> --leg <leg> --report <file> runs one part of the same",
+      "checks: repo (every check that isn't a package's scripts), root (the",
+      "root's four scripts) or a package, by its folder (packages/app). Its",
+      "exit code follows the rules above for that part's checks. It then",
+      "writes a JSON report of the run, commit, leg, Node, pnpm, gate version",
+      "and every outcome to <file>, which must not exist yet.",
+      "--verify-parts <folder> --leg <leg> works out the parts itself and",
+      "passes only when <folder> holds exactly one report per part, each",
+      "from this run, commit, leg, Node, pnpm and gate, with exactly that",
+      "part's checks and none failing; it names every problem it finds.",
+      "A workspace package whose folder is repo or root can't be split.",
+      "Any other options are refused with exit 1.",
     ].join("\n"),
-    run: (_args, ctx) => runGateSafely(ctx, tools),
+    run: (args, ctx) => runGateSafely(args, ctx, tools, files),
   };
 }
 

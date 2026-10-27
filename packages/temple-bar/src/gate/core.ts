@@ -51,7 +51,7 @@ import {
 import { RERUN_INIT } from "../init/requirements.ts";
 import type { CheckOutcome } from "./report.ts";
 
-const CORE_CHECK = "core setup";
+export const CORE_CHECK = "core setup";
 
 const HOOK_INSTALL = "pnpm exec temple-bar hook install";
 
