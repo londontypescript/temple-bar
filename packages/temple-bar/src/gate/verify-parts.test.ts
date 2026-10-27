@@ -187,11 +187,11 @@ void test("verify-parts: an entry that can't be examined is named, and the other
   const leg = await everyPartReported();
   const broken = path.resolve(REPORTS, "locked.json");
   leg.files.entries.set(broken, "{}");
-  const kind = leg.files.kind;
+  const real = { ...leg.files };
   leg.files.kind = (target) =>
     path.resolve(target) === broken
       ? Promise.reject(new Error("EACCES"))
-      : kind(target);
+      : real.kind(target);
   leg.files.entries.delete(path.join(REPORTS, "repo.json"));
 
   const { code, stderr } = await leg.verify();
