@@ -29,6 +29,7 @@ same pull request as any change to a mechanism.
 | Multi-issue phase states its One concern               | nothing until #230                                                                                               | **Prose only**                      |
 | Issue premise checked against history                  | nothing                                                                                                          | **Prose only**                      |
 | Performance work benchmarked against a frozen baseline | nothing                                                                                                          | **Prose only**                      |
+| Long CI experiments smoke-tested first                 | nothing                                                                                                          | **Prose only**                      |
 | Tracker updated per subtask                            | nothing                                                                                                          | **Prose only**                      |
 | Milestone scope stays the user's                       | nothing                                                                                                          | **Prose only**                      |
 | Whether wide changes mean duplication                  | nothing: judgement                                                                                               | **Prose only**                      |

@@ -35,6 +35,8 @@ a rule to fail faster, never replace it.
 - **Performance work freezes a baseline before building:** its plan names the
   benchmark, the commits and the target, and it is done on that benchmark's
   result, never on ordinary CI times.
+- **A long CI experiment smoke-tests first:** one round with fail-fast, and the
+  full run only once that round is clean.
 
 <!-- BEGIN:temple-bar: setup rewrites this block; edit outside it -->
 
