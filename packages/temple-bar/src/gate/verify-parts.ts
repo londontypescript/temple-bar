@@ -60,7 +60,14 @@ async function readReports(
   }
   for (const file of names) {
     // Never followed: a link or a folder isn't a report this run wrote.
-    const kind = await files.kind(path.join(folder, file));
+    let kind: string;
+    try {
+      kind = await files.kind(path.join(folder, file));
+    } catch (error) {
+      // One unreadable entry mustn't hide the other reports' problems.
+      problems.push(`malformed: ${file} can't be examined: ${describe(error)}`);
+      continue;
+    }
     if (kind !== "file") {
       problems.push(`malformed: ${file} is a ${kind}, not a regular file`);
       continue;

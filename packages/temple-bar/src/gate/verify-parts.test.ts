@@ -183,6 +183,26 @@ void test("verify-parts: anything but a well-formed report file is malformed, na
   }
 });
 
+void test("verify-parts: an entry that can't be examined is named, and the other problems still reported", async () => {
+  const leg = await everyPartReported();
+  const broken = path.resolve(REPORTS, "locked.json");
+  leg.files.entries.set(broken, "{}");
+  const kind = leg.files.kind;
+  leg.files.kind = (target) =>
+    path.resolve(target) === broken
+      ? Promise.reject(new Error("EACCES"))
+      : kind(target);
+  leg.files.entries.delete(path.join(REPORTS, "repo.json"));
+
+  const { code, stderr } = await leg.verify();
+
+  assert.equal(code, 1);
+  assert.deepEqual(problems(stderr), [
+    "malformed: locked.json can't be examined: EACCES",
+    "missing: no report for part repo",
+  ]);
+});
+
 void test("verify-parts: every problem is reported, not just the first", async () => {
   const leg = await everyPartReported();
   leg.files.entries.delete(path.join(REPORTS, "repo.json"));
