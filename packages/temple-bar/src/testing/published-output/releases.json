@@ -156,5 +156,22 @@
       ".github/workflows/temple-bar-pr-title.yml"
     ],
     "tagCommit": "42c25c8a1834a4f47381105de312daa06a591f77"
+  },
+  {
+    "version": "0.2.1",
+    "tarball": "https://registry.npmjs.org/@londontypescript/temple-bar/-/temple-bar-0.2.1.tgz",
+    "integrity": "sha512-8id0BtUr0xI6zh33lOtYsydbgTiRvbkZ5UYtEQk1ImqcA2zNl8UfAg1ul4u2X2kOh3iFaWefx1YoktcCEQ7Evg==",
+    "gitHead": "30bba3210631305690361e91bf4bff56b7f696ad",
+    "artifacts": [
+      "hooks/pre-commit",
+      "hooks/commit-msg",
+      "hooks/pre-push",
+      "hooks/reference-transaction",
+      "hooks/post-checkout",
+      ".github/workflows/temple-bar-judge.yml",
+      ".github/workflows/temple-bar-gate.yml",
+      ".github/workflows/temple-bar-pr-title.yml"
+    ],
+    "tagCommit": "30bba3210631305690361e91bf4bff56b7f696ad"
   }
 ]
