@@ -17,7 +17,7 @@ Settled before the numbering began:
 - Repo, packages and MIT licence: [ADR 0002](0002-what-temple-bar-is-for.md)
 - TypeScript on Node, Node built-ins only, bash only as hook shims: [ADR 0006](0006-building-and-releasing-temple-bar.md)
 - Published to the npm registry only (no JSR): [ADR 0006](0006-building-and-releasing-temple-bar.md)
-- Models: phases rated routine / involved / delicate; the maintainer picks models, temple-bar never does: [ADR 0002](0002-what-temple-bar-is-for.md)
+- Models: phases are rated so the maintainer can pick models; temple-bar never does: [ADR 0002](0002-what-temple-bar-is-for.md) (the ratings themselves: decision 91)
 - What became of the earlier hardening plan's D2, D3, D4 and D7: [ADR 0002](0002-what-temple-bar-is-for.md)
 
 | #   | Decision                                                                              | ADR                                                |
@@ -112,3 +112,11 @@ Settled before the numbering began:
 | 88  | The gate checks every tracked file is type-checked and tested, as the gate runs them  | [0016](0016-agent-rules-and-the-merge-loop.md)     |
 | 89  | Every decision lives in an ADR; the decisions list became this index                  | [0016](0016-agent-rules-and-the-merge-loop.md)     |
 | 90  | The gate runs by parts from one check plan; a verifier proves the parts add up to it  | [0018](0018-the-gate-by-parts.md)                  |
+| 91  | Phase ratings: five levels with written criteria, asked in a fixed order; model-free  | [0019](0019-rules-every-project-needs.md)          |
+| 92  | A step that can't be undone runs only on the user's yes                               | [0019](0019-rules-every-project-needs.md)          |
+| 93  | `gate` and `merge` refuse a running temple-bar that differs from the exact pin        | [0019](0019-rules-every-project-needs.md)          |
+| 94  | Setup writes `.gitattributes` only when a project has none, and reports otherwise     | [0019](0019-rules-every-project-needs.md)          |
+| 95  | Setup reports each companion guide that differs from its release's copy               | [0019](0019-rules-every-project-needs.md)          |
+| 96  | `ready` warns, never refuses, when a branch passes the size limits                    | [0019](0019-rules-every-project-needs.md)          |
+| 97  | A pull request carries its issue's milestone                                          | [0019](0019-rules-every-project-needs.md)          |
+| 98  | In a parallel wave, `docs/enforcement.md` rows land after the wave                    | [0019](0019-rules-every-project-needs.md)          |
