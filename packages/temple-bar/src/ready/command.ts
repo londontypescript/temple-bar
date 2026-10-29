@@ -22,6 +22,7 @@ import { behindDefaultBranch } from "./behind.ts";
 import { changesNeedingMaintainer, maintainerWarning } from "./maintainer.ts";
 import { markAfterGate, worktreeChanges, type Unmarked } from "./after-gate.ts";
 import { clearMark } from "./mark.ts";
+import { warnAboutBranchSize } from "./size-warning.ts";
 
 /** Stops `ready` with a message saying what to do instead. */
 class NotReady extends Error {
@@ -131,6 +132,9 @@ async function runReady(ctx: Context, runGate: RunGate): Promise<number> {
   ctx.stdout.write(
     `ready: ${short} passed the gate and is marked ready to push. Any new commit needs ready again.\n`,
   );
+  // Only after a pass: a failing gate has more pressing news. Advice only,
+  // so it never changes what ready returns.
+  await warnAboutBranchSize(ctx, root, head);
   // Last, so it is what the agent reads before it reaches for git push.
   if (reasons.length > 0) {
     ctx.stderr.write(`ready: ${maintainerWarning(short, reasons)}`);
@@ -159,6 +163,10 @@ export function createReadyCommand(runGate: RunGate): CommandEntry {
       "needs the maintainer's yes too:",
       "ready marks it, and warns to ask the maintainer in chat before pushing.",
       "The pre-push hook repeats the warning.",
+      "",
+      "Once the gate passes, it also warns when the branch is over the pull",
+      "request size limits (temple-bar.config.json sets them), as merge",
+      "measures them. A warning only: it never stops the commit being marked.",
       "",
       "Exit codes: 0 marked, 1 not marked (the reason is printed).",
     ].join("\n"),
