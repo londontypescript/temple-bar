@@ -106,7 +106,8 @@ void test("main checkout: on another branch, warns and says how to put it back",
     /^temple-bar: warning: the main checkout at \/primary is on the branch feature, not main\.\n/,
   );
   assert.match(warning, /git switch main\n/);
-  assert.match(warning, /git worktree add <folder> <branch>\n/);
+  assert.match(warning, /do branch work in a worktree your harness makes/);
+  assert.doesNotMatch(warning, /git worktree add/);
 });
 
 void test("main checkout: on a detached HEAD, warns", async () => {

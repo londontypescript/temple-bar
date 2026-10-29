@@ -64,13 +64,58 @@ or filing an issue. temple-bar's setup wrote this file.
 - A plan is scaled to the change: a one-line fix needs a branch, not a
   plan.
 - Break the work into verifiable phases, say which can run in parallel,
-  and rate each one **routine**, **involved** or **delicate**, so the user
-  can choose models.
+  and rate each one as below.
+
+## Ratings
+
+Rate each phase by two questions: how much the brief leaves to the builder's
+judgement, and whether a wrong result would show before it does harm. The
+rating is the highest level any step reaches, with a one-line reason naming
+that step. Rating is part of plan approval.
+
+- **mechanical:** no choice left. Every step is spelled out, and done is
+  checked directly against the brief.
+- **routine:** judgement within an established pattern (from the codebase or
+  a documented standard) that covers the constraints and failure cases, so
+  only local details remain. A wrong result shows in the checks or the diff.
+- **involved:** investigation or choices no established pattern settles: a
+  new module, command or data flow; the options for an open decision;
+  diagnosing an unfamiliar failure. A wrong result still shows before merge;
+  it just takes more work to get right.
+- **delicate:** the answer is established, but the mistakes that matter are
+  ones a passing check wouldn't show: an input that slips past a boundary, a
+  race, a real host's behaviour, a rule that reads two ways, deleting
+  something outside the pull request. Name the failure.
+- **critical:** no established answer, and later phases build on whatever is
+  chosen, so a wrong choice means a costly migration: a security design with
+  no reference answer, the first design of a foundation.
+
+Ask in order:
+
+1. Does the brief leave any choice? No: mechanical.
+2. Is there no established answer, and will later work build on this one?
+   Yes: critical.
+3. Would a wrong result show before merge (a check, a test the brief names,
+   or the diff)? Yes: routine with a pattern to follow, otherwise involved.
+   No: delicate.
+
+A phase that only investigates is never above involved. If a fact is
+missing, give a provisional rating and name the fact that could change it. A
+step that can't be undone (a tag, a publish) is rated by how it is carried
+out, usually mechanical; its risk is rated in the phase that designs or
+prepares it, and the step runs only on the user's yes. Ratings never choose
+a model, effort, review or workflow: the user's own settings decide what
+each rating gets. Examples illustrate; they never decide a rating by
+category.
 
 ## Milestones
 
+- Milestones are named as versions: \`0.MINOR.0\` for a planned release, a
+  patch version for a fix inserted before it, so an inserted fix never
+  renames the milestones after it. Any descriptive name goes in the
+  milestone's description.
 - The user sets scope by placing issues in a milestone. Its plan is a short
-  file, \`docs/plans/<milestone>.md\`, approved through a pull request.
+  file, \`docs/plans/<version>.md\`, approved through a pull request.
 - You group the milestone's issues into phases by the files each touches,
   and give each phase that closes several issues its \`One concern:\` reason.
 - Progress goes on the issues, never in the plan.
@@ -117,6 +162,9 @@ a pull request. temple-bar's setup wrote this file.
   one physical line: a wrapped nested line is joined onto its parent
   bullet. A description with no bullets puts its closing reference on a
   line of its own.
+- **The milestone** is the one the closed issue is in
+  (\`gh pr create --milestone <name>\`), so the pull request's page shows
+  which release it belongs to. It mirrors the issue, never adds scope.
 - **A \`One concern:\` line** when the pull request closes two or more
   issues or is over the size limits, giving a reason that counts. The
   reasons that count are in [the rationale](agents-rationale.md).
@@ -143,7 +191,7 @@ lines. No "Generated with" line, and no note to the user. The title supplies
 the subject.
 
 **What to check goes in a separate comment,** headed "Before merging as
-admin, check":
+admin, check". It holds only what the user verifies before merging:
 
 - the judge's refusal names only what's expected;
 - every other check is green;
@@ -152,10 +200,20 @@ admin, check":
 - a \`One concern:\` line when the pull request closes several issues or is
   over the size limits, because an admin merge skips merge's own
   enforcement;
-- anything specific to the change. For a pin bump: the lockfile's integrity
-  hash matches the one npm publishes, and the \`package.json\` and lockfile
-  diffs, read in full rather than as a list of files, hold nothing
-  unrelated.
+- the branch is up to date with the default branch, which you check before
+  handing over, because an admin merge doesn't update it as merge does.
+
+A change may add checks of its own after these five, never results. A pin
+bump adds two: the lockfile's integrity hash matches the one npm publishes,
+and the \`package.json\` and lockfile diffs, read in full, hold nothing
+unrelated.
+
+**Evidence goes in its own comment** (break-it results, manual runs, review
+summaries), never in the checklist, so the checklist stays short.
+
+**With several pull requests in flight,** merge the admin one first, or
+update it and let CI rerun before asking for the admin merge: each other
+merge can leave it behind.
 
 Setup doesn't set GitHub's squash-message default, so a repository's default
 may differ: the merge preview is where a wrong message is caught.

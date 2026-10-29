@@ -19,6 +19,7 @@ import {
   withTempleBarBlock,
 } from "./agents-template.ts";
 import { COMPANION_FILES } from "./companion-docs.ts";
+import { AGENTS_BLOCK_0_2_1 } from "./testing/agents-block-0-2-1.ts";
 import { AGENTS_MD_0_1_0 } from "./testing/agents-md-0-1-0.ts";
 
 /** Next.js's own AGENTS.md, in the shape it ships: a marked block of its
@@ -75,6 +76,10 @@ void test("the rules carry what every project needs from them", () => {
     "placing issues in a milestone",
     "One GitHub reference per line",
     "Never run `git worktree add`",
+    "**mechanical**, **routine**, **involved**, **delicate** or **critical**",
+    "any step that can't be undone",
+    "`docs/plans/<version>.md`",
+    "`gh pr create --milestone <name>`",
   ]) {
     assert.ok(block.includes(required), required);
   }
@@ -215,10 +220,26 @@ void test("our own AGENTS.md as 0.1.0 left it gets the new block in place, our s
   assert.deepEqual(withTempleBarBlock(update.content), { kind: "unchanged" });
 });
 
+void test("an AGENTS.md holding the 0.2.1 block gets today's block in place, the project's text above and below kept byte for byte", () => {
+  const above = "# Agent directives\n\nOur rule first.\n\n";
+  const below = "\n## Our own section\n\nKept, with a trailing space. \n";
+  const upgrade = withTempleBarBlock(`${above}${AGENTS_BLOCK_0_2_1}${below}`);
+  assert.notEqual(
+    upgrade.kind,
+    "refused",
+    upgrade.kind === "refused" ? upgrade.detail : "",
+  );
+  assert.deepEqual(upgrade, {
+    kind: "updated",
+    content: `${above}${templeBarBlock()}${below}`,
+  });
+  assert.deepEqual(withTempleBarBlock(upgrade.content), { kind: "unchanged" });
+});
+
 // The gate requires this exact block in every repo from the next pin bump,
 // so a change to it must be deliberate and update this hash.
 const APPROVED_BLOCK_SHA256 =
-  "945d73cb5dfe857fb5d79f9021730e94795d058413a6284b2dfe10c52c78bc59";
+  "331e45e7615e041c520013de3f2a27d4a367d42864e8499e7d6a93a32db074ae";
 
 void test("the block is exactly the approved text", () => {
   assert.equal(
@@ -232,13 +253,13 @@ void test("the block is exactly the approved text", () => {
 // a change to one must be deliberate and update its hash here.
 const APPROVED_COMPANION_SHA256: Readonly<Record<string, string>> = {
   "docs/agents-rationale.md":
-    "123bcb43101a2c8e9ed4cf1f593d42a70c15b3e98cabdccea350b08b57cc2244",
+    "4697729f3858e1e1b908e3ef68387d57423ed68ab3ab0f9e8c30f67d99b1d520",
   "docs/phase-boundaries.md":
     "caf57ee44818ca76eee2fc6a7a93e813742820c5f6c14ea6a318fd3563bb549e",
   "docs/planning.md":
-    "ee559110a2f256aefa79dad96f586e0040cce933c65ed7ab6a189899a6996354",
+    "664be6f35c101086696802793f5b7c57923385144f518044a8d7a54a7edb1b5f",
   "docs/pull-requests.md":
-    "16b83a2e5cf4e9c2b48b89142ea3e19ad1d714095da80b963667c19170de512d",
+    "b45f68f91355519ef1821406ff8fd211d1a4a9abb19bdb94b3adb4f45cd833e0",
   "docs/delegation.md":
     "7009360c6ea13e60e3d0c1a55fb4085cb05fa7c9b5f95a82b98ef4da8bcb327b",
   "docs/incidents.md":

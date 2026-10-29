@@ -51,7 +51,7 @@ async function adviseInstall(
   } else {
     ctx.stdout.write(
       `merge: temple-bar is not installed in ${primary.path}, and its ${defaultBranch} does not list it yet: ` +
-        `run pnpm install in a new worktree of origin/${defaultBranch} (git worktree add <path> origin/${defaultBranch}). ${hooks}`,
+        `run pnpm install in a new worktree of origin/${defaultBranch}, made by your harness. ${hooks}`,
     );
   }
 }

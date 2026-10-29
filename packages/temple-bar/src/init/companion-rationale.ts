@@ -22,7 +22,8 @@ wrote this file; add your own project's reasons as you add rules.
   milestone is their judgement of what matters and when. Grouping a
   milestone's issues into phases follows the files each change touches,
   which an agent sees better, so the agent proposes it and the plan's
-  approval covers it.
+  approval covers it. Milestones named as versions show their order at a
+  glance, and a patch version lets a fix go in without renaming the rest.
 - **Every issue's premise is checked.** An issue records what someone
   believed when they wrote it. Checked against the ADRs and git
   history, a stale premise is caught before work starts on it, not after.
@@ -56,9 +57,13 @@ wrote this file; add your own project's reasons as you add rules.
   the project pile up where the user doesn't want them. The harness knows
   where its worktrees belong and cleans up its own; preparing a branch
   before handing it over (dependencies, a base commit) happens in the
-  worktree the harness made. The user's answer when the harness can't help
-  covers the rest of the session, so a known limit isn't raised for every
-  branch.
+  worktree the harness made. Where the harness can start a subagent or
+  session in its own worktree, that is the route, and the main checkout
+  stays on the default branch; an agent that misses it falls back to asking.
+  The user's answer when the harness can't help covers the rest of the
+  session, so a known limit isn't raised for every branch. The question
+  never offers \`git worktree add\` or switching the default-branch checkout
+  to the branch: either answer breaks the rule it exists to keep.
 - **Push once.** Every push to a pull request runs the full CI. Pushing
   while a change is still being discussed burns runs and buries the one
   that matters.
