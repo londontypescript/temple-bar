@@ -25,7 +25,7 @@ one docs pull request after its last merge.
 | Commit-message format                                  | `commit-msg` hook; skipped by `--no-verify`                                                                      | **Blocked** locally                 |
 | Pull request title format                              | `temple-bar pr-title` in CI                                                                                      | **Blocked** via CI                  |
 | No force-push of a feature branch                      | `pre-push` hook; skipped by `--no-verify`                                                                        | **Blocked** locally                 |
-| Size warned before a push                              | `pre-push` hook                                                                                                  | **Warned** only                     |
+| Size warned before a push                              | `pre-push` hook; `ready` after a passing gate, measured as `merge` measures, from 0.2.2                          | **Warned** only                     |
 | Comments in plain words, no plan IDs                   | nothing                                                                                                          | **Prose only**                      |
 | Plan before code                                       | nothing                                                                                                          | **Prose only**                      |
 | Multi-issue phase states its One concern               | nothing until #230                                                                                               | **Prose only**                      |
@@ -39,8 +39,10 @@ one docs pull request after its last merge.
 | Main checkout stays on the default branch              | `post-checkout` hook warns on a switch or detach                                                                 | **Warned** only                     |
 | Push once, after the gate passed                       | `ready` + `pre-push` from the pin that ships them                                                                | **Blocked** locally                 |
 | Branch caught up with the default branch before ready  | `ready` fetches it and refuses a behind branch, from 0.2.0                                                       | **Blocked** locally                 |
+| `gate` and `merge` run only the pinned temple-bar      | refused first in every gate mode (so `ready` too) and in `merge` before GitHub; exact pins only, from 0.2.2      | **Blocked** locally                 |
 | Maintainer asked in chat before a push                 | `ready` and `pre-push` warn; see the limits below                                                                | **Warned** only                     |
 | Maintainer's yes for an AGENTS.md merge                | `merge` needs `--maintainer-approved`, records it                                                                | **Detected** after                  |
+| Reviewer recorded as a `Reviewed-by` trailer           | `merge` copies the branch commits' trailers into the squash, from 0.2.0; nothing adds them                       | **Prose only**                      |
 | AGENTS.md within 200 lines and 32 KiB                  | the pinned gate in CI                                                                                            | **Blocked** via CI                  |
 | temple-bar's AGENTS.md block present and unedited      | the pinned gate in CI; from 0.2.0, also when AGENTS.md or its block is missing                                   | **Blocked** via CI                  |
 | Ruleset not deleted or loosened                        | the pinned gate in CI (public repos)                                                                             | **Blocked** via CI                  |
@@ -53,7 +55,9 @@ one docs pull request after its last merge.
 | Gate and title workflows unchanged                     | the pinned gate in CI, from 0.0.9                                                                                | **Blocked** via CI                  |
 | Every workspace package's four scripts present and run | the gate, from 0.1.0                                                                                             | **Blocked** via CI                  |
 | TypeScript files type-checked, test files run          | the gate, from 0.2.0 (inclusion, not strictness)                                                                 | **Blocked** via CI                  |
-| The parts of a split gate add up to the whole gate     | `temple-bar gate --verify-parts` in CI, on the Windows legs, from G2                                             | **Blocked** via CI                  |
+| LF line endings in every checkout                      | setup writes `.gitattributes` when there's none, else names the line to add (`git check-attr`), from 0.2.2       | **Warned** only                     |
+| Existing Windows checkouts renormalised                | setup prints the steps, from 0.2.2; nothing runs them                                                            | **Prose only**                      |
+| The parts of a split gate add up to the whole gate     | `temple-bar gate --verify-parts` in CI, on the Windows legs                                                      | **Blocked** via CI                  |
 | Every package's scripts unchanged                      | the judge, from 0.1.0                                                                                            | **Blocked** on GitHub               |
 | pnpm's install settings unchanged at any depth         | the judge, from 0.1.0                                                                                            | **Blocked** on GitHub               |
 | Pin bump in its own pull request                       | the judge's refusal lists every other path, from 0.2.0                                                           | **Prose only**                      |
