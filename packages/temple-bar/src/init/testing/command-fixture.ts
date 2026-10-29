@@ -7,6 +7,7 @@ import { freshAgentsMd } from "../agents-template.ts";
 import { createInitCommand } from "../command.ts";
 import { COMPANION_FILES } from "../companion-docs.ts";
 import { GITIGNORE_LINES } from "../files.ts";
+import { LF_LINE, PROBE_PATHS } from "../gitattributes.ts";
 import {
   GATE_SCRIPT,
   MERGE_SCRIPT,
@@ -32,7 +33,22 @@ import type { GhResult } from "../../seams/gh.ts";
 import type { GitResult } from "../../seams/git.ts";
 import type { ConfirmResult } from "../../seams/prompt.ts";
 
+/** git's `check-attr -z text eol` answer for attributes giving every
+ * probed path `text`'s and `eol`'s given values. */
+export function checkAttrAnswer(text: string, eol: string): GitResult {
+  return {
+    code: 0,
+    stdout: PROBE_PATHS.map(
+      (probe) => `${probe}\0text\0${text}\0${probe}\0eol\0${eol}\0`,
+    ).join(""),
+    stderr: "",
+  };
+}
+
 export function defaultGitScript(args: readonly string[]): GitResult {
+  if (args[0] === "check-attr") {
+    return checkAttrAnswer("auto", "lf");
+  }
   if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
     return { code: 0, stdout: "/repo\n", stderr: "" };
   }
@@ -114,6 +130,7 @@ export function setUpFiles(overrides: Record<string, string> = {}) {
     ),
     "/repo/.gitignore": `${GITIGNORE_LINES.join("\n")}\n`,
     "/repo/.prettierignore": "pnpm-lock.yaml\n",
+    "/repo/.gitattributes": `${LF_LINE}\n`,
     [`/repo/${JUDGE_WORKFLOW_PATH}`]: judgeWorkflow(),
     ...Object.fromEntries(
       CHECKED_WORKFLOWS.map((file) => [`/repo/${file.path}`, file.content]),

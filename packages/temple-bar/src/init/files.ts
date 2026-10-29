@@ -1,5 +1,5 @@
 // Writes AGENTS.md and the docs it links to, the judge, gate and title
-// workflows, .gitignore and .prettierignore, and runs every file step of
+// workflows, .gitignore, .prettierignore and .gitattributes, and runs every file step of
 // setup in order (package.json's step lives in package-json.ts).
 // Everything here goes through ctx.fs, which has no delete method: nothing
 // is ever removed. Setup rewrites only its own marked block in AGENTS.md
@@ -7,11 +7,7 @@
 // is preserved, so setup never turns a marker into permission to overwrite.
 
 import type { Context } from "../context.ts";
-import {
-  setupWriteTargets,
-  type RefusedTarget,
-  type WriteTargets,
-} from "./write-target.ts";
+import { setupWriteTargets, type RefusedTarget } from "./write-target.ts";
 import {
   AGENTS_OVERSIZE_FIX,
   describeAgentsOverage,
@@ -33,20 +29,10 @@ import {
 } from "./package-json.ts";
 import { writeWorkflows, type WorkflowOutcome } from "./workflow-update.ts";
 import { ensurePrettierIgnore } from "./prettier-ignore.ts";
-
-/** Writes `content` at `relativePath` only if nothing is there yet;
- * returns whether it wrote. A copy that differs is left alone: once written,
- * the file is the project's to edit. */
-async function writeIfMissing(
-  targets: WriteTargets,
-  relativePath: string,
-  content: string,
-): Promise<boolean> {
-  if ((await targets.readText(relativePath)) !== undefined) {
-    return false;
-  }
-  return targets.writeText(relativePath, content);
-}
+import {
+  ensureGitattributes,
+  type GitattributesOutcome,
+} from "./gitattributes.ts";
 
 export interface AgentsMdOutcome {
   readonly wrote: boolean;
@@ -114,20 +100,52 @@ export async function writeAgentsMd(
   );
 }
 
+/** Companion files that are the project's from the start, so a copy that
+ * differs from this release's says nothing: CLAUDE.md, which setup adds to
+ * itself, and the conventions file, which starts empty to be filled in. */
+const PROJECT_OWNED = new Set([CLAUDE_MD_PATH, "docs/conventions.md"]);
+
+/** A guide's text with Windows line endings made plain and without its
+ * final newline, the tolerance the block's comparison has: a checkout that
+ * turned LF into CRLF is still the same guide. */
+function comparableGuide(text: string): string {
+  return text.replace(/\r\n?/g, "\n").replace(/\n$/, "");
+}
+
+export interface CompanionOutcome {
+  /** The paths this run wrote, relative to the repo root. */
+  readonly written: readonly string[];
+  /** Existing guides whose text differs from this release's copy. They
+   * are left alone: once written, a guide is the project's to edit. */
+  readonly differing: readonly string[];
+}
+
 /** Writes each file AGENTS.md links to (and CLAUDE.md) where the project
- * has none; returns the paths it wrote, relative to the repo root. */
+ * has none, and names each existing guide that differs from this release's
+ * copy, never writing it: an upgrade replaces the block but not the guides,
+ * so the project is told which it may want to replace. */
 export async function writeCompanionFiles(
   ctx: Context,
   repoRoot: string,
   targets = setupWriteTargets(ctx, repoRoot),
-): Promise<readonly string[]> {
+): Promise<CompanionOutcome> {
   const written: string[] = [];
+  const differing: string[] = [];
   for (const file of COMPANION_FILES) {
-    if (await writeIfMissing(targets, file.path, file.content)) {
-      written.push(file.path);
+    const existing = await targets.readText(file.path);
+    if (targets.refusals.has(file.path)) continue;
+    if (existing === undefined) {
+      if (await targets.writeText(file.path, file.content)) {
+        written.push(file.path);
+      }
+    } else if (
+      !PROJECT_OWNED.has(file.path) &&
+      comparableGuide(existing) !== comparableGuide(file.content)
+    ) {
+      differing.push(file.path);
     }
   }
-  return written;
+  return { written, differing };
 }
 
 /** Adds what an existing CLAUDE.md lacks (a heading, the AGENTS.md
@@ -230,6 +248,7 @@ export interface SetupFilesOutcome {
   readonly wroteGitignore: boolean;
   /** Whether this run created .prettierignore or added the lockfile to it. */
   readonly wrotePrettierIgnore: boolean;
+  readonly gitattributes: GitattributesOutcome;
   readonly wroteAgents: boolean;
   /** Set when setup left AGENTS.md alone; see AgentsMdOutcome. */
   readonly agentsProblem?: string;
@@ -237,6 +256,8 @@ export interface SetupFilesOutcome {
   readonly agentsSizeWarning?: string;
   /** The docs AGENTS.md links to, and CLAUDE.md, that this run wrote. */
   readonly wroteCompanions: readonly string[];
+  /** Existing guides that differ from this release's copy; reported only. */
+  readonly differingCompanions: readonly string[];
   /** What this run added to an existing CLAUDE.md, in words ("a heading",
    * "the AGENTS.md import"); empty when it needed nothing. */
   readonly claudeMdAdded: readonly string[];
@@ -254,8 +275,9 @@ export async function writeSetupFiles(
 ): Promise<SetupFilesOutcome> {
   const wroteGitignore = await ensureGitignore(ctx, repoRoot, targets);
   const wrotePrettierIgnore = await ensurePrettierIgnore(targets);
+  const gitattributes = await ensureGitattributes(ctx, repoRoot, targets);
   const agents = await writeAgentsMd(ctx, repoRoot, targets);
-  const wroteCompanions = await writeCompanionFiles(ctx, repoRoot, targets);
+  const companions = await writeCompanionFiles(ctx, repoRoot, targets);
   const claudeMdAdded = await updateClaudeMd(ctx, repoRoot, targets);
   const workflows = await writeWorkflows(ctx, repoRoot, targets);
   const packageOutcome = await ensurePackageJsonScripts(ctx, repoRoot, targets);
@@ -263,12 +285,14 @@ export async function writeSetupFiles(
     refusedPaths: targets.refusals,
     wroteGitignore,
     wrotePrettierIgnore,
+    gitattributes,
     wroteAgents: agents.wrote,
     ...(agents.problem === undefined ? {} : { agentsProblem: agents.problem }),
     ...(agents.sizeWarning === undefined
       ? {}
       : { agentsSizeWarning: agents.sizeWarning }),
-    wroteCompanions,
+    wroteCompanions: companions.written,
+    differingCompanions: companions.differing,
     claudeMdAdded,
     workflows,
     packageOutcome,

@@ -11,6 +11,7 @@ import type { SetupFilesOutcome } from "./files.ts";
 import type { WorkflowOutcome } from "./workflow-update.ts";
 import { RESTORE_WORKFLOW } from "./workflows.ts";
 import { PRETTIER_IGNORE_PATH } from "./prettier-ignore.ts";
+import { describeGitattributes } from "./gitattributes.ts";
 
 /** Why a package.json script was left alone, and what to do about it. A
  * `prepare` script is the project's own command, so replacing it would throw
@@ -48,6 +49,12 @@ function reportAgentsFiles(ctx: Context, files: SetupFilesOutcome): boolean {
   if (files.wroteCompanions.length > 0) {
     ctx.stdout.write(
       `Wrote the files AGENTS.md links to, where missing: ${files.wroteCompanions.join(", ")}.\n`,
+    );
+  }
+  for (const guide of files.differingCompanions) {
+    ctx.stdout.write(
+      `${guide} differs from this release's copy: replace it unless you've edited it ` +
+        "(delete it and run setup again to get this release's).\n",
     );
   }
   if (files.claudeMdAdded.length > 0) {
@@ -174,6 +181,7 @@ export function reportSetupFiles(
   files: SetupFilesOutcome,
 ): boolean {
   reportPrettierIgnore(ctx, files);
+  ctx.stdout.write(describeGitattributes(files.gitattributes));
   const agentsFailed = reportAgentsFiles(ctx, files);
   const workflowsFailed = reportWorkflows(ctx, files);
   const packageFailed = reportPackageJson(ctx, files);
@@ -191,6 +199,7 @@ export function wroteSetupFiles(files: SetupFilesOutcome): boolean {
   return (
     files.wroteGitignore ||
     files.wrotePrettierIgnore ||
+    files.gitattributes.kind === "wrote" ||
     files.wroteAgents ||
     files.wroteCompanions.length > 0 ||
     files.claudeMdAdded.length > 0 ||

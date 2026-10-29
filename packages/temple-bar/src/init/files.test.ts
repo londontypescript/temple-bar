@@ -103,7 +103,7 @@ void test("writeAgentsMd refuses to overwrite a block edited by hand, and says t
 void test("writeCompanionFiles writes each missing doc, never over the project's own, and a second run writes nothing", async () => {
   const fs = createFakeFs({ "/repo/CLAUDE.md": "# Ours\n" });
   const ctx = createFakeContext({ fs });
-  const written = await writeCompanionFiles(ctx, "/repo");
+  const { written } = await writeCompanionFiles(ctx, "/repo");
   assert.deepEqual(
     written,
     COMPANION_FILES.map((file) => file.path).filter((p) => p !== "CLAUDE.md"),
@@ -113,7 +113,10 @@ void test("writeCompanionFiles writes each missing doc, never over the project's
     assert.equal(fs.files.get(`/repo/${file.path}`), file.content);
   }
   const writesSoFar = fs.writes.length;
-  assert.deepEqual(await writeCompanionFiles(ctx, "/repo"), []);
+  assert.deepEqual(await writeCompanionFiles(ctx, "/repo"), {
+    written: [],
+    differing: [],
+  });
   assert.equal(fs.writes.length, writesSoFar);
 });
 
@@ -180,4 +183,49 @@ void test("ensureGitignore: appends only missing lines, keeps the rest in order,
   const writes = fs.writes.length;
   assert.equal(await ensureGitignore(ctx, "/repo"), false);
   assert.equal(fs.writes.length, writes);
+});
+
+/** A guide from this release, to compare copies against. */
+const PLANNING_GUIDE = COMPANION_FILES.find(
+  (file) => file.path === "docs/planning.md",
+);
+
+void test("writeCompanionFiles names a guide that differs, and never writes over it", async () => {
+  assert.ok(PLANNING_GUIDE);
+  const old = `${PLANNING_GUIDE.content}\nAn older release's paragraph.\n`;
+  const fs = createFakeFs({ "/repo/docs/planning.md": old });
+  const outcome = await writeCompanionFiles(createFakeContext({ fs }), "/repo");
+  assert.deepEqual(outcome.differing, ["docs/planning.md"]);
+  assert.ok(!outcome.written.includes("docs/planning.md"));
+  assert.equal(fs.files.get("/repo/docs/planning.md"), old);
+});
+
+void test("writeCompanionFiles: an identical guide, or one checked out with CRLF, isn't different", async () => {
+  assert.ok(PLANNING_GUIDE);
+  const crlf = PLANNING_GUIDE.content.replaceAll("\n", "\r\n");
+  for (const copy of [PLANNING_GUIDE.content, crlf]) {
+    const fs = createFakeFs({ "/repo/docs/planning.md": copy });
+    const outcome = await writeCompanionFiles(
+      createFakeContext({ fs }),
+      "/repo",
+    );
+    assert.deepEqual(outcome.differing, []);
+    assert.equal(fs.files.get("/repo/docs/planning.md"), copy);
+  }
+});
+
+void test("writeCompanionFiles: a missing guide is written, not reported as different", async () => {
+  const fs = createFakeFs();
+  const outcome = await writeCompanionFiles(createFakeContext({ fs }), "/repo");
+  assert.ok(outcome.written.includes("docs/planning.md"));
+  assert.deepEqual(outcome.differing, []);
+});
+
+void test("writeCompanionFiles: CLAUDE.md and the conventions file are the project's, so an edit isn't reported", async () => {
+  const fs = createFakeFs({
+    "/repo/CLAUDE.md": "# Ours\n\n@AGENTS.md\n",
+    "/repo/docs/conventions.md": "# Conventions\n\nUse tabs.\n",
+  });
+  const outcome = await writeCompanionFiles(createFakeContext({ fs }), "/repo");
+  assert.deepEqual(outcome.differing, []);
 });

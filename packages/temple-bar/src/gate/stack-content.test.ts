@@ -7,6 +7,7 @@ import test from "node:test";
 
 import { createFakeContext, createFakeGit } from "../testing/fakes.ts";
 import { ownContentExists } from "./stack.ts";
+import { SETUP_PATHS } from "../init/write-target.ts";
 
 function withFiles(...paths: string[]): ReturnType<typeof createFakeContext> {
   const git = createFakeGit(() => ({
@@ -25,6 +26,7 @@ void test("ownContentExists: false when the repo holds only the files every proj
     "package-lock.json",
     ".gitignore",
     ".prettierignore",
+    ".gitattributes",
     "temple-bar.config.json",
     "README.md",
     "LICENSE",
@@ -33,6 +35,14 @@ void test("ownContentExists: false when the repo holds only the files every proj
     ".github/workflows/temple-bar-pr-title.yml",
   );
   assert.equal(await ownContentExists(ctx), false);
+});
+
+void test("ownContentExists: false for a repo holding exactly what setup writes, so it needs no stack scripts", async () => {
+  assert.ok(SETUP_PATHS.includes(".gitattributes"));
+  assert.equal(
+    await ownContentExists(withFiles(...SETUP_PATHS, "pnpm-lock.yaml")),
+    false,
+  );
 });
 
 void test("ownContentExists: a workflow of the project's own counts, beside setup's workflows", async () => {

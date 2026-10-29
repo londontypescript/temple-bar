@@ -31,6 +31,7 @@ import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
 import { CHECKED_WORKFLOWS } from "./workflows.ts";
 import { CLAUDE_MD_PATH } from "./companion-docs.ts";
 import { PRETTIER_IGNORE_PATH } from "./prettier-ignore.ts";
+import { GITATTRIBUTES_PATH } from "./gitattributes.ts";
 import { findProtectedBranch } from "../hooks/protected-branch.ts";
 
 export type { InitDeps } from "./types.ts";
@@ -269,6 +270,7 @@ async function nextSteps(
     "package.json",
     ".gitignore",
     PRETTIER_IGNORE_PATH,
+    ...(files.gitattributes.kind === "wrote" ? [GITATTRIBUTES_PATH] : []),
     JUDGE_WORKFLOW_PATH,
     ...CHECKED_WORKFLOWS.map((workflow) => workflow.path),
   ];
