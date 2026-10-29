@@ -36,17 +36,16 @@ void test("init report: a fresh repo names the companion files it wrote, and the
   assert.equal(code, 0, fixture.stderr.lines.join(""));
   const out = fixture.stdout.lines.join("");
   assert.match(out, /Wrote temple-bar's rules into AGENTS\.md\./);
-  assert.match(
-    out,
-    new RegExp(
-      `Wrote the files AGENTS\\.md links to, where missing: ${COMPANION_FILES.map((file) => file.path.replaceAll(".", "\\.")).join(", ")}\\.`,
+  const companions = COMPANION_FILES.map((file) => file.path);
+  assert.ok(
+    out.includes(
+      `Wrote the files AGENTS.md links to, where missing: ${companions.join(", ")}.\n`,
     ),
+    out,
   );
-  assert.match(
+  assert.ok(
+    out.includes(`  git add AGENTS.md ${companions.join(" ")} package.json `),
     out,
-    new RegExp(
-      `git add AGENTS\\.md ${COMPANION_FILES.map((file) => file.path.replaceAll(".", "\\.")).join(" ")} package\\.json`,
-    ),
   );
 });
 
@@ -233,7 +232,7 @@ void test("init report: an existing .gitattributes is never staged by the next s
   const out = fixture.stdout.lines.join("");
   assert.ok(
     out.includes(
-      ".gitattributes already gives text files LF line endings; left it alone.\n",
+      ".gitattributes gives the files setup writes LF line endings; left it alone.\n",
     ),
   );
   assert.ok(!out.includes("git add --renormalize"));
@@ -252,4 +251,17 @@ void test("init report: a guide that differs from this release's is named, and t
     ),
   );
   assert.equal(fs.files.get("/repo/docs/planning.md"), "# Planning\n\nOld.\n");
+});
+
+void test("init report: an upgrade whose only new file is .gitattributes still lands it through the next steps", async () => {
+  const fs = setUpFiles();
+  fs.files.delete("/repo/.gitattributes");
+  const { code, stdout } = await runWithHooksUnchanged(fs);
+  assert.equal(code, 0);
+  assert.equal(fs.writes.length, 1);
+  assert.equal(fs.files.get("/repo/.gitattributes"), "* text=auto eol=lf\n");
+  const addLine =
+    stdout.split("\n").find((line) => line.endsWith("(plus your lockfile)")) ??
+    "";
+  assert.ok(addLine.split(" ").includes(".gitattributes"), stdout);
 });

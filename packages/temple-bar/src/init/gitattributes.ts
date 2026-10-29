@@ -5,9 +5,17 @@
 // the project has none: appending a line would override the project's own
 // rules, since a later line wins. An existing file is left alone, and git
 // itself is asked whether it already gives LF, because a later line can undo
-// an earlier one and reading the lines can't tell.
+// an earlier one and reading the lines can't tell. Only what a clone gets
+// counts: the global attributes file is switched off for the question, and
+// local rules in .git/info/attributes make the answer unknown.
+
+import path from "node:path";
 
 import type { Context } from "../context.ts";
+import { JUDGE_WORKFLOW_PATH } from "../judge/workflow.ts";
+import { COMPANION_FILES } from "./companion-docs.ts";
+import { PRETTIER_IGNORE_PATH } from "./prettier-ignore.ts";
+import { CHECKED_WORKFLOWS } from "./workflows.ts";
 import type { WriteTargets } from "./write-target.ts";
 
 export const GITATTRIBUTES_PATH = ".gitattributes";
@@ -15,19 +23,36 @@ export const GITATTRIBUTES_PATH = ".gitattributes";
 /** The one line setup writes, and the one it tells a project to add. */
 export const LF_LINE = "* text=auto eol=lf";
 
-/** Paths asked about, standing for the text files setup writes and a
+/** Paths asked about: every text file setup writes, and two standing for a
  * project's sources. They needn't exist: git resolves attributes by name. */
 export const PROBE_PATHS: readonly string[] = [
-  "AGENTS.md",
-  "package.json",
-  "pnpm-lock.yaml",
-  ".gitignore",
-  ".github/workflows/temple-bar-gate.yml",
-  "src/index.ts",
-  "src/index.js",
+  ...new Set([
+    "AGENTS.md",
+    ...COMPANION_FILES.map((file) => file.path),
+    "package.json",
+    "pnpm-lock.yaml",
+    ".gitignore",
+    PRETTIER_IGNORE_PATH,
+    GITATTRIBUTES_PATH,
+    JUDGE_WORKFLOW_PATH,
+    ...CHECKED_WORKFLOWS.map((file) => file.path),
+    "src/index.ts",
+    "src/index.js",
+  ]),
 ];
 
-export type GitattributesOutcome =
+/** How many files stored with CRLF the report names before "and N more". */
+const CRLF_SHOWN = 3;
+
+export type GitattributesOutcome = AttributesAnswer & {
+  /** Tracked files whose committed content has CRLF line endings (as
+   * `git ls-files --eol` reports, `i/crlf` or `i/mixed`): attributes don't
+   * convert what is already stored, so these need renormalising whatever
+   * the attributes say. */
+  readonly committedCrlf: readonly string[];
+};
+
+type AttributesAnswer =
   /** No file was there; setup wrote one holding LF_LINE. */
   | { readonly kind: "wrote" }
   /** The project's attributes already give every probed path LF. */
@@ -71,9 +96,23 @@ function parseCheckAttr(stdout: string): Resolved | undefined {
 async function checkLf(
   ctx: Context,
   repoRoot: string,
-): Promise<GitattributesOutcome> {
+): Promise<AttributesAnswer> {
+  const local = await localRules(ctx, repoRoot);
+  if (local !== undefined) return { kind: "unknown", detail: local };
+  // An empty core.attributesFile switches the global file off; system
+  // attributes can only be switched off by an environment variable, which
+  // the git seam doesn't pass.
   const result = await ctx.git.run(
-    ["check-attr", "-z", "text", "eol", "--", ...PROBE_PATHS],
+    [
+      "-c",
+      "core.attributesFile=",
+      "check-attr",
+      "-z",
+      "text",
+      "eol",
+      "--",
+      ...PROBE_PATHS,
+    ],
     repoRoot,
   );
   if (result.code !== 0) {
@@ -96,21 +135,70 @@ async function checkLf(
   return { kind: "gives-lf" };
 }
 
+/** Why rules in .git/info/attributes, which a clone doesn't get, make
+ * git's answer untrustworthy, or undefined when there are none. git can't
+ * be told to skip that file, so any line that isn't blank or a comment
+ * counts. Not finding the file's path is unknown too. */
+async function localRules(
+  ctx: Context,
+  repoRoot: string,
+): Promise<string | undefined> {
+  const where = await ctx.git.run(
+    ["rev-parse", "--git-path", "info/attributes"],
+    repoRoot,
+  );
+  const relative = where.stdout.replace(/\r?\n$/, "");
+  if (where.code !== 0 || relative === "") {
+    return "couldn't find .git/info/attributes";
+  }
+  const content = await ctx.fs.readText(path.resolve(repoRoot, relative));
+  const rules = (content ?? "")
+    .split(/\r?\n/)
+    .some((line) => line.trim() !== "" && !line.trimStart().startsWith("#"));
+  return rules
+    ? ".git/info/attributes has rules of its own, which a clone doesn't get"
+    : undefined;
+}
+
+/** Tracked files stored with CRLF, from `git ls-files --eol -z`: each
+ * record is `i/<eol> w/<eol> attr/<attrs>`, a tab, then the path. An
+ * answer git can't give, or that can't be read, names none: this is advice
+ * beside the attributes report, never a reason to fail. */
+async function committedCrlf(
+  ctx: Context,
+  repoRoot: string,
+): Promise<readonly string[]> {
+  const result = await ctx.git.run(["ls-files", "--eol", "-z"], repoRoot);
+  if (result.code !== 0) return [];
+  return result.stdout.split("\0").flatMap((record) => {
+    const match = /^i\/(\S*)\s[^\t]*\t([\s\S]+)$/.exec(record);
+    return match?.[2] !== undefined &&
+      (match[1] === "crlf" || match[1] === "mixed")
+      ? [match[2]]
+      : [];
+  });
+}
+
 /** Writes .gitattributes when the project has none; otherwise leaves it
- * alone and asks git whether it gives LF. A second run writes nothing. */
+ * alone and asks git whether it gives LF. Either way, names files already
+ * committed with CRLF. A second run writes nothing. */
 export async function ensureGitattributes(
   ctx: Context,
   repoRoot: string,
   targets: WriteTargets,
 ): Promise<GitattributesOutcome> {
   const existing = await targets.readText(GITATTRIBUTES_PATH);
-  if (targets.refusals.has(GITATTRIBUTES_PATH)) return { kind: "refused" };
-  if (existing === undefined) {
-    return (await targets.writeText(GITATTRIBUTES_PATH, `${LF_LINE}\n`))
-      ? { kind: "wrote" }
-      : { kind: "refused" };
+  if (targets.refusals.has(GITATTRIBUTES_PATH)) {
+    return { kind: "refused", committedCrlf: [] };
   }
-  return checkLf(ctx, repoRoot);
+  const answer: AttributesAnswer =
+    existing !== undefined
+      ? await checkLf(ctx, repoRoot)
+      : (await targets.writeText(GITATTRIBUTES_PATH, `${LF_LINE}\n`))
+        ? { kind: "wrote" }
+        : { kind: "refused" };
+  if (answer.kind === "refused") return { ...answer, committedCrlf: [] };
+  return { ...answer, committedCrlf: await committedCrlf(ctx, repoRoot) };
 }
 
 /** What an existing checkout needs once the line is committed: attributes
@@ -121,18 +209,40 @@ const CHECKOUT_STEPS =
   "  git add --renormalize .  (then commit: stores any file committed with CRLF as LF)\n" +
   "  git rm --cached -r . && git reset --hard  (in each existing Windows clone, after committing its work: checks every file out again; a fresh clone works too)\n";
 
+const RENORMALIZE = "  git add --renormalize .\n";
+
+/** The files committed with CRLF, a few by name. */
+function describeCommittedCrlf(paths: readonly string[]): string {
+  if (paths.length === 0) return "";
+  const shown = paths.slice(0, CRLF_SHOWN).join(", ");
+  const more =
+    paths.length > CRLF_SHOWN
+      ? ` and ${String(paths.length - CRLF_SHOWN)} more`
+      : "";
+  return (
+    `${String(paths.length)} tracked file(s) are stored with CRLF line endings (${shown}${more}), ` +
+    "and attributes don't convert what's already committed. Store them with LF, then commit:\n"
+  );
+}
+
 /** Setup's lines about .gitattributes: what it did, the line to add when
- * one may be needed, and the checkout steps whenever a line is new or may
- * be. Nothing here fails the run: the gate still runs on LF checkouts. */
+ * one may be needed, the checkout steps whenever a line is new or may be,
+ * and the files already stored with CRLF. Nothing here fails the run: the
+ * gate still runs on LF checkouts. */
 export function describeGitattributes(outcome: GitattributesOutcome): string {
+  const crlf = describeCommittedCrlf(outcome.committedCrlf);
   switch (outcome.kind) {
     case "refused":
       return "";
     case "gives-lf":
-      return `${GITATTRIBUTES_PATH} already gives text files LF line endings; left it alone.\n`;
+      return (
+        `${GITATTRIBUTES_PATH} gives the files setup writes LF line endings; left it alone.\n` +
+        (crlf === "" ? "" : crlf + RENORMALIZE)
+      );
     case "wrote":
       return (
         `Wrote ${GITATTRIBUTES_PATH} (${LF_LINE}), so every clone, Windows included, checks text files out with LF.\n` +
+        crlf +
         CHECKOUT_STEPS
       );
     case "no-lf":
@@ -140,13 +250,15 @@ export function describeGitattributes(outcome: GitattributesOutcome): string {
         `${GITATTRIBUTES_PATH} doesn't give ${outcome.path} LF line endings, so a Windows clone can fail the gate's format check; left it alone. ` +
         `Add this line, after any line that would undo it, and \`git check-attr text eol -- ${outcome.path}\` should then say eol: lf:\n` +
         `  ${LF_LINE}\n` +
+        crlf +
         CHECKOUT_STEPS
       );
     case "unknown":
       return (
-        `Couldn't ask git whether ${GITATTRIBUTES_PATH} gives text files LF line endings (${outcome.detail}); left it alone. ` +
+        `Couldn't tell whether ${GITATTRIBUTES_PATH} gives text files LF line endings (${outcome.detail}); left it alone. ` +
         "This line may be needed:\n" +
         `  ${LF_LINE}\n` +
+        crlf +
         CHECKOUT_STEPS
       );
   }

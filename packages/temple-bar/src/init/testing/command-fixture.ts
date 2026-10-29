@@ -46,8 +46,11 @@ export function checkAttrAnswer(text: string, eol: string): GitResult {
 }
 
 export function defaultGitScript(args: readonly string[]): GitResult {
-  if (args[0] === "check-attr") {
+  if (args.includes("check-attr")) {
     return checkAttrAnswer("auto", "lf");
+  }
+  if (args[0] === "rev-parse" && args[1] === "--git-path") {
+    return { code: 0, stdout: ".git/info/attributes\n", stderr: "" };
   }
   if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
     return { code: 0, stdout: "/repo\n", stderr: "" };
