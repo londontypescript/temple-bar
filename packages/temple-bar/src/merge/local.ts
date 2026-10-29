@@ -68,7 +68,7 @@ export async function worktreeForUpdate(
   if (worktree === undefined) {
     refuse(
       `${why}, but no worktree has ${branch} checked out. ` +
-        `Check it out in a worktree (git worktree add <path> ${branch}) and run merge again.`,
+        `Check ${branch} out in a worktree your harness makes, then run merge again.`,
     );
   }
   if (await isDirty(ctx, worktree.path)) {
