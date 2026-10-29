@@ -10,6 +10,10 @@ or filing an issue. temple-bar's setup wrote this file.
 - Break the work into verifiable phases, say which can run in parallel,
   and rate each one **routine**, **involved** or **delicate**, so the user
   can choose models.
+- In a parallel wave, a phase reports the `docs/enforcement.md` row it
+  needs in its handover instead of adding it. The orchestrator adds the
+  wave's rows in one docs pull request after the wave's last merge, so no
+  merge leaves the other open branches conflicting in that table.
 
 ## Milestones
 
