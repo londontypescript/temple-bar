@@ -16,6 +16,7 @@
 
 import { createHash } from "node:crypto";
 
+import { DEFAULT_CONFIG } from "../config/project-config.ts";
 import { RERUN_INIT } from "./requirements.ts";
 
 /** The marker lines. The opening one says what the block is, so a person
@@ -46,10 +47,14 @@ Before planning or filing an issue, read [docs/planning.md](docs/planning.md).
 
 - **Plan first.** Work bigger than a one-line fix starts with a written
   plan the user has approved: verifiable phases, which can run in parallel,
-  each rated **routine**, **involved** or **delicate**. Never pick or
-  switch models yourself.
+  each rated **mechanical**, **routine**, **involved**, **delicate** or
+  **critical** by the criteria in [docs/planning.md](docs/planning.md).
+  Never pick or switch models yourself.
+- **Milestones are versions:** \`0.MINOR.0\` for a planned release, a patch
+  version for an inserted fix, so a fix never renames the ones after it.
+  A descriptive name goes in the milestone's description.
 - **Scope is the user's,** set by placing issues in a milestone. Its plan,
-  \`docs/plans/<milestone>.md\`, groups the issues into phases by the files
+  \`docs/plans/<version>.md\`, groups the issues into phases by the files
   they touch, gives each phase closing several its \`One concern:\` reason,
   and is approved through a pull request. Progress goes on the issues,
   never in the plan.
@@ -83,8 +88,11 @@ Before planning or filing an issue, read [docs/planning.md](docs/planning.md).
   squashed: one branch, one pull request, one commit. Never commit to it
   directly, even a one-line fix.
 - **Every branch gets its own worktree,** created by your harness and
-  prepared there. Never run \`git worktree add\` or choose a location
-  yourself; if the harness can't, ask the user once per session.
+  prepared there. Where the harness can start a subagent or session in its
+  own worktree, use that; the main checkout stays on the default branch.
+  Never run \`git worktree add\` or choose a location yourself. If the
+  harness can't, ask the user once per session, never offering
+  \`git worktree add\` or switching the default-branch checkout as options.
 - **Commit at every point where the checks pass,** and a clean baseline
   before debugging. Never hold a large uncommitted change.
 - **Read history before changing code** (\`git log -S\`, \`git blame\`).
@@ -102,12 +110,18 @@ Before opening a pull request or preparing an admin merge, read
   commit; the \`pre-push\` hook refuses an unmarked one.
 - **One concern per pull request.** One closing two or more issues, or over
   the size limits, needs a \`One concern:\` line giving a reason that counts.
+  The limits default to ${String(DEFAULT_CONFIG.maxPullRequestLines)} source lines, ${String(DEFAULT_CONFIG.maxPullRequestTestLines)} test lines and ${String(DEFAULT_CONFIG.maxPullRequestFiles)} files,
+  and \`temple-bar.config.json\` can change them.
+- **A pull request carries its issue's milestone**
+  (\`gh pr create --milestone <name>\`): a mirror, never a way to add scope.
 - **One bullet per distinct change** in the description, as a top-level
   list; it becomes the squash commit.
 - **Merge with \`pnpm merge <N>\`** once CI and code scanning are green, from
   the default-branch checkout, never inside a pull request's worktree.
-- **The user's yes first** for a change to AGENTS.md or to the checks, or
-  one that tags or publishes. Never rewrite a pushed branch.
+- **The user's yes first** for a change to AGENTS.md or to the checks, and
+  for any step that can't be undone: a tag, a publish, deleting history, or
+  deleting work that isn't on the default branch. Never rewrite a pushed
+  branch.
 - **A change to the checks the judge guards** is merged by the user as
   admin: its description is exactly the squash body, its checklist a
   comment. Any other refusal is a failure to diagnose, not a bypass.
@@ -206,6 +220,8 @@ export const EARLIER_BLOCK_SHA256: readonly string[] = [
   "c02fbddb1a10a85fc5e1a756cc497ec1a45415df026ef1564c6ad4b642d0f474",
   // 0.1.0
   "dd9862b6e13b50bf8f9f7feab056d72b10cae447b88ff82676ad8b15e076f425",
+  // 0.2.0 and 0.2.1 (the same block)
+  "945d73cb5dfe857fb5d79f9021730e94795d058413a6284b2dfe10c52c78bc59",
 ];
 
 /** The block's text compared without its final newline and with Windows

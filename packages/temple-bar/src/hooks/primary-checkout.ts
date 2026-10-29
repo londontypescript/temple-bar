@@ -95,8 +95,7 @@ export async function warnIfMainCheckoutOffDefault(
     branch === undefined ? "a detached HEAD" : `the branch ${branch}`;
   ctx.stderr.write(
     `temple-bar: warning: the main checkout at ${checkout.worktree} is on ${where}, not ${defaultBranch}.\n` +
-      `Keep it on ${defaultBranch} and do branch work in a worktree, so parallel work never collides:\n` +
-      `  git switch ${defaultBranch}\n` +
-      `  git worktree add <folder> <branch>\n`,
+      `Keep it on ${defaultBranch}, and do branch work in a worktree your harness makes, so parallel work never collides:\n` +
+      `  git switch ${defaultBranch}\n`,
   );
 }
