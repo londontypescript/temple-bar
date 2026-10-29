@@ -103,10 +103,15 @@ function errorText(error: unknown): string {
  */
 export async function checkPinnedVersion(
   ctx: Context,
-  checkout: string,
+  given: string,
   consequence: string,
   running: () => string = readOwnVersion,
 ): Promise<PinCheck> {
+  // One spelling for every path the messages print: git lists a Windows
+  // worktree with forward slashes, and path.join would print the manifest
+  // with backslashes beside it. Normalised, not resolved, so a path keeps
+  // the form it was given in (no drive letter added).
+  const checkout = path.normalize(given);
   const manifestPath = path.join(checkout, "package.json");
   let text: string | undefined;
   try {

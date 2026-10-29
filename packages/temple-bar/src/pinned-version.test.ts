@@ -9,7 +9,7 @@ import type { FsSeam } from "./seams/fs.ts";
 import { createFakeContext, createFakeFs } from "./testing/fakes.ts";
 import { checkPinnedVersion, pinnedTempleBar } from "./pinned-version.ts";
 
-const CHECKOUT = "/the repo";
+const CHECKOUT = path.normalize("/the repo");
 const MANIFEST = path.join(CHECKOUT, "package.json");
 const NAME = "@londontypescript/temple-bar";
 
@@ -50,6 +50,27 @@ void test("pinned-version: an older or newer exact pin refuses, naming both vers
       ],
     });
   }
+});
+
+void test("pinned-version: a checkout given with forward slashes or dot segments is printed in one normalised spelling", async () => {
+  const given = "/the repo/sub/..";
+  const checkout = path.normalize(given);
+  const fs = createFakeFs({ [MANIFEST]: devPin("0.2.0") });
+  assert.deepEqual(
+    await checkPinnedVersion(
+      createFakeContext({ fs }),
+      given,
+      "no check ran",
+      () => "0.2.1",
+    ),
+    {
+      kind: "refused",
+      lines: [
+        `temple-bar 0.2.1 is running, but ${path.join(checkout, "package.json")} pins 0.2.0, so no check ran.`,
+        `Fix: run \`pnpm install --frozen-lockfile\` in ${checkout}, then run this again.`,
+      ],
+    },
+  );
 });
 
 void test("pinned-version: prerelease and build metadata are compared as exact strings", async () => {

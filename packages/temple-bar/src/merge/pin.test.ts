@@ -21,7 +21,7 @@ import {
 
 const NAME = "@londontypescript/temple-bar";
 /** The primary checkout, first in the fake `git worktree list`. */
-const PRIMARY = path.join("/repo", "package.json");
+const PRIMARY = path.join(path.normalize("/repo"), "package.json");
 /** The pull request's worktree, where the harness starts merge. */
 const LINKED = path.join("/wt/x", "package.json");
 /** An exact version this package never runs as. */
@@ -45,7 +45,7 @@ void test("merge: a different exact pin in the primary checkout refuses before a
     assert.equal(
       h.err(),
       `merge: refused: temple-bar ${readOwnVersion()} is running, but ${PRIMARY} pins ${version}, so nothing was merged or changed.\n` +
-        `Fix: run \`pnpm install --frozen-lockfile\` in /repo, then run this again.\n`,
+        `Fix: run \`pnpm install --frozen-lockfile\` in ${path.normalize("/repo")}, then run this again.\n`,
     );
     assert.deepEqual(h.gh.calls, []);
     // Only the read-only listing that found the primary checkout.

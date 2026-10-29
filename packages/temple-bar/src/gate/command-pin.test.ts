@@ -22,7 +22,8 @@ import { PARTS } from "./testing/verify-fixture.ts";
 import { workspace, type Workspace } from "./testing/workspace-fixture.ts";
 
 const NAME = "@londontypescript/temple-bar";
-const ROOT_MANIFEST = path.join("/repo", "package.json");
+const ROOT = path.normalize("/repo");
+const ROOT_MANIFEST = path.join(ROOT, "package.json");
 /** An exact version this package never runs as. */
 const OTHER = "0.0.0-not-this-one";
 
@@ -68,7 +69,7 @@ const MODES: Record<string, readonly string[]> = {
 function refusal(pinnedVersion: string): string {
   return (
     `gate: temple-bar ${readOwnVersion()} is running, but ${ROOT_MANIFEST} pins ${pinnedVersion}, so no check ran.\n` +
-    `gate: Fix: run \`pnpm install --frozen-lockfile\` in /repo, then run this again.\n`
+    `gate: Fix: run \`pnpm install --frozen-lockfile\` in ${ROOT}, then run this again.\n`
   );
 }
 
