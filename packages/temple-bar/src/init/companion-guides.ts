@@ -203,9 +203,10 @@ admin, check". It holds only what the user verifies before merging:
 - the branch is up to date with the default branch, which you check before
   handing over, because an admin merge doesn't update it as merge does.
 
-Anything specific to the change is one more check, never a result. For a pin
-bump: the lockfile's integrity hash matches the one npm publishes, and the
-\`package.json\` and lockfile diffs, read in full, hold nothing unrelated.
+A change may add checks of its own after these five, never results. A pin
+bump adds two: the lockfile's integrity hash matches the one npm publishes,
+and the \`package.json\` and lockfile diffs, read in full, hold nothing
+unrelated.
 
 **Evidence goes in its own comment** (break-it results, manual runs, review
 summaries), never in the checklist, so the checklist stays short.
