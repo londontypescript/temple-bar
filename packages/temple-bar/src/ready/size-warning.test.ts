@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { HEAD, setup } from "./testing/ready-world.ts";
+import { HEAD, PRIMARY, setup } from "./testing/ready-world.ts";
 
 const ADVICE =
   "A squash merge makes each pull request one commit on main, so keep one concern per pull request: split it into pull requests that each hold one concern, or add a line to the description starting `One concern:` that says why it is one change.\n" +
@@ -69,16 +69,73 @@ void test("ready: a branch over every limit names each one", async () => {
   );
 });
 
-void test("ready: the limits come from the project's config", async () => {
+void test("ready: the limits come from the primary checkout's config", async () => {
   const t = setup({
     lines: { "src/a.ts": 11 },
-    config: { maxPullRequestLines: 10 },
+    primaryConfig: { maxPullRequestLines: 10 },
   });
   assert.equal(await t.run(), 0);
   assert.equal(
     t.stderr.lines.join(""),
     sizeWarning("11 lines of source changed, limit 10"),
   );
+});
+
+// As merge measures it: a branch can't loosen the check that judges it.
+void test("ready: a branch that raises its own limit is still warned by the default branch's", async () => {
+  const t = setup({
+    lines: { "src/a.ts": 612 },
+    config: { maxPullRequestLines: 10_000 },
+  });
+  assert.equal(await t.run(), 0);
+  assert.equal(
+    t.stderr.lines.join(""),
+    sizeWarning("612 lines of source changed, limit 500"),
+  );
+});
+
+void test("ready: a branch that marks its own files generated is still warned about them", async () => {
+  const t = setup({
+    lines: { "src/a.ts": 612 },
+    generatedInBranch: ["src/a.ts"],
+  });
+  assert.equal(await t.run(), 0);
+  assert.equal(
+    t.stderr.lines.join(""),
+    sizeWarning("612 lines of source changed, limit 500"),
+  );
+  const measuredIn = t
+    .gitLog()
+    .filter((call) => call.args[0] === "check-attr")
+    .map((call) => call.cwd);
+  assert.deepEqual(measuredIn, [PRIMARY]);
+});
+
+void test("ready: with no primary checkout to measure in, warns and still marks", async () => {
+  const t = setup({ lines: { "src/a.ts": 612 }, worktreeListFails: true });
+  assert.equal(await t.run(), 0);
+  assert.equal(t.mark(), `${HEAD}\n`);
+  assert.equal(
+    t.stderr.lines.join(""),
+    "ready: warning: could not measure this branch against the pull request size limits, so it isn't checked: " +
+      "could not list git worktrees: fatal: not a git repository\n",
+  );
+});
+
+// Before a push there is no pull request to judge, and a description read
+// from an earlier push could excuse a branch that has since grown.
+void test("ready: never reads a pull request, so a `One concern:` line there doesn't hide the warning", async () => {
+  const t = setup({
+    lines: { "src/a.ts": 612 },
+    pullRequestBody:
+      "- one change\n\nOne concern: the parser and its tests change together.\n",
+  });
+  assert.equal(await t.run(), 0);
+  assert.equal(
+    t.stderr.lines.join(""),
+    sizeWarning("612 lines of source changed, limit 500"),
+  );
+  assert.deepEqual(t.ghCalls(), []);
 });
 
 void test("ready: a branch within the limits prints nothing about its size", async () => {

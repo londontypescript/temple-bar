@@ -7,6 +7,7 @@ import type { PromptSeam } from "../../seams/prompt.ts";
 import {
   createFakeContext,
   createFakeFs,
+  createFakeGh,
   createFakeGit,
   createFakeWriter,
 } from "../../testing/fakes.ts";
@@ -45,8 +46,41 @@ export interface Scenario {
   lines?: Record<string, number>;
   /** git's stderr when measuring the branch's size fails. */
   measureError?: string;
-  /** temple-bar.config.json at the worktree's root, when there is one. */
+  /** temple-bar.config.json in the branch's worktree, when there is one. */
   config?: object;
+  /** temple-bar.config.json in the primary checkout, when there is one. */
+  primaryConfig?: object;
+  /** Files the branch's own .gitattributes marks linguist-generated; the
+   * primary checkout marks none. */
+  generatedInBranch?: string[];
+  /** `git worktree list` fails, so the primary checkout can't be found. */
+  worktreeListFails?: boolean;
+  /** A pull request `gh pr view` would return for this branch. */
+  pullRequestBody?: string;
+}
+
+/** The primary checkout, which stays on the default branch. */
+export const PRIMARY = "/primary";
+
+const WORKTREE_LIST =
+  `worktree ${PRIMARY}\nHEAD ${"e".repeat(40)}\nbranch refs/heads/main\n\n` +
+  `worktree /repo\nHEAD ${HEAD}\nbranch refs/heads/feat\n`;
+
+// `git check-attr -z linguist-generated`: "path\0attribute\0value\0" each.
+function checkAttr(
+  scenario: Scenario,
+  args: readonly string[],
+  cwd: string,
+): GitResult {
+  const generated = cwd === PRIMARY ? [] : (scenario.generatedInBranch ?? []);
+  const paths = args.slice(args.indexOf("--") + 1);
+  const stdout = paths
+    .map(
+      (file) =>
+        `${file}\0linguist-generated\0${generated.includes(file) ? "set" : "unspecified"}\0`,
+    )
+    .join("");
+  return { code: 0, stdout, stderr: "" };
 }
 
 // `git diff --numstat -z`, as pr/diff.ts reads it to size the branch.
@@ -81,7 +115,7 @@ export function setup(scenario: Scenario = {}) {
     }
     return Object.fromEntries(files);
   });
-  const git = createFakeGit((args) => {
+  const git = createFakeGit((args, cwd) => {
     const read = treeReads(args);
     if (read !== undefined) {
       return read;
@@ -130,7 +164,12 @@ export function setup(scenario: Scenario = {}) {
       return measure(scenario, changed);
     }
     if (args[0] === "check-attr") {
-      return ok();
+      return checkAttr(scenario, args, cwd);
+    }
+    if (joined === "worktree list --porcelain") {
+      return scenario.worktreeListFails === true
+        ? { code: 128, stdout: "", stderr: "fatal: not a git repository\n" }
+        : ok(WORKTREE_LIST);
     }
     if (args[0] === "diff") {
       return ok(changed.map((file) => `${file}\0`).join(""));
@@ -142,7 +181,28 @@ export function setup(scenario: Scenario = {}) {
     ...(scenario.config === undefined
       ? {}
       : { "/repo/temple-bar.config.json": JSON.stringify(scenario.config) }),
+    ...(scenario.primaryConfig === undefined
+      ? {}
+      : {
+          [`${PRIMARY}/temple-bar.config.json`]: JSON.stringify(
+            scenario.primaryConfig,
+          ),
+        }),
   });
+  const gh = createFakeGh(() =>
+    scenario.pullRequestBody === undefined
+      ? { code: 1, stdout: "", stderr: "no pull request", notFound: false }
+      : {
+          code: 0,
+          stdout: JSON.stringify({
+            title: "feat: a change",
+            body: scenario.pullRequestBody,
+            url: "https://github.com/o/r/pull/1",
+          }),
+          stderr: "",
+          notFound: false,
+        },
+  );
   const stdout = createFakeWriter();
   const stderr = createFakeWriter();
   // ready never asks anything in the terminal, so any use of the prompt is
@@ -158,7 +218,7 @@ export function setup(scenario: Scenario = {}) {
       return Promise.resolve("yes");
     },
   };
-  const ctx = createFakeContext({ git, fs, prompt, stdout, stderr });
+  const ctx = createFakeContext({ git, gh, fs, prompt, stdout, stderr });
   const command = createReadyCommand(() => {
     gateRan += 1;
     return Promise.resolve(scenario.gate ?? 0);
@@ -169,6 +229,9 @@ export function setup(scenario: Scenario = {}) {
     gateRuns: () => gateRan,
     gitCalls: (command: string) =>
       git.calls.filter((call) => call.args[0] === command).map((c) => c.args),
+    /** Every git call, with the folder it ran in. */
+    gitLog: () => git.calls,
+    ghCalls: () => gh.calls,
     promptUses: () => promptUses,
     stdout,
     stderr,
