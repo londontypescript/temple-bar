@@ -133,8 +133,10 @@ void test("gitattributes: rules in .git/info/attributes, which a clone doesn't g
 void test("gitattributes: a .git/info/attributes that can't be read makes the answer unknown, and setup goes on", async () => {
   const fs = createFakeFs({ [FILE]: LINE });
   const readText = fs.readText.bind(fs);
+  // Compared as the fake's keys are, so the source's path.join (backslashes
+  // on Windows) matches.
   fs.readText = (file) =>
-    file === "/repo/.git/info/attributes"
+    path.normalize(file) === path.normalize("/repo/.git/info/attributes")
       ? Promise.reject(new Error("EISDIR: illegal operation on a directory"))
       : readText(file);
   const outcome = await ensure(fs);
