@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -120,6 +126,21 @@ void test("gitattributes: rules in .git/info/attributes, which a clone doesn't g
     kind: "unknown",
     detail:
       ".git/info/attributes has rules of its own, which a clone doesn't get",
+    committedCrlf: [],
+  });
+});
+
+void test("gitattributes: a .git/info/attributes that can't be read makes the answer unknown, and setup goes on", async () => {
+  const fs = createFakeFs({ [FILE]: LINE });
+  const readText = fs.readText.bind(fs);
+  fs.readText = (file) =>
+    file === "/repo/.git/info/attributes"
+      ? Promise.reject(new Error("EISDIR: illegal operation on a directory"))
+      : readText(file);
+  const outcome = await ensure(fs);
+  assert.deepEqual(outcome, {
+    kind: "unknown",
+    detail: "couldn't read .git/info/attributes",
     committedCrlf: [],
   });
 });
@@ -259,4 +280,31 @@ void test("gitattributes, real git: a file committed with CRLF before the attrib
     }
   });
   assert.deepEqual(outcome, { kind: "gives-lf", committedCrlf: ["old.txt"] });
+});
+
+void test("gitattributes, real git: a CRLF file the project marks -text isn't named, a CRLF text file still is", async () => {
+  const { outcome } = await ensureOnDisk(
+    `${LINE}fixtures/** -text\n`,
+    (dir) => {
+      mkdirSync(path.join(dir, "fixtures"));
+      writeFileSync(path.join(dir, "fixtures", "f.txt"), "one\r\n");
+      writeFileSync(path.join(dir, "a.txt"), "one\r\n");
+      for (const args of [
+        ["-c", "core.autocrlf=false", "add", "fixtures/f.txt", "a.txt"],
+        ["commit", "-q", "-m", "chore: before attributes"],
+      ]) {
+        execFileSync("git", args, { cwd: dir });
+      }
+    },
+  );
+  assert.deepEqual(outcome, { kind: "gives-lf", committedCrlf: ["a.txt"] });
+});
+
+void test("gitattributes, real git: .git/info/attributes as a folder makes the answer unknown, not a crash", async () => {
+  const { outcome } = await ensureOnDisk(LINE, (dir) => {
+    mkdirSync(path.join(dir, ".git", "info", "attributes"), {
+      recursive: true,
+    });
+  });
+  assert.equal(outcome.kind, "unknown", JSON.stringify(outcome));
 });

@@ -151,7 +151,14 @@ async function localRules(
   if (where.code !== 0 || relative === "") {
     return "couldn't find .git/info/attributes";
   }
-  const content = await ctx.fs.readText(path.resolve(repoRoot, relative));
+  // An optional check: a file that can't be read (a folder, no permission)
+  // makes the answer unknown, never stops setup.
+  let content: string | undefined;
+  try {
+    content = await ctx.fs.readText(path.resolve(repoRoot, relative));
+  } catch {
+    return "couldn't read .git/info/attributes";
+  }
   const rules = (content ?? "")
     .split(/\r?\n/)
     .some((line) => line.trim() !== "" && !line.trimStart().startsWith("#"));
@@ -161,20 +168,32 @@ async function localRules(
 }
 
 /** Tracked files stored with CRLF, from `git ls-files --eol -z`: each
- * record is `i/<eol> w/<eol> attr/<attrs>`, a tab, then the path. An
- * answer git can't give, or that can't be read, names none: this is advice
- * beside the attributes report, never a reason to fail. */
+ * record is `i/<eol> w/<eol> attr/<attrs>`, a tab, then the path. A file
+ * whose attributes say `-text` (marked so on purpose, or `binary`) is
+ * skipped: renormalising leaves it as it is, so naming it would be advice
+ * that can't be followed. Attributes are read as a clone gets them, without
+ * the global file. An answer git can't give, or that can't be read, names
+ * none: this is advice beside the attributes report, never a reason to
+ * fail. */
 async function committedCrlf(
   ctx: Context,
   repoRoot: string,
 ): Promise<readonly string[]> {
-  const result = await ctx.git.run(["ls-files", "--eol", "-z"], repoRoot);
+  const result = await ctx.git.run(
+    ["-c", "core.attributesFile=", "ls-files", "--eol", "-z"],
+    repoRoot,
+  );
   if (result.code !== 0) return [];
   return result.stdout.split("\0").flatMap((record) => {
-    const match = /^i\/(\S*)\s[^\t]*\t([\s\S]+)$/.exec(record);
-    return match?.[2] !== undefined &&
-      (match[1] === "crlf" || match[1] === "mixed")
-      ? [match[2]]
+    const match = /^i\/(\S*)\s+w\/\S*\s+attr\/([^\t]*)\t([\s\S]+)$/.exec(
+      record,
+    );
+    const [, stored, attrs, file] = match ?? [];
+    const renormalisable = !(attrs ?? "").split(/\s+/).includes("-text");
+    return file !== undefined &&
+      (stored === "crlf" || stored === "mixed") &&
+      renormalisable
+      ? [file]
       : [];
   });
 }
