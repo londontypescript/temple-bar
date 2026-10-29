@@ -36,17 +36,16 @@ void test("init report: a fresh repo names the companion files it wrote, and the
   assert.equal(code, 0, fixture.stderr.lines.join(""));
   const out = fixture.stdout.lines.join("");
   assert.match(out, /Wrote temple-bar's rules into AGENTS\.md\./);
-  assert.match(
-    out,
-    new RegExp(
-      `Wrote the files AGENTS\\.md links to, where missing: ${COMPANION_FILES.map((file) => file.path.replaceAll(".", "\\.")).join(", ")}\\.`,
+  const companions = COMPANION_FILES.map((file) => file.path);
+  assert.ok(
+    out.includes(
+      `Wrote the files AGENTS.md links to, where missing: ${companions.join(", ")}.\n`,
     ),
+    out,
   );
-  assert.match(
+  assert.ok(
+    out.includes(`  git add AGENTS.md ${companions.join(" ")} package.json `),
     out,
-    new RegExp(
-      `git add AGENTS\\.md ${COMPANION_FILES.map((file) => file.path.replaceAll(".", "\\.")).join(" ")} package\\.json`,
-    ),
   );
 });
 
@@ -56,7 +55,9 @@ void test("init report: the next steps add only the files setup wrote, never a w
   });
   assert.equal(await runInitFor(fixture), 0);
   const out = fixture.stdout.lines.join("");
-  const addLine = /^ {2}git add .*$/m.exec(out)?.[0] ?? "";
+  // The next steps' line, not the .gitattributes checkout step's.
+  const addLine =
+    out.split("\n").find((line) => line.endsWith("(plus your lockfile)")) ?? "";
   assert.match(addLine, /docs\/agents-rationale\.md/);
   assert.doesNotMatch(addLine, /docs\/conventions\.md|docs\/ /);
 });
@@ -206,4 +207,61 @@ void test("init report: a branch name ending in other whitespace is pushed as it
     stdout: "refs/heads/chore/topic\u00a0\n",
   });
   assert.match(out, /git push -u origin 'chore\/topic\u00a0'\n/);
+});
+
+void test("init report: a new project gets .gitattributes, reported with the checkout steps and in the next steps' git add", async () => {
+  const fixture = makeFixture({ fs: createFakeFs() });
+  assert.equal(await runInitFor(fixture), 0);
+  const out = fixture.stdout.lines.join("");
+  assert.ok(
+    out.includes(
+      "Wrote .gitattributes (* text=auto eol=lf), so every clone, Windows included, checks text files out with LF.\n",
+    ),
+  );
+  assert.ok(out.includes("  git rm --cached -r . && git reset --hard"));
+  const addLine =
+    out.split("\n").find((line) => line.endsWith("(plus your lockfile)")) ?? "";
+  assert.ok(addLine.split(" ").includes(".gitattributes"), addLine);
+});
+
+void test("init report: an existing .gitattributes is never staged by the next steps", async () => {
+  const fixture = makeFixture({
+    fs: createFakeFs({ "/repo/.gitattributes": "* text=auto eol=lf\n" }),
+  });
+  assert.equal(await runInitFor(fixture), 0);
+  const out = fixture.stdout.lines.join("");
+  assert.ok(
+    out.includes(
+      ".gitattributes gives the files setup writes LF line endings; left it alone.\n",
+    ),
+  );
+  assert.ok(!out.includes("git add --renormalize"));
+  const addLine =
+    out.split("\n").find((line) => line.endsWith("(plus your lockfile)")) ?? "";
+  assert.ok(!addLine.split(" ").includes(".gitattributes"), addLine);
+});
+
+void test("init report: a guide that differs from this release's is named, and the run still succeeds", async () => {
+  const fs = setUpFiles({ "/repo/docs/planning.md": "# Planning\n\nOld.\n" });
+  const { code, stdout } = await runWithHooksUnchanged(fs);
+  assert.equal(code, 0);
+  assert.ok(
+    stdout.includes(
+      "docs/planning.md differs from this release's copy: replace it unless you've edited it (delete it and run setup again to get this release's).\n",
+    ),
+  );
+  assert.equal(fs.files.get("/repo/docs/planning.md"), "# Planning\n\nOld.\n");
+});
+
+void test("init report: an upgrade whose only new file is .gitattributes still lands it through the next steps", async () => {
+  const fs = setUpFiles();
+  fs.files.delete("/repo/.gitattributes");
+  const { code, stdout } = await runWithHooksUnchanged(fs);
+  assert.equal(code, 0);
+  assert.equal(fs.writes.length, 1);
+  assert.equal(fs.files.get("/repo/.gitattributes"), "* text=auto eol=lf\n");
+  const addLine =
+    stdout.split("\n").find((line) => line.endsWith("(plus your lockfile)")) ??
+    "";
+  assert.ok(addLine.split(" ").includes(".gitattributes"), stdout);
 });

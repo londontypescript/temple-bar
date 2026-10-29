@@ -209,6 +209,7 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
       .split("\n")
       .filter(Boolean);
     assert.deepEqual(tracked, [
+      ".gitattributes",
       ".github/workflows/temple-bar-gate.yml",
       ".github/workflows/temple-bar-judge.yml",
       ".github/workflows/temple-bar-pr-title.yml",

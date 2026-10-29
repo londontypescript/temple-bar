@@ -11,6 +11,7 @@ import { CLAUDE_MD_PATH, COMPANION_FILES } from "./companion-docs.ts";
 import { reportWriteTarget } from "./files-report.ts";
 import { CHECKED_WORKFLOWS } from "./workflows.ts";
 import { PRETTIER_IGNORE_PATH } from "./prettier-ignore.ts";
+import { GITATTRIBUTES_PATH } from "./gitattributes.ts";
 
 export interface RefusedTarget {
   readonly kind: "refused";
@@ -26,6 +27,7 @@ export type WriteTarget =
 export const SETUP_PATHS: readonly string[] = [
   ".gitignore",
   PRETTIER_IGNORE_PATH,
+  GITATTRIBUTES_PATH,
   "AGENTS.md",
   ...COMPANION_FILES.map((file) => file.path),
   JUDGE_WORKFLOW_PATH,

@@ -7,6 +7,7 @@ import { CONFIG_FILE_NAME } from "../config/project-config.ts";
 import type { Context } from "../context.ts";
 import { COMPANION_FILES } from "../init/companion-docs.ts";
 import { PRETTIER_IGNORE_PATH } from "../init/prettier-ignore.ts";
+import { GITATTRIBUTES_PATH } from "../init/gitattributes.ts";
 import {
   GATE_WORKFLOW_PATH,
   PR_TITLE_WORKFLOW_PATH,
@@ -143,6 +144,7 @@ const STARTING_FILES = new Set([
   "package.json",
   ".gitignore",
   PRETTIER_IGNORE_PATH,
+  GITATTRIBUTES_PATH,
   ...COMPANION_FILES.map((file) => file.path),
   JUDGE_WORKFLOW_PATH,
   GATE_WORKFLOW_PATH,
