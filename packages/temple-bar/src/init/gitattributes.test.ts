@@ -145,6 +145,30 @@ void test("gitattributes: a .git/info/attributes that can't be read makes the an
   });
 });
 
+void test("gitattributes: an absolute .git/info/attributes path, as a linked worktree gets, is read where git says", async () => {
+  const fs = createFakeFs({
+    [FILE]: LINE,
+    "/main/.git/info/attributes": "* -text\n",
+  });
+  const git = createFakeGit((args) =>
+    args[0] === "rev-parse" && args[1] === "--git-path"
+      ? { code: 0, stdout: "/main/.git/info/attributes\n", stderr: "" }
+      : defaultGitScript(args),
+  );
+  const ctx = createFakeContext({ fs, git });
+  const outcome = await ensureGitattributes(
+    ctx,
+    "/repo",
+    setupWriteTargets(ctx, "/repo"),
+  );
+  assert.deepEqual(outcome, {
+    kind: "unknown",
+    detail:
+      ".git/info/attributes has rules of its own, which a clone doesn't get",
+    committedCrlf: [],
+  });
+});
+
 void test("gitattributes: a comment-only .git/info/attributes changes nothing", async () => {
   const fs = createFakeFs({
     [FILE]: LINE,

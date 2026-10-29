@@ -151,11 +151,17 @@ async function localRules(
   if (where.code !== 0 || relative === "") {
     return "couldn't find .git/info/attributes";
   }
+  // Relative to repoRoot in the main worktree, absolute in a linked one.
+  // Joined, not resolved: path.resolve would put the current drive in front
+  // of the path on Windows.
+  const file = path.isAbsolute(relative)
+    ? relative
+    : path.join(repoRoot, relative);
   // An optional check: a file that can't be read (a folder, no permission)
   // makes the answer unknown, never stops setup.
   let content: string | undefined;
   try {
-    content = await ctx.fs.readText(path.resolve(repoRoot, relative));
+    content = await ctx.fs.readText(file);
   } catch {
     return "couldn't read .git/info/attributes";
   }
