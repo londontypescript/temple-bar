@@ -43,6 +43,7 @@ import {
   type Timing,
 } from "./wait.ts";
 import { listWorktrees } from "./worktrees.ts";
+import { checkPinnedVersion } from "../pinned-version.ts";
 import { clearOldMark, markAfterGate } from "../ready/after-gate.ts";
 import type { RunGate } from "../ready/command.ts";
 
@@ -195,6 +196,21 @@ async function mergeAndReport(
     refuse("run merge inside the repository's clone or one of its worktrees"),
   );
   const root = worktrees[0]?.path ?? ctx.cwd;
+  // Before GitHub is asked anything: an older install once merged a pull
+  // request without what this version adds to the squash message. The
+  // primary checkout's pin counts: merge is run from there, so its install
+  // is the one running.
+  const pin = await checkPinnedVersion(
+    ctx,
+    root,
+    "nothing was merged or changed",
+  );
+  if (pin.kind === "refused") {
+    refuse(pin.lines.join("\n"));
+  }
+  if (pin.note !== undefined) {
+    ctx.stdout.write(`merge: ${pin.note}\n`);
+  }
   const repository = await readRepository(ctx, root);
   const first = await readPullRequest(ctx, options.prNumber, root);
   checkMergeable(first, repository);

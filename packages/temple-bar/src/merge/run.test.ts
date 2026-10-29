@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { readOwnVersion } from "../package-info.ts";
 import { createMergeCommand } from "./command.ts";
 import {
   defaultWorld,
@@ -221,10 +222,11 @@ void test("a commit made on the branch after the merge is kept, said so, and lef
 
 void test("after the first merge, advises pnpm install when the primary checkout lists temple-bar but has none installed", async () => {
   const h = harness(defaultWorld());
+  // The running version, which merge checks before anything else.
   await h.ctx.fs.writeText(
     "/repo/package.json",
     JSON.stringify({
-      devDependencies: { "@londontypescript/temple-bar": "0.0.9" },
+      devDependencies: { "@londontypescript/temple-bar": readOwnVersion() },
     }),
   );
   assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 0, h.err());
