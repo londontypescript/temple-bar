@@ -7,9 +7,11 @@ import type { GhResult } from "../../seams/gh.ts";
 import type { GitResult } from "../../seams/git.ts";
 import {
   createFakeContext,
+  createFakeFs,
   createFakeGh,
   createFakeGit,
   createFakeWriter,
+  type FakeFs,
   type FakeGh,
   type FakeGit,
   type FakeWriter,
@@ -53,6 +55,9 @@ export interface Harness {
   readonly ctx: Context;
   readonly git: FakeGit;
   readonly gh: FakeGh;
+  /** The disk: empty, so no checkout's package.json pins temple-bar, until
+   * a test writes one. The git trees above are separate. */
+  readonly fs: FakeFs;
   readonly stdout: FakeWriter;
   readonly stderr: FakeWriter;
   readonly deps: MergeDeps;
@@ -267,7 +272,8 @@ export function harness(world: World): Harness {
 
   const stdout = createFakeWriter();
   const stderr = createFakeWriter();
-  const ctx = createFakeContext({ git, gh, stdout, stderr, cwd: "/wt/x" });
+  const fs = createFakeFs();
+  const ctx = createFakeContext({ git, gh, fs, stdout, stderr, cwd: "/wt/x" });
   // The clock moves only when merge sleeps, so a timeout is reached in a
   // few fake polls instead of real minutes.
   let now = ctx.clock.now().getTime();
@@ -307,6 +313,7 @@ export function harness(world: World): Harness {
     ctx: timedCtx,
     git,
     gh,
+    fs,
     stdout,
     stderr,
     deps,

@@ -35,6 +35,7 @@ import { runPart } from "./part-run.ts";
 import { buildPlan } from "./plan.ts";
 import { exitCodeOf, prepare, runEntries } from "./plan-run.ts";
 import { createRealGateTools, type GateTools } from "./tools.ts";
+import { checkPinnedVersion } from "../pinned-version.ts";
 import { writeReport } from "./report.ts";
 import { REQUIRED_SCRIPTS } from "./stack.ts";
 import { verifyParts } from "./verify-parts.ts";
@@ -63,6 +64,16 @@ async function runGate(
     // 1, not 2: the gate's 2 already means a required script is missing.
     ctx.stderr.write(`gate: ${mode}\n`);
     return 1;
+  }
+  // Before any mode's work: a stale install would judge the repo by the
+  // wrong version's rules.
+  const pin = await checkPinnedVersion(ctx, ctx.cwd, "no check ran");
+  if (pin.kind === "refused") {
+    ctx.stderr.write(pin.lines.map((line) => `gate: ${line}\n`).join(""));
+    return 1;
+  }
+  if (pin.note !== undefined) {
+    ctx.stdout.write(`gate: ${pin.note}\n`);
   }
   switch (mode.kind) {
     case "whole":
