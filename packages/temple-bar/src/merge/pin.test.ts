@@ -151,13 +151,8 @@ void test("merge: the gate it runs in a branch's worktree checks that branch's o
 
   assert.equal(await createMergeCommand(deps).run(["7"], h.ctx), 1);
 
-  assert.match(
-    h.err(),
-    new RegExp(
-      `^gate: temple-bar .* is running, but ${LINKED.replaceAll("\\", "\\\\")} pins ${OTHER}, so no check ran\\.$`,
-      "m",
-    ),
-  );
+  const line = `gate: temple-bar ${readOwnVersion()} is running, but ${LINKED} pins ${OTHER}, so no check ran.`;
+  assert.ok(h.err().split("\n").includes(line), h.err());
   assert.match(h.err(), /fails the gate, so nothing was pushed/);
   assert.equal(h.pushedBranch(), false);
   assert.ok(!h.ran("gh", "pr", "merge"));

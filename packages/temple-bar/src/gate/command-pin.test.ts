@@ -178,13 +178,8 @@ void test("gate: a pin that isn't one exact version runs, with one line saying i
     const result = await run(devPin(declared), []);
 
     assert.equal(result.code, 0, result.err);
-    assert.match(
-      result.out,
-      new RegExp(
-        `^gate: ${ROOT_MANIFEST.replaceAll("\\", "\\\\")} asks for temple-bar ${declared.replace(/[\^*]/g, "\\$&")}, not an exact version, so which temple-bar runs wasn't checked$`,
-        "m",
-      ),
-    );
+    const line = `gate: ${ROOT_MANIFEST} asks for temple-bar ${declared}, not an exact version, so which temple-bar runs wasn't checked`;
+    assert.ok(result.out.split("\n").includes(line), result.out);
     assert.match(result.out, /^gate: passed$/m);
   }
 });

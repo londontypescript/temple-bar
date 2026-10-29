@@ -107,7 +107,10 @@ function assertRefused(result: RunResult, dir: string, label: string): void {
     ),
     describe(result),
   );
-  assert.match(result.stderr, new RegExp(`^${label}: `, "m"));
+  assert.ok(
+    result.stderr.split(/\r?\n/).some((line) => line.startsWith(`${label}: `)),
+    describe(result),
+  );
 }
 
 /** The gate got past its first step and ran its checks to a verdict. */
