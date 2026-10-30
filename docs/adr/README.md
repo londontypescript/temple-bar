@@ -120,3 +120,4 @@ Settled before the numbering began:
 | 96  | `ready` warns, never refuses, when a branch passes the size limits                    | [0019](0019-rules-every-project-needs.md)          |
 | 97  | A pull request carries its issue's milestone                                          | [0019](0019-rules-every-project-needs.md)          |
 | 98  | In a parallel wave, `docs/enforcement.md` rows land after the wave                    | [0019](0019-rules-every-project-needs.md)          |
+| 99  | temple-bar supports only the current Node LTS, and moves up after each new LTS        | [0020](0020-only-the-current-node-lts.md)          |
