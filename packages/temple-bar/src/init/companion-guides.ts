@@ -172,6 +172,11 @@ a pull request. temple-bar's setup wrote this file.
 ## Pushing and merging
 
 - Every push runs the full CI, so push once, when the work is final.
+- **A reviewer is recorded on a commit.** When someone other than the
+  author reviewed the change, add \`Reviewed-by: <reviewer>\` as a trailer
+  to the branch's last commit before its one push. \`pnpm merge\` copies
+  each one from the branch's commits into the squash message; a line in the
+  description doesn't count.
 - \`pnpm merge <N>\` runs whatever the current folder's \`package.json\` says.
   Inside a pull request's worktree that is the pull request's own scripts,
   so run it from the default-branch checkout.

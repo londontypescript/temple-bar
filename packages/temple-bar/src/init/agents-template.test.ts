@@ -99,6 +99,18 @@ void test("the update before work stops keeps its fields in the guide the block 
   }
 });
 
+// merge reads reviewers only from the branch's commits, so a reviewer named
+// only in the description is lost from the squash.
+void test("the pull request guide says a reviewer goes on a commit, not in the description", () => {
+  const guide = flat(companion("docs/pull-requests.md"));
+  for (const required of [
+    "`Reviewed-by: <reviewer>` as a trailer to the branch's last commit before its one push",
+    "a line in the description doesn't count",
+  ]) {
+    assert.ok(guide.includes(required), required);
+  }
+});
+
 void test("every doc the rules link to is one setup writes", () => {
   const written = new Set(COMPANION_FILES.map((file) => file.path));
   const links = [...templeBarBlock().matchAll(/\]\((docs\/[^)]+)\)/g)].map(
@@ -259,7 +271,7 @@ const APPROVED_COMPANION_SHA256: Readonly<Record<string, string>> = {
   "docs/planning.md":
     "664be6f35c101086696802793f5b7c57923385144f518044a8d7a54a7edb1b5f",
   "docs/pull-requests.md":
-    "b45f68f91355519ef1821406ff8fd211d1a4a9abb19bdb94b3adb4f45cd833e0",
+    "89159bc96bdf1b309e45749b643f68d4c2c88658a909ae89064dc21ffa3d5f43",
   "docs/delegation.md":
     "7009360c6ea13e60e3d0c1a55fb4085cb05fa7c9b5f95a82b98ef4da8bcb327b",
   "docs/incidents.md":
