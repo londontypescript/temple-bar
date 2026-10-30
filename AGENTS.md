@@ -10,8 +10,6 @@ a rule to fail faster, never replace it.
   tooling, and no feature may make it do so. CI runs the pinned `pnpm gate`
   (`pnpm check` is the same). A pin bump is its own pull request, never a side
   effect of other work.
-- **Decisions are numbered,** indexed in [docs/adr/](docs/adr/README.md). A new
-  one takes the next number and an ADR, with its row, in the same pull request.
 - **The repo is public.** Nothing committed or filed here carries anything from
   another project beyond its name and a one-line incident summary.
 - **Incidents are this repo's own issues:** here, the block's "never in this
@@ -24,19 +22,14 @@ a rule to fail faster, never replace it.
   files.
 - **A subagent's done-condition sits inside its scope** ("report back with the
   known failure" is valid). One that struggles is stopped and reported.
-- **The primary checkout stays on `main`.**
 - **Never route around a refusal through the user's terminal.**
   `corepack enable` is a global install too, like `npm i -g` and
   `brew install`. A workaround names its cause; one you can't find is
   _needs a decision_.
 - **[docs/enforcement.md](docs/enforcement.md)** lists which rules are blocked
-  and which are prose only: update it with any change to a mechanism. A rule
-  that drifts needs a mechanism, not stronger wording.
-- **Performance work freezes a baseline before building:** its plan names the
-  benchmark, the commits and the target, and it is done on that benchmark's
-  result, never on ordinary CI times.
-- **A long CI experiment smoke-tests first:** one round with fail-fast, and the
-  full run only once that round is clean.
+  and which are prose only: update it with any change to a mechanism.
+- **Before performance work or a long CI experiment,** read
+  [docs/experiments.md](docs/experiments.md).
 
 <!-- BEGIN:temple-bar: setup rewrites this block; edit outside it -->
 

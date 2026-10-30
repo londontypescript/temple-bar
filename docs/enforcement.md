@@ -3,9 +3,10 @@
 Which of the rules in [AGENTS.md](../AGENTS.md) something actually stops, and
 which rely on agents and people following them. Stated plainly so no rule is
 mistaken for a control. This table describes the repo today; update it in the
-same pull request as any change to a mechanism. A phase in a parallel wave
-reports its row in its handover instead, and the wave's rows land together in
-one docs pull request after its last merge.
+same pull request as any change to a mechanism. A rule that drifts needs a
+mechanism, not stronger wording. A phase in a parallel wave reports its row in
+its handover instead, and the wave's rows land together in one docs pull
+request after its last merge.
 
 | Rule                                                   | Mechanism                                                                                                        | Strength                            |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
