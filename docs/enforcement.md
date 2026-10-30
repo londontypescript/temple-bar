@@ -3,9 +3,10 @@
 Which of the rules in [AGENTS.md](../AGENTS.md) something actually stops, and
 which rely on agents and people following them. Stated plainly so no rule is
 mistaken for a control. This table describes the repo today; update it in the
-same pull request as any change to a mechanism. A phase in a parallel wave
-reports its row in its handover instead, and the wave's rows land together in
-one docs pull request after its last merge.
+same pull request as any change to a mechanism. A rule that drifts needs a
+mechanism, not stronger wording. A phase in a parallel wave reports its row in
+its handover instead, and the wave's rows land together in one docs pull
+request after its last merge.
 
 | Rule                                                   | Mechanism                                                                                                        | Strength                            |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
@@ -142,7 +143,7 @@ gate names the packages that hold Knip's findings, or the root; that naming
 never turns a failure into a pass. temple-bar writes no Knip config: entries
 that Knip's plugins don't find are declared in the project's own.
 
-This repo pins published 0.2.1, so the rules marked "from 0.2.0" and earlier
+This repo pins published 0.2.2, so the rules marked "from 0.2.2" and earlier
 apply to it: each of its two packages runs its own four scripts. The root's
 `test` runs `scripts/` and `e2e/`, each package's runs its own `src/`, and a
 test in the suite (`scripts/selected-tests.test.ts`) fails if any tracked test

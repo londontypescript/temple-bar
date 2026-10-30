@@ -10,8 +10,6 @@ a rule to fail faster, never replace it.
   tooling, and no feature may make it do so. CI runs the pinned `pnpm gate`
   (`pnpm check` is the same). A pin bump is its own pull request, never a side
   effect of other work.
-- **Decisions are numbered,** indexed in [docs/adr/](docs/adr/README.md). A new
-  one takes the next number and an ADR, with its row, in the same pull request.
 - **The repo is public.** Nothing committed or filed here carries anything from
   another project beyond its name and a one-line incident summary.
 - **Incidents are this repo's own issues:** here, the block's "never in this
@@ -24,19 +22,14 @@ a rule to fail faster, never replace it.
   files.
 - **A subagent's done-condition sits inside its scope** ("report back with the
   known failure" is valid). One that struggles is stopped and reported.
-- **The primary checkout stays on `main`.**
 - **Never route around a refusal through the user's terminal.**
   `corepack enable` is a global install too, like `npm i -g` and
   `brew install`. A workaround names its cause; one you can't find is
   _needs a decision_.
 - **[docs/enforcement.md](docs/enforcement.md)** lists which rules are blocked
-  and which are prose only: update it with any change to a mechanism. A rule
-  that drifts needs a mechanism, not stronger wording.
-- **Performance work freezes a baseline before building:** its plan names the
-  benchmark, the commits and the target, and it is done on that benchmark's
-  result, never on ordinary CI times.
-- **A long CI experiment smoke-tests first:** one round with fail-fast, and the
-  full run only once that round is clean.
+  and which are prose only: update it with any change to a mechanism.
+- **Before performance work or a long CI experiment,** read
+  [docs/experiments.md](docs/experiments.md).
 
 <!-- BEGIN:temple-bar: setup rewrites this block; edit outside it -->
 
@@ -53,10 +46,14 @@ Before planning or filing an issue, read [docs/planning.md](docs/planning.md).
 
 - **Plan first.** Work bigger than a one-line fix starts with a written
   plan the user has approved: verifiable phases, which can run in parallel,
-  each rated **routine**, **involved** or **delicate**. Never pick or
-  switch models yourself.
+  each rated **mechanical**, **routine**, **involved**, **delicate** or
+  **critical** by the criteria in [docs/planning.md](docs/planning.md).
+  Never pick or switch models yourself.
+- **Milestones are versions:** `0.MINOR.0` for a planned release, a patch
+  version for an inserted fix, so a fix never renames the ones after it.
+  A descriptive name goes in the milestone's description.
 - **Scope is the user's,** set by placing issues in a milestone. Its plan,
-  `docs/plans/<milestone>.md`, groups the issues into phases by the files
+  `docs/plans/<version>.md`, groups the issues into phases by the files
   they touch, gives each phase closing several its `One concern:` reason,
   and is approved through a pull request. Progress goes on the issues,
   never in the plan.
@@ -90,8 +87,11 @@ Before planning or filing an issue, read [docs/planning.md](docs/planning.md).
   squashed: one branch, one pull request, one commit. Never commit to it
   directly, even a one-line fix.
 - **Every branch gets its own worktree,** created by your harness and
-  prepared there. Never run `git worktree add` or choose a location
-  yourself; if the harness can't, ask the user once per session.
+  prepared there. Where the harness can start a subagent or session in its
+  own worktree, use that; the main checkout stays on the default branch.
+  Never run `git worktree add` or choose a location yourself. If the
+  harness can't, ask the user once per session, never offering
+  `git worktree add` or switching the default-branch checkout as options.
 - **Commit at every point where the checks pass,** and a clean baseline
   before debugging. Never hold a large uncommitted change.
 - **Read history before changing code** (`git log -S`, `git blame`).
@@ -109,12 +109,18 @@ Before opening a pull request or preparing an admin merge, read
   commit; the `pre-push` hook refuses an unmarked one.
 - **One concern per pull request.** One closing two or more issues, or over
   the size limits, needs a `One concern:` line giving a reason that counts.
+  The limits default to 500 source lines, 1000 test lines and 15 files,
+  and `temple-bar.config.json` can change them.
+- **A pull request carries its issue's milestone**
+  (`gh pr create --milestone <name>`): a mirror, never a way to add scope.
 - **One bullet per distinct change** in the description, as a top-level
   list; it becomes the squash commit.
 - **Merge with `pnpm merge <N>`** once CI and code scanning are green, from
   the default-branch checkout, never inside a pull request's worktree.
-- **The user's yes first** for a change to AGENTS.md or to the checks, or
-  one that tags or publishes. Never rewrite a pushed branch.
+- **The user's yes first** for a change to AGENTS.md or to the checks, and
+  for any step that can't be undone: a tag, a publish, deleting history, or
+  deleting work that isn't on the default branch. Never rewrite a pushed
+  branch.
 - **A change to the checks the judge guards** is merged by the user as
   admin: its description is exactly the squash body, its checklist a
   comment. Any other refusal is a failure to diagnose, not a bypass.
