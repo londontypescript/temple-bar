@@ -8,8 +8,8 @@ import test from "node:test";
 // P9.1a: Node's type stripping refuses to run TypeScript found under a
 // node_modules directory, so a published package must ship built
 // JavaScript rather than relying on Node to strip types at runtime. This
-// is what forces packages/*/dist to exist. CI proves this on Node 24 and
-// 26; this test proves it wherever it runs.
+// is what forces packages/*/dist to exist. CI proves this on the Node
+// version it runs; this test proves it wherever it runs.
 // Prints with process.stdout.write, not console.log: console.log colours a
 // number whenever colour is forced, which some terminals do, and the check
 // below compares plain text.

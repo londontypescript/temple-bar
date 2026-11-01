@@ -4,7 +4,9 @@ Date: 2026-10-07. Status: accepted (plan decisions 3, 11, 12 and 14 for
 0.0.9;
 [#191](https://github.com/londontypescript/temple-bar/issues/191), which
 also takes up incident
-[#109](https://github.com/londontypescript/temple-bar/issues/109)).
+[#109](https://github.com/londontypescript/temple-bar/issues/109)). The
+workflows' Node version revised 2026-11-01 by decision 99
+([ADR 0020](0020-only-the-current-node-lts.md)): see "Contents" below.
 
 ## Context
 
@@ -71,7 +73,8 @@ check.
     superseded run on the same pull request.
   - One job, with no `if:` and no `timeout-minutes`, on `ubuntu-latest`
     with Node 24, the judge's
-    version. Its `name:` is the check name a ruleset requires, so it comes
+    version (Node 26 from 0.3.0: see below). Its `name:` is the check name
+    a ruleset requires, so it comes
     from a constant that the workflow text, setup and the gate share
     ([#286](https://github.com/londontypescript/temple-bar/issues/286)
     requires it on the default branch).
@@ -86,6 +89,15 @@ check.
   - Actions pinned to full commit hashes, from constants shared with the
     judge workflow. temple-bar's own `.github/workflows/ci.yml` is written
     by hand and keeps its own copy of the hashes.
+
+  Revised 2026-11-01 by decision 99
+  ([ADR 0020](0020-only-the-current-node-lts.md)): from 0.3.0 all three
+  workflows, the judge's too, run on Node 26, the newest LTS, from one
+  shared constant, and each one's last published output is registered so
+  setup replaces an unedited old copy. The floor stays Node 24 until 0.4.0:
+  this repo's pinned gate requires its own setup-written workflows to match
+  the pinned release's, so they move with the pin bump to 0.3.0, and the
+  floor follows a release later.
 
 - **Names, reserved for temple-bar:** the gate job is `temple-bar gate`
   and the title job is `temple-bar pr-title`, exported as `GATE_CHECK` and

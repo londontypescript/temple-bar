@@ -1,7 +1,9 @@
 # ADR 0006: How temple-bar itself is built, gated and released
 
 Date: 2026-10-01. Status: accepted (decisions 6, 7, 8, 9 and 26, and two
-choices settled before the first planning session).
+choices settled before the first planning session). Decision 9's Node
+versions revised 2026-11-01 by decision 99
+([ADR 0020](0020-only-the-current-node-lts.md)): see decision 9 below.
 
 ## Context
 
@@ -17,7 +19,8 @@ registry it ships through.
 machinery uses Node built-ins only. Bash appears only as one-line hook shims
 that call Node, and there is no Python. The packages ship JavaScript built by
 `tsc`, because Node's type stripping refuses `.ts` files under
-`node_modules`, which a test proves on every supported Node version.
+`node_modules`, which a test proves on every supported Node version (from
+0.3.0, on the one Node version CI runs: see decision 9).
 
 **Settled before planning: the npm registry only.** temple-bar is published
 to npm, and not to other registries such as JSR, for now. This is about where
@@ -29,6 +32,15 @@ every London TypeScript repo. Node 24 or newer, with CI on Node 24 and 26 ×
 Ubuntu, macOS and Windows. Windows is required: early in the build, tests
 reviewed on macOS only failed on Windows, and only CI caught it. ESLint with
 typescript-eslint's strict type-checked rules, and Prettier.
+
+Revised 2026-11-01 by decision 99
+([ADR 0020](0020-only-the-current-node-lts.md)): temple-bar supports only the
+newest Node LTS, and each move takes two releases. In 0.3.0, CI runs Node 26
+only, on all three operating systems, and so do the workflows setup writes.
+The floor stays Node 24 until 0.4.0 raises it: this repo's pinned gate
+requires its setup-written workflows to match the pinned release's, so the
+floor and those workflows can't move in one release. Until then Node 24 is
+supported but no longer tested.
 
 The first plan was Vite Plus. It was set aside because its lint rules aren't
 yet as strict as ESLint with typescript-eslint, and Vite Plus itself is still
