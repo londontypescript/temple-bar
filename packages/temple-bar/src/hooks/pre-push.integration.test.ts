@@ -229,7 +229,9 @@ void test("pre-push: a commit made after the mark needs ready again", () => {
     assert.match(push.stderr, /has not been marked ready to push/);
     assert.match(
       push.stderr,
-      new RegExp(`The commit marked here is ${marked.slice(0, 7)}`),
+      new RegExp(
+        `The commit marked here is ${RegExp.escape(marked.slice(0, 7))}`,
+      ),
     );
     assert.notEqual(push.code, 0);
   } finally {

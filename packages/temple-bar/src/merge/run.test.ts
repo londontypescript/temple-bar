@@ -210,7 +210,7 @@ void test("a commit made on the branch after the merge is kept, said so, and lef
   assert.match(
     out,
     new RegExp(
-      `kept the worktree at /wt/x on feat/x \\(${LOCAL_NEWER}, which is not the merged ${HEAD}\\)`,
+      `kept the worktree at /wt/x on feat/x \\(${RegExp.escape(LOCAL_NEWER)}, which is not the merged ${RegExp.escape(HEAD)}\\)`,
     ),
   );
   assert.match(
@@ -286,7 +286,7 @@ void test("a remote branch pushed to after the merge is kept, and merge exits 1"
   assert.match(
     h.err(),
     new RegExp(
-      `left behind: kept origin/feat/x: its tip is ${REMOTE_NEWER}, not the merged ${HEAD}, so it holds work that didn't merge`,
+      `left behind: kept origin/feat/x: its tip is ${RegExp.escape(REMOTE_NEWER)}, not the merged ${RegExp.escape(HEAD)}, so it holds work that didn't merge`,
     ),
   );
   // Newer work isn't finished, so the leftovers never suggest deleting it.

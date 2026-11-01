@@ -89,7 +89,7 @@ void test("refuses when GitHub's head never matches the local tip", async () => 
   assert.match(
     h.err(),
     new RegExp(
-      `head on GitHub is e{40}, but the local branch feat/x is at ${HEAD}.*close and reopen it`,
+      `head on GitHub is e{40}, but the local branch feat/x is at ${RegExp.escape(HEAD)}.*close and reopen it`,
     ),
   );
   assert.equal(code, 1);
@@ -186,7 +186,7 @@ void test("refuses when a check fails, naming the failed checks", async () => {
       ];
     },
     new RegExp(
-      `checks failed on ${HEAD}: gate \\(failure\\), lint \\(cancelled\\)`,
+      `checks failed on ${RegExp.escape(HEAD)}: gate \\(failure\\), lint \\(cancelled\\)`,
     ),
   );
 });

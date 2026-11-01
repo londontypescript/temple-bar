@@ -136,7 +136,10 @@ void test(
     );
     assert.equal(result.code, 1, describe(result));
     assert.match(result.stderr, /Nothing was changed/, describe(result));
-    assert.match(result.stderr, new RegExp(`found ${OLD_PNPM_VERSION}`));
+    assert.match(
+      result.stderr,
+      new RegExp(`found ${RegExp.escape(OLD_PNPM_VERSION)}`),
+    );
     assert.equal(
       readFileSync(path.join(options.cwd, "package.json"), "utf8"),
       original,

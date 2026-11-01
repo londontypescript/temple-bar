@@ -267,7 +267,7 @@ for (const pm of ["pnpm"] as const) {
       assert.match(
         editedGate.stderr,
         new RegExp(
-          `\\.github/workflows/temple-bar-gate\\.yml differs from the copy this temple-bar writes, from line ${String(gateStep + 1)}\\.`,
+          `\\.github/workflows/temple-bar-gate\\.yml differs from the copy this temple-bar writes, from line ${RegExp.escape(String(gateStep + 1))}\\.`,
         ),
       );
       writeFileSync(gatePath, gateWorkflow());

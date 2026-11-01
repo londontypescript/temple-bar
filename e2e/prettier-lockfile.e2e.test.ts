@@ -176,7 +176,7 @@ void test(
     assert.notEqual(text(updated, LOCKFILE), text(base, LOCKFILE));
     assert.match(
       text(updated, LOCKFILE),
-      new RegExp(`prettier@${PRETTIER_UPDATE.replaceAll(".", "\\.")}`),
+      new RegExp(`prettier@${RegExp.escape(PRETTIER_UPDATE)}`),
     );
     const result = await judge(base, updated);
     assert.equal(result.code, 0, describe(result));

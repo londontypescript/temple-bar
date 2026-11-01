@@ -42,7 +42,9 @@ void test("explicit full/collapsed labels including x are mandatory; undefined s
   for (const label of ["missing", "collapsed", "x"]) {
     assert.match(
       result.stderr,
-      new RegExp(`Missing link or image reference definition: "${label}"`),
+      new RegExp(
+        `Missing link or image reference definition: "${RegExp.escape(label)}"`,
+      ),
     );
   }
   assert.doesNotMatch(result.stderr, /ordinary prose/);

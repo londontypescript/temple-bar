@@ -41,10 +41,6 @@ function assertReports(result: RunResult, line: RegExp): void {
   assert.match(`${result.stdout}${result.stderr}`, line, describe(result));
 }
 
-function escaped(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
-}
-
 void test(
   "stack: the packed launcher sets up at the root, and no package gets temple-bar or Electron's binary",
   TIMEOUT,
@@ -90,7 +86,7 @@ void test(
         assertReports(
           result,
           new RegExp(
-            `^ {2}passed {3}${escaped(script)} \\(${escaped(folder)}\\)$`,
+            `^ {2}passed {3}${RegExp.escape(script)} \\(${RegExp.escape(folder)}\\)$`,
             "m",
           ),
         );

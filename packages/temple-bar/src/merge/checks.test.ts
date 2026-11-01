@@ -50,7 +50,9 @@ void test("refuses when a check's newest run failed, though an older run of it p
   assert.equal(await createMergeCommand(h.deps).run(["7"], h.ctx), 1);
   assert.match(
     h.err(),
-    new RegExp(`checks failed on ${HEAD}: gate \\(failure\\)\\n`),
+    new RegExp(
+      `checks failed on ${RegExp.escape(HEAD)}: gate \\(failure\\)\\n`,
+    ),
   );
   assert.equal(h.ran("gh", "pr", "merge"), false);
 });

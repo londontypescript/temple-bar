@@ -89,7 +89,7 @@ function assertDiffersAt(
   assert.match(
     result.stderr,
     new RegExp(
-      `${GATE_WORKFLOW_PATH.replaceAll(".", "\\.")} differs from the copy this temple-bar writes, from line ${String(line)}\\.`,
+      `${RegExp.escape(GATE_WORKFLOW_PATH)} differs from the copy this temple-bar writes, from line ${RegExp.escape(String(line))}\\.`,
     ),
   );
   assert.match(
