@@ -13,7 +13,12 @@
 import type { Context } from "../context.ts";
 import type { CommandEntry } from "../registry.ts";
 import { checkOrigin } from "../init/requirements.ts";
-import { ASK_FOR_ADMIN_MERGE, findCheckChanges } from "./changes.ts";
+import type { CatalogCounts } from "./catalog.ts";
+import {
+  ASK_FOR_ADMIN_MERGE,
+  catalogOnlyChange,
+  findCheckChanges,
+} from "./changes.ts";
 import { GUARDED_CHECKS } from "./guarded-checks.ts";
 import { readFixedChanges } from "./github-changes.ts";
 import type { PullRequestRef } from "./github.ts";
@@ -113,6 +118,27 @@ function formatCheckChanges(
   );
 }
 
+const counted = (count: number, one: string, many: string): string =>
+  `${String(count)} ${count === 1 ? one : many}`;
+
+/** What a pass says the pull request did to the checks: nothing, or only
+ * the root workspace file's catalog, which is logged as such so the
+ * record shows each catalog-only change the judge let through. */
+function whatItDoes(catalog: CatalogCounts | undefined): string {
+  if (catalog === undefined) {
+    return "leaves the checks alone";
+  }
+  const parts = [
+    ...(catalog.changed > 0
+      ? [counted(catalog.changed, "version changed", "versions changed")]
+      : []),
+    ...(catalog.added > 0
+      ? [counted(catalog.added, "entry added", "entries added")]
+      : []),
+  ];
+  return `changes only pnpm-workspace.yaml's catalog (${parts.join(", ")}) and otherwise leaves the checks alone`;
+}
+
 async function runJudge(
   args: readonly string[],
   ctx: Context,
@@ -166,7 +192,7 @@ async function runJudge(
     return 1;
   }
   ctx.stdout.write(
-    `judge: pull request #${String(number)} leaves the checks alone ` +
+    `judge: pull request #${String(number)} ${whatItDoes(catalogOnlyChange(changes))} ` +
       `(its head ${headSha.slice(0, 7)} compared with ${baseRef} at ${baseSha.slice(0, 7)}).\n`,
   );
   return 0;
@@ -180,6 +206,9 @@ export const judgeCommand: CommandEntry = {
     "Reads the base branch's tip and the pull request's head from GitHub " +
     "as two whole trees, without checking out or running any of their " +
     `code, and fails when the head changes ${GUARDED_CHECKS}. ` +
+    "A change to the root pnpm-workspace.yaml that only changes versions " +
+    "in its default catalog, or adds entries there, passes, under the " +
+    "catalog grammar of ADR 0015. " +
     "Setup's judge workflow runs it on every pull request. When the pull " +
     "request moves the pinned temple-bar version, the refusal also lists " +
     "every other path it changes, so the maintainer sees what rides along.\n\n" +

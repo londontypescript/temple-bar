@@ -5,77 +5,25 @@
 // give exactly the expected findings, renames included.
 
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import test, { type TestContext } from "node:test";
+import test from "node:test";
 
-import { findCheckChanges } from "../judge/changes.ts";
-import { readFixedChanges } from "../judge/github-changes.ts";
-import { createGitSeam } from "../seams/git.ts";
-import { createFakeContext } from "../testing/fakes.ts";
+import {
+  judgeBoth,
+  assertAgree,
+  type AgreementCase,
+} from "../judge/testing/agreement.ts";
+import { newRepo } from "../judge/testing/trees.ts";
 import {
   commitFiles,
   deleteObject,
   writeBlob,
-  type RepoFile,
 } from "../testing/git-commits.ts";
-import { initTestRepo } from "../testing/git-repo.ts";
-import { githubFromGit } from "../testing/github-from-git.ts";
-import { checkChanges } from "./approval.ts";
-import { readChanges } from "./manifests.ts";
-
-type Files = Readonly<Record<string, RepoFile>>;
 
 const A = JSON.stringify({ name: "a", scripts: { test: "node --test" } });
 const B = JSON.stringify({ name: "b", scripts: { lint: "eslint ." } });
 const ROOT = JSON.stringify({ name: "root", scripts: { test: "x" } });
 
-const PR = {
-  api: "https://api.github.com",
-  owner: "acme",
-  repo: "widgets",
-  number: 7,
-  token: "t",
-};
-
-function newRepo(t: TestContext): string {
-  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-agreement-"));
-  t.after(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-  initTestRepo(dir);
-  return dir;
-}
-
-/** Both readers' findings for the change from `base` to `head`, and what
- * the judge's read gave when it didn't succeed. */
-async function judgeBoth(dir: string, baseSha: string, headSha: string) {
-  const local = createFakeContext({ git: createGitSeam(), cwd: dir });
-  const byGit = checkChanges(await readChanges(local, baseSha, headSha, dir));
-  const http = githubFromGit({ dir, heads: [headSha], tips: [baseSha] });
-  const read = await readFixedChanges(createFakeContext({ http }), PR);
-  return {
-    byGit,
-    byGitHub: read.ok ? findCheckChanges(read.value.changes) : read.reason,
-  };
-}
-
-async function assertAgree(
-  t: TestContext,
-  base: Files,
-  head: Files,
-  expected: readonly string[],
-): Promise<void> {
-  const dir = newRepo(t);
-  const baseSha = commitFiles(dir, { "src/x.ts": "1", ...base });
-  const headSha = commitFiles(dir, { "src/x.ts": "2", ...head }, baseSha);
-  const { byGit, byGitHub } = await judgeBoth(dir, baseSha, headSha);
-  assert.deepEqual(byGit, expected, "ready and merge");
-  assert.deepEqual(byGitHub, expected, "the judge");
-}
-
-const cases: readonly [string, Files, Files, readonly string[]][] = [
+const cases: readonly AgreementCase[] = [
   [
     "a nested manifest's script",
     { "packages/a/package.json": A },
@@ -253,11 +201,88 @@ const cases: readonly [string, Files, Files, readonly string[]][] = [
   ],
 ];
 
-for (const [what, base, head, expected] of cases) {
-  void test(`judge, ready and merge agree: ${what}`, async (t) => {
-    await assertAgree(t, base, head, expected);
+for (const one of cases) {
+  void test(`judge, ready and merge agree: ${one[0]}`, async (t) => {
+    await assertAgree(t, [one]);
   });
 }
+
+/** A manifest's text with `bytes` in the middle of a string value. */
+const withBytes = (...bytes: number[]) => ({
+  bytes: Buffer.concat([
+    Buffer.from('{"name":"a","description":"'),
+    Buffer.from(bytes),
+    Buffer.from('","scripts":{"test":"node --test"}}'),
+  ]),
+});
+
+const NOT_UTF8 = "could not read it here: it isn't valid UTF-8";
+
+void test("judge, ready and merge read every text as UTF-8 from its bytes, and agree on what isn't", async (t) => {
+  const nested = "packages/a/package.json";
+  await assertAgree(t, [
+    [
+      "a stray byte",
+      { [nested]: A },
+      { [nested]: withBytes(0xff) },
+      [`${nested} (${NOT_UTF8})`],
+    ],
+    [
+      "a lone continuation byte",
+      { [nested]: A },
+      { [nested]: withBytes(0x80) },
+      [`${nested} (${NOT_UTF8})`],
+    ],
+    [
+      "an overlong form",
+      { [nested]: A },
+      { [nested]: withBytes(0xc0, 0xaf) },
+      [`${nested} (${NOT_UTF8})`],
+    ],
+    [
+      "a surrogate pair encoded as two three-byte forms",
+      { [nested]: A },
+      { [nested]: withBytes(0xed, 0xa0, 0x80, 0xed, 0xb0, 0x80) },
+      [`${nested} (${NOT_UTF8})`],
+    ],
+    [
+      "on the base branch",
+      { [nested]: withBytes(0xff) },
+      { [nested]: A },
+      [
+        `${nested} (could not read it on the base branch: it isn't valid UTF-8)`,
+      ],
+    ],
+    // U+FFFD is valid text when its own bytes are there.
+    [
+      "U+FFFD as valid bytes",
+      { [nested]: A },
+      { [nested]: withBytes(0xef, 0xbf, 0xbd) },
+      [],
+    ],
+    [
+      "a byte order mark, which neither reader drops",
+      { [nested]: A },
+      {
+        [nested]: {
+          bytes: Buffer.concat([
+            Buffer.from([0xef, 0xbb, 0xbf]),
+            Buffer.from(B),
+          ]),
+        },
+      },
+      [
+        `${nested} isn't valid JSON here, so the judge can't tell whether it changes the checks`,
+      ],
+    ],
+    [
+      "the root lockfile",
+      { "pnpm-lock.yaml": "lockfileVersion: '9.0'\n" },
+      { "pnpm-lock.yaml": { bytes: Buffer.from([0x6c, 0xff, 0x0a]) } },
+      [`pnpm-lock.yaml (${NOT_UTF8})`],
+    ],
+  ]);
+});
 
 void test("judge, ready and merge agree on a manifest that can't be read: none of them passes it", async (t) => {
   const dir = newRepo(t);

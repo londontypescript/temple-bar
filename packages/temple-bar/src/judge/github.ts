@@ -9,9 +9,8 @@
 // judge that can't read the pull request must fail rather than pass it
 // unseen.
 
-import { createHash } from "node:crypto";
-
 import type { Context } from "../context.ts";
+import { blobId } from "./blob-text.ts";
 import { checkEntry, isTreePath, type TreeEntry } from "./tree-entry.ts";
 
 export interface PullRequestRef {
@@ -179,25 +178,18 @@ export async function readTree(
   return { ok: true, value: entries };
 }
 
-/** git's own id for a blob with these bytes. */
-function blobId(bytes: Buffer): string {
-  return createHash("sha1")
-    .update(`blob ${String(bytes.length)}\0`)
-    .update(bytes)
-    .digest("hex");
-}
-
-/** A blob's text. Read through the blobs API rather than the contents API,
+/** A blob's bytes. Read through the blobs API rather than the contents API,
  * which stops at 1 MB: a large repo's lockfile can be bigger than that.
  * GitHub wraps the base64 across lines; once the breaks are out, it must
  * decode and encode back to the same text, or bytes were dropped on the
- * way. The bytes must also be the ones the id names, which proves the
- * text is the file the tree listed. */
+ * way. The bytes must also be the ones the id names, which proves they are
+ * the file the tree listed. Turning them into text is the caller's, so
+ * bytes that aren't UTF-8 are told apart from a read that failed. */
 export async function readBlob(
   ctx: Context,
   pr: PullRequestRef,
   id: string,
-): Promise<Read<string>> {
+): Promise<Read<Buffer>> {
   const read = await getObject(
     ctx,
     `${repoUrl(pr)}/git/blobs/${encodeURIComponent(id)}`,
@@ -218,5 +210,5 @@ export async function readBlob(
   if (blobId(bytes) !== id) {
     return fail(`the blob ${id} came back with other content`);
   }
-  return { ok: true, value: bytes.toString("utf8") };
+  return { ok: true, value: bytes };
 }

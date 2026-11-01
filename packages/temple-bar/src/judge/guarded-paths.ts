@@ -26,9 +26,15 @@ function fold(name: string): string {
   return name.normalize("NFKC").toUpperCase().toLowerCase();
 }
 
-function foldedName(file: string): string {
+/** A path's last part, folded as a checkout compares it. */
+export function foldedName(file: string): string {
   return fold(path.posix.basename(file));
 }
+
+/** pnpm's workspace file at the root: the one file of its kind whose text
+ * the judge reads, under its catalog grammar (see catalog.ts). A copy at
+ * any other depth, or a root name that only folds to it, is guarded whole. */
+export const WORKSPACE_FILE = "pnpm-workspace.yaml";
 
 const isWorkflow = (file: string): boolean => file.startsWith(WORKFLOWS_FOLDER);
 
@@ -49,6 +55,14 @@ export function isWorkflowFolder(file: string, entry: TreeEntry): boolean {
  * docs/adr/0011-which-checks-judge-a-pull-request.md). */
 const isTempleBarConfig = (file: string): boolean => file === CONFIG_FILE_NAME;
 
+/** An .npmrc, by folded name, at any depth. */
+export const isNpmrc = (file: string): boolean => foldedName(file) === ".npmrc";
+
+/** A pnpmfile, by folded name, at any depth: code pnpm runs as it
+ * installs. */
+export const isPnpmfile = (file: string): boolean =>
+  foldedName(file).startsWith(".pnpmfile.");
+
 /** Files pnpm reads when CI installs, at any depth, that can swap the
  * pinned temple-bar or run code without touching a package.json:
  * pnpm-workspace.yaml holds overrides and settings of its own, a pnpmfile
@@ -56,11 +70,8 @@ const isTempleBarConfig = (file: string): boolean => file === CONFIG_FILE_NAME;
  * another registry. Never excluded, not even under node_modules: pnpm reads
  * an .npmrc wherever it sits on the way to a package. */
 export function isInstallSetting(file: string): boolean {
-  const name = foldedName(file);
   return (
-    name === ".npmrc" ||
-    name === "pnpm-workspace.yaml" ||
-    name.startsWith(".pnpmfile.")
+    isNpmrc(file) || foldedName(file) === WORKSPACE_FILE || isPnpmfile(file)
   );
 }
 
@@ -97,6 +108,7 @@ export function isGuarded(file: string): boolean {
  * changed is enough. */
 export function readsText(file: string): boolean {
   return (
-    !isWholeFileGuarded(file) && (isManifest(file) || isRootLockfile(file))
+    file === WORKSPACE_FILE ||
+    (!isWholeFileGuarded(file) && (isManifest(file) || isRootLockfile(file)))
   );
 }
