@@ -200,8 +200,9 @@ or by reading the diff, then say so in one line naming what you checked:
 
 - the judge's refusal names only what's expected;
 - every other check is green, and any step the change names ran;
-- the squash message GitHub will offer has the right subject, body, and
-  co-author and reviewer trailers;
+- the title, description, the branch's commits and the repository's
+  squash-message setting give the right subject, body, and co-author and
+  reviewer trailers;
 - a \`One concern:\` line when the pull request closes several issues or is
   over the size limits, because an admin merge skips merge's own
   enforcement;
@@ -215,8 +216,8 @@ nothing unrelated.
 
 **What the user does goes in a separate comment,** headed "Before merging as
 admin, check". It holds only the user's own steps: any change to the ruleset,
-the admin merge itself, and any check the API can't show. Never results, and
-nothing you've already verified.
+a look at GitHub's merge preview, the admin merge itself, and any check the
+API can't show. Never results, and nothing you've already verified.
 
 **Evidence goes in its own comment** (break-it results, manual runs, review
 summaries, the rollback), never in the checklist, so the checklist stays
@@ -227,7 +228,7 @@ update it and let CI rerun before asking for the admin merge: each other
 merge can leave it behind.
 
 Setup doesn't set GitHub's squash-message default, so a repository's default
-may differ: read its setting when you check the squash message.
+may differ: the merge preview is where a wrong message is caught.
 `;
 
 /** What an orchestrator and its subagents each own, and the review bar. */
