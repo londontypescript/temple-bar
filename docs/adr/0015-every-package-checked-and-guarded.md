@@ -40,9 +40,9 @@ Dependabot on and within minutes had two pull requests that only bumped
 versions in the `catalog:` of `pnpm-workspace.yaml`
 ([#457](https://github.com/londontypescript/temple-bar/issues/457)). Decision
 66 made each the maintainer's merge, as every bump in every adopter would be.
-A catalog bump moves the project's own dependencies, which the judge never
-guarded; the grammar below tells one apart and keeps it from reaching
-temple-bar's install. ChatGPT Sol 6.1 reviewed it adversarially, twice.
+A catalog bump moves the project's own dependencies, never guarded; the
+grammar below tells one apart and keeps it from reaching temple-bar's
+install. ChatGPT Sol 6.1 reviewed it adversarially, three times.
 
 ## Decisions
 
@@ -97,10 +97,8 @@ removing an entry, touching temple-bar's own entry, a named catalog, the
 package list, a setting, a comment outside the block, or any text the
 grammar doesn't read, is a finding. The grammar is text: the judge reads no
 YAML library (as for the lockfile) and refuses what it can't read.
-The maintainer decided the shape on 2026-10-30 (changed values and added
-entries pass; removals stay a finding; temple-bar's own entry always
-guarded; duplicate sections or keys, quoted keys and named catalogs refused)
-and amended one point on 2026-11-01: a single-quoted lowercase scoped key,
+The maintainer decided the shape on 2026-10-30 (the "Decided" section of
+#457) and amended one point on 2026-11-01: a single-quoted lowercase scoped key,
 `'@scope/name'`, is admitted, because YAML cannot write a scoped name any
 other way and half of grand-union's catalog is scoped. Double quotes stay
 refused: they process escapes, which a parser-free judge can't safely read.
@@ -157,23 +155,26 @@ Each side splits into a prefix, the marker, the body and the suffix:
   final empty line with it.
 - The prefix and the suffix are byte for byte identical on the two sides.
   Any difference there is "changed outside the catalog".
-- Every prefix line is empty, a comment line (spaces then `#`), `---` alone
-  as the first line that is neither of those, or passes this scan: start
-  outside quotes at depth zero; outside, `'` or `"` enters that quote, `{`
-  or `[` adds one to the depth, `}` or `]` takes one (below zero fails), a
-  `!` fails, and a `#` right after a space ends the scan; inside a quote,
-  only its own quote character leaves it; at the end of the line the scan
-  must be outside quotes at depth zero. A `%` or `...` at column 0, or a
-  second `---`, fails. Every suffix line passes the same scan, with no
-  `---` at all. That is all the YAML the judge understands, and enough to
-  prove the marker a root key of the one document pnpm reads (without it,
-  ChatGPT Sol 6.1 hid the marker inside `{x-note: "` on the line before).
+- Every prefix and suffix line has one of these shapes, or the file is
+  outside the grammar: empty; a comment line (spaces, then `#`); `---`
+  alone as the prefix's first line that is neither; or spaces, an optional
+  `- `, then a key with `:` and optionally a space and a value, or a value
+  alone, then optionally a space, `#` and anything. A key is plain
+  (`[A-Za-z0-9_.-]+`) or wholly quoted; a value is plain, starting with
+  `[A-Za-z0-9_./]` and made of `[A-Za-z0-9 ._/*,+=~^:()-]` with no `: `
+  or ` #` inside, or wholly quoted. Wholly quoted means `'` or `"`, text
+  with no quote character of either kind, and the same quote. No bracket,
+  brace or quote appears anywhere else. That is all the YAML the judge
+  understands, and enough to prove the marker a root key of the one
+  document pnpm reads: a quoted scalar or flow collection can't cross a
+  line, a block scalar or explicit key can't start, and a plain scalar
+  can't continue at column 0. ChatGPT Sol 6.1 found two ways past a looser
+  rule: `{x-note: "` and `x-note: [foo", "]` on the line before.
 - The prefix and the suffix contain no `pnpmfile`, and no `catalog` except
   inside a longer word (`catalogs:`, `catalogMode:`): neither a second
-  spelling of the section (`'catalog': {}`), nor a `catalog:` reference in
-  an override, nor a `pnpmfile:` setting. With backslashes, `$` and tags
-  refused, YAML can't spell those words another way (`''` is a quote, and
-  folded lines join with a space), so a text search is exact.
+  spelling of the section (`'catalog':`), nor a `catalog:` reference in an
+  override, nor a `pnpmfile:` setting. With those shapes and no backslash,
+  YAML can't spell either word another way, so a text search is exact.
 
 ### The entry
 
@@ -194,15 +195,16 @@ The key is a package name in one of two forms, and no other:
   `[a-z0-9][a-z0-9._-]*`, such as `'@types/react'`. The quotes hold nothing
   else: no `''`, no space, no second `/`.
 
-An unquoted key is at most 214 characters. `'react'`, a double-quoted key,
+The unquoted text of either form, `@` and `/` included, is at most 214
+characters. `'react'`, a double-quoted key,
 a bare scoped key, a plain key led by a digit (`3d-view`), an uppercase
 letter, a non-ASCII character or a space inside the quotes is outside the
 grammar. Keys compare as their unquoted text, never folded as file names
 are. The same key twice in one body, on either side, is a finding.
 
-The value matches exactly `[~^]?N.N.N(-I(.I)*)?`, where `N` is
-`0|[1-9][0-9]*` and `I` is a prerelease identifier
-`N|[0-9]*[A-Za-z-][0-9A-Za-z-]*`. Nothing else: no `npm:`, `file:`, `link:`, `workspace:`, URL, git address,
+The value is the whole of `[~^]?N\.N\.N(-I(\.I)*)?` as a regular
+expression, where `N` is `(0|[1-9][0-9]*)` and `I`, a prerelease
+identifier, is `(N|[0-9]*[A-Za-z-][0-9A-Za-z-]*)`. Nothing else: no `npm:`, `file:`, `link:`, `workspace:`, URL, git address,
 tag, `*`, `x`, `>=`, `||`, build metadata, leading zero or quotes. A value
 that passes names a version of the same package on the registry.
 
@@ -218,9 +220,8 @@ the pair is one of:
   the head advances alone.
 
 Anything else is a finding: a base line with no match (an entry removed or
-moved, a comment or empty line that differs), a head line that is neither
-the base's line nor an addition. Base lines left over at the end are
-removals; head lines left over must each be additions.
+moved, a comment or empty line that differs), or a head line that is neither
+the base's line nor an addition; base lines left over are removals.
 
 Then, over the changed and added entries: a key containing
 `@londontypescript/temple-bar` is temple-bar's own, and any change to it,
@@ -232,9 +233,9 @@ already refuses the look-alikes: another case, a space, a third segment.
 
 A catalog entry reaches a package only through a `catalog:` reference in a
 manifest's own dependency fields: the project's dependencies, never guarded
-(decision 63), not temple-bar's, which pnpm resolves from temple-bar's own
-manifest (knip, markdownlint and what they need). Two things can map the
-catalog onto those, and the exception is off when the head holds either:
+(decision 63), not temple-bar's, resolved from its own manifest (knip,
+markdownlint and what they need). Two things can map the catalog onto
+those, and the exception is off when the head holds either:
 
 - **An override that reads the catalog.** pnpm 10.34.5 resolves `catalog:`
   inside override values (`parseOverrides`), and `$name` makes an override
@@ -260,10 +261,10 @@ catalog from redirecting temple-bar's own install.
 ### One verdict in three places
 
 The comparison stays pure (`judge/changes.ts`): the readers hand it each
-side's text, as they do for manifests and the lockfile, so `readsText` in
-`guarded-paths.ts` grows to the root workspace file. With the changes, the
-readers hand it the facts above about the head: the root manifest's state,
-whether a pnpmfile or a folded root name exists, and each `.npmrc`'s text.
+side's text, as for manifests and the lockfile (`readsText` in
+`guarded-paths.ts` grows to the root workspace file), and the facts above
+about the head: the root manifest's state, whether a pnpmfile or a folded
+root name exists, and each `.npmrc`'s text.
 GitHub's trees supply them to the judge, git to `ready` and `merge`; a fact
 a reader can't establish is handed over as unknown, which turns the
 exception off. The judge-agreement test covers every example in this ADR
@@ -318,8 +319,9 @@ package-manager fields in every package.
 - A Dependabot catalog bump merges through `temple-bar merge` without the
   maintainer; both of grand-union's evidence pull requests pass.
 - A catalog in another style (four-space indent, trailing comments, wider
-  ranges, a name with an uppercase letter or a leading digit, a comment
-  saying `catalog`) never passes until rewritten; the finding says why.
+  ranges, a name with an uppercase letter or a leading digit, a flow
+  collection or a comment saying `catalog` outside the body) never passes
+  until rewritten; the finding says why.
 - [#285](https://github.com/londontypescript/temple-bar/issues/285) closes
   with decision 64.
 
@@ -327,21 +329,20 @@ package-manager fields in every package.
 
 Phases 5 and 6 add a test for each; 0.3.0's phase E adds the catalog rows.
 
-| Pull request                                                  | Stopped by  | Decision      |
-| ------------------------------------------------------------- | ----------- | ------------- |
-| Adds a package with no scripts                                | gate        | 67            |
-| Removes a package's `typecheck`                               | gate, judge | 64, 67        |
-| Replaces a package's `typecheck` with `node --version`        | judge       | 64            |
-| Changes an unguarded `test:unit` that `test` calls            | judge       | 64            |
-| Adds a `postinstall` to any package                           | judge       | 64            |
-| Adds a package whose scripts are real but weak                | judge       | 65            |
-| Deletes a package, or renames it away                         | judge       | 65            |
-| Adds a negation to `pnpm-workspace.yaml`'s package list       | judge       | 66            |
-| Removes a catalog entry, or moves temple-bar's own            | judge       | 66            |
-| Bumps a catalog entry an override maps onto temple-bar        | judge       | 66            |
-| Leaves a tracked `package.json` outside the workspace list    | gate        | 67            |
-| Puts a `pnpm` on the project's PATH that lists fewer packages | gate        | 67            |
-| Has a tree GitHub can't list whole                            | judge       | (fail closed) |
+| Pull request                                                                                              | Stopped by  | Decision      |
+| --------------------------------------------------------------------------------------------------------- | ----------- | ------------- |
+| Adds a package with no scripts                                                                            | gate        | 67            |
+| Removes a package's `typecheck`                                                                           | gate, judge | 64, 67        |
+| Replaces a package's `typecheck` with `node --version`                                                    | judge       | 64            |
+| Changes an unguarded `test:unit` that `test` calls                                                        | judge       | 64            |
+| Adds a `postinstall` to any package                                                                       | judge       | 64            |
+| Adds a package whose scripts are real but weak                                                            | judge       | 65            |
+| Deletes a package, or renames it away                                                                     | judge       | 65            |
+| Adds a negation to `pnpm-workspace.yaml`'s package list                                                   | judge       | 66            |
+| Removes or moves a catalog entry, touches temple-bar's own, or bumps one an override maps onto temple-bar | judge       | 66            |
+| Leaves a tracked `package.json` outside the workspace list                                                | gate        | 67            |
+| Puts a `pnpm` on the project's PATH that lists fewer packages                                             | gate        | 67            |
+| Has a tree GitHub can't list whole                                                                        | judge       | (fail closed) |
 
 ## Adversarial examples
 
@@ -351,33 +352,31 @@ a comment, `catalog:` with fourteen entries (seven scoped), then a setting.
 
 **Passes** (no finding):
 
-| Head                                                                                                                      | Why                                               |
-| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| grand-union#31 as opened: seven values changed, three under scoped keys                                                   | changed values, scoped keys single-quoted         |
-| grand-union#30: `vite` bumped, lockfile `catalogs:` and importers moved                                                   | lockfile change is not temple-bar's entries       |
-| `  zod: 4.1.0` appended; `  '@types/node': 24.13.6` first, mid-block or before an unchanged comment                       | added entries                                     |
-| `  vite: ^8.3.0` to `^8.4.0`; `~5.0.1` to `~5.0.2`; `5.0.0-beta.3` to `5.0.0`; `8.3.3` to `8.3.0`                         | versions, with `^` or `~`, prerelease or lower    |
-| A bump beside unchanged comment and empty lines, or an unchanged `'@londontypescript/temple-bar': 0.2.2`, inside the body | non-entry lines and temple-bar's entry match      |
-| A bump with an unchanged `catalogs:` section, `catalogMode: strict`, or both sides mode `100755`                          | suffix identical; same mode                       |
-| Body after `packages:` with `- "packages/*"` and a comment; `---` as the first line                                       | the item's quotes close on its line; one document |
+| Head                                                                                                                                                            | Why                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| grand-union#31 as opened (seven values changed, three under scoped keys); grand-union#30 (`vite` bumped, lockfile `catalogs:` and importers moved)              | changed values, scoped keys single-quoted; the lockfile change is not temple-bar's entries |
+| `  zod: 4.1.0` appended; `  '@types/node': 24.13.6` first, mid-block or before an unchanged comment                                                             | added entries                                                                              |
+| `  vite: ^8.3.0` to `^8.4.0`; `~5.0.1` to `~5.0.2`; `5.0.0-beta.3` to `5.0.0`; `8.3.3` to `8.3.0`                                                               | versions, with `^` or `~`, prerelease or lower                                             |
+| A bump beside unchanged comment and empty lines, or an unchanged `'@londontypescript/temple-bar': 0.2.2`, inside the body                                       | non-entry lines and temple-bar's entry match                                               |
+| A bump with an unchanged `catalogs:` section, `catalogMode: strict`, both sides mode `100755`, `- "packages/*"` and a comment before the marker, or `---` first | suffix and prefix identical and well shaped; same mode                                     |
 
 **Refused** (a finding naming the rule):
 
-| Head                                                                                                                                                                                         | Rule                                                                                   |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `vite` moved below `vitest`; a comment line inside the body edited                                                                                                                           | base line unmatched                                                                    |
-| `'@londontypescript/temple-bar': 0.2.2` bumped, added or removed; `'@londontypescript/temple-bar-extra'` added                                                                               | temple-bar's own entry                                                                 |
-| `  react: npm:evil@19.3.1`, `file:../x`, `link:`, `workspace:*`, `latest`, `>=19`, `19.x`, `*`, a URL, `github:o/r`, `1.0.0-01`, `01.2.3`                                                    | value grammar                                                                          |
-| `  '@Types/react'`; `  '@types/react ': 19.3.1`; `  '@a/b''c'`; `  '@a/b\c'`; `  '@a/b/c'`                                                                                                   | key form; backslash                                                                    |
-| `  vite: 8.3.3 # pinned`; a trailing space; a four-space indent; a tab; `  vite:8.3.3`; `  vite : 8.3.3`; `  vite: '8.3.3'`; a line of spaces                                                | entry shape                                                                            |
-| `  react: 19.3.1` added when `react` is already there                                                                                                                                        | duplicate key                                                                          |
-| A second `catalog:` section appended; `catalog:` added where none was; `catalog: # default` instead; `'catalog': {}` in the prefix                                                           | one marker; `catalog` outside the body                                                 |
-| `catalogs:` named catalog bumped; a `packages:` pattern, a setting, a comment or an empty line changed                                                                                       | changed outside the catalog                                                            |
-| `{x-note: "` on one line, `catalog:` on the next (Sol's case); `note: "a\"`; `%YAML 1.2`; a second `---`; `!!str`                                                                            | scan; backslash                                                                        |
-| `overrides:` with `knip: catalog:` or `picomatch: $picomatch`; `"pnpmfile": ./hooks.cjs` after the body                                                                                      | `catalog` or `$` or backslash outside the body                                         |
-| Root `pnpm.overrides.knip` of `"catalog:"` or `"$typescript"`; root `package.json` missing or invalid                                                                                        | an override reads the catalog; unknown                                                 |
-| `.pnpmfile.cjs` or `.PNPMFILE.CJS` at any depth; `.npmrc` naming a `pnpmfile`, or unreadable                                                                                                 | code runs at install; unknown                                                          |
-| CRLF line endings; a BOM added; a final newline added or removed; mode changed to `100755`; replaced by a symlink; `PNPM-WORKSPACE.YAML` beside it; `packages/a/pnpm-workspace.yaml` changed | file shape; a region differs; regular files, same mode; folded name; not the root file |
+| Head                                                                                                                                                                                                                | Rule                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `vite` moved below `vitest`; a comment line inside the body edited                                                                                                                                                  | base line unmatched                                                                    |
+| `'@londontypescript/temple-bar': 0.2.2` bumped, added or removed; `'@londontypescript/temple-bar-extra'` added                                                                                                      | temple-bar's own entry                                                                 |
+| `  react: npm:evil@19.3.1`, `file:../x`, `link:`, `workspace:*`, `latest`, `>=19`, `19.x`, `*`, a URL, `github:o/r`, `1.0.0-01`, `01.2.3`                                                                           | value grammar                                                                          |
+| `  '@Types/react'`; `  '@types/react ': 19.3.1`; `  '@a/b''c'`; `  '@a/b\c'`; `  '@a/b/c'`                                                                                                                          | key form; backslash                                                                    |
+| `  vite: 8.3.3 # pinned`; a trailing space; a four-space indent; a tab; `  vite:8.3.3`; `  vite : 8.3.3`; `  vite: '8.3.3'`; a line of spaces                                                                       | entry shape                                                                            |
+| `  react: 19.3.1` added when `react` is already there                                                                                                                                                               | duplicate key                                                                          |
+| A second `catalog:` section appended; `catalog:` added where none was; `catalog: # default` instead; `'catalog': {}` in the prefix                                                                                  | one marker; `catalog` outside the body                                                 |
+| `catalogs:` named catalog bumped; a `packages:` pattern, a setting, a comment or an empty line changed                                                                                                              | changed outside the catalog                                                            |
+| `{x-note: "` or `x-note: [foo", "]` before the marker (Sol's cases); `packages: ['packages/*']`; `note:                                                                                                             | `; `note: "a\"`; `%YAML 1.2`; a second `---`; `!!str`                                  | line shape; backslash |
+| `overrides:` with `knip: catalog:` or `picomatch: $picomatch`; `"pnpm\u0066ile": ./hooks.cjs` after the body; root `pnpm.overrides.knip` of `"catalog:"` or `"$typescript"`; root `package.json` missing or invalid | `catalog`, `$` or backslash outside the body; an override reads the catalog; unknown   |
+| `.pnpmfile.cjs` or `.PNPMFILE.CJS` at any depth; `.npmrc` naming a `pnpmfile`, or unreadable                                                                                                                        | code runs at install; unknown                                                          |
+| `.npmrc` with `PNPMFILE=x` or a backslash; either side not valid UTF-8                                                                                                                                              | code runs at install; unreadable                                                       |
+| CRLF line endings; a BOM added; a final newline added or removed; mode changed to `100755`; replaced by a symlink; `PNPM-WORKSPACE.YAML` beside it; `packages/a/pnpm-workspace.yaml` changed                        | file shape; a region differs; regular files, same mode; folded name; not the root file |
 
 ## What would end it
 
@@ -390,11 +389,11 @@ a comment, `catalog:` with fourteen entries (seven scoped), then a setting.
   without running the pull request's code, decision 66's package list can
   be revisited.
 - If the record shows catalog refusals that are only style (indent width,
-  trailing comments, wider ranges, digit-led names, `catalogs.default`),
-  the grammar can grow those forms, each with examples: always from refused
-  to admitted, never the reverse without a new review. If pnpm changes how
-  overrides, pnpmfiles or catalogs reach a package, the "inert" rules are
-  re-derived from its source, as for 10.34.5.
+  trailing comments, wider ranges, digit-led names, flow lists), the grammar
+  can grow those forms, each with examples: from refused to admitted, never
+  the reverse without a new review. If pnpm changes how overrides, pnpmfiles
+  or catalogs reach a package, the "inert" rules are re-derived from its
+  source, as for 10.34.5.
 - If a project outgrows one recursive tree listing (GitHub stops at 100,000
   entries or 7 MB), the judge refuses every pull request there; it would
   then read trees folder by folder instead.
