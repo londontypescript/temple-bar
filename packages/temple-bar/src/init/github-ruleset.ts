@@ -7,6 +7,7 @@
 
 import type { Context } from "../context.ts";
 import { JUDGE_RULESET_NAME } from "./judge-ruleset.ts";
+import { RERUN_INIT } from "./requirements.ts";
 
 const MAIN_RULESET_NAME = "main: pull requests only";
 
@@ -49,23 +50,38 @@ export function mainRulesetId(
   return typeof found?.id === "number" ? found.id : undefined;
 }
 
-/** The rulesets GitHub already has. A listing that can't be read counts as
- * empty: setup then offers to create them, rather than guess they exist. */
+export type RulesetListing =
+  | { readonly ok: true; readonly rulesets: RulesetSummary[] }
+  | { readonly ok: false; readonly error: string };
+
+/** The rulesets GitHub already has. A listing that can't be read is never
+ * taken as empty: setup would offer to create rulesets that may already
+ * exist, or call the repository protected without having looked. */
 export async function listRulesets(
   ctx: Context,
   repoRoot: string,
   path: string,
-): Promise<RulesetSummary[]> {
+): Promise<RulesetListing> {
   const listed = await ctx.gh.run(["api", path], repoRoot);
   if (listed.code !== 0) {
-    return [];
+    return { ok: false, error: (listed.stderr || listed.stdout).trim() };
   }
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(listed.stdout);
-    return isRulesetSummaryArray(parsed) ? parsed : [];
+    parsed = JSON.parse(listed.stdout);
   } catch {
-    return [];
+    return { ok: false, error: `unexpected reply from ${path}` };
   }
+  return isRulesetSummaryArray(parsed)
+    ? { ok: true, rulesets: parsed }
+    : { ok: false, error: `unexpected reply from ${path}` };
+}
+
+export function listingUnreadable(error: string): string {
+  return (
+    "Couldn't list the rulesets on GitHub, so setup changed nothing there:\n" +
+    `${error}\nRun ${RERUN_INIT} again once GitHub answers.`
+  );
 }
 
 /**
