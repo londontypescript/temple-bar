@@ -22,13 +22,30 @@ function isRegExpEscape(node) {
   );
 }
 
+// Type-only wrappers (`as`, `satisfies`, `!`, `<T>`) change nothing at run
+// time, so the rule looks through them rather than let them hide a pattern.
+const TYPE_WRAPPERS = new Set([
+  "TSAsExpression",
+  "TSSatisfiesExpression",
+  "TSNonNullExpression",
+  "TSTypeAssertion",
+]);
+
+/** @param {any} node */
+function unwrapped(node) {
+  let inner = node;
+  while (TYPE_WRAPPERS.has(inner.type)) inner = inner.expression;
+  return inner;
+}
+
 /**
  * The values in a pattern built from a template, a tagged template or a
  * concatenation that RegExp.escape doesn't wrap.
- * @param {any} node
+ * @param {any} wrapped
  * @returns {any[]}
  */
-function unescapedParts(node) {
+function unescapedParts(wrapped) {
+  const node = unwrapped(wrapped);
   if (node.type === "TemplateLiteral") {
     return node.expressions.flatMap(unescapedOperand);
   }
@@ -42,10 +59,11 @@ function unescapedParts(node) {
 }
 
 /**
- * @param {any} node
+ * @param {any} wrapped
  * @returns {any[]}
  */
-function unescapedOperand(node) {
+function unescapedOperand(wrapped) {
+  const node = unwrapped(wrapped);
   if (isRegExpEscape(node) || node.type === "Literal") return [];
   if (
     node.type === "TemplateLiteral" ||
