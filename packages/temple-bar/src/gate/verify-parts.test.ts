@@ -40,7 +40,10 @@ void test("verify-parts: one passing report per part passes, one line per part",
   for (const part of PARTS) {
     assert.match(
       text,
-      new RegExp(`^gate: part ${part}: \\d+ outcome\\(s\\), all accepted`, "m"),
+      new RegExp(
+        `^gate: part ${RegExp.escape(part)}: \\d+ outcome\\(s\\), all accepted`,
+        "m",
+      ),
     );
   }
   assert.match(

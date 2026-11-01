@@ -68,7 +68,10 @@ void test("gate e2e: a passing project (every required script passes) exits 0, l
     }
     const text = stdout.lines.join("");
     for (const check of ["typecheck", "lint", "format:check", "test"]) {
-      assert.match(text, new RegExp(`^ {2}passed {3}${check}$`, "m"));
+      assert.match(
+        text,
+        new RegExp(`^ {2}passed {3}${RegExp.escape(check)}$`, "m"),
+      );
     }
     assert.match(text, /^ {2}passed {3}file-length cap \(all \d+ /m);
     assert.match(text, /^gate: passed$/m);

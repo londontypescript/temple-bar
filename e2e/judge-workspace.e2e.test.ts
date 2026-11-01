@@ -143,7 +143,9 @@ function assertCantRead(result: RunResult, reason?: RegExp): void {
   assert.doesNotMatch(result.stdout, PASSED);
   assert.match(
     result.stderr,
-    new RegExp(`could not read pull request #${String(PR)} from GitHub`),
+    new RegExp(
+      `could not read pull request #${RegExp.escape(String(PR))} from GitHub`,
+    ),
   );
   if (reason !== undefined) {
     assert.match(result.stderr, reason);

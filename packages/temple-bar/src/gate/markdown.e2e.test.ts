@@ -75,14 +75,14 @@ void test("markdown e2e: setup's own files and a long-lined README pass both che
     assert.match(
       result.out,
       new RegExp(
-        `^ {2}passed {3}markdown lint \\(${count} markdown file\\(s\\)\\)$`,
+        `^ {2}passed {3}markdown lint \\(${RegExp.escape(count)} markdown file\\(s\\)\\)$`,
         "m",
       ),
     );
     assert.match(
       result.out,
       new RegExp(
-        `^ {2}passed {3}local links \\(${count} markdown file\\(s\\)\\)$`,
+        `^ {2}passed {3}local links \\(${RegExp.escape(count)} markdown file\\(s\\)\\)$`,
         "m",
       ),
     );

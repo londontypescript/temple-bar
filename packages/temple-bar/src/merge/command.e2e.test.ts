@@ -63,7 +63,7 @@ void test("merges a behind branch end to end: main merged in, plain push, squash
   assert.match(
     out,
     new RegExp(
-      `merge: kept the worktree at .*wt-x on feat/x \\(${mergedHead}\\);`,
+      `merge: kept the worktree at .*wt-x on feat/x \\(${RegExp.escape(mergedHead)}\\);`,
     ),
   );
   // GitHub lists the pull request at the head it accepted, so the kept

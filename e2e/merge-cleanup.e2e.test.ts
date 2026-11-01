@@ -182,7 +182,7 @@ void test(
     assert.match(
       merge.stdout,
       new RegExp(
-        `^merge: kept the worktree at .*wt-b on feat/b \\(${tip}, which is not the merged ${pr.pushedTip}\\);`,
+        `^merge: kept the worktree at .*wt-b on feat/b \\(${RegExp.escape(tip)}, which is not the merged ${RegExp.escape(pr.pushedTip)}\\);`,
         "m",
       ),
     );
@@ -212,7 +212,7 @@ void test(
     assert.match(
       merge.stdout,
       new RegExp(
-        `^merge: kept the worktree at .*wt-c on feat/c \\(${pr.pushedTip}\\); your harness removes it when it is done, or inspect it with temple-bar leftovers$`,
+        `^merge: kept the worktree at .*wt-c on feat/c \\(${RegExp.escape(pr.pushedTip)}\\); your harness removes it when it is done, or inspect it with temple-bar leftovers$`,
         "m",
       ),
     );

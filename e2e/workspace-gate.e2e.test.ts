@@ -116,7 +116,10 @@ void test(
       for (const script of Object.keys(PASSING_SCRIPTS)) {
         assert.match(
           gate.stdout,
-          new RegExp(`^ {2}passed {3}${script} \\(${folder}\\)$`, "m"),
+          new RegExp(
+            `^ {2}passed {3}${RegExp.escape(script)} \\(${RegExp.escape(folder)}\\)$`,
+            "m",
+          ),
         );
       }
     }

@@ -2,7 +2,7 @@
   "compilerOptions": {
     "strict": true,
     "target": "es2024",
-    "lib": ["es2024"],
+    "lib": ["es2024", "es2025.regexp"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "erasableSyntaxOnly": true,

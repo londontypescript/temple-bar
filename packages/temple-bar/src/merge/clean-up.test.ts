@@ -168,7 +168,9 @@ void test("cleanUp says when the kept branch has moved past the merged commit, a
     assertNothingRemoved(s);
     assert.match(
       report.done.at(-1) ?? "",
-      new RegExp(`^kept .*${NEWER}, which is not the merged ${MERGED}`),
+      new RegExp(
+        `^kept .*${RegExp.escape(NEWER)}, which is not the merged ${RegExp.escape(MERGED)}`,
+      ),
     );
   }
 });

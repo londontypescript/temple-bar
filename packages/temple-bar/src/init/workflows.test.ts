@@ -96,7 +96,10 @@ void test("workflows: one job each, named by the check a ruleset requires, on No
     assert.equal(jobs.match(/^ {2}\w[\w-]*:$/gm)?.length, 1, check);
     assert.match(
       code,
-      new RegExp(`^ {4}name: ${check}\n {4}runs-on: ubuntu-latest\n`, "m"),
+      new RegExp(
+        `^ {4}name: ${RegExp.escape(check)}\n {4}runs-on: ubuntu-latest\n`,
+        "m",
+      ),
     );
     assert.match(code, /^ {10}node-version: 24$/m);
   }
@@ -169,6 +172,6 @@ void test("workflows: each opens by saying temple-bar wrote it, the gate holds i
     assert.match(opening, /^# Written by temple-bar\./);
     assert.match(opening, /exact copy/);
     assert.match(opening, /workflow of their own/);
-    assert.match(opening, new RegExp(`"${check}" is reserved`));
+    assert.match(opening, new RegExp(`"${RegExp.escape(check)}" is reserved`));
   }
 });

@@ -127,8 +127,11 @@ void test("the bundle carries the repo's tags with the commit", async (t) => {
     return 0;
   };
   assert.equal(await runLocal(["--host", "win-box"], r.deps), 0);
-  assert.match(heads, new RegExp(`^${r.sha} HEAD$`, "m"));
-  assert.match(heads, new RegExp(`^${r.sha} refs/tags/v0\\.0\\.1$`, "m"));
+  assert.match(heads, new RegExp(`^${RegExp.escape(r.sha)} HEAD$`, "m"));
+  assert.match(
+    heads,
+    new RegExp(`^${RegExp.escape(r.sha)} refs/tags/v0\\.0\\.1$`, "m"),
+  );
 });
 
 void test("what is sent comes from the recorded commit, not from files on disk", async (t) => {

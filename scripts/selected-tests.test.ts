@@ -132,7 +132,7 @@ void test("a script without the global setup that holds Git's /tmp first, or wit
     assert.throws(
       () => testPatterns({ folder, command }),
       new RegExp(
-        `must start with node --test-global-setup=${setup.replaceAll(".", "\\.")}: `,
+        `must start with node --test-global-setup=${RegExp.escape(setup)}: `,
       ),
       command,
     );

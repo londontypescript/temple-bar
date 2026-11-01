@@ -62,7 +62,10 @@ void test("workflow: the token can only read", () => {
 });
 
 void test("workflow: the job's name is the check the ruleset requires", () => {
-  assert.match(code, new RegExp(`^ {4}name: ${JUDGE_CHECK}$`, "m"));
+  assert.match(
+    code,
+    new RegExp(`^ {4}name: ${RegExp.escape(JUDGE_CHECK)}$`, "m"),
+  );
 });
 
 void test("workflow: every action is pinned to a full commit hash", () => {

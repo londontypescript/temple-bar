@@ -167,7 +167,7 @@ void test(
     assert.match(
       merge.stdout,
       new RegExp(
-        `^merge: kept the worktree at .*wt-x on feat/x \\(${accepted}\\);`,
+        `^merge: kept the worktree at .*wt-x on feat/x \\(${RegExp.escape(accepted)}\\);`,
         "m",
       ),
     );
