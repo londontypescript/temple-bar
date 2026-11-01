@@ -214,7 +214,7 @@ void test("the fake wraps base64 as GitHub does, and the judge's reader takes it
     assert.ok(lines.slice(0, -2).every((line) => line.length === 60));
     assert.deepEqual(await readBlob(ctx, ref(api), entry.id), {
       ok: true,
-      value: manifest,
+      value: Buffer.from(manifest),
     });
   } finally {
     await api.close();

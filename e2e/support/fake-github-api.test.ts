@@ -36,7 +36,7 @@ async function readFiles(
     if (entry.type === "blob") {
       const blob = await readBlob(ctx, ref(api, 1), entry.id);
       assert.ok(blob.ok, blob.ok ? "" : blob.reason);
-      files[at] = blob.value;
+      files[at] = blob.value.toString("utf8");
     }
   }
   return files;
