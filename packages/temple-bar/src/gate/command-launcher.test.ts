@@ -94,7 +94,7 @@ for (const [kind, options] of [
       assert.match(
         text,
         new RegExp(
-          `^ {2}not-run {2}${script} \\(the gate can't start its package manager\\)$`,
+          `^ {2}not-run {2}${RegExp.escape(script)} \\(the gate can't start its package manager\\)$`,
           "m",
         ),
       );

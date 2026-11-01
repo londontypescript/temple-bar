@@ -93,7 +93,7 @@ const PASSED = /^ {2}passed {3}unused code \(knip\)$/m;
 
 function failedIn(names: string): RegExp {
   return new RegExp(
-    `^ {2}failed {3}unused code \\(knip\\) \\(unused files or exports in ${names}\\)$`,
+    `^ {2}failed {3}unused code \\(knip\\) \\(unused files or exports in ${RegExp.escape(names)}\\)$`,
     "m",
   );
 }

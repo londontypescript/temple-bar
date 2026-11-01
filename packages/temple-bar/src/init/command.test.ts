@@ -145,7 +145,7 @@ void test("init: a `gate` script that isn't temple-bar's still gets the add-this
   assert.equal(await runInitFor(fixture), 1);
   assert.match(
     fixture.stderr.lines.join(""),
-    new RegExp(`Add this yourself: "gate": "${GATE_SCRIPT}"`),
+    new RegExp(`Add this yourself: "gate": "${RegExp.escape(GATE_SCRIPT)}"`),
   );
 });
 

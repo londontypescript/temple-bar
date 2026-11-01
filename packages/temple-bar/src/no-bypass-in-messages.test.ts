@@ -20,8 +20,6 @@ interface Bypass {
   readonly pattern: RegExp;
 }
 
-const SKIP_WORDS = "SKIP|OVERRIDE|BYPASS|DISABLE|DISABLED|NO_VERIFY|NOVERIFY";
-
 const BYPASSES: readonly Bypass[] = [
   { name: "--no-verify", pattern: /--no-verify\b/ },
   // `git commit -n` is `--no-verify`, alone or in a cluster such as `-nm`.
@@ -47,9 +45,8 @@ const BYPASSES: readonly Bypass[] = [
   // UPPER_CASE name with a skip or override word in it.
   {
     name: "skip or override variable",
-    pattern: new RegExp(
-      `\\bSKIP=|\\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_(?:${SKIP_WORDS})(?:_[A-Z0-9]+)*\\b|\\b(?:${SKIP_WORDS})(?:_[A-Z0-9]+)+\\b`,
-    ),
+    pattern:
+      /\bSKIP=|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_(?:SKIP|OVERRIDE|BYPASS|DISABLE|DISABLED|NO_VERIFY|NOVERIFY)(?:_[A-Z0-9]+)*\b|\b(?:SKIP|OVERRIDE|BYPASS|DISABLE|DISABLED|NO_VERIFY|NOVERIFY)(?:_[A-Z0-9]+)+\b/,
   },
 ];
 

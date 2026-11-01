@@ -188,7 +188,7 @@ void test("gate --part and --verify-parts refuse a package folder named repo or 
       assert.match(
         stderr.lines.join(""),
         new RegExp(
-          `^gate: the gate can't be split by part here: ${name} is a workspace package's folder, and the name of one of the gate's own parts$`,
+          `^gate: the gate can't be split by part here: ${RegExp.escape(name)} is a workspace package's folder, and the name of one of the gate's own parts$`,
           "m",
         ),
       );

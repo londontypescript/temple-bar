@@ -17,7 +17,7 @@ const LATER_HEAD_SHA = "d".repeat(40);
 
 /** What the judge prints when a pull request leaves the checks alone. */
 export const PASSED = new RegExp(
-  `pull request #${String(PR)} leaves the checks alone`,
+  `pull request #${RegExp.escape(String(PR))} leaves the checks alone`,
 );
 
 export interface Serving {

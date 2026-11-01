@@ -41,20 +41,20 @@ async function rerun(
   };
 }
 
-const escaped = (text: string) => text.replaceAll(".", "\\.");
-
 void test("init workflows: a fresh repo gets both workflows and the running pnpm's version, each reported", async () => {
   const fixture = makeFixture({ fs: createFakeFs() });
   assert.equal(await runInitFor(fixture), 0, fixture.stderr.lines.join(""));
   const out = fixture.stdout.lines.join("");
   assert.match(
     out,
-    new RegExp(`Wrote the gate workflow, ${escaped(GATE_WORKFLOW_PATH)}\\.`),
+    new RegExp(
+      `Wrote the gate workflow, ${RegExp.escape(GATE_WORKFLOW_PATH)}\\.`,
+    ),
   );
   assert.match(
     out,
     new RegExp(
-      `Wrote the pull request title workflow, ${escaped(PR_TITLE_WORKFLOW_PATH)}\\.`,
+      `Wrote the pull request title workflow, ${RegExp.escape(PR_TITLE_WORKFLOW_PATH)}\\.`,
     ),
   );
   assert.match(
@@ -78,7 +78,7 @@ void test("init workflows: a different gate workflow is left alone and reported,
   assert.match(
     stdout,
     new RegExp(
-      `${escaped(PR_TITLE_WORKFLOW_PATH)} already exists; left it alone\\.`,
+      `${RegExp.escape(PR_TITLE_WORKFLOW_PATH)} already exists; left it alone\\.`,
     ),
   );
 });
@@ -106,8 +106,14 @@ void test("init workflows: one workflow written alone is a change to land, and t
     [normalize(`/repo/${PR_TITLE_WORKFLOW_PATH}`)],
   );
   const addLine = /^ {2}git add .*$/m.exec(stdout)?.[0] ?? "";
-  assert.match(addLine, new RegExp(` ${escaped(GATE_WORKFLOW_PATH)}( |$)`));
-  assert.match(addLine, new RegExp(` ${escaped(PR_TITLE_WORKFLOW_PATH)}( |$)`));
+  assert.match(
+    addLine,
+    new RegExp(` ${RegExp.escape(GATE_WORKFLOW_PATH)}( |$)`),
+  );
+  assert.match(
+    addLine,
+    new RegExp(` ${RegExp.escape(PR_TITLE_WORKFLOW_PATH)}( |$)`),
+  );
 });
 
 void test("init workflows: a packageManager setup can't use ends the run non-zero, and is left alone", async () => {
