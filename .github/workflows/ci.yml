@@ -28,7 +28,7 @@ jobs:
       matrix:
         # Windows runs by part, in the jobs further down.
         os: [ubuntu-latest, macos-latest]
-        # The newest Node LTS only (docs/adr/0020-only-the-current-node-lts.md).
+        # Only the newest LTS (docs/adr/0020-only-the-current-node-lts.md).
         # Still a matrix key: the check names the ruleset requires carry it.
         node: [26]
     steps:
