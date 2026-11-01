@@ -41,10 +41,11 @@ function scripted(script: Script) {
     switch (args[0]) {
       case "worktree":
         if (args[1] === "list") {
+          // As `git worktree list --porcelain -z` writes it.
           return ok(
-            `worktree /repo\nHEAD ${MERGED}\nbranch refs/heads/${current}\n` +
+            `worktree /repo\0HEAD ${MERGED}\0branch refs/heads/${current}\0\0` +
               (script.holder === "worktree"
-                ? `\nworktree /wt/x\nHEAD ${MERGED}\nbranch refs/heads/feat/x\n`
+                ? `worktree /wt/x\0HEAD ${MERGED}\0branch refs/heads/feat/x\0\0`
                 : ""),
           );
         }

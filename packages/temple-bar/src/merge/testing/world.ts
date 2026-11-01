@@ -118,12 +118,22 @@ export function harness(world: World): Harness {
     const [command, ...rest] = args;
     const joined = args.join(" ");
     switch (command) {
-      case "worktree":
+      case "worktree": {
+        // The world lists its worktrees in the newline form; with -z git
+        // ends every line with NUL instead, and each entry with one more.
+        const extra =
+          world.worktrees === ""
+            ? ""
+            : `${world.worktrees.replace(/\n+$/, "")}\n\n`;
         return rest[0] === "list"
           ? ok(
-              `worktree /repo\nHEAD ${BASE}\nbranch refs/heads/main\n\n${world.worktrees}`,
+              `worktree /repo\nHEAD ${BASE}\nbranch refs/heads/main\n\n${extra}`.replaceAll(
+                "\n",
+                "\0",
+              ),
             )
           : ok();
+      }
       case "for-each-ref":
         return ok(
           `main ${BASE}\n${tip === undefined ? "" : `${branch} ${tip}\n`}`,
