@@ -70,6 +70,9 @@ request left behind, and only worktrees their session has released.**
   existing lease. A closed, unmerged pull request's branch is reported, never
   removed. Admin merges are covered the same way, since nothing here depends
   on `merge` having run.
+- Agents find the command through one line in the installed
+  `docs/pull-requests.md`, naming `pnpm exec temple-bar leftovers --remove`
+  as the step after `pnpm merge`. Setup adds no script for it.
 - `temple-bar leftovers` with no flag reports the same verdicts and deletes
   nothing. The main checkout is never a candidate, so its `.temple-bar/` is
   never touched.
@@ -120,6 +123,8 @@ request left behind, and only worktrees their session has released.**
   Harnesses copy their own ignored files into every worktree, so the list
   kept nearly every worktree; releasing is already the session's statement
   that nothing local is needed.
+- _A `leftovers` script in every project setup writes,_ beside `gate`,
+  `ready` and `merge`. One guide line finds it as well, without more setup.
 - _Remove detached and prunable worktrees too._ Neither is what a merged pull
   request leaves; both stay reported.
 
