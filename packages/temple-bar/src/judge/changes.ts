@@ -12,6 +12,11 @@
 // (../merge/guarded-states.ts), so all three name the same changes.
 
 import {
+  catalogVerdict,
+  workspaceFindings,
+  type CatalogCounts,
+} from "./catalog.ts";
+import {
   modeFindings,
   textOf,
   unreadableFindings,
@@ -23,6 +28,7 @@ import {
   isManifest,
   isRootLockfile,
   isWholeFileGuarded,
+  WORKSPACE_FILE,
 } from "./guarded-paths.ts";
 import { lockfileFindings } from "./lockfile.ts";
 import { manifestFindings, TEMPLE_BAR_PACKAGE } from "./manifests.ts";
@@ -81,9 +87,15 @@ const byPath = (a: PathChange, b: PathChange): number =>
 export function findCheckChanges(changes: readonly PathChange[]): string[] {
   const guarded = changes.filter((change) => isGuarded(change.path));
   guarded.sort(byPath);
+  // The root workspace file is the one whole file read as text: a change
+  // to its catalog alone passes.
   const files = guarded
     .filter((change) => isWholeFileGuarded(change.path))
-    .map((change) => `${change.path} (${status(change)})`);
+    .flatMap((change) =>
+      change.path === WORKSPACE_FILE
+        ? workspaceFindings(change)
+        : [`${change.path} (${status(change)})`],
+    );
   const manifests = guarded
     .filter(
       (change) => !isWholeFileGuarded(change.path) && isManifest(change.path),
@@ -95,4 +107,23 @@ export function findCheckChanges(changes: readonly PathChange[]): string[] {
     .filter((change) => isRootLockfile(change.path))
     .flatMap(lockfileChange);
   return [...files, ...manifests, ...lockfile];
+}
+
+/**
+ * What a catalog-only change did, for the judge to say when it passes one:
+ * the counts when the changes leave the checks alone and change the root
+ * pnpm-workspace.yaml's catalog, else undefined. Read from the same
+ * comparison as the findings, never a second copy of it.
+ */
+export function catalogOnlyChange(
+  changes: readonly PathChange[],
+): CatalogCounts | undefined {
+  const workspace = changes.find((change) => change.path === WORKSPACE_FILE);
+  if (workspace === undefined || findCheckChanges(changes).length > 0) {
+    return undefined;
+  }
+  const verdict = catalogVerdict(workspace);
+  return verdict?.ok === true && verdict.value.changed + verdict.value.added > 0
+    ? verdict.value
+    : undefined;
 }

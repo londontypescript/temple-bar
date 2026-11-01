@@ -20,8 +20,15 @@
 // too, so it passes.
 
 import type { Context } from "../context.ts";
-import type { FileState, PathChange } from "./file-state.ts";
-import { isGuarded, isWorkflowFolder, readsText } from "./guarded-paths.ts";
+import { decodeUtf8, NOT_UTF8 } from "./blob-text.ts";
+import { headFacts } from "./catalog-facts.ts";
+import type { CatalogContext, FileState, PathChange } from "./file-state.ts";
+import {
+  isGuarded,
+  isWorkflowFolder,
+  readsText,
+  WORKSPACE_FILE,
+} from "./guarded-paths.ts";
 import {
   readBlob,
   readBranchTip,
@@ -97,13 +104,35 @@ async function stateOf(
   if (!readsText(file)) {
     return { ok: true, value: { kind: "regular", mode: entry.mode } };
   }
-  const text = await readBlob(ctx, pr, entry.id);
-  return text.ok
-    ? {
-        ok: true,
-        value: { kind: "regular", mode: entry.mode, text: text.value },
-      }
-    : text;
+  const bytes = await readBlob(ctx, pr, entry.id);
+  if (!bytes.ok) {
+    return bytes;
+  }
+  // Proven bytes that aren't UTF-8 are an unreadable side, in the same
+  // words as git's reader, not a failure to read the pull request.
+  const text = decodeUtf8(bytes.value);
+  return {
+    ok: true,
+    value:
+      text === undefined
+        ? { kind: "unreadable", reason: NOT_UTF8 }
+        : { kind: "regular", mode: entry.mode, text },
+  };
+}
+
+/** The facts about the head that decide whether a change to the root
+ * pnpm-workspace.yaml's catalog is inert, from its whole tree. The root
+ * package.json is read by the id the tree gives it. */
+async function catalogContext(
+  ctx: Context,
+  pr: PullRequestRef,
+  head: ReadonlyMap<string, TreeEntry>,
+): Promise<Read<CatalogContext>> {
+  const { rootManifest, ...facts } = headFacts(head);
+  const state = await stateOf(ctx, pr, "package.json", rootManifest);
+  return state.ok
+    ? { ok: true, value: { ...facts, rootManifest: state.value } }
+    : state;
 }
 
 /** The guarded paths that differ between the two trees, read, and the
@@ -139,7 +168,20 @@ async function compareTrees(
     if (!now.ok) {
       return now;
     }
-    changes.push({ path: file, base: was.value, head: now.value });
+    if (file !== WORKSPACE_FILE) {
+      changes.push({ path: file, base: was.value, head: now.value });
+      continue;
+    }
+    const context = await catalogContext(ctx, pr, head);
+    if (!context.ok) {
+      return context;
+    }
+    changes.push({
+      path: file,
+      base: was.value,
+      head: now.value,
+      catalogContext: context.value,
+    });
   }
   // The default sort compares UTF-16 code units, the order every other
   // list of paths in the judge uses.

@@ -20,7 +20,10 @@ export type RepoFile =
   /** A symbolic link; git stores its target as the blob's text. */
   | { readonly symlink: string }
   /** A submodule, pinned at this commit. It has no blob. */
-  | { readonly submodule: string };
+  | { readonly submodule: string }
+  /** A regular file holding exactly these bytes, which need not be valid
+   * UTF-8. */
+  | { readonly bytes: Uint8Array };
 
 function git(
   dir: string,
@@ -41,13 +44,17 @@ export function writeBlob(dir: string, text: string): string {
   return git(dir, ["hash-object", "-w", "--stdin"], text);
 }
 
-/** A file's mode, and either the text its blob holds or the commit a
+/** A file's mode, and either what its blob holds or the commit a
  * submodule is pinned at. */
-type Entry = { mode: string; text: string } | { mode: "160000"; id: string };
+type Entry =
+  { mode: string; text: string | Uint8Array } | { mode: "160000"; id: string };
 
 function entryOf(file: RepoFile): Entry {
   if (typeof file === "string") {
     return { mode: "100644", text: file };
+  }
+  if ("bytes" in file) {
+    return { mode: "100644", text: file.bytes };
   }
   if ("text" in file) {
     return { mode: "100755", text: file.text };
@@ -64,7 +71,7 @@ function entryOf(file: RepoFile): Entry {
 function writeBlobs(
   dir: string,
   folder: string,
-  texts: readonly string[],
+  texts: readonly (string | Uint8Array)[],
 ): string[] {
   if (texts.length === 0) {
     return [];

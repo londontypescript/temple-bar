@@ -349,13 +349,13 @@ void test("findings come in a stable order: whole files, then manifests by path,
   const findings = findCheckChanges([
     change("pnpm-lock.yaml", lockfile("sha512-a=="), lockfile("sha512-b==")),
     change("packages/b/package.json", json(PACKAGE), absent),
-    change("pnpm-workspace.yaml", plain, plain),
+    change("packages/a/pnpm-workspace.yaml", plain, plain),
     change(NESTED, absent, json(PACKAGE)),
     change(".github/workflows/ci.yml", plain, plain),
   ]);
   assert.deepEqual(findings, [
     ".github/workflows/ci.yml (modified)",
-    "pnpm-workspace.yaml (modified)",
+    "packages/a/pnpm-workspace.yaml (modified)",
     `${NESTED} (added, with scripts)`,
     "packages/b/package.json (removed)",
     `pnpm-lock.yaml: temple-bar's entries: packages > ${PIN}@0.0.7 (changed)`,
@@ -380,10 +380,14 @@ void test("the lockfile keeps its policy: only temple-bar's entries count", () =
   );
 });
 
-void test("a manifest or lockfile whose text wasn't read is a mistake in the reader, never a pass", () => {
+void test("a manifest, lockfile or root workspace file whose text wasn't read is a mistake in the reader, never a pass", () => {
   assert.throws(() => manifest(NESTED, absent, plain), /wasn't read/);
   assert.throws(
     () => findCheckChanges([change("pnpm-lock.yaml", plain, plain)]),
+    /wasn't read/,
+  );
+  assert.throws(
+    () => findCheckChanges([change("pnpm-workspace.yaml", plain, plain)]),
     /wasn't read/,
   );
 });

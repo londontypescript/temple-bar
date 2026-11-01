@@ -56,9 +56,14 @@ void test("workflows, temple-bar's config and the lockfile keep their exact name
   assert.equal(isGuarded("eslint.config.js"), false);
 });
 
-void test("only manifests and the root lockfile are read as text", () => {
+void test("only manifests, the root lockfile and the root workspace file are read as text", () => {
   assert.equal(readsText("packages/a/package.json"), true);
   assert.equal(readsText("pnpm-lock.yaml"), true);
+  assert.equal(readsText("pnpm-workspace.yaml"), true);
+  // Any other workspace file, a folded root name included, stays guarded
+  // whole: that it changed is enough.
+  assert.equal(readsText("packages/a/pnpm-workspace.yaml"), false);
+  assert.equal(readsText("PNPM-WORKSPACE.YAML"), false);
   assert.equal(readsText(".npmrc"), false);
   assert.equal(readsText(".github/workflows/ci.yml"), false);
   // A package.json under .github/workflows/ is a workflow folder's file:
