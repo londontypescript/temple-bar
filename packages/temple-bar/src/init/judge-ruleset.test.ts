@@ -6,7 +6,19 @@ import {
   protectionQuestion,
 } from "./github-protection.ts";
 import { rulesetBody } from "./github-ruleset.ts";
-import { codeScanningAnswer } from "./testing/code-scanning-fake.ts";
+import {
+  CODEQL_RULE,
+  codeScanningAnswer,
+} from "./testing/code-scanning-fake.ts";
+import {
+  BASE,
+  CHECKS,
+  error,
+  MAIN as MAIN_WITH_ID,
+  missing,
+  setup,
+  writes,
+} from "./testing/required-checks-world.ts";
 import { judgeRulesetBody, JUDGE_RULESET_NAME } from "./judge-ruleset.ts";
 import { GITHUB_ACTIONS_APP_ID, JUDGE_CHECK } from "../judge/workflow.ts";
 import { createFakeContext, createFakeGh } from "../testing/fakes.ts";
@@ -188,4 +200,42 @@ void test("offerRuleset: the judge's ruleset failing to create says what was cre
   assert.match(outcome.message, /Created "main: pull requests only", but/);
   assert.match(outcome.message, /HTTP 404/);
   assert.match(outcome.message, /requires the status check "temple-bar judge"/);
+});
+
+// Only GitHub's "not found" means the workflow hasn't arrived yet. Any other
+// failure leaves setup not knowing, so it fails rather than reporting the
+// rulesets in place: everything else here is already set up.
+for (const [what, reply] of [
+  ["a server error", error("gh: Service Unavailable (HTTP 503)")],
+  ["a refusal", error("gh: Forbidden (HTTP 403)")],
+  ["no answer at all", error("error connecting to api.github.com")],
+] as const) {
+  void test(`offerRuleset: the judge workflow unreadable with ${what} fails setup with its own message, and never creates the judge's ruleset`, async () => {
+    const t = setup({
+      listed: [MAIN_WITH_ID],
+      rules: [...BASE, CHECKS, CODEQL_RULE],
+      judge: reply,
+    });
+    const outcome = await t.run();
+    assert.equal(outcome.kind, "not-created");
+    assert.match(
+      outcome.message,
+      /Couldn't read GitHub to tell whether \.github\/workflows\/temple-bar-judge\.yml is on the default branch, so setup didn't require the judge's check:/,
+    );
+    assert.ok(outcome.message.includes(reply.stderr));
+    assert.doesNotMatch(outcome.message, /isn't required yet/);
+    assert.deepEqual(writes(t, "POST"), []);
+    assert.deepEqual(t.questions, []);
+  });
+}
+
+void test("offerRuleset: the judge workflow not found is still only waiting for the merge, not a failure", async () => {
+  const t = setup({
+    listed: [MAIN_WITH_ID],
+    rules: [...BASE, CHECKS, CODEQL_RULE],
+    judge: missing,
+  });
+  const outcome = await t.run();
+  assert.equal(outcome.kind, "exists");
+  assert.match(outcome.message, /isn't required yet/);
 });

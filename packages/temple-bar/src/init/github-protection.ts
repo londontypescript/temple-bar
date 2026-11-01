@@ -29,6 +29,7 @@ import {
 } from "./code-scanning.ts";
 import {
   hasBranchRuleset,
+  listingUnreadable,
   listRulesets,
   mainRulesetId,
   MANUAL_RULESET_STEPS,
@@ -37,8 +38,9 @@ import {
 } from "./github-ruleset.ts";
 import {
   hasJudgeRuleset,
-  judgeIsOnDefaultBranch,
+  judgeOnDefaultBranch,
   judgeRulesetBody,
+  judgeUnreadable,
   JUDGE_WAITING,
   MANUAL_JUDGE_RULESET_STEPS,
 } from "./judge-ruleset.ts";
@@ -171,11 +173,19 @@ export async function offerProtection(
   approved = false,
 ): Promise<RulesetOutcome> {
   const path = `repos/${origin.owner}/${origin.repo}/rulesets`;
-  const existing = await listRulesets(ctx, repoRoot, path);
+  const listing = await listRulesets(ctx, repoRoot, path);
+  // Without the listing, setup can't tell what exists, so it asks nothing
+  // and changes nothing.
+  if (!listing.ok) {
+    return { kind: "not-created", message: listingUnreadable(listing.error) };
+  }
+  const existing = listing.rulesets;
   const needMain = !hasBranchRuleset(existing);
   const judgeMissing = !hasJudgeRuleset(existing);
-  const judgeReady =
-    judgeMissing && (await judgeIsOnDefaultBranch(ctx, repoRoot, origin));
+  const judgeRead = judgeMissing
+    ? await judgeOnDefaultBranch(ctx, repoRoot, origin)
+    : undefined;
+  const judgeReady = judgeRead?.kind === "present";
   const plan = await planCodeScanning(ctx, repoRoot, origin);
   const mainId = mainRulesetId(existing);
   const checksPlan = await planRequiredChecks(
@@ -199,13 +209,16 @@ export async function offerProtection(
 
   // Said after the outcome, whatever it is.
   const notes = joined([
-    judgeMissing && !judgeReady ? JUDGE_WAITING : undefined,
+    judgeRead?.kind === "missing" ? JUDGE_WAITING : undefined,
     plan.kind === "waiting" ? CODEQL_WAITING : undefined,
     plan.kind === "private" ? CODEQL_PRIVATE : undefined,
     checksPlan.note,
   ]);
   // Left undone whatever the answer, so `init` ends non-zero.
   const problems = joined([
+    judgeRead?.kind === "unreadable"
+      ? judgeUnreadable(judgeRead.reason)
+      : undefined,
     checksPlan.problem,
     checksPlan.checks.length > 0 && checks.length === 0
       ? notSetupsRuleset(checksPlan.checks)

@@ -22,6 +22,10 @@ import {
   JUDGE_WORKFLOW_PATH,
 } from "../judge/workflow.ts";
 import type { RulesetBody } from "./github-ruleset.ts";
+import {
+  workflowOnDefaultBranch,
+  type WorkflowRead,
+} from "./required-checks.ts";
 import { RERUN_INIT, type GithubOrigin } from "./requirements.ts";
 
 export const JUDGE_RULESET_NAME = "main: the judge";
@@ -82,19 +86,22 @@ export function hasJudgeRuleset(rulesets: readonly NamedRuleset[]): boolean {
 }
 
 /** Whether the judge workflow is on the default branch, where
- * pull_request_target reads it from. */
-export async function judgeIsOnDefaultBranch(
+ * pull_request_target reads it from. Only "not found" is the wait for the
+ * setup pull request; a read that failed otherwise is unreadable. */
+export async function judgeOnDefaultBranch(
   ctx: Context,
   repoRoot: string,
   origin: GithubOrigin,
-): Promise<boolean> {
-  const result = await ctx.gh.run(
-    [
-      "api",
-      `repos/${origin.owner}/${origin.repo}/contents/${JUDGE_WORKFLOW_PATH}`,
-      "--silent",
-    ],
-    repoRoot,
+): Promise<WorkflowRead> {
+  return workflowOnDefaultBranch(ctx, repoRoot, origin, JUDGE_WORKFLOW_PATH);
+}
+
+/** Setup can't tell whether requiring the judge's check would block every
+ * pull request, so it requires nothing and ends non-zero. */
+export function judgeUnreadable(reason: string): string {
+  return (
+    `Couldn't read GitHub to tell whether ${JUDGE_WORKFLOW_PATH} is on the ` +
+    "default branch, so setup didn't require the judge's check:\n" +
+    `${reason}\nRun ${RERUN_INIT} again once GitHub answers.`
   );
-  return result.code === 0;
 }
