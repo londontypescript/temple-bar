@@ -87,7 +87,7 @@ Settled before the numbering began:
 | 63  | The judge guards what decides how the gate runs, in every package, and no more        | [0015](0015-every-package-checked-and-guarded.md)  |
 | 64  | The judge guards every script of every tracked `package.json`                         | [0015](0015-every-package-checked-and-guarded.md)  |
 | 65  | A new package with scripts, or a removed one, needs the maintainer                    | [0015](0015-every-package-checked-and-guarded.md)  |
-| 66  | `pnpm-workspace.yaml` stays guarded as a whole file                                   | [0015](0015-every-package-checked-and-guarded.md)  |
+| 66  | `pnpm-workspace.yaml` guarded whole; a catalog-only change passes by text grammar     | [0015](0015-every-package-checked-and-guarded.md)  |
 | 67  | The gate runs every package's checks and fails on a manifest outside the list         | [0015](0015-every-package-checked-and-guarded.md)  |
 | 68  | Setup writes `ready`; the gate re-runs only the pnpm `npm_execpath` names, never PATH | [0017](0017-running-and-merging-workspaces.md)     |
 | 69  | Setup writes `merge`; `pnpm merge <N>` runs from the default-branch checkout          | [0017](0017-running-and-merging-workspaces.md)     |
