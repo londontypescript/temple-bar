@@ -26,8 +26,12 @@ interface RecordedCall {
   readonly cwd: string;
 }
 
+interface RecordedGitCall extends RecordedCall {
+  readonly input?: string;
+}
+
 export interface FakeGit extends GitSeam {
-  readonly calls: RecordedCall[];
+  readonly calls: RecordedGitCall[];
 }
 
 export function createFakeGit(
@@ -37,11 +41,11 @@ export function createFakeGit(
     stderr: "",
   }),
 ): FakeGit {
-  const calls: RecordedCall[] = [];
+  const calls: RecordedGitCall[] = [];
   return {
     calls,
-    run(args, cwd) {
-      calls.push({ args, cwd });
+    run(args, cwd, input) {
+      calls.push(input === undefined ? { args, cwd } : { args, cwd, input });
       return Promise.resolve(script(args, cwd));
     },
   };

@@ -41,3 +41,19 @@ void test("git seam: a failing command returns a non-zero exit code and stderr, 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+void test("git seam: `input` reaches git's stdin", async () => {
+  const dir = makeTempRepo();
+  try {
+    const git = createGitSeam();
+    const result = await git.run(["hash-object", "--stdin"], dir, "hello\n");
+    assert.equal(result.code, 0);
+    // The id git gives the blob "hello\n" in every repository.
+    assert.equal(
+      result.stdout.trim(),
+      "ce013625030ba8dba906f756967f9e9ca394464a",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
