@@ -158,13 +158,15 @@ Each side splits into a prefix, the marker, the body and the suffix:
 - Every prefix and suffix line has one of these shapes, or the file is
   outside the grammar: empty; a comment line (spaces, then `#`); `---`
   alone as the prefix's first line that is neither; or spaces, an optional
-  `- `, then a key with `:` and optionally a space and a value, or a value
-  alone, then optionally a space, `#` and anything. A key is plain
+  `- `, then a key with `:` and optionally a space and a value, or (only
+  after `- ` or an indent) a value alone, then optionally a space, `#` and
+  anything. A key is plain
   (`[A-Za-z0-9_.-]+`) or wholly quoted; a value is plain, starting with
   `[A-Za-z0-9_./]` and made of `[A-Za-z0-9 ._/*,+=~^:()-]` with no `: `
   or ` #` inside, or wholly quoted. Wholly quoted means `'` or `"`, text
-  with no quote character of either kind, and the same quote. No bracket,
-  brace or quote appears anywhere else. That is all the YAML the judge
+  with no quote character of either kind, and the same quote. Outside a
+  comment or a wholly quoted scalar, no bracket, brace or quote appears
+  anywhere. That is all the YAML the judge
   understands, and enough to prove the marker a root key of the one
   document pnpm reads: a quoted scalar or flow collection can't cross a
   line, a block scalar or explicit key can't start, and a plain scalar
@@ -254,9 +256,9 @@ those, and the exception is off when the head holds either:
   above.
 
 Neither costs an adopter anything until used; then it is the maintainer's
-merge, and the finding says which rule. A bump still changes what that
-tool does, as one in `package.json` always could; these rules keep the
-catalog from redirecting temple-bar's own install.
+merge, and the finding says which rule. A bump still changes what a tool
+does, as one in `package.json` could; these rules keep the catalog from
+redirecting temple-bar's own install.
 
 ### One verdict in three places
 
@@ -266,9 +268,9 @@ side's text, as for manifests and the lockfile (`readsText` in
 about the head: the root manifest's state, whether a pnpmfile or a folded
 root name exists, and each `.npmrc`'s text.
 GitHub's trees supply them to the judge, git to `ready` and `merge`; a fact
-a reader can't establish is handed over as unknown, which turns the
-exception off. The judge-agreement test covers every example in this ADR
-through both readers, and a pass is logged as a catalog-only change.
+a reader can't establish is unknown, which turns the exception off. The
+judge-agreement test covers every example here through both readers, and a
+pass is logged as a catalog-only change.
 
 ## What the judge reads, and how it fails
 
@@ -372,7 +374,7 @@ a comment, `catalog:` with fourteen entries (seven scoped), then a setting.
 | `  react: 19.3.1` added when `react` is already there                                                                                                                                                               | duplicate key                                                                          |
 | A second `catalog:` section appended; `catalog:` added where none was; `catalog: # default` instead; `'catalog': {}` in the prefix                                                                                  | one marker; `catalog` outside the body                                                 |
 | `catalogs:` named catalog bumped; a `packages:` pattern, a setting, a comment or an empty line changed                                                                                                              | changed outside the catalog                                                            |
-| `{x-note: "` or `x-note: [foo", "]` before the marker (Sol's cases); `packages: ['packages/*']`; `note:                                                                                                             | `; `note: "a\"`; `%YAML 1.2`; a second `---`; `!!str`                                  | line shape; backslash |
+| `{x-note: "` or `x-note: [foo", "]` before the marker (Sol's cases); `packages: ['packages/*']`; `note: \|`; `note: "a\"`; `%YAML 1.2`; `...`; a second `---`; `!!str`                                              | line shape; backslash                                                                  |
 | `overrides:` with `knip: catalog:` or `picomatch: $picomatch`; `"pnpm\u0066ile": ./hooks.cjs` after the body; root `pnpm.overrides.knip` of `"catalog:"` or `"$typescript"`; root `package.json` missing or invalid | `catalog`, `$` or backslash outside the body; an override reads the catalog; unknown   |
 | `.pnpmfile.cjs` or `.PNPMFILE.CJS` at any depth; `.npmrc` naming a `pnpmfile`, or unreadable                                                                                                                        | code runs at install; unknown                                                          |
 | `.npmrc` with `PNPMFILE=x` or a backslash; either side not valid UTF-8                                                                                                                                              | code runs at install; unreadable                                                       |
@@ -385,9 +387,8 @@ a comment, `catalog:` with fourteen entries (seven scoped), then a setting.
   scripts, and delegation gets another answer.
 - If a project needs a package outside pnpm's workspace list, decision 67
   gains an exception list in `temple-bar.config.json`.
-- If pnpm ever gives a list of workspace packages that the judge can read
-  without running the pull request's code, decision 66's package list can
-  be revisited.
+- If pnpm ever lists workspace packages in a form the judge can read without
+  running the pull request's code, the package list can be revisited.
 - If the record shows catalog refusals that are only style (indent width,
   trailing comments, wider ranges, digit-led names, flow lists), the grammar
   can grow those forms, each with examples: from refused to admitted, never
