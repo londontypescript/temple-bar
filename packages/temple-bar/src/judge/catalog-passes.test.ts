@@ -11,6 +11,7 @@ import { catalogOnlyChange, findCheckChanges } from "./changes.ts";
 import type { PathChange } from "./file-state.ts";
 import {
   BASE,
+  char,
   INERT,
   regular,
   swap,
@@ -213,10 +214,10 @@ void test("non-ASCII text, U+FFFD included, in a comment inside the body or anyw
   const before = swapAll(BASE, [
     [
       "# Versions every package shares.",
-      "# Versions every package shares — café �.",
+      `# Versions every package shares ${char(0x2014)} caf${char(0xe9)} ${char(0xfffd)}.`,
     ],
-    ["  vite:", "  # Vite, für alle.\n  vite:"],
-    ["  - esbuild", "  - 'esbuild ✓'"],
+    ["  vite:", `  # Vite, f${char(0xfc)}r alle.\n  vite:`],
+    ["  - esbuild", `  - 'esbuild ${char(0x2713)}'`],
   ]);
   passes(before, swap(before, "vite: 8.3.3", "vite: 8.4.0"), {
     changed: 1,

@@ -7,7 +7,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { catalogOnlyChange, findCheckChanges } from "./changes.ts";
-import { BASE, refused, swap, workspace } from "./testing/catalog-fixture.ts";
+import {
+  BASE,
+  char,
+  refused,
+  swap,
+  workspace,
+} from "./testing/catalog-fixture.ts";
 
 const verdict = (before: string, after: string): string[] =>
   findCheckChanges([workspace(before, after)]);
@@ -156,7 +162,7 @@ void test("a look-alike of temple-bar's name is outside the key grammar", () => 
     "  vite:",
     [
       "  '@londontypescript/Temple-bar': 0.2.2\n  vite:",
-      "  '@londontypescript/temple‐bar': 0.2.2\n  vite:",
+      `  '@londontypescript/temple${char(0x2010)}bar': 0.2.2\n  vite:`,
       "  '@londontypescript/temple-bar/x': 0.2.2\n  vite:",
       "  '@londontypescript /temple-bar': 0.2.2\n  vite:",
     ],
@@ -214,7 +220,7 @@ void test("a key outside the two forms the grammar reads", () => {
       '  "react": 19.2.0',
       "  3d-view: 19.2.0",
       "  React: 19.2.0",
-      "  réact: 19.2.0",
+      `  r${char(0xe9)}act: 19.2.0`,
       "  _react: 19.2.0",
       "  yes: 19.2.0",
       "  off: 19.2.0",

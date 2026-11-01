@@ -36,6 +36,10 @@ export const BASE = [
   "",
 ].join("\n");
 
+/** The character with this code, so a test names an invisible or
+ * look-alike character by its number. */
+export const char = (code: number): string => String.fromCharCode(code);
+
 /** `text` with `from` replaced by `to`. `from` must be there exactly once,
  * so a test can never judge a change it didn't make. */
 export function swap(text: string, from: string, to: string): string {
