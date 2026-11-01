@@ -28,7 +28,9 @@ jobs:
       matrix:
         # Windows runs by part, in the jobs further down.
         os: [ubuntu-latest, macos-latest]
-        node: [24, 26]
+        # Only the newest LTS (docs/adr/0020-only-the-current-node-lts.md).
+        # Still a matrix key: the check names the ruleset requires carry it.
+        node: [26]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -64,7 +66,7 @@ jobs:
       # description; the others are checked offline by the tests. One leg
       # of the matrix is enough, since it reads GitHub, not this machine.
       - name: GitHub About text matches the README
-        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 26
         run: node scripts/check-about.ts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -101,7 +103,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 24
+          node-version: 26
           cache: pnpm
 
       # Without this, a pnpm from somewhere else first on PATH would turn the
@@ -146,13 +148,13 @@ jobs:
   # instead. Nothing that writes files coverage or Knip reads (such as
   # `pnpm build`) runs before a part: the split equals the whole gate only
   # while no part's result depends on another's side effects.
-  check-windows-node-24-parts:
-    name: check (windows-latest, node 24) part ${{ matrix.part }}
+  check-windows-node-26-parts:
+    name: check (windows-latest, node 26) part ${{ matrix.part }}
     runs-on: windows-latest
     # LEG ties the parts to their verifier, and prefixes their artifacts.
-    env: &check-node-24
-      LEG: check-windows-node-24
-      LEG_NODE: 24
+    env: &check-node-26
+      LEG: check-windows-node-26
+      LEG_NODE: 26
     strategy:
       # Every part runs to the end, as the whole gate runs every check.
       fail-fast: false
@@ -217,16 +219,16 @@ jobs:
           # Re-running all jobs uploads under the same names again.
           overwrite: true
 
-  check-windows-node-24:
-    name: check (windows-latest, node 24)
-    needs: check-windows-node-24-parts
+  check-windows-node-26:
+    name: check (windows-latest, node 26)
+    needs: check-windows-node-26-parts
     # always(), never !cancelled() or success(): a skipped required check
     # counts as passing, so the verifier must run, and fail, whatever
     # happened to its parts. Its first step fails the leg on a failed,
     # cancelled or skipped part.
     if: always()
     runs-on: windows-latest
-    env: *check-node-24
+    env: *check-node-26
     steps: &check-verify-steps
       - &parts-succeeded
         name: Every part job succeeded
@@ -265,26 +267,6 @@ jobs:
       - name: Build
         run: pnpm build
 
-  check-windows-node-26-parts:
-    name: check (windows-latest, node 26) part ${{ matrix.part }}
-    runs-on: windows-latest
-    env: &check-node-26
-      LEG: check-windows-node-26
-      LEG_NODE: 26
-    strategy:
-      fail-fast: false
-      matrix:
-        include: *parts
-    steps: *check-part-steps
-
-  check-windows-node-26:
-    name: check (windows-latest, node 26)
-    needs: check-windows-node-26-parts
-    if: always()
-    runs-on: windows-latest
-    env: *check-node-26
-    steps: *check-verify-steps
-
   # The standalone leg's parts and verifier all run under pnpm's standalone
   # executable, so the verifier also proves every part ran through it.
   standalone-windows-parts:
@@ -292,7 +274,7 @@ jobs:
     runs-on: windows-latest
     env: &standalone
       LEG: standalone-windows
-      LEG_NODE: 24
+      LEG_NODE: 26
     strategy:
       fail-fast: false
       matrix:

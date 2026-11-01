@@ -87,7 +87,7 @@ void test("workflows: nothing changes what a step runs: no shell, folder or defa
   }
 });
 
-void test("workflows: one job each, named by the check a ruleset requires, on Node 24", () => {
+void test("workflows: one job each, named by the check a ruleset requires, on Node 26", () => {
   for (const [code, check] of [
     [gate, GATE_CHECK],
     [title, PR_TITLE_CHECK],
@@ -101,7 +101,7 @@ void test("workflows: one job each, named by the check a ruleset requires, on No
         "m",
       ),
     );
-    assert.match(code, /^ {10}node-version: 24$/m);
+    assert.match(code, /^ {10}node-version: 26$/m);
   }
   assert.equal(GATE_CHECK, "temple-bar gate");
   assert.equal(PR_TITLE_CHECK, "temple-bar pr-title");

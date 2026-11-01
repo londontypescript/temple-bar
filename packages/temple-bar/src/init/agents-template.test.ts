@@ -271,7 +271,7 @@ const APPROVED_COMPANION_SHA256: Readonly<Record<string, string>> = {
   "docs/planning.md":
     "664be6f35c101086696802793f5b7c57923385144f518044a8d7a54a7edb1b5f",
   "docs/pull-requests.md":
-    "89159bc96bdf1b309e45749b643f68d4c2c88658a909ae89064dc21ffa3d5f43",
+    "47c3bc562731b1f54cd80877e4fb97f0f1efcbc6c96a66d0fd1845174d83e622",
   "docs/delegation.md":
     "7009360c6ea13e60e3d0c1a55fb4085cb05fa7c9b5f95a82b98ef4da8bcb327b",
   "docs/incidents.md":

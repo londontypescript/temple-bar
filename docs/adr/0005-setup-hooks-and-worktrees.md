@@ -188,6 +188,12 @@ applied to brand-new repos, so these rules have no older projects to spare.
   some such ranges (`^22`) exclude the only Node temple-bar runs on. The minimum is its own
   constant, apart from the Node version CI uses, so moving CI forward doesn't
   raise every new project's floor.
+
+  Revised 2026-11-01 by decision 99
+  ([ADR 0020](0020-only-the-current-node-lts.md)): from 0.3.0 CI runs Node
+  26 while the floor stays 24 until 0.4.0, the separate constant this
+  section describes.
+
 - **Decision 61: temple-bar checks its own Node first.** Both entry points
   (`temple-bar`, which every hook runs, and the launcher) check the Node
   version in a tiny file that loads the real code only afterwards, so the

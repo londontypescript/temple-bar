@@ -11,8 +11,11 @@ export const SETUP_NODE =
 export const SETUP_PNPM =
   "pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6";
 
-/** The Node major version every workflow setup writes runs on. */
-export const NODE_VERSION = 24;
+/** The Node major version every workflow setup writes runs on: the newest
+ * LTS, as in temple-bar's own CI (docs/adr/0020-only-the-current-node-lts.md).
+ * Changing it changes every workflow's output, so register each one's last
+ * published output in generated-history.ts first. */
+export const NODE_VERSION = 26;
 
 /** A GitHub Actions expression, `${{ inner }}`. Built here so the workflow
  * templates never write the `\$` escape, which CodeQL takes for an escape in

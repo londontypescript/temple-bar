@@ -10,9 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  # The full CI matrix (3 operating systems × 2 Node versions) and the
-  # release tier of tests (release-check.yml: temple-bar set up on a real
-  # five-package stack, on the same six pairs), both on the exact commit
+  # The full CI matrix (3 operating systems, one Node version) and the release
+  # tier of tests (release-check.yml: temple-bar set up on a real
+  # five-package stack, on the same three), both on the exact commit
   # being released. Nothing below runs unless every job in both passes, so a
   # failure that only shows on one platform, or only with real frameworks
   # installed, can't reach npm.
@@ -89,7 +89,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 24
+          node-version: 26
           cache: pnpm
           # No registry-url here: actions/setup-node writes an _authToken line
           # to .npmrc whenever registry-url is set, and with no NODE_AUTH_TOKEN
@@ -192,7 +192,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 24
+          node-version: 26
 
       - name: Draft the release from conventional commits
         env:
