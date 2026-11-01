@@ -12,7 +12,7 @@ import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 // Answers as a signed-in `gh` for a public repo whose `main` ruleset already
-// exists, with CodeQL on but not yet through its first analysis of the
+// exists, with none of setup's workflows on the default branch yet, with CodeQL on but not yet through its first analysis of the
 // default branch (GitHub answers 404 for no analyses). Node resolves the first argument to an absolute path (it takes it
 // for a script), so only its basename is the subcommand.
 const PRELOAD = `"use strict";
@@ -23,10 +23,11 @@ if (path.basename(process.execPath).replace(/\\.exe$/i, "") === "gh") {
     process.exit(0);
   }
   if (args[0] === "api" && args.some((a) => a.endsWith("/rulesets"))) {
-    process.stdout.write('[{"target":"branch"}]');
+    process.stdout.write('[{"target":"branch","name":"project"}]');
     process.exit(0);
   }
   if (args[0] === "api" && [
+    "repos/acme/widgets/contents/.github/workflows/temple-bar-judge.yml",
     "repos/acme/widgets/contents/.github/workflows/temple-bar-gate.yml",
     "repos/acme/widgets/contents/.github/workflows/temple-bar-pr-title.yml",
   ].includes(args[1])) {

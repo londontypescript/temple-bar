@@ -30,9 +30,14 @@ const notFound: GhResult = {
 const isContentsRead = (args: readonly string[]) =>
   args.some((a) => a.includes("/contents/"));
 
-/** No rulesets listed yet; the create call returns `create`. The judge
- * workflow is on the default branch only when `judgeOnMain` says so. */
-function ghWithNoRulesets(create: GhResult = ok(), judgeOnMain = false) {
+/** No rulesets listed yet, unless `listing` answers the listing otherwise;
+ * the create call returns `create`. The judge workflow is on the default
+ * branch only when `judgeOnMain` says so. */
+function ghWithNoRulesets(
+  create: GhResult = ok(),
+  judgeOnMain = false,
+  listing: GhResult = ok("[]"),
+) {
   return createFakeGh((args) => {
     if (args.includes("POST")) {
       return create;
@@ -46,7 +51,7 @@ function ghWithNoRulesets(create: GhResult = ok(), judgeOnMain = false) {
         ? ok()
         : notFound;
     }
-    return ok("[]");
+    return listing;
   });
 }
 
@@ -122,7 +127,7 @@ void test("offerRuleset: an existing branch ruleset is left alone, no prompt ask
       codeScanningAnswer(args, "required", true) ??
       (isContentsRead(args)
         ? notFound
-        : ok(JSON.stringify([{ target: "branch" }]))),
+        : ok(JSON.stringify([{ target: "branch", name: "project" }]))),
   );
   let asked = false;
   const ctx = createFakeContext({
@@ -210,4 +215,78 @@ void test("offerRuleset: a failed create (e.g. not an admin) is not-created and 
   assert.equal(outcome.kind, "not-created");
   assert.match(outcome.message, /HTTP 404: Not Found/);
   assert.match(outcome.message, /Settings > Rules > Rulesets/);
+});
+
+// A listing GitHub didn't give is not an empty one: setup would otherwise
+// offer to create rulesets that may already exist, or report a repository
+// protected that it never looked at.
+const unreadableListings: readonly [string, GhResult][] = [
+  [
+    "a server error",
+    {
+      code: 1,
+      stdout: "",
+      stderr: "gh: Service Unavailable (HTTP 503)",
+      notFound: false,
+    },
+  ],
+  [
+    "a refusal",
+    {
+      code: 1,
+      stdout: "",
+      stderr: "gh: Forbidden (HTTP 403)",
+      notFound: false,
+    },
+  ],
+  ["a reply that isn't JSON", ok("<html>")],
+  ["a reply that isn't a list", ok(JSON.stringify({ message: "nope" }))],
+  ["an entry that isn't an object", ok(JSON.stringify([null]))],
+  [
+    "an entry with no name or target",
+    ok(JSON.stringify([{ id: 1, target: "branch" }, {}])),
+  ],
+];
+
+for (const [what, listing] of unreadableListings) {
+  void test(`offerRuleset: a ruleset listing that fails with ${what} fails setup, asking and changing nothing`, async () => {
+    const gh = ghWithNoRulesets(ok(), true, listing);
+    let asked = false;
+    const ctx = createFakeContext({
+      gh,
+      prompt: {
+        isInteractive: () => true,
+        confirm: () => {
+          asked = true;
+          return Promise.resolve("yes");
+        },
+      },
+    });
+
+    const outcome = await offerRuleset(ctx, "/repo", origin);
+
+    assert.equal(outcome.kind, "not-created");
+    assert.match(
+      outcome.message,
+      /^Couldn't list the rulesets on GitHub, so setup changed nothing there/,
+    );
+    assert.match(outcome.message, /`pnpm exec temple-bar init` again/);
+    assert.equal(asked, false);
+    assert.equal(createCalls(gh).length, 0);
+  });
+}
+
+void test("offerRuleset: an unreadable listing names GitHub's error", async () => {
+  const gh = ghWithNoRulesets(ok(), true, {
+    code: 1,
+    stdout: "",
+    stderr: "gh: Service Unavailable (HTTP 503)",
+    notFound: false,
+  });
+  const outcome = await offerRuleset(
+    createFakeContext({ gh }),
+    "/repo",
+    origin,
+  );
+  assert.match(outcome.message, /HTTP 503/);
 });

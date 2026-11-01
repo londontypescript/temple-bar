@@ -126,7 +126,12 @@ void test("setup waits successfully without a question when neither workflow is 
 });
 
 void test("setup creates the main ruleset with both checks and CodeQL when analysed, under one yes", async () => {
-  const t = setup({ listed: [], state: "analysed", effective: [] });
+  const t = setup({
+    listed: [],
+    state: "analysed",
+    effective: [],
+    judge: missing,
+  });
   assert.equal((await t.run()).kind, "created");
   assert.equal(t.questions.length, 1);
   const posts = writes(t, "POST");
