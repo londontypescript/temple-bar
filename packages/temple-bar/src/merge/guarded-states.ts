@@ -196,41 +196,32 @@ async function listTree(
   return tree;
 }
 
-/** Every guarded path in a tree that isn't a regular file. A diff lists
- * only files, so a folder named package.json shows up only here. */
-function nonRegularGuardedPaths(tree: ReadonlyMap<string, TreeEntry>) {
-  return [...tree]
-    .filter(
-      ([file, entry]) =>
-        isGuarded(file) &&
-        !isRegularFile(entry) &&
-        !isWorkflowFolder(file, entry),
-    )
-    .map(([file]) => file);
+/** A path's entry in a listing, with a folder under .github/workflows/
+ * treated as not there, as the judge treats it. */
+function seen(
+  tree: ReadonlyMap<string, TreeEntry>,
+  file: string,
+): TreeEntry | undefined {
+  const entry = tree.get(file);
+  return entry === undefined || isWorkflowFolder(file, entry)
+    ? undefined
+    : entry;
 }
 
-/** Every guarded path whose entry differs between the two listings, as
- * the judge compares GitHub's trees. The listings are read with
- * replacement objects off, so this holds even where the diff that names
- * the changed paths would follow a replacement ref. */
-function differingGuardedPaths(
-  base: ReadonlyMap<string, TreeEntry>,
-  head: ReadonlyMap<string, TreeEntry>,
-): string[] {
-  const seen = (tree: ReadonlyMap<string, TreeEntry>, file: string) => {
-    const entry = tree.get(file);
-    return entry === undefined || isWorkflowFolder(file, entry)
-      ? undefined
-      : entry;
-  };
-  return [...new Set([...base.keys(), ...head.keys()])].filter((file) => {
-    const before = seen(base, file);
-    const after = seen(head, file);
-    return (
-      isGuarded(file) &&
-      (before?.mode !== after?.mode || before?.id !== after?.id)
-    );
-  });
+/** Whether the comparison judges a guarded path, as the judge decides it
+ * from GitHub's trees: its entry differs between the two listings, or the
+ * head has it as something other than a regular file, changed or not. A
+ * diff lists only files, so a folder named package.json shows up only in
+ * the listings. */
+function judged(
+  before: TreeEntry | undefined,
+  after: TreeEntry | undefined,
+): boolean {
+  return (
+    before?.mode !== after?.mode ||
+    before?.id !== after?.id ||
+    (after !== undefined && !isRegularFile(after))
+  );
 }
 
 /** The facts about the head that decide whether a change to the root
@@ -249,9 +240,11 @@ async function catalogContext(
   };
 }
 
-/** Each guarded path among `paths`, each guarded path whose entry differs
- * between the two trees, and each that isn't a regular file at `base` or
- * `head`, with its state at `base` and `head`. */
+/** Each guarded path among `paths`, and each the comparison judges from
+ * both listings, with its state at `base` and `head`. Each state comes from the
+ * listing's own entry, never from asking git for the path again: a path
+ * whose bytes aren't UTF-8 comes back from the seam altered, and asking
+ * for it by that altered name would find nothing. */
 export async function readGuardedChanges(
   ctx: Context,
   base: string,
@@ -259,28 +252,21 @@ export async function readGuardedChanges(
   paths: readonly string[],
   cwd: string,
 ): Promise<PathChange[]> {
-  const files = new Set(paths.filter(isGuarded));
   const baseTree = await listTree(ctx, base, cwd);
   const headTree = await listTree(ctx, head, cwd);
-  // Both sides: a folder at a guarded path that the head deletes shows in
-  // the diff only as the files inside it, which aren't guarded.
-  for (const tree of [baseTree, headTree]) {
-    for (const file of nonRegularGuardedPaths(tree)) {
-      files.add(file);
-    }
-  }
-  for (const file of differingGuardedPaths(baseTree, headTree)) {
-    files.add(file);
-  }
-  const context = files.has(WORKSPACE_FILE)
+  const listed = [...new Set([...baseTree.keys(), ...headTree.keys()])].filter(
+    (file) => judged(seen(baseTree, file), seen(headTree, file)),
+  );
+  const files = [...new Set([...paths, ...listed])].filter(isGuarded);
+  const context = files.includes(WORKSPACE_FILE)
     ? await catalogContext(ctx, headTree, cwd)
     : undefined;
   const changes: PathChange[] = [];
   for (const file of files) {
     const change = {
       path: file,
-      base: await stateAt(ctx, base, file, cwd),
-      head: await stateAt(ctx, head, file, cwd),
+      base: await stateOfEntry(ctx, file, seen(baseTree, file), cwd),
+      head: await stateOfEntry(ctx, file, seen(headTree, file), cwd),
     };
     changes.push(
       file === WORKSPACE_FILE && context !== undefined

@@ -106,3 +106,39 @@ void test("ready and merge refuse a tree listing that names one path twice", asy
         "could not list the files at b: git ls-tree lists pnpm-workspace.yaml twice",
   );
 });
+
+/** A commit whose tree holds only `packages/<0xff>/package.json` with
+ * `text`, built with git's plumbing: no test helper writes a path whose
+ * bytes aren't UTF-8. */
+function commitOddPath(dir: string, text: string, parent?: string): string {
+  const git = (args: readonly string[], input: string | Buffer = "") =>
+    execFileSync("git", args, { cwd: dir, input }).toString().trim();
+  const blob = git(["hash-object", "-w", "--stdin"], text);
+  const leaf = git(["mktree"], `100644 blob ${blob}\tpackage.json\n`);
+  const odd = git(
+    ["mktree", "-z"],
+    Buffer.concat([
+      Buffer.from(`040000 tree ${leaf}\t`),
+      Buffer.from([0xff, 0x00]),
+    ]),
+  );
+  const root = git(["mktree"], `040000 tree ${odd}\tpackages\n`);
+  return git([
+    "commit-tree",
+    root,
+    "-m",
+    "odd path",
+    ...(parent === undefined ? [] : ["-p", parent]),
+  ]);
+}
+
+void test("both readers judge a manifest whose path isn't UTF-8 by the entry their listing gives", async (t) => {
+  const dir = newRepo(t);
+  const manifest = (test: string) => JSON.stringify({ scripts: { test } });
+  const base = commitOddPath(dir, manifest("node --test"));
+  const head = commitOddPath(dir, manifest("node --version"), base);
+  const { byGit, byGitHub } = await judgeBoth(dir, base, head);
+  const expected = [`packages/�/package.json: the "test" script`];
+  assert.deepEqual(byGit, expected, "ready and merge");
+  assert.deepEqual(byGitHub, expected, "the judge");
+});
