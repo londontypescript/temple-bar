@@ -195,33 +195,39 @@ change (none when the title says it all), then the co-author and reviewer
 lines. No "Generated with" line, and no note to the user. The title supplies
 the subject.
 
-**What to check goes in a separate comment,** headed "Before merging as
-admin, check". It holds only what the user verifies before merging:
+**Check everything you can before asking for the merge,** through the API
+or by reading the diff, then say so in one line naming what you checked:
 
 - the judge's refusal names only what's expected;
-- every other check is green;
-- GitHub's merge preview shows the right subject, body, and co-author and
-  reviewer trailers;
+- every other check is green, and any step the change names ran;
+- the squash message GitHub will offer has the right subject, body, and
+  co-author and reviewer trailers;
 - a \`One concern:\` line when the pull request closes several issues or is
   over the size limits, because an admin merge skips merge's own
   enforcement;
-- the branch is up to date with the default branch, which you check before
-  handing over, because an admin merge doesn't update it as merge does.
+- the branch is up to date with the default branch, because an admin merge
+  doesn't update it as merge does.
 
-A change may add checks of its own after these five, never results. A pin
-bump adds two: the lockfile's integrity hash matches the one npm publishes,
-and the \`package.json\` and lockfile diffs, read in full, hold nothing
-unrelated.
+A change may add checks of its own after these five, and you check those too.
+A pin bump adds two: the lockfile's integrity hash matches the one npm
+publishes, and the \`package.json\` and lockfile diffs, read in full, hold
+nothing unrelated.
+
+**What the user does goes in a separate comment,** headed "Before merging as
+admin, check". It holds only the user's own steps: any change to the ruleset,
+the admin merge itself, and any check the API can't show. Never results, and
+nothing you've already verified.
 
 **Evidence goes in its own comment** (break-it results, manual runs, review
-summaries), never in the checklist, so the checklist stays short.
+summaries, the rollback), never in the checklist, so the checklist stays
+short.
 
 **With several pull requests in flight,** merge the admin one first, or
 update it and let CI rerun before asking for the admin merge: each other
 merge can leave it behind.
 
 Setup doesn't set GitHub's squash-message default, so a repository's default
-may differ: the merge preview is where a wrong message is caught.
+may differ: read its setting when you check the squash message.
 `;
 
 /** What an orchestrator and its subagents each own, and the review bar. */
