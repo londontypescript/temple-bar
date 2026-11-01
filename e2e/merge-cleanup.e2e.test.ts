@@ -212,17 +212,17 @@ void test(
     assert.match(
       merge.stdout,
       new RegExp(
-        `^merge: kept the worktree at .*wt-c on feat/c \\(${RegExp.escape(pr.pushedTip)}\\); your harness removes it when it is done, or inspect it with temple-bar leftovers$`,
+        `^merge: kept the worktree at .*wt-c on feat/c \\(${RegExp.escape(pr.pushedTip)}\\); once the session there has released it, \`temple-bar leftovers --remove\` removes it with its branches$`,
         "m",
       ),
     );
     assert.match(
       merge.stdout,
-      /^merge: leftovers: {3}worktree .*wt-c: its branch feat\/c's pull request #10 is merged/m,
+      /^merge: leftovers: {3}worktree .*wt-c \(feat\/c, pull request #10 merged\): kept: .*not released/m,
     );
     assert.match(
       merge.stdout,
-      /^merge: leftovers: {3}local branch feat\/c: pull request #10 merged \(git branch -D feat\/c\)$/m,
+      /^merge: leftovers: {3}local branch feat\/c \(pull request #10 merged\): kept: .*which is kept$/m,
     );
   },
 );

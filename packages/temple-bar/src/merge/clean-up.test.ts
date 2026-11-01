@@ -118,7 +118,7 @@ void test("cleanUp keeps a worktree on the merged branch: main moves, then the r
   assert.deepEqual(report.done, [
     "fast-forwarded main in /repo",
     `deleted origin/feat/x, whose tip was still the merged ${MERGED}`,
-    `kept the worktree at /wt/x on feat/x (${MERGED}); your harness removes it when it is done, or inspect it with temple-bar leftovers`,
+    `kept the worktree at /wt/x on feat/x (${MERGED}); once the session there has released it, \`temple-bar leftovers --remove\` removes it with its branches`,
   ]);
   assert.equal(report.keptBranch, true);
 });

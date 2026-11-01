@@ -189,19 +189,20 @@ void test("after merging: fast-forwards main, keeps the worktree and the branch,
   assert.match(out, /confirmed origin\/feat\/x is gone/);
   assert.match(
     out,
-    /merge: kept the worktree at \/wt\/x on feat\/x \(a{40}\); your harness removes it when it is done, or inspect it with temple-bar leftovers\n/,
+    /merge: kept the worktree at \/wt\/x on feat\/x \(a{40}\); once the session there has released it, `temple-bar leftovers --remove` removes it with its branches\n/,
   );
   assert.match(out, /no open code-scanning alerts on main/);
-  // What merge kept on purpose is next listed for whoever removes it.
+  // What merge kept on purpose is next listed with the verdict
+  // `leftovers --remove` would reach: kept, since nobody released it.
   assert.match(
     out,
-    /merge: leftovers: 2 left behind \(nothing deleted; check each before removing it\):\nmerge: leftovers: {3}worktree \/wt\/x: its branch feat\/x's pull request #7 is merged \(git worktree remove \/wt\/x\)\nmerge: leftovers: {3}local branch feat\/x: pull request #7 merged \(git branch -D feat\/x\)\n/,
+    /merge: leftovers: 2 left behind \(nothing deleted\):\nmerge: leftovers: {3}worktree \/wt\/x \(feat\/x, pull request #7 merged\): kept: [^\n]*not released: the session there hasn't run `temple-bar leftovers --release`[^\n]*\nmerge: leftovers: {3}local branch feat\/x \(pull request #7 merged\): kept: [^\n]*it is checked out in \/wt\/x, which is kept\n/,
   );
   assert.match(out, /incidents: 3 open issues labelled incident\n/);
   assert.match(out, /pr-size: ok/);
 });
 
-void test("a commit made on the branch after the merge is kept, said so, and left out of the leftovers", async () => {
+void test("a commit made on the branch after the merge is kept, said so, and kept in the leftovers too", async () => {
   const world = defaultWorld();
   world.localCommitAfterMerge = true;
   const h = harness(world);
@@ -215,9 +216,8 @@ void test("a commit made on the branch after the merge is kept, said so, and lef
   );
   assert.match(
     out,
-    /merge: leftovers: none finished, so check what merge kept above before removing it\n/,
+    /merge: leftovers: {3}local branch feat\/x \(pull request #7 merged\): kept: it holds commits beyond pull request #7's head\n/,
   );
-  assert.doesNotMatch(out, /local branch feat\/x:/);
 });
 
 void test("after the first merge, advises pnpm install when the primary checkout lists temple-bar but has none installed", async () => {

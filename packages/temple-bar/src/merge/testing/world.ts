@@ -115,7 +115,9 @@ export function harness(world: World): Harness {
     if (read !== undefined) {
       return read;
     }
-    const [command, ...rest] = args;
+    // Leftovers reads ancestry and objects with replacement objects off.
+    const [command, ...rest] =
+      args[0] === "--no-replace-objects" ? args.slice(1) : args;
     const joined = args.join(" ");
     switch (command) {
       case "worktree": {
@@ -135,9 +137,13 @@ export function harness(world: World): Harness {
           : ok();
       }
       case "for-each-ref":
-        return ok(
-          `main ${BASE}\n${tip === undefined ? "" : `${branch} ${tip}\n`}`,
-        );
+        // Leftovers lists branches by full name, tip and symbolic target;
+        // the worktree has no refs of its own.
+        return rest.includes("refs/heads/")
+          ? ok(
+              `refs/heads/main\0${BASE}\0\n${tip === undefined ? "" : `refs/heads/${branch}\0${tip}\0\n`}`,
+            )
+          : ok();
       case "rev-parse":
         if (rest[0] === "--git-path") {
           return ok(`.git/${rest[1] ?? ""}\n`);

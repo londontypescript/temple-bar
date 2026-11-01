@@ -172,6 +172,8 @@ export function fakeGitHub(setup: Setup, pullRequest: FakePullRequest) {
               headRefName: "feat/x",
               headRefOid,
               state: "MERGED",
+              isCrossRepository: false,
+              baseRefName: "main",
             })),
           ),
         ),
