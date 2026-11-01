@@ -8,7 +8,7 @@
 import { fail, type Checked, type Side } from "./catalog-lines.ts";
 import { TEMPLE_BAR_PACKAGE } from "./manifests.ts";
 
-export interface Entry {
+interface Entry {
   readonly kind: "entry";
   readonly line: number;
   readonly text: string;

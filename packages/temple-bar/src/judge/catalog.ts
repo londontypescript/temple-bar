@@ -59,7 +59,7 @@ function firstOf(
  * lines, duplicate keys, the walk, temple-bar's own entry, and last the
  * head's facts.
  */
-export function compareCatalog(
+function compareCatalog(
   before: string,
   after: string,
   context: CatalogContext | undefined,

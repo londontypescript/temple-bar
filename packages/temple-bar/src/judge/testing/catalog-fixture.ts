@@ -65,7 +65,7 @@ export const regular = (text: string, mode = "100644"): FileState => ({
 });
 
 /** A root manifest with nothing that reads the catalog. */
-export const ROOT_MANIFEST = JSON.stringify({
+const ROOT_MANIFEST = JSON.stringify({
   name: "widgets",
   private: true,
   scripts: { test: "node --test" },
