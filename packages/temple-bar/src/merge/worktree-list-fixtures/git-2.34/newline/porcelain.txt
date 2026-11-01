@@ -1,0 +1,13 @@
+worktree /work/newline/repo
+HEAD f8570f8daa585704a075fe710d3ac126269629b6
+branch refs/heads/main
+
+worktree /work/newline/wt
+newline
+HEAD f8570f8daa585704a075fe710d3ac126269629b6
+branch refs/heads/nl
+
+worktree /work/newline/wt-plain
+HEAD f8570f8daa585704a075fe710d3ac126269629b6
+branch refs/heads/plain
+

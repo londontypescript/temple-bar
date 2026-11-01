@@ -1,0 +1,5 @@
+/work/forged/wt-decoy
+HEAD f8570f8daa585704a075fe710d3ac126269629b6
+branch refs/heads/decoy
+
+worktree /work/forged/wt-fake/.git
