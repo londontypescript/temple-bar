@@ -41,6 +41,16 @@ export const EARLIER_OUTPUT_HASHES: Readonly<
     "7c0a0d52a68da892b87cbea36066a232a0cca27f87df82f15177db8d15485c53",
     // 0.0.8–0.0.10
     "4839cce5a86a09af8f3ceffc93187ce18b0eae62d715869cfc07d289f873a2fd",
+    // 0.1.0–0.2.2
+    "3ec54b22c3c95b6e682747293ef201135bf7e760f98b82f384fc9f7d4891a60d",
+  ],
+  ".github/workflows/temple-bar-gate.yml": [
+    // 0.0.9–0.2.2
+    "7cdb8cbc9cbe3c99244f08a14aaf6cf0a8696d76e610fc3dc4d909b6211a1cb2",
+  ],
+  ".github/workflows/temple-bar-pr-title.yml": [
+    // 0.0.9–0.2.2
+    "47f6a0c7391ffc74ab2785d616b36339991fe9efa8c36966712dc421c543dda7",
   ],
 };
 
