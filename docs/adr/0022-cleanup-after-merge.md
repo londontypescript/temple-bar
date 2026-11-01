@@ -43,7 +43,9 @@ request left behind, and only worktrees their session has released.**
 - **Valid only while unchanged.** The marker holds only while the worktree
   has the same branch, exactly the same HEAD and the same files. A resumed
   session that commits, edits or writes a note invalidates it without having
-  to remember to. The one exception is merge's own commit: when `merge`
+  to remember to. Dependencies and build output (`node_modules`, `dist`,
+  `coverage`) and empty folders aren't watched: they are disposable whenever
+  written. The one exception is merge's own commit: when `merge`
   brings a released worktree up to date and pushes, it moves the marker to
   the new HEAD, because only merge knows that commit is its own.
 - **A claim, not a check.** `--remove` claims a worktree by turning
@@ -96,8 +98,11 @@ request left behind, and only worktrees their session has released.**
   the worktree. The release lists it and the delegation guide says so
   plainly; a session that needs any of it keeps it elsewhere first.
 - Recovery history inside the worktree's git directory (its HEAD reflog) is
-  disposable once released. A mounted folder is found by its device number;
-  a bind mount of a folder on the same device can't be told apart that way.
+  disposable once released. A mounted folder is found by its device number,
+  and on Windows any link or junction pointing outside the worktree keeps
+  it, since a volume mount point looks like a junction there. Two mounts
+  can't be seen: a bind mount of a folder on the same device, and a mount
+  holding only empty folders, whose empty folders could go.
 - On git older than 2.36, which can't list a worktree path containing a
   newline unambiguously, such a worktree stops the command rather than being
   guessed at.
