@@ -73,6 +73,17 @@ void test("ready and merge read each tree as stored, whatever a local replacemen
   );
 });
 
+void test("ready and merge find a guarded change a replacement ref hides from the diff", async (t) => {
+  const dir = newRepo(t);
+  const ci = (text: string) => ({ ".github/workflows/ci.yml": text });
+  const base = commitFiles(dir, ws(BASE, ci("a")));
+  const head = commitFiles(dir, ws(BASE, ci("b")), base);
+  const decoy = commitFiles(dir, ws(BUMPED, ci("a")), base);
+  execFileSync("git", ["replace", head, decoy], { cwd: dir });
+  const { byGit } = await judgeBoth(dir, base, head);
+  assert.deepEqual(byGit, [".github/workflows/ci.yml (modified)"]);
+});
+
 void test("ready and merge refuse a tree listing that names one path twice", async () => {
   const id = "8".repeat(40);
   const entry = `100644 blob ${id}\tpnpm-workspace.yaml\0`;

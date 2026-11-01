@@ -209,6 +209,30 @@ function nonRegularGuardedPaths(tree: ReadonlyMap<string, TreeEntry>) {
     .map(([file]) => file);
 }
 
+/** Every guarded path whose entry differs between the two listings, as
+ * the judge compares GitHub's trees. The listings are read with
+ * replacement objects off, so this holds even where the diff that names
+ * the changed paths would follow a replacement ref. */
+function differingGuardedPaths(
+  base: ReadonlyMap<string, TreeEntry>,
+  head: ReadonlyMap<string, TreeEntry>,
+): string[] {
+  const seen = (tree: ReadonlyMap<string, TreeEntry>, file: string) => {
+    const entry = tree.get(file);
+    return entry === undefined || isWorkflowFolder(file, entry)
+      ? undefined
+      : entry;
+  };
+  return [...new Set([...base.keys(), ...head.keys()])].filter((file) => {
+    const before = seen(base, file);
+    const after = seen(head, file);
+    return (
+      isGuarded(file) &&
+      (before?.mode !== after?.mode || before?.id !== after?.id)
+    );
+  });
+}
+
 /** The facts about the head that decide whether a change to the root
  * pnpm-workspace.yaml's catalog is inert, from the head's listing. The
  * root package.json is read by the id the listing gives, never by its
@@ -225,8 +249,9 @@ async function catalogContext(
   };
 }
 
-/** Each guarded path among `paths`, and each guarded path that isn't a
- * regular file at `base` or `head`, with its state at `base` and `head`. */
+/** Each guarded path among `paths`, each guarded path whose entry differs
+ * between the two trees, and each that isn't a regular file at `base` or
+ * `head`, with its state at `base` and `head`. */
 export async function readGuardedChanges(
   ctx: Context,
   base: string,
@@ -243,6 +268,9 @@ export async function readGuardedChanges(
     for (const file of nonRegularGuardedPaths(tree)) {
       files.add(file);
     }
+  }
+  for (const file of differingGuardedPaths(baseTree, headTree)) {
+    files.add(file);
   }
   const context = files.has(WORKSPACE_FILE)
     ? await catalogContext(ctx, headTree, cwd)
