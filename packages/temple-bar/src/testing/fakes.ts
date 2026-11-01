@@ -128,6 +128,9 @@ export interface FakeFs extends FsSeam {
   readonly realpathErrors: Map<string, Error>;
   /** Glob patterns whose expansion fails with the given error. */
   readonly globErrors: Map<string, Error>;
+  /** What deviceId answers for a path; any other existing path is on
+   * device 1, and a missing one is undefined. */
+  readonly deviceIds: Map<string, bigint>;
 }
 
 /** A Map whose keys are paths normalised the way the real filesystem
@@ -179,6 +182,7 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
   const realpaths = new PathMap();
   const realpathErrors = new Map<string, Error>();
   const globErrors = new Map<string, Error>();
+  const deviceIds = new Map<string, bigint>();
   const exists = (entry: string): boolean => {
     const folder = normalize(`${entry}/`);
     return (
@@ -197,6 +201,7 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
     realpaths,
     realpathErrors,
     globErrors,
+    deviceIds,
     classify(path) {
       const error = classificationErrors.get(normalize(path));
       if (error !== undefined) return Promise.reject(error);
@@ -221,6 +226,15 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
       return target === undefined
         ? Promise.reject(new Error(`No stored link target for '${path}'`))
         : Promise.resolve(target);
+    },
+    deviceId(path) {
+      const known = deviceIds.get(normalize(path));
+      if (known !== undefined) return Promise.resolve(known);
+      return Promise.resolve(
+        exists(path) || symlinks.has(path) || linkTargets.has(path)
+          ? 1n
+          : undefined,
+      );
     },
     realpath(path) {
       const error = realpathErrors.get(normalize(path));
