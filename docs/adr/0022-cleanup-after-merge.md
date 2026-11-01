@@ -32,11 +32,14 @@ request left behind, and only worktrees their session has released.**
 - `merge` deletes nothing more than before: decision 80 stands. Its report
   names `temple-bar leftovers --remove`.
 - **Release.** `temple-bar leftovers --release` is the owning session's last
-  step, after its handoff. It records, in a per-worktree git ref
-  (`refs/worktree/temple-bar/released`), the branch, HEAD and the content of
-  every untracked or ignored file the worktree holds outside `node_modules`
-  and build output. `--unrelease` withdraws it; a session that resumes in a
-  worktree runs it first.
+  step, after its handoff. Releasing says everything worth keeping is on
+  GitHub, so every ignored file in the worktree, `.temple-bar/` included,
+  becomes disposable. It records, in a per-worktree git ref
+  (`refs/worktree/temple-bar/released`), the branch, HEAD, and the path and
+  checksum (never the contents) of every ignored file outside
+  `node_modules` and build output, and lists those files to the session.
+  `--unrelease` withdraws it; a session that resumes in a worktree runs it
+  first.
 - **Valid only while unchanged.** The marker holds only while the worktree
   has the same branch, exactly the same HEAD and the same files. A resumed
   session that commits, edits or writes a note invalidates it without having
@@ -52,11 +55,10 @@ request left behind, and only worktrees their session has released.**
   merged into the default branch from this repository and the branch holds
   nothing beyond it; the marker is valid; and the worktree is this
   repository's, not locked, with no staged or unstaged change, no hidden
-  index flags, no gitlink, no operation in progress, no nested repository or
-  worktree anywhere in it, only ignored untracked files on a fixed list (its
-  `.temple-bar/`, `node_modules`, `dist/`, `coverage/`, and a `.env`
-  identical to the main checkout's), and neither the command's own folder nor
-  `INIT_CWD` nor `PWD` inside it. It runs only when git and gh point at one
+  index flags, no gitlink, no operation in progress, no untracked file, no
+  nested repository or worktree and no mounted folder anywhere in it, and
+  neither the command's own folder nor `INIT_CWD` nor `PWD` inside it.
+  Links and `gitdir` targets are never followed. It runs only when git and gh point at one
   repository, with origin's fetch and push URLs naming it. Anything it can't
   inspect keeps the worktree, reported with the reason.
 - **No `--force`.** git's own refusals (locked worktrees, submodules,
@@ -87,8 +89,12 @@ request left behind, and only worktrees their session has released.**
   file written in that moment (git refuses an untracked or modified one
   itself), and a checkout of the branch just before its local deletion (the
   tip is the merged head, which GitHub keeps, so nothing is lost).
+- Ignored local data (notes, caches, local settings, `.env` files) goes with
+  the worktree. The release lists it and the delegation guide says so
+  plainly; a session that needs any of it keeps it elsewhere first.
 - Recovery history inside the worktree's git directory (its HEAD reflog) is
-  disposable once released. Bind mounts inside a worktree are out of scope.
+  disposable once released. A mounted folder is found by its device number;
+  a bind mount of a folder on the same device can't be told apart that way.
 - On git older than 2.36, which can't list a worktree path containing a
   newline unambiguously, such a worktree stops the command rather than being
   guessed at.
@@ -109,6 +115,11 @@ request left behind, and only worktrees their session has released.**
   force overrides git's last checks.
 - _`git branch -D` and a plain remote delete._ Neither checks that the branch
   is still where it was read.
+- _A fixed list of disposable ignored files_ (`.temple-bar/`,
+  `node_modules`, build output, a `.env` identical to the main checkout's).
+  Harnesses copy their own ignored files into every worktree, so the list
+  kept nearly every worktree; releasing is already the session's statement
+  that nothing local is needed.
 - _Remove detached and prunable worktrees too._ Neither is what a merged pull
   request leaves; both stay reported.
 
