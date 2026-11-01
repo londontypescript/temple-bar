@@ -1,6 +1,6 @@
 # ADR 0022: Cleanup after merge
 
-Date: 2026-11-01. Status: proposed (decision NNN, for 0.3.0;
+Date: 2026-11-01. Status: proposed (decision 101, for 0.3.0;
 [#479](https://github.com/londontypescript/temple-bar/issues/479)).
 
 ## Context
@@ -26,7 +26,7 @@ is done.
 
 ## Decision
 
-**Decision NNN: an explicit `leftovers --remove` removes what a merged pull
+**Decision 101: an explicit `leftovers --remove` removes what a merged pull
 request left behind, and only worktrees their session has released.**
 
 - `merge` deletes nothing more than before: decision 80 stands. Its report
