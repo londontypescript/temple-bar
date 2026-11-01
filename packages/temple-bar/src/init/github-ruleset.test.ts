@@ -127,7 +127,7 @@ void test("offerRuleset: an existing branch ruleset is left alone, no prompt ask
       codeScanningAnswer(args, "required", true) ??
       (isContentsRead(args)
         ? notFound
-        : ok(JSON.stringify([{ target: "branch" }]))),
+        : ok(JSON.stringify([{ target: "branch", name: "project" }]))),
   );
   let asked = false;
   const ctx = createFakeContext({
@@ -241,6 +241,11 @@ const unreadableListings: readonly [string, GhResult][] = [
   ],
   ["a reply that isn't JSON", ok("<html>")],
   ["a reply that isn't a list", ok(JSON.stringify({ message: "nope" }))],
+  ["an entry that isn't an object", ok(JSON.stringify([null]))],
+  [
+    "an entry with no name or target",
+    ok(JSON.stringify([{ id: 1, target: "branch" }, {}])),
+  ],
 ];
 
 for (const [what, listing] of unreadableListings) {

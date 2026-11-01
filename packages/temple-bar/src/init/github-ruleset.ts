@@ -27,8 +27,20 @@ export interface RulesetSummary {
   readonly name?: unknown;
 }
 
+/** Every entry must carry the two fields setup decides by: an entry without
+ * them would read as a ruleset missing, and setup would offer to create one
+ * that may already exist. */
 function isRulesetSummaryArray(value: unknown): value is RulesetSummary[] {
-  return Array.isArray(value);
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (entry: unknown) =>
+        typeof entry === "object" &&
+        entry !== null &&
+        typeof (entry as RulesetSummary).name === "string" &&
+        typeof (entry as RulesetSummary).target === "string",
+    )
+  );
 }
 
 /** Best-effort: a ruleset targeting a branch at all is treated as covering
