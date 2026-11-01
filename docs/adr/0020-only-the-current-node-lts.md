@@ -1,6 +1,8 @@
 # ADR 0020: Only the current Node LTS
 
-Date: 2026-10-30. Status: proposed (decision 99, for 0.3.0 and 0.4.0).
+Date: 2026-10-30, accepted 2026-11-01. Status: accepted (decision 99, for
+0.3.0 and 0.4.0; step 1 is
+[#491](https://github.com/londontypescript/temple-bar/issues/491)).
 
 ## Context
 
