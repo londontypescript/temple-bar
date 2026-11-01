@@ -13,11 +13,30 @@ export type FileState =
   /** Present or not, nobody knows: it never counts as absent. */
   | { readonly kind: "unreadable"; readonly reason: string };
 
+/** What the head holds besides the root pnpm-workspace.yaml that decides
+ * whether a change to its catalog can reach temple-bar's own install (see
+ * catalog-facts.ts). Each list is sorted, so the order a reader lists its
+ * tree in never matters. */
+export interface CatalogContext {
+  /** The head's root package.json, its text read. */
+  readonly rootManifest: FileState;
+  /** Root entries that fold to pnpm-workspace.yaml or package.json
+   * without being exactly that name. */
+  readonly foldedTwins: readonly string[];
+  /** Entries at any depth whose folded name starts with `.pnpmfile.`. */
+  readonly pnpmfiles: readonly string[];
+  /** Entries at any depth whose folded name is `.npmrc`. */
+  readonly npmrcs: readonly string[];
+}
+
 /** A guarded path that differs between the base and the head. */
 export interface PathChange {
   readonly path: string;
   readonly base: FileState;
   readonly head: FileState;
+  /** Set by both readers on the root pnpm-workspace.yaml's change. Missing
+   * means unknown, and unknown never lets a catalog change pass. */
+  readonly catalogContext?: CatalogContext;
 }
 
 type Readable = Exclude<FileState, { kind: "unreadable" }>;

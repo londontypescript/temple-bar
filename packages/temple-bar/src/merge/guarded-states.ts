@@ -6,17 +6,35 @@
 // Every read is exact. Paths come NUL-separated and are never trimmed or
 // unquoted, so a name git would quote (non-ASCII, a quote, a tab, a
 // newline) is still seen as it is. Anything git answers that isn't the one
-// entry asked for is unreadable, never absent.
+// entry asked for is unreadable, never absent. Trees are listed with
+// replacement objects off: a local `refs/replace/` could otherwise show
+// `ready` and `merge` another tree than the one GitHub's judge reads.
 
 import type { Context } from "../context.ts";
-import type { FileState, PathChange } from "../judge/file-state.ts";
+import { isTextOfBlob, NOT_UTF8 } from "../judge/blob-text.ts";
+import { headFacts } from "../judge/catalog-facts.ts";
+import type {
+  CatalogContext,
+  FileState,
+  PathChange,
+} from "../judge/file-state.ts";
 import {
   isGuarded,
   isWorkflowFolder,
   readsText,
+  WORKSPACE_FILE,
 } from "../judge/guarded-paths.ts";
-import { checkEntry, isRegularFile, isTreePath } from "../judge/tree-entry.ts";
+import {
+  checkEntry,
+  isRegularFile,
+  isTreePath,
+  type TreeEntry,
+} from "../judge/tree-entry.ts";
 import { refuse } from "./refusal.ts";
+
+/** Before the subcommand: git reads each object as it is stored, never as
+ * a replacement ref would have it. */
+const NO_REPLACE = "--no-replace-objects";
 
 /** Paths changed between `base` and `head`, compared from where they
  * meet. Renames are listed as both paths, and the options take no default
@@ -78,29 +96,18 @@ function parseEntry(output: string, file: string) {
   return parsed?.path === file ? parsed.entry : undefined;
 }
 
-/** `file` at `commit`: absent, a regular file (its text read when the
- * comparison needs it), something else, or unreadable. */
-export async function stateAt(
+/** An entry as the comparison sees it: absent, a regular file (its text
+ * read when the comparison needs it), something else, or unreadable. The
+ * text is read by the blob's id, and must encode back to that same blob:
+ * git's seam decodes what it reads, and bytes that aren't UTF-8 don't
+ * survive that, so the text would no longer be the file's. */
+async function stateOfEntry(
   ctx: Context,
-  commit: string,
   file: string,
+  entry: TreeEntry | undefined,
   cwd: string,
 ): Promise<FileState> {
-  const listed = await ctx.git.run(
-    ["--literal-pathspecs", "ls-tree", "-z", "--full-tree", commit, "--", file],
-    cwd,
-  );
-  if (listed.code !== 0) {
-    return unreadable(`git ls-tree failed: ${listed.stderr.trim()}`);
-  }
-  if (listed.stdout === "") {
-    return { kind: "absent" };
-  }
-  const entry = parseEntry(listed.stdout, file);
-  if (entry === undefined) {
-    return unreadable("git ls-tree listed something other than this file");
-  }
-  if (isWorkflowFolder(file, entry)) {
+  if (entry === undefined || isWorkflowFolder(file, entry)) {
     return { kind: "absent" };
   }
   if (!isRegularFile(entry)) {
@@ -110,22 +117,58 @@ export async function stateAt(
     return { kind: "regular", mode: entry.mode };
   }
   const blob = await ctx.git.run(["cat-file", "blob", entry.id], cwd);
-  return blob.code === 0
+  if (blob.code !== 0) {
+    return unreadable(`git cat-file failed: ${blob.stderr.trim()}`);
+  }
+  return isTextOfBlob(blob.stdout, entry.id)
     ? { kind: "regular", mode: entry.mode, text: blob.stdout }
-    : unreadable(`git cat-file failed: ${blob.stderr.trim()}`);
+    : unreadable(NOT_UTF8);
 }
 
-/** Every guarded path in `commit`'s whole tree that isn't a regular file,
- * as the judge finds them in GitHub's recursive trees. A
- * diff lists only files, so a folder named package.json shows up only
- * here. A listing that can't be read whole is refused, never skipped. */
-async function nonRegularGuardedPaths(
+/** `file` at `commit`: absent, a regular file (its text read when the
+ * comparison needs it), something else, or unreadable. */
+export async function stateAt(
+  ctx: Context,
+  commit: string,
+  file: string,
+  cwd: string,
+): Promise<FileState> {
+  const listed = await ctx.git.run(
+    [
+      NO_REPLACE,
+      "--literal-pathspecs",
+      "ls-tree",
+      "-z",
+      "--full-tree",
+      commit,
+      "--",
+      file,
+    ],
+    cwd,
+  );
+  if (listed.code !== 0) {
+    return unreadable(`git ls-tree failed: ${listed.stderr.trim()}`);
+  }
+  if (listed.stdout === "") {
+    return { kind: "absent" };
+  }
+  const entry = parseEntry(listed.stdout, file);
+  return entry === undefined
+    ? unreadable("git ls-tree listed something other than this file")
+    : stateOfEntry(ctx, file, entry, cwd);
+}
+
+/** `commit`'s whole tree, files and folders at every depth, by path, as
+ * the judge reads GitHub's recursive trees. A listing that can't be read
+ * whole is refused, never skipped, and so is one naming a path twice: two
+ * names whose bytes differ can come back from the seam as one string. */
+async function listTree(
   ctx: Context,
   commit: string,
   cwd: string,
-): Promise<string[]> {
+): Promise<Map<string, TreeEntry>> {
   const listed = await ctx.git.run(
-    ["ls-tree", "-r", "-t", "-z", "--full-tree", commit],
+    [NO_REPLACE, "ls-tree", "-r", "-t", "-z", "--full-tree", commit],
     cwd,
   );
   const lines = listed.stdout.split("\0");
@@ -135,7 +178,7 @@ async function nonRegularGuardedPaths(
       `could not list the files at ${commit}: ${listed.stderr.trim() || "git ls-tree answered nothing"}`,
     );
   }
-  const found: string[] = [];
+  const tree = new Map<string, TreeEntry>();
   for (const line of lines) {
     const parsed = parseLine(line);
     if (parsed === undefined) {
@@ -143,15 +186,43 @@ async function nonRegularGuardedPaths(
         `could not list the files at ${commit}: git ls-tree listed "${line}"`,
       );
     }
-    if (
-      isGuarded(parsed.path) &&
-      !isRegularFile(parsed.entry) &&
-      !isWorkflowFolder(parsed.path, parsed.entry)
-    ) {
-      found.push(parsed.path);
+    if (tree.has(parsed.path)) {
+      refuse(
+        `could not list the files at ${commit}: git ls-tree lists ${parsed.path} twice`,
+      );
     }
+    tree.set(parsed.path, parsed.entry);
   }
-  return found;
+  return tree;
+}
+
+/** Every guarded path in a tree that isn't a regular file. A diff lists
+ * only files, so a folder named package.json shows up only here. */
+function nonRegularGuardedPaths(tree: ReadonlyMap<string, TreeEntry>) {
+  return [...tree]
+    .filter(
+      ([file, entry]) =>
+        isGuarded(file) &&
+        !isRegularFile(entry) &&
+        !isWorkflowFolder(file, entry),
+    )
+    .map(([file]) => file);
+}
+
+/** The facts about the head that decide whether a change to the root
+ * pnpm-workspace.yaml's catalog is inert, from the head's listing. The
+ * root package.json is read by the id the listing gives, never by its
+ * path again. */
+async function catalogContext(
+  ctx: Context,
+  head: ReadonlyMap<string, TreeEntry>,
+  cwd: string,
+): Promise<CatalogContext> {
+  const { rootManifest, ...facts } = headFacts(head);
+  return {
+    ...facts,
+    rootManifest: await stateOfEntry(ctx, "package.json", rootManifest, cwd),
+  };
 }
 
 /** Each guarded path among `paths`, and each guarded path that isn't a
@@ -164,20 +235,30 @@ export async function readGuardedChanges(
   cwd: string,
 ): Promise<PathChange[]> {
   const files = new Set(paths.filter(isGuarded));
+  const baseTree = await listTree(ctx, base, cwd);
+  const headTree = await listTree(ctx, head, cwd);
   // Both sides: a folder at a guarded path that the head deletes shows in
   // the diff only as the files inside it, which aren't guarded.
-  for (const commit of [base, head]) {
-    for (const file of await nonRegularGuardedPaths(ctx, commit, cwd)) {
+  for (const tree of [baseTree, headTree]) {
+    for (const file of nonRegularGuardedPaths(tree)) {
       files.add(file);
     }
   }
+  const context = files.has(WORKSPACE_FILE)
+    ? await catalogContext(ctx, headTree, cwd)
+    : undefined;
   const changes: PathChange[] = [];
   for (const file of files) {
-    changes.push({
+    const change = {
       path: file,
       base: await stateAt(ctx, base, file, cwd),
       head: await stateAt(ctx, head, file, cwd),
-    });
+    };
+    changes.push(
+      file === WORKSPACE_FILE && context !== undefined
+        ? { ...change, catalogContext: context }
+        : change,
+    );
   }
   return changes;
 }
