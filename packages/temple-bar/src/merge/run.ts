@@ -68,7 +68,7 @@ function checkMergeable(
   const label = `pull request #${String(pullRequest.number)}`;
   if (pullRequest.state === "MERGED") {
     refuse(
-      `${label} is already merged. \`temple-bar leftovers\` lists any branch or worktree it left behind.`,
+      `${label} is already merged. \`temple-bar leftovers\` lists any branch or worktree it left behind, and \`temple-bar leftovers --remove\` removes them once released.`,
     );
   }
   if (pullRequest.state === "CLOSED") {

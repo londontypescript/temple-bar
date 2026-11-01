@@ -1,73 +1,95 @@
-// End to end against real git repositories, with only GitHub faked: the
-// report finds what a finished pull request left behind, and deletes none
-// of it.
+// `temple-bar leftovers` with no flag, against real git with only GitHub
+// faked: it reports what finished pull requests left behind, each with the
+// verdict `--remove` would reach, and deletes none of it.
 
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { existsSync, rmSync } from "node:fs";
 import test from "node:test";
 
 import {
-  commitFile,
-  context,
-  fakeGitHub,
+  addWorktree,
+  destructive,
   git,
-  ok,
-  setUp,
-} from "../merge/testing/e2e-repos.ts";
-import { initTestRepo } from "../testing/git-repo.ts";
-import { leftoversCommandEntry } from "./command.ts";
+  makeRepos,
+  merged,
+  world,
+  write,
+} from "./testing/repos.ts";
 
-void test("leftovers reports a merged branch and its worktree, and deletes nothing", async (t) => {
-  const setup = setUp(t);
-  const { gh } = fakeGitHub(setup, { state: "merged", head: setup.pushedTip });
-  const { ctx, stdout } = context(setup.clone, gh);
+void test("the report gives each leftover its verdict, and deletes nothing", async (t) => {
+  const repos = makeRepos(t);
+  const x = addWorktree(repos, "x");
+  const w = world(repos, () => [merged(x, 7)]);
 
-  assert.equal(await leftoversCommandEntry.run([], ctx), 0);
-  const out = stdout.lines.join("");
+  const report = await w.leftovers([], repos.primary);
+  assert.equal(report.code, 0, report.err);
   assert.match(
-    out,
-    /worktree .*wt-x: its branch feat\/x's pull request #7 is merged/,
+    report.out,
+    /worktree .*x \(feat\/x, pull request #7 merged\): kept: not released: the session there hasn't run `temple-bar leftovers --release`\n/,
   );
   assert.match(
-    out,
-    /local branch feat\/x: pull request #7 merged \(git branch -D feat\/x\)/,
+    report.out,
+    /local branch feat\/x \(pull request #7 merged\): kept: it is checked out in .*x, which is kept\n/,
   );
-  assert.match(out, /remote branch origin\/feat\/x: pull request #7 merged/);
-  assert.ok(existsSync(setup.worktree));
-  assert.notEqual(git(setup.clone, "branch", "--list", "feat/x"), "");
+  assert.match(
+    report.out,
+    /remote branch origin\/feat\/x \(pull request #7 merged\): would remove\n/,
+  );
+  assert.ok(existsSync(x.path));
+  assert.deepEqual(destructive(w.git.calls), []);
 });
 
-void test("leftovers leaves out a branch that reuses a merged pull request's name for new work", async (t) => {
-  const setup = setUp(t);
-  const { gh } = fakeGitHub(setup, { state: "merged", head: setup.pushedTip });
+void test("a branch reusing a merged pull request's name for new work is kept, saying so", async (t) => {
+  const repos = makeRepos(t);
+  const x = addWorktree(repos, "x");
+  const w = world(repos, () => [merged(x, 7)]);
   // New, unpushed work on a branch named like pull request #7's.
-  commitFile(setup.worktree, "new.ts", "export const n = 1;\n", "feat: new");
-  const { ctx, stdout } = context(setup.clone, gh);
+  write(x.path, "new.ts", "export const n = 1;\n");
+  git(x.path, "add", "new.ts");
+  git(x.path, "commit", "-q", "-m", "feat: new");
 
-  assert.equal(await leftoversCommandEntry.run([], ctx), 0);
-  const out = stdout.lines.join("");
-  assert.doesNotMatch(out, /local branch feat\/x/);
-  assert.doesNotMatch(out, /worktree .*wt-x/);
+  const report = await w.leftovers([], repos.primary);
+  assert.match(
+    report.out,
+    /worktree .*x \(feat\/x, pull request #7 merged\): kept: it holds commits beyond pull request #7's head\n/,
+  );
   // The pushed branch still ends at #7's last commit, so it is finished.
-  assert.match(out, /remote branch origin\/feat\/x: pull request #7 merged/);
+  assert.match(
+    report.out,
+    /remote branch origin\/feat\/x \(pull request #7 merged\): would remove/,
+  );
 });
 
-void test("leftovers reports a worktree whose folder is gone", async (t) => {
-  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-leftovers-"));
-  t.after(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-  initTestRepo(dir);
-  commitFile(dir, "a.txt", "a\n", "base");
-  const gone = `${dir}-gone`;
-  git(dir, "worktree", "add", "-b", "old", gone);
-  rmSync(gone, { recursive: true, force: true });
-  const { ctx, stdout } = context(dir, {
-    run: () => Promise.resolve(ok("[]")),
-  });
-  assert.equal(await leftoversCommandEntry.run([], ctx), 0);
-  assert.match(stdout.lines.join(""), /worktree .*-gone: its folder is gone/);
-  assert.match(stdout.lines.join(""), /not checked: remote branches/);
+void test("an open pull request, or none, is live work and isn't reported", async (t) => {
+  const repos = makeRepos(t);
+  const x = addWorktree(repos, "x");
+  addWorktree(repos, "y");
+  const w = world(repos, () => [merged(x, 7, { state: "OPEN" })]);
+  const report = await w.leftovers([], repos.primary);
+  assert.equal(report.out, "leftovers: no leftover branches or worktrees\n");
+});
+
+void test("a worktree whose folder is gone is reported and kept", async (t) => {
+  const repos = makeRepos(t);
+  const x = addWorktree(repos, "x");
+  rmSync(x.path, { recursive: true, force: true });
+  const w = world(repos, () => []);
+  const report = await w.leftovers([], repos.primary);
+  assert.match(
+    report.out,
+    /worktree .*x \(feat\/x\): kept: its folder is gone; `git worktree prune` drops it from git's list\n/,
+  );
+});
+
+void test("leftovers takes at most one of its flags", async (t) => {
+  const repos = makeRepos(t);
+  const w = world(repos, () => []);
+  for (const args of [["--bogus"], ["--remove", "--release"], ["x"]]) {
+    const run = await w.leftovers(args, repos.primary);
+    assert.equal(run.code, 2, args.join(" "));
+    assert.match(
+      run.err,
+      /^leftovers: (unknown argument: |give at most one of --release, --unrelease, --remove)/,
+    );
+  }
 });

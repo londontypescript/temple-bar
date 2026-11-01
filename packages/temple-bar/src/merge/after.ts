@@ -1,6 +1,7 @@
 // What merge does once GitHub has accepted the squash: confirm it merged,
 // tidy up, say where the branch's worktree and local branch are kept, and
-// report anything left to deal with. Nothing here can undo the merge, so
+// report anything left to deal with, with the verdict `temple-bar leftovers
+// --remove` would reach on each. Nothing here can undo the merge, so
 // problems are reported with exit code 1 rather than thrown as refusals.
 
 import path from "node:path";
@@ -136,11 +137,11 @@ export async function afterMerge(
     );
   }
 
-  // What merge kept on purpose is listed next as leftovers, for a person or
-  // the harness to remove, when the report can call it finished. It leaves
-  // out a branch with work that didn't merge, as it does anything it can't
-  // check, so its "none" mustn't read as all clean when merge kept a branch
-  // or left something behind.
+  // What merge kept on purpose is listed next as leftovers, each with the
+  // verdict `temple-bar leftovers --remove` would reach: it goes once the
+  // session there has released it. The report leaves out live work (an open
+  // pull request, or none), so its "none" mustn't read as all clean when
+  // merge kept a branch or left something behind.
   const incomplete = cleanup.problems.length > 0;
   await reportLeftovers(
     ctx,
