@@ -73,6 +73,40 @@ void test("judge: a pull request that leaves the checks alone passes, naming bot
   assert.ok(http.calls.every((call) => call.token === "t0ken"));
 });
 
+void test("judge: a catalog-only change passes, and the judge says what it changed", async (t) => {
+  // An .npmrc anywhere keeps catalog changes the maintainer's, so the base
+  // here has none.
+  const base: Files = Object.fromEntries(
+    Object.entries(BASE).filter(([file]) => file !== ".npmrc"),
+  );
+  const catalog = (vite: string, more = "") =>
+    `packages:\n  - "packages/*"\ncatalog:\n  react: 19.2.0\n  vite: ${vite}\n${more}`;
+  const before = { ...base, "pnpm-workspace.yaml": catalog("8.3.3") };
+  const head = {
+    ...before,
+    "pnpm-workspace.yaml": catalog("8.4.0", "  zod: 4.1.0\n  ky: 1.14.0\n"),
+  };
+  const { ctx, stdout } = actionsContext(github(t, head, before));
+  assert.equal(await judgeCommand.run([], ctx), 0);
+  assert.match(
+    stdout.lines.join(""),
+    /^judge: pull request #7 changes only pnpm-workspace\.yaml's catalog \(1 version changed, 2 entries added\) and otherwise leaves the checks alone \(its head [0-9a-f]{7} compared with main at [0-9a-f]{7}\)\.\n$/,
+  );
+  // The same bump with the .npmrc still there is the maintainer's.
+  const npmrc = { ...before, ".npmrc": "engine-strict=true\n" };
+  const refused = actionsContext(
+    github(t, { ...head, ".npmrc": "engine-strict=true\n" }, npmrc),
+  );
+  assert.equal(await judgeCommand.run([], refused.ctx), 1);
+  assert.ok(
+    refused.stderr.lines
+      .join("")
+      .includes(
+        "  pnpm-workspace.yaml (not a catalog-only change: code runs at install: an .npmrc here (.npmrc))\n",
+      ),
+  );
+});
+
 void test("judge: a pull request that weakens its own CI is refused, naming the file and who decides", async (t) => {
   const { ctx, stderr } = actionsContext(
     github(t, { ...BASE, ".github/workflows/ci.yml": "name: CI\non: {}\n" }),
