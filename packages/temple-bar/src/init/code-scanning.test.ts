@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { REQUIRED_CHECKS } from "./required-checks.ts";
-import { codeScanningRule } from "./code-scanning.ts";
+import { codeScanningRule, withCodeQl } from "./code-scanning.ts";
 import { offerProtection, protectionQuestion } from "./github-protection.ts";
 import { rulesetBody } from "./github-ruleset.ts";
 import { JUDGE_RULESET_NAME } from "./judge-ruleset.ts";
@@ -337,6 +337,56 @@ void test("CodeQL analysed and the `main` ruleset already scans with another too
       },
     ],
   });
+});
+
+void test("a stronger CodeQL entry added to the `main` ruleset after setup asked is kept as it is, with the other tool and rules", async () => {
+  // Planning read the branch's rules with no CodeQL; by the reread at the
+  // user's yes, someone has required it more strictly than setup would.
+  const semgrep = { tool: "Semgrep", alerts_threshold: "all" };
+  const stronger = {
+    tool: "CodeQL",
+    alerts_threshold: "all",
+    security_alerts_threshold: "all",
+  };
+  const reread = [
+    { type: "deletion" },
+    {
+      type: "code_scanning",
+      parameters: { code_scanning_tools: [stronger, semgrep] },
+    },
+  ];
+  const gh = github("analysed", [MAIN, JUDGE], (args) =>
+    args.includes(`repos/acme/widgets/rulesets/${String(MAIN_RULESET_ID)}`) &&
+    !args.includes("PUT")
+      ? ok(JSON.stringify({ rules: reread }))
+      : undefined,
+  );
+  await offer(gh);
+  const [put] = writes(gh, "PUT");
+  assert.ok(put);
+  assert.deepEqual(
+    JSON.parse(put.input ?? "null"),
+    { rules: reread },
+    "the existing CodeQL entry was rewritten",
+  );
+});
+
+void test("withCodeQl: an existing CodeQL entry, even one weaker than setup's, is never rewritten", () => {
+  const weaker = {
+    type: "code_scanning",
+    parameters: {
+      code_scanning_tools: [
+        { tool: "CodeQL", alerts_threshold: "none" },
+        { tool: "Semgrep", alerts_threshold: "all" },
+      ],
+    },
+  };
+  const rules = [{ type: "deletion" }, weaker];
+  assert.deepEqual(
+    withCodeQl(rules),
+    rules,
+    "the existing CodeQL entry was rewritten",
+  );
 });
 
 void test("the combined existing-main question has one addition naming CodeQL and the ready checks", () => {
