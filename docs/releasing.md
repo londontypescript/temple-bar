@@ -11,14 +11,20 @@ Why the baseline comes before the pin:
    `packages/temple-bar/package.json` and
    `packages/create-temple-bar/package.json` to the same number: the release
    workflow refuses packages out of lockstep.
-2. **Tag and publish, only on the maintainer's yes.** Pushing the tag
+2. **Measure this repo's `AGENTS.md` before tagging.** If the release's
+   block is longer than the pinned one, measure this repo's `AGENTS.md`
+   with the new block, in lines and bytes. The check uses the final block
+   of the release being prepared. If it would pass 200 lines or 32 KiB,
+   first move this repo's own text to docs, never the block, in a docs
+   pull request. The pin bump then stays mechanical.
+3. **Tag and publish, only on the maintainer's yes.** Pushing the tag
    `v<version>` on that commit of `main` starts `release.yml`: full CI, the
    release tier, then both packages staged on npm and a draft GitHub Release
    drafted from the commit subjects. The maintainer approves each staged
    package with 2FA, finishes the draft's notes (Upgrading, Incidents fixed,
    and the guides this release changed), then runs
    `pnpm release:publish v<version>`.
-3. **Freeze the baseline.** A data-only pull request,
+4. **Freeze the baseline.** A data-only pull request,
    `chore(test): freeze <version>'s published output in the baseline`, adds
    the release to `packages/temple-bar/src/testing/published-output/`,
    following its README: download the npm tarball, check its SHA-512 against
@@ -32,7 +38,7 @@ Why the baseline comes before the pin:
 
    That message means this step was missed.
 
-4. **Bump the pin.** Its own pull request, `chore: pin temple-bar <version>`,
+5. **Bump the pin.** Its own pull request, `chore: pin temple-bar <version>`,
    changes the `@londontypescript/temple-bar` version in the root
    `package.json`, its lockfile entry (specifier, version and integrity,
    matching npm's), and the pinned version in `docs/enforcement.md`. This
