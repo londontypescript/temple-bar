@@ -316,3 +316,40 @@ void test("guard: a branch whose worktree removal failed is kept, even once git 
   );
   assert.equal(gitLine(repos.primary, "rev-parse", x.branch), x.head);
 });
+
+void test("guard: when git drops its record of a worktree but leaves the folder, --remove says so and keeps the branch", async (t) => {
+  const repos = makeRepos(t);
+  const x = addWorktree(repos, "x", { push: false });
+  const w = world(repos, () => [merged(x, 7)], {
+    hooks: {
+      // git reports success but only forgets the worktree.
+      before: ({ args }) => {
+        if (args[0] === "worktree" && args[1] === "remove") {
+          rmSync(path.join(repos.primary, ".git", "worktrees", "x"), {
+            recursive: true,
+            force: true,
+          });
+          return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+        }
+        return Promise.resolve(undefined);
+      },
+    },
+  });
+  await release(w, x.path);
+  const run = await w.leftovers(["--remove"], repos.primary);
+  assert.equal(run.code, 1);
+  assert.ok(
+    run.err.includes(
+      `git removed its record of the worktree at ${asGit(x.path)} (feat/x), but its folder is still there\n`,
+    ),
+    run.out + run.err,
+  );
+  assert.doesNotMatch(run.out, /removed the worktree/);
+  assert.ok(
+    run.err.includes(
+      `kept the local branch feat/x: its worktree at ${asGit(x.path)} was kept\n`,
+    ),
+    run.err,
+  );
+  assert.equal(gitLine(repos.primary, "rev-parse", x.branch), x.head);
+});

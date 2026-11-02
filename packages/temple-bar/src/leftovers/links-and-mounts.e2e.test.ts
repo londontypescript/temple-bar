@@ -4,7 +4,7 @@
 // another device; Windows' junctions are tested where they exist, in CI.
 
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
@@ -120,6 +120,14 @@ void test(
     const w = world(repos, () => [merged({ ...x, head }, 7)]);
     await release(w, x.path);
     const removed = await w.leftovers(["--remove"], repos.primary);
+    // What git's removal leaves behind, for the test log: how it treats the
+    // junction shows in which entries survive.
+    if (existsSync(x.path)) {
+      const left = readdirSync(x.path, { recursive: true, encoding: "utf8" });
+      t.diagnostic(
+        `left after --remove (${String(left.length)} entries): ${JSON.stringify(left.slice(0, 20))}`,
+      );
+    }
     assert.equal(removed.code, 0, removed.out + removed.err);
     assert.equal(existsSync(x.path), false);
   },

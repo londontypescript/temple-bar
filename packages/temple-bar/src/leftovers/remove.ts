@@ -96,6 +96,15 @@ async function removeWorktree(
         : "git still lists it";
     return { line: `could not confirm ${what} is gone: ${why}`, ok: false };
   }
+  // git can report success and stop listing a worktree yet leave its
+  // folder, so the folder itself must be gone before it counts as removed.
+  const left = await ctx.fs.classify(at).catch(() => "unreadable");
+  if (left !== "missing") {
+    return {
+      line: `git removed its record of ${what}, but its folder is still there`,
+      ok: false,
+    };
+  }
   return { line: `removed ${what}`, ok: true };
 }
 
