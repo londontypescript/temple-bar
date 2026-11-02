@@ -31,18 +31,17 @@ Two gaps also exist at the root already, and every package multiplies them:
   the installed temple-bar. A workspace package's own `postinstall` runs on
   install too (checked with pnpm 10.34.5).
 
-Codex reviewed the first design adversarially, and its findings shaped the
-decisions below. The trial notes are at
+Codex reviewed the first design adversarially; the trial notes are at
 [#366](https://github.com/londontypescript/temple-bar/issues/366).
 
 **The revision (2026-11-01).** grand-union, the first adopter, switched
 Dependabot on and within minutes had two pull requests that only bumped
 versions in the `catalog:` of `pnpm-workspace.yaml`
-([#457](https://github.com/londontypescript/temple-bar/issues/457)). Decision
-66 made each the maintainer's merge, as every bump in every adopter would be.
-A catalog bump moves the project's own dependencies, never guarded; the
-grammar below tells one apart and keeps it from reaching temple-bar's
-install. ChatGPT Sol 6.1 reviewed it adversarially, three times.
+([#457](https://github.com/londontypescript/temple-bar/issues/457)).
+Decision 66 made each the maintainer's merge, as every bump in every adopter
+would be. A catalog bump moves the project's own dependencies, never
+guarded; the grammar below tells one apart and keeps it from reaching
+temple-bar's install. ChatGPT Sol 6.1 reviewed it adversarially.
 
 ## Decisions
 
@@ -96,9 +95,9 @@ default `catalog:` block, a version value changed or an entry added, under
 removing an entry, touching temple-bar's own entry, a named catalog, the
 package list, a setting, a comment outside the block, or any text the
 grammar doesn't read, is a finding. The grammar is text: the judge reads no
-YAML library (as for the lockfile) and refuses what it can't read.
-The maintainer decided the shape on 2026-10-30 (the "Decided" section of
-#457) and amended one point on 2026-11-01: a single-quoted lowercase scoped key,
+YAML library (as for the lockfile) and refuses what it can't read. The
+maintainer decided the shape on 2026-10-30 (the "Decided" section of #457)
+and amended one point on 2026-11-01: a single-quoted lowercase scoped key,
 `'@scope/name'`, is admitted, because YAML cannot write a scoped name any
 other way and half of grand-union's catalog is scoped. Double quotes stay
 refused: they process escapes, which a parser-free judge can't safely read.
@@ -170,8 +169,7 @@ Each side splits into a prefix, the marker, the body and the suffix:
   understands, and enough to prove the marker a root key of the one
   document pnpm reads: a quoted scalar or flow collection can't cross a
   line, a block scalar or explicit key can't start, and a plain scalar
-  can't continue at column 0. ChatGPT Sol 6.1 found two ways past a looser
-  rule: `{x-note: "` and `x-note: [foo", "]` on the line before.
+  can't continue at column 0 (two examples below beat a looser rule).
 - The prefix and the suffix contain no `pnpmfile`, and no `catalog` except
   inside a longer word (`catalogs:`, `catalogMode:`): neither a second
   spelling of the section (`'catalog':`), nor a `catalog:` reference in an
@@ -249,28 +247,33 @@ those, and the exception is off when the head holds either:
   containing `catalog:` or led by `$`; absent, unreadable or invalid turns
   the exception off: unknown is never inert.
 - **Code that runs at install.** A pnpmfile can rewrite any manifest from
-  any input. The exception is off when the head holds a `.pnpmfile.*` at
-  any depth (by folded name, as install settings are found), or an `.npmrc`
-  at any depth that is unreadable or whose text, case aside, contains
-  `pnpmfile` or a backslash; the workspace file's own setting is refused
-  above.
+  any input. The exception is off when the head holds, at any depth and by
+  folded name (as install settings are found), a `.pnpmfile.*` or any
+  `.npmrc`, or a config dependency: `configDependencies`, case aside, in the
+  workspace file outside the body or as a key of the root manifest's `pnpm`
+  field. The workspace file's own `pnpmfile` setting is refused above.
 
-Neither costs an adopter anything until used; then it is the maintainer's
-merge, and the finding says which rule. A bump still changes what a tool
-does, as one in `package.json` could; these rules keep the catalog from
-redirecting temple-bar's own install.
+The maintainer tightened this on 2026-11-01, on phase E's probes of pnpm
+10.34.5; the first text admitted an `.npmrc` without `pnpmfile` or `\`.
+`.npmrc` keys expand `${NAME:-text}` (`pnpm${UNSET:-file}=x` set
+`pnpmfile`), its INI sections reach pnpm's config (`[configDependencies]`),
+and pnpm loads `pnpmfile.cjs` from a config dependency named as a plugin.
+
+None costs an adopter anything until used; then it is the maintainer's
+merge, and the finding names the rule. They read the tree only: CI's own
+configuration (an `npm_config_pnpmfile`, a runner's rc file) must set no
+pnpmfile, config dependency or override, and temple-bar's workflows set
+none. A bump still changes what a tool does, as in `package.json`.
 
 ### One verdict in three places
 
 The comparison stays pure (`judge/changes.ts`): the readers hand it each
-side's text, as for manifests and the lockfile (`readsText` in
-`guarded-paths.ts` grows to the root workspace file), and the facts above
-about the head: the root manifest's state, whether a pnpmfile or a folded
-root name exists, and each `.npmrc`'s text.
-GitHub's trees supply them to the judge, git to `ready` and `merge`; a fact
-a reader can't establish is unknown, which turns the exception off. The
-judge-agreement test covers every example here through both readers, and a
-pass is logged as a catalog-only change.
+side's text, as for manifests and the lockfile, and the facts above about
+the head: the root manifest's state, and whether a pnpmfile, an `.npmrc` or
+a folded root name exists. GitHub's trees supply them to the judge, git to
+`ready` and `merge`; a fact a reader can't establish is unknown, which turns
+the exception off. The judge-agreement test covers every example here
+through both readers, and a pass is logged as a catalog-only change.
 
 ## What the judge reads, and how it fails
 
@@ -284,11 +287,9 @@ package-manager fields in every package.
   object id. A path on one side only, or with another mode or id, changed;
   a rename is the old path gone and the new one there. A tree GitHub cuts
   short is no answer. Afterwards it reads the pull request and the base
-  branch again: if either moved, it can't judge and fails. GitHub's list of
-  a pull request's files can't be asked for a given commit, so a list read
-  while the head moves away and back can describe a commit neither read
-  names, and no count or check of the list can tell. Commits never change,
-  so judging two named commits judges exactly them.
+  branch again: if either moved, it can't judge and fails. GitHub's file
+  list can't be asked for a given commit; commits never change, so judging
+  two named commits judges exactly them.
 - **Install settings.** The judge also guards the `packageManager` and
   `devEngines` fields in every `package.json` (chosen 2026-10-15: pnpm
   honours a package's own `devEngines` when it runs that package's
@@ -310,9 +311,8 @@ package-manager fields in every package.
   answer from GitHub that isn't the documented shape is a failure to read,
   never an empty answer.
 - **Unused code.** knip still runs once at the root, where it sees every
-  package. Entry exports are judged as they are today. A project whose
-  entries knip's plugins don't find declares them in its own knip config,
-  which decision 58 leaves to the project.
+  package. A project whose entries knip's plugins don't find declares them
+  in its own knip config, which decision 58 leaves to the project.
 
 ## Consequences
 
@@ -324,8 +324,8 @@ package-manager fields in every package.
   ranges, a name with an uppercase letter or a leading digit, a flow
   collection or a comment saying `catalog` outside the body) never passes
   until rewritten; the finding says why.
-- [#285](https://github.com/londontypescript/temple-bar/issues/285) closes
-  with decision 64.
+- In a repository with an `.npmrc` or a config dependency, catalog bumps stay
+  the maintainer's merge.
 
 ## The failure each promise stops
 
@@ -376,8 +376,8 @@ a comment, `catalog:` with fourteen entries (seven scoped), then a setting.
 | `catalogs:` named catalog bumped; a `packages:` pattern, a setting, a comment or an empty line changed                                                                                                              | changed outside the catalog                                                            |
 | `{x-note: "` or `x-note: [foo", "]` before the marker (Sol's cases); `packages: ['packages/*']`; `note: \|`; `note: "a\"`; `%YAML 1.2`; `...`; a second `---`; `!!str`                                              | line shape; backslash                                                                  |
 | `overrides:` with `knip: catalog:` or `picomatch: $picomatch`; `"pnpm\u0066ile": ./hooks.cjs` after the body; root `pnpm.overrides.knip` of `"catalog:"` or `"$typescript"`; root `package.json` missing or invalid | `catalog`, `$` or backslash outside the body; an override reads the catalog; unknown   |
-| `.pnpmfile.cjs` or `.PNPMFILE.CJS` at any depth; `.npmrc` naming a `pnpmfile`, or unreadable                                                                                                                        | code runs at install; unknown                                                          |
-| `.npmrc` with `PNPMFILE=x` or a backslash; either side not valid UTF-8                                                                                                                                              | code runs at install; unreadable                                                       |
+| `.pnpmfile.cjs` or `.PNPMFILE.CJS` at any depth; any `.npmrc` (`engine-strict=true` too); `configDependencies:` outside the body, or in the root `pnpm` field                                                       | code runs at install                                                                   |
+| Either side not valid UTF-8                                                                                                                                                                                         | unreadable                                                                             |
 | CRLF line endings; a BOM added; a final newline added or removed; mode changed to `100755`; replaced by a symlink; `PNPM-WORKSPACE.YAML` beside it; `packages/a/pnpm-workspace.yaml` changed                        | file shape; a region differs; regular files, same mode; folded name; not the root file |
 
 ## What would end it

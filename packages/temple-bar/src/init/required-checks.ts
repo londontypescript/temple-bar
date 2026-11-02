@@ -144,11 +144,14 @@ export function withRequiredChecks(
   return rules.map((rule) => (rule === existing ? merged : rule));
 }
 
-type WorkflowRead =
+export type WorkflowRead =
   | { readonly kind: "present" | "missing" }
   | { readonly kind: "unreadable"; readonly reason: string };
 
-async function workflowOnDefaultBranch(
+/** Whether a workflow file is on the default branch. Only GitHub's "not
+ * found" means it hasn't arrived yet; any other failure (a server error, a
+ * refusal, no answer) leaves it unknown, and callers fail on that. */
+export async function workflowOnDefaultBranch(
   ctx: Context,
   repoRoot: string,
   origin: GithubOrigin,

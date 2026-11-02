@@ -8,6 +8,7 @@ import type { GhResult } from "../../seams/gh.ts";
 import { createFakeContext, createFakeGh } from "../../testing/fakes.ts";
 import { offerProtection } from "../github-protection.ts";
 import type { RulesetRule } from "../github-ruleset.ts";
+import { JUDGE_WORKFLOW_PATH } from "../../judge/workflow.ts";
 import { JUDGE_RULESET_NAME } from "../judge-ruleset.ts";
 import {
   GATE_CHECK,
@@ -62,6 +63,8 @@ export function setup(
     effective?: readonly RulesetRule[];
     gate?: GhResult;
     title?: GhResult;
+    /** The judge workflow's lookup; unset, it is an unexpected call. */
+    judge?: GhResult;
     state?: CodeQlState;
     unreadableRules?: GhResult;
     put?: GhResult;
@@ -98,6 +101,11 @@ export function setup(
       return options.gate ?? ok();
     if (target?.endsWith(`/contents/${PR_TITLE_WORKFLOW_PATH}`))
       return options.title ?? ok();
+    if (
+      options.judge !== undefined &&
+      target?.endsWith(`/contents/${JUDGE_WORKFLOW_PATH}`)
+    )
+      return options.judge;
     return (
       codeScanningAnswer(args, options.state ?? "required") ??
       error(`unexpected call: ${String(target)}`)

@@ -207,21 +207,27 @@ function toolsIn(rule: RulesetRule): unknown[] {
 
 /** The rules with CodeQL required. A ruleset holds one rule of each type,
  * so a code scanning rule already there for another tool gains CodeQL
- * beside that tool rather than a second rule. */
+ * beside that tool rather than a second rule.
+ *
+ * A CodeQL entry already there is left exactly as it is. Someone may have
+ * set it, perhaps more strictly than setup would, between setup reading the
+ * rules and the user saying yes; replacing it with setup's thresholds could
+ * weaken a control the user chose. */
 export function withCodeQl(rules: readonly RulesetRule[]): RulesetRule[] {
   const wanted = codeScanningRule();
   const existing = rules.find((rule) => rule.type === wanted.type);
   if (existing === undefined) {
     return [...rules, wanted];
   }
+  const tools = toolsIn(existing);
+  if (tools.some((tool) => field(tool, "tool") === "CodeQL")) {
+    return [...rules];
+  }
   const merged: RulesetRule = {
     type: wanted.type,
     parameters: {
       ...existing.parameters,
-      code_scanning_tools: [
-        ...toolsIn(existing).filter((tool) => field(tool, "tool") !== "CodeQL"),
-        ...toolsIn(wanted),
-      ],
+      code_scanning_tools: [...tools, ...toolsIn(wanted)],
     },
   };
   return rules.map((rule) => (rule === existing ? merged : rule));

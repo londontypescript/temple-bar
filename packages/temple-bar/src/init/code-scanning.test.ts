@@ -37,21 +37,25 @@ const MAIN = {
 const JUDGE = { id: 7, target: "branch", name: JUDGE_RULESET_NAME };
 
 /** GitHub with `listed` rulesets, the judge workflow on the default branch,
- * and CodeQL in `state`. `override` answers first, for a failing call. */
+ * and CodeQL in `state`. `override` answers first, for a failing call. The
+ * gate and title workflows are on the default branch when `checksLanded`. */
 function github(
   state: CodeQlState,
   listed: readonly object[] = [MAIN, JUDGE],
   override: (args: readonly string[]) => GhResult | undefined = () => undefined,
+  checksLanded = false,
 ) {
   return createFakeGh(
     (args) =>
       (args.some((a) => /contents\/.*temple-bar-(gate|pr-title)\.yml$/.test(a))
-        ? {
-            code: 1,
-            stdout: "",
-            stderr: "gh: Not Found (HTTP 404)",
-            notFound: false,
-          }
+        ? checksLanded
+          ? ok()
+          : {
+              code: 1,
+              stdout: "",
+              stderr: "gh: Not Found (HTTP 404)",
+              notFound: false,
+            }
         : undefined) ??
       override(args) ??
       (args.includes("POST") ? ok() : undefined) ??
@@ -69,8 +73,8 @@ function writes(gh: ReturnType<typeof createFakeGh>, method: string) {
 async function offer(
   gh: ReturnType<typeof createFakeGh>,
   answer: ConfirmResult = "yes",
+  questions: string[] = [],
 ) {
-  const questions: string[] = [];
   const ctx = createFakeContext({
     gh,
     prompt: {
@@ -301,43 +305,67 @@ void test("CodeQL's state unreadable: the rulesets still go ahead, and setup end
   assert.match(outcome.message, /Bad credentials/);
 });
 
+const SEMGREP = { tool: "Semgrep", alerts_threshold: "all" };
+const scanning = (...tools: unknown[]) => ({
+  type: "code_scanning",
+  parameters: { code_scanning_tools: tools },
+});
+
+/** Answers reads of setup's `main` ruleset with `body` once `now` is true. */
+function mainRuleset(body: object, now = () => true) {
+  const path = `repos/acme/widgets/rulesets/${String(MAIN_RULESET_ID)}`;
+  return (args: readonly string[]) =>
+    now() && args.includes(path) && !args.includes("PUT")
+      ? ok(JSON.stringify(body))
+      : undefined;
+}
+
 void test("CodeQL analysed and the `main` ruleset already scans with another tool: CodeQL joins that rule, not a second one", async () => {
-  const semgrep = { tool: "Semgrep", alerts_threshold: "all" };
-  const gh = github("analysed", [MAIN, JUDGE], (args) =>
-    args.includes(`repos/acme/widgets/rulesets/${String(MAIN_RULESET_ID)}`) &&
-    !args.includes("PUT")
-      ? ok(
-          JSON.stringify({
-            rules: [
-              { type: "deletion" },
-              {
-                type: "code_scanning",
-                parameters: { code_scanning_tools: [semgrep] },
-              },
-            ],
-          }),
-        )
-      : undefined,
-  );
+  const rules = [{ type: "deletion" }, scanning(SEMGREP)];
+  const gh = github("analysed", [MAIN, JUDGE], mainRuleset({ rules }));
   await offer(gh);
   const [put] = writes(gh, "PUT");
   assert.ok(put);
+  const codeQl = codeScanningRule().parameters?.code_scanning_tools as [];
   assert.deepEqual(JSON.parse(put.input ?? "null"), {
-    rules: [
-      { type: "deletion" },
-      {
-        type: "code_scanning",
-        parameters: {
-          code_scanning_tools: [
-            semgrep,
-            ...(codeScanningRule().parameters
-              ?.code_scanning_tools as unknown[]),
-          ],
-        },
-      },
-    ],
+    rules: [{ type: "deletion" }, scanning(SEMGREP, ...codeQl)],
   });
 });
+
+// Planning reads the ruleset with no CodeQL in it; by the reread at the
+// user's yes, someone has required CodeQL, more or less strictly than setup.
+for (const [strength, alerts] of [
+  ["stronger", "all"],
+  ["weaker", "none"],
+] as const) {
+  for (const checksLanded of [false, true]) {
+    const write = checksLanded ? "with the ready checks" : "alone";
+    void test(`a ${strength} CodeQL entry added to the \`main\` ruleset after setup asked is kept as it is, written ${write}, beside the other tool and rules`, async () => {
+      const codeQl = { tool: "CodeQL", alerts_threshold: alerts };
+      const reread = [{ type: "deletion" }, scanning(codeQl, SEMGREP)];
+      const questions: string[] = [];
+      const answer = mainRuleset(
+        { enforcement: "active", rules: reread },
+        () => questions.length > 0,
+      );
+      const gh = github("analysed", [MAIN, JUDGE], answer, checksLanded);
+      await offer(gh, "yes", questions);
+      const [put] = writes(gh, "PUT");
+      assert.ok(put);
+      const { rules } = JSON.parse(put.input ?? "null") as {
+        rules: { type: string }[];
+      };
+      const checks = (rule: { type: string }) =>
+        rule.type === "required_status_checks";
+      assert.deepEqual(
+        rules.filter((rule) => !checks(rule)),
+        reread,
+        "the existing CodeQL entry was rewritten",
+      );
+      assert.equal(rules.some(checks), checksLanded);
+    });
+  }
+}
 
 void test("the combined existing-main question has one addition naming CodeQL and the ready checks", () => {
   const question = protectionQuestion({
