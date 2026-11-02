@@ -100,8 +100,10 @@ request left behind, and only worktrees their session has released.**
 - Recovery history inside the worktree's git directory (its HEAD reflog) is
   disposable once released. A mounted folder is found by its device number,
   and on Windows any link or junction pointing outside the worktree keeps
-  it, since a volume mount point looks like a junction there. One mount
-  can't be seen: a bind mount of a folder on the same device.
+  it, since a volume mount point looks like a junction there. Git for
+  Windows also lists paths through a junction leading outside the worktree,
+  so git's own removal isn't trusted near one. One mount can't be seen: a
+  bind mount of a folder on the same device.
 - On git older than 2.36, which can't list a worktree path containing a
   newline unambiguously, such a worktree stops the command rather than being
   guessed at.
