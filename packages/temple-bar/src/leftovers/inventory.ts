@@ -214,7 +214,8 @@ export function mountReasons(
  * junction, so lstat can't tell them apart. Any link or junction met, as a
  * listed entry or a folder on the way to one, whose target is outside the
  * worktree keeps it. pnpm's own junctions point inside node_modules or at
- * workspace packages, so they pass. */
+ * workspace packages, so they pass. A target is read by its real path, and
+ * never entered. */
 export async function linksLeadingOutside(
   ctx: Context,
   root: string,
@@ -229,9 +230,13 @@ export async function linksLeadingOutside(
       if ((await ctx.fs.classify(at)) !== "symlink") {
         return undefined;
       }
-      const target = (await ctx.fs.readlink(at)).replace(/^\\\\\?\\/, "");
-      const resolved = path.resolve(path.dirname(at), target);
-      return insideOf.some((folder) => isInside(resolved, folder))
+      // Where the target really is counts, not how it is written: a
+      // junction made from a Windows short name, or through any other name
+      // for the worktree's folder, still leads inside. One that doesn't
+      // resolve could lead anywhere, so it counts as outside.
+      const real = await ctx.fs.realpath(at).catch(() => undefined);
+      return real !== undefined &&
+        insideOf.some((folder) => isInside(real, folder))
         ? undefined
         : entry;
     } catch {
