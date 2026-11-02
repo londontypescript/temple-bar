@@ -10,6 +10,7 @@ import test from "node:test";
 
 import {
   addWorktree,
+  asGit,
   assertKept,
   commitAll,
   destructive,
@@ -134,7 +135,10 @@ void test("resume at the same HEAD: --unrelease withdraws the release, and the w
   await release(w, x.path);
   const run = await w.leftovers(["--unrelease"], x.path);
   assert.equal(run.code, 0, run.err);
-  assert.equal(run.out, `leftovers: withdrew the release of ${x.path}\n`);
+  assert.equal(
+    run.out,
+    `leftovers: withdrew the release of ${asGit(x.path)}\n`,
+  );
   await assertKept(
     w,
     repos.primary,
@@ -202,7 +206,7 @@ void test("race: --unrelease first, then the claim: the session wins and the wor
   );
   assert.deepEqual(
     unreleases.map(({ code, out }) => [code, out]),
-    [[0, `leftovers: withdrew the release of ${x.path}\n`]],
+    [[0, `leftovers: withdrew the release of ${asGit(x.path)}\n`]],
   );
 });
 

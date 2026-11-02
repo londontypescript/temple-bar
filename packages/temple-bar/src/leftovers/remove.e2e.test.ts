@@ -19,6 +19,8 @@ import {
   write,
 } from "./testing/repos.ts";
 
+// No merge command runs here: GitHub says MERGED and origin's branch is
+// at the head, as after an admin merge on GitHub's website.
 void test("a released worktree on a merged branch goes with its branches and ignored data; a link's target outside stays", async (t) => {
   const repos = makeRepos(t);
   const x = addWorktree(repos, "x");
@@ -26,7 +28,12 @@ void test("a released worktree on a merged branch goes with its branches and ign
   mkdirSync(outside);
   write(outside, "keep.txt", "keep\n");
   write(x.path, "node_modules/pkg/index.js", "module.exports = 1;\n");
-  realLink(outside, path.join(x.path, "node_modules", "linked"), true);
+  // On Windows a junction leading outside keeps the worktree (it can't be
+  // told from a mount point there), so the link points outside only on
+  // other systems; links-and-mounts.e2e.test.ts has Windows' cases.
+  if (process.platform !== "win32") {
+    realLink(outside, path.join(x.path, "node_modules", "linked"), true);
+  }
   write(x.path, "dist/out.js", "built\n");
   write(x.path, ".temple-bar/notes.md", "secret notes\n");
   write(x.path, ".env", "TOKEN=abc\n");

@@ -10,6 +10,7 @@ import test from "node:test";
 
 import {
   addWorktree,
+  asGit,
   assertKept,
   commitAll,
   git,
@@ -35,7 +36,7 @@ void test("guard: another worktree listed inside it keeps it", async (t) => {
     w,
     repos.primary,
     x,
-    `another worktree is inside it: ${JSON.stringify(nested)}`,
+    `another worktree is inside it: ${JSON.stringify(asGit(nested))}`,
   );
 });
 
@@ -65,7 +66,7 @@ for (const deep of DEEP) {
       w,
       repos.primary,
       x,
-      `another worktree is inside it: ${JSON.stringify(nested)}; a repository inside it: ${JSON.stringify(`${deep}/wt/`)}`,
+      `another worktree is inside it: ${JSON.stringify(asGit(nested))}; a repository inside it: ${JSON.stringify(`${deep}/wt/`)}`,
     );
   });
 

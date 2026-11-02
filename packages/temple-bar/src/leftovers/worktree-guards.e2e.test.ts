@@ -10,6 +10,7 @@ import test from "node:test";
 import { realLink } from "../init/testing/write-target-repo.ts";
 import {
   addWorktree,
+  asGit,
   assertKept,
   blob,
   commitAll,
@@ -64,14 +65,14 @@ void test("guard: a worktree git sees at another path than it lists is kept", as
   realLink(x.path, link, true);
   writeFileSync(
     path.join(repos.primary, ".git", "worktrees", "x", "gitdir"),
-    `${link}/.git\n`,
+    `${asGit(link)}/.git\n`,
   );
   const alias = { ...x, path: link };
   await assertKept(
     w,
     repos.primary,
     alias,
-    `git sees its top folder as ${x.path}, not the listed path`,
+    `git sees its top folder as ${asGit(x.path)}, not the listed path`,
   );
 });
 
@@ -160,7 +161,7 @@ void test("guard: a worktree whose folder is gone is kept, pointing at git workt
   const run = await w.leftovers(["--remove"], repos.primary);
   assert.ok(
     run.err.includes(
-      `kept the worktree at ${x.path} (feat/x): its folder is gone; \`git worktree prune\` drops it from git's list\n`,
+      `kept the worktree at ${asGit(x.path)} (feat/x): its folder is gone; \`git worktree prune\` drops it from git's list\n`,
     ),
     run.err,
   );

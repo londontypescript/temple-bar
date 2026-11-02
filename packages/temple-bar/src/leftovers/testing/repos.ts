@@ -50,6 +50,11 @@ export function gitLine(dir: string, ...args: string[]): string {
   return git(dir, ...args).replace(/\n$/, "");
 }
 
+/** A path as git prints it: forward slashes, even on Windows. */
+export function asGit(entry: string): string {
+  return entry.split(path.sep).join("/");
+}
+
 export function write(dir: string, file: string, text: string): void {
   mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
   writeFileSync(path.join(dir, file), text);
@@ -347,7 +352,7 @@ export async function assertKept(
   options: { env?: NodeJS.ProcessEnv; fs?: FsSeam } = {},
 ): Promise<void> {
   const run = await w.leftovers(["--remove"], from, options);
-  const prefix = `leftovers: kept the worktree at ${worktree.path} (${worktree.branch}): `;
+  const prefix = `leftovers: kept the worktree at ${asGit(worktree.path)} (${worktree.branch}): `;
   const said = run.err
     .split("\n")
     .find((line) => line.startsWith(prefix))

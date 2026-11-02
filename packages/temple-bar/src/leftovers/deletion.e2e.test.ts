@@ -11,6 +11,7 @@ import test from "node:test";
 
 import {
   addWorktree,
+  asGit,
   assertKept,
   commitAll,
   destructive,
@@ -247,7 +248,7 @@ void test("guard: a local branch checked out after the classification is kept, b
   const run = await w.leftovers(["--remove"], repos.primary);
   assert.ok(
     run.err.includes(
-      `kept the local branch feat/z: it is checked out in ${again}\n`,
+      `kept the local branch feat/z: it is checked out in ${asGit(again)}\n`,
     ),
     run.err,
   );
@@ -280,7 +281,7 @@ void test("guard: a branch whose worktree removal failed is kept, even once git 
   const run = await w.leftovers(["--remove"], repos.primary);
   assert.ok(
     run.err.includes(
-      `kept the local branch feat/x: its worktree at ${x.path} was kept\n`,
+      `kept the local branch feat/x: its worktree at ${asGit(x.path)} was kept\n`,
     ),
     run.err,
   );

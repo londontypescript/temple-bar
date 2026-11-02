@@ -8,6 +8,7 @@ import test from "node:test";
 
 import {
   addWorktree,
+  asGit,
   assertKept,
   blob,
   commitAll,
@@ -171,7 +172,7 @@ void test("full names: a missing branch is still missing when a tag has its name
   const run = await w.leftovers([], repos.primary);
   assert.ok(
     run.out.includes(
-      `worktree ${x.path} (feat/x): kept: its branch refs/heads/feat/x no longer exists\n`,
+      `worktree ${asGit(x.path)} (feat/x): kept: its branch refs/heads/feat/x no longer exists\n`,
     ),
     run.out,
   );
@@ -200,7 +201,7 @@ void test("guard: a failed branch listing is unknown: nothing local is judged or
   );
   assert.ok(
     run.err.includes(
-      `kept the worktree at ${x.path} (feat/x): local branches couldn't be listed\n`,
+      `kept the worktree at ${asGit(x.path)} (feat/x): local branches couldn't be listed\n`,
     ),
     run.err,
   );
