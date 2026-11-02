@@ -8,6 +8,9 @@ import { chmodSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
+import { createFsSeam } from "../seams/fs.ts";
+import { samePath } from "./paths.ts";
+
 import {
   addWorktree,
   asGit,
@@ -262,38 +265,60 @@ void test(
   },
 );
 
-void test("guard: a path git gives as bytes that aren't UTF-8 keeps it, on any disk", async (t) => {
-  // macOS and Windows refuse such names, so here git's output carries one
-  // the way the exec seam decodes it: as U+FFFD.
-  const repos = makeRepos(t);
-  const x = addWorktree(repos, "x", { push: false });
-  let inject = false;
-  const w = world(repos, () => [merged(x, 7)], {
-    hooks: {
-      before: ({ args, cwd }) =>
-        Promise.resolve(
-          inject &&
-            cwd === x.path &&
-            args.join(" ") ===
-              "ls-files -z --others --ignored --exclude-standard"
-            ? {
-                code: 0,
-                stdout: `${git(cwd, ...args)}node_modules/bad-\uFFFD\0`,
-                stderr: "",
-              }
-            : undefined,
-        ),
-    },
+// macOS and Windows refuse such names, so here git's output, the disk's
+// listing, or both carry one the way Node decodes it: as U+FFFD. Seen by
+// either, or both, it is one reason.
+for (const [seen, byGit, byWalk] of [
+  ["git", true, false],
+  ["git and the walk", true, true],
+  ["only the walk", false, true],
+] as const) {
+  void test(`guard: a path that isn't valid UTF-8, seen by ${seen}, keeps it, on any disk`, async (t) => {
+    const repos = makeRepos(t);
+    const x = addWorktree(repos, "x", { push: false });
+    let inject = false;
+    const w = world(repos, () => [merged(x, 7)], {
+      hooks: {
+        before: ({ args, cwd }) =>
+          Promise.resolve(
+            inject &&
+              byGit &&
+              samePath(cwd, x.path) &&
+              args.join(" ") ===
+                "ls-files -z --others --ignored --exclude-standard"
+              ? {
+                  code: 0,
+                  stdout: `${git(cwd, ...args)}node_modules/bad-\uFFFD\0`,
+                  stderr: "",
+                }
+              : undefined,
+          ),
+      },
+    });
+    await release(w, x.path);
+    inject = true;
+    write(x.path, "node_modules/ok.js", "x\n");
+    const real = createFsSeam();
+    const modules = path.join(x.path, "node_modules");
+    await assertKept(
+      w,
+      repos.primary,
+      x,
+      `paths that aren't valid UTF-8, so can't be checked: ${JSON.stringify("node_modules/bad-\uFFFD")}`,
+      {
+        fs: {
+          ...real,
+          readdir: async (entry) => {
+            const entries = await real.readdir(entry);
+            return byWalk && samePath(entry, modules) && entries !== undefined
+              ? [...entries, { name: "bad-\uFFFD", kind: "file" }]
+              : entries;
+          },
+        },
+      },
+    );
   });
-  await release(w, x.path);
-  inject = true;
-  await assertKept(
-    w,
-    repos.primary,
-    x,
-    `paths that aren't valid UTF-8, so can't be checked: ${JSON.stringify("node_modules/bad-\uFFFD")}`,
-  );
-});
+}
 
 // Neither a newline nor a trailing space can end a name on Windows.
 void test(

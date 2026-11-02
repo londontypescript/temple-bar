@@ -21,6 +21,9 @@ export interface Found {
   readonly unread: string[];
   /** Folders on another device, which the walk doesn't enter. */
   readonly mounted: string[];
+  /** Names that aren't valid UTF-8: they can't be named back to the disk,
+   * so what they are can't be checked. */
+  readonly undecodable: string[];
 }
 
 /** Reads one folder; resolves the subfolders to walk next. */
@@ -42,7 +45,7 @@ async function visit(
   for (const entry of entries) {
     const child = folder === "" ? entry.name : `${folder}/${entry.name}`;
     if (undecodable(entry.name)) {
-      found.unread.push(child);
+      found.undecodable.push(child);
     } else if (entry.name.toLowerCase() === ".git") {
       // The worktree's own `.git` is the file at its top pointing at git's
       // record of it; any other is something git can't see past.
@@ -69,7 +72,12 @@ async function visit(
  * it couldn't read, and every mounted folder it met. */
 export async function walkWorktree(ctx: Context, root: string): Promise<Found> {
   const own = await ctx.fs.deviceId(root).catch(() => undefined);
-  const found: Found = { gitEntries: [], unread: [], mounted: [] };
+  const found: Found = {
+    gitEntries: [],
+    unread: [],
+    mounted: [],
+    undecodable: [],
+  };
   if (own === undefined) {
     found.unread.push(".");
   } else {
@@ -90,8 +98,8 @@ export async function walkWorktree(ctx: Context, root: string): Promise<Found> {
   return found;
 }
 
-/** Why the walk keeps the worktree, mounts aside (the mount reason merges
- * them with the mount check's). */
+/** Why the walk keeps the worktree, mounts and undecodable names aside:
+ * each is merged with what git's lists show into one reason. */
 export function walkReasons(found: Found): string[] {
   return [
     ...(found.gitEntries.length > 0

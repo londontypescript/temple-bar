@@ -189,7 +189,14 @@ export async function inspectContents(
   if (typeof inventory === "string") {
     reasons.push(inventory);
   } else {
-    const unreadable = allPaths(inventory).filter(undecodable);
+    const walked = await walkWorktree(ctx, worktree.path);
+    // Seen in git's lists, on the disk or both, it is one reason.
+    const unreadable = [
+      ...new Set([
+        ...allPaths(inventory).filter(undecodable),
+        ...walked.undecodable,
+      ]),
+    ].sort();
     if (unreadable.length > 0) {
       reasons.push(
         `paths that aren't valid UTF-8, so can't be checked: ${firstFew(unreadable)}`,
@@ -198,7 +205,6 @@ export async function inspectContents(
     reasons.push(...nestedRepositories(inventory));
     reasons.push(...(await bareRepositories(ctx, worktree.path, inventory)));
     const mounts = await mountedFolders(ctx, worktree.path, inventory);
-    const walked = await walkWorktree(ctx, worktree.path);
     reasons.push(...mountReasons(mounts, walked.mounted));
     reasons.push(...walkReasons(walked));
     if (process.platform === "win32") {
