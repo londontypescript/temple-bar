@@ -173,3 +173,28 @@ void test(
     );
   },
 );
+
+// On Windows a volume mount point reads as a link to the walk but, through
+// lstat, as the mounted volume's root on its own device. Here a real link
+// stands in for it, with its device made to differ; it points inside the
+// worktree, so on Windows no junction leading outside is a second reason.
+void test("guard: a link entry on another device (a Windows volume mount point) keeps it, and isn't entered", async (t) => {
+  const { repos, x, w } = await released(t);
+  write(x.path, "dist/volume/data.bin", "x\n");
+  const link = path.join(x.path, "node_modules", "vol");
+  realLink(path.join(x.path, "dist", "volume"), link, true);
+  const real = createFsSeam();
+  await assertKept(
+    w,
+    repos.primary,
+    x,
+    `a mounted folder inside it: ${JSON.stringify("node_modules/vol")}`,
+    {
+      fs: {
+        ...real,
+        deviceId: (entry) =>
+          samePath(entry, link) ? Promise.resolve(999n) : real.deviceId(entry),
+      },
+    },
+  );
+});

@@ -52,16 +52,19 @@ async function visit(
       if (folder !== "" || entry.name !== ".git" || entry.kind !== "file") {
         found.gitEntries.push(child);
       }
-    } else if (entry.kind === "directory") {
+    } else if (entry.kind === "directory" || entry.kind === "symlink") {
+      // A link's own device is its folder's, except on Windows for a volume
+      // mount point: the walk reads it as a link, but its device is the
+      // mounted volume's. Neither is entered.
       const device = await ctx.fs
         .deviceId(path.join(root, child))
         .catch(() => undefined);
       if (device === undefined) {
         found.unread.push(child);
-      } else if (device === own) {
-        next.push(child);
-      } else {
+      } else if (device !== own) {
         found.mounted.push(child);
+      } else if (entry.kind === "directory") {
+        next.push(child);
       }
     }
   }
