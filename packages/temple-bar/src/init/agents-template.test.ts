@@ -267,13 +267,13 @@ const APPROVED_COMPANION_SHA256: Readonly<Record<string, string>> = {
   "docs/agents-rationale.md":
     "4697729f3858e1e1b908e3ef68387d57423ed68ab3ab0f9e8c30f67d99b1d520",
   "docs/phase-boundaries.md":
-    "caf57ee44818ca76eee2fc6a7a93e813742820c5f6c14ea6a318fd3563bb549e",
+    "83cf7056b33c0bfeef32f6bc8c923d42b2fe2e250c42c255cbda8b4eb27e0149",
   "docs/planning.md":
     "664be6f35c101086696802793f5b7c57923385144f518044a8d7a54a7edb1b5f",
   "docs/pull-requests.md":
-    "47c3bc562731b1f54cd80877e4fb97f0f1efcbc6c96a66d0fd1845174d83e622",
+    "c30bad36e6ee5e7147e618461c08b4d4a4b627e75ee78d2531726a6fb01ccce1",
   "docs/delegation.md":
-    "7009360c6ea13e60e3d0c1a55fb4085cb05fa7c9b5f95a82b98ef4da8bcb327b",
+    "1caaaa307567a8734f3c2017ecde772b393ea8081928d790b089b035c4ed942f",
   "docs/incidents.md":
     "074c3b80e20eb0281ae76c17ff83b45ff49fd4e2afa3e7756015918ae9501467",
 };

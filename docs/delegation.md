@@ -12,6 +12,11 @@ delegating. temple-bar's setup wrote this file.
 - **A handoff report** has three parts: _resolved_, _deliberately
   deferred_, _needs a decision_. It gives break-it evidence for each new
   check, and says whether anything ran outside the sandbox.
+- As your last step, after your handoff, run
+  `pnpm exec temple-bar leftovers --release` in your worktree. Releasing
+  deletes all ignored local data in the worktree, `.temple-bar/` included,
+  once its pull request merges: make sure everything worth keeping is on
+  GitHub first.
 - **The review bar:** the orchestrator reads every line of a subagent's
   change, lists what it must defend against, and checks each item.
   Rerunning the checks is not a review.
