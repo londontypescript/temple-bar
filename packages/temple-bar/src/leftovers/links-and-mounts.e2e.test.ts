@@ -72,10 +72,10 @@ void test("guard: a folder whose device can't be read keeps it", async (t) => {
 
 /** The reason a junction or directory link keeps a worktree on Windows. */
 const FOLLOWED =
-  "a junction or directory link inside it, which Git for Windows follows when removing (git-for-windows/git#5320): ";
+  "a junction or directory link inside it, which Git for Windows walks into when it removes a worktree: ";
 
-// Git for Windows' removal follows a junction and deletes through it, so
-// any junction keeps the worktree there. Whether git also listed through
+// Git for Windows walks into a junction when it lists or removes a
+// worktree's files, so any junction keeps the worktree there. Whether git also listed through
 // this one is recorded in the test log as evidence.
 void test(
   "guard: on Windows, a junction leading outside keeps it, though git lists through it",

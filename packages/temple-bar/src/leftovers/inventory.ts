@@ -204,10 +204,11 @@ export function mountReasons(
   ];
 }
 
-/** On Windows, Git for Windows' removal follows a junction or a directory
- * link and deletes through it (git-for-windows/git#5320), so any link met,
- * as a listed entry or a folder on the way to one, whose real target is a
- * folder, or can't be resolved, keeps the worktree, wherever it points.
+/** On Windows, Git for Windows walks into a junction or a directory link
+ * when it lists or removes a worktree's files (ADR 0022 gives the evidence),
+ * so any link met, as a listed entry or a folder on the way to one, whose
+ * real target is a folder, or can't be resolved, keeps the worktree,
+ * wherever it points.
  * A link to a file is removed as a link, so it passes. pnpm links every
  * package with a junction, so its worktrees are kept until node_modules is
  * gone. A volume mount point reads as a folder, and the device checks find
@@ -238,7 +239,7 @@ export async function junctionsAndDirectoryLinks(
   const found = followed.filter((entry) => entry !== undefined);
   return found.length > 0
     ? [
-        `a junction or directory link inside it, which Git for Windows follows when removing (git-for-windows/git#5320): ${firstFew(found)}`,
+        `a junction or directory link inside it, which Git for Windows walks into when it removes a worktree: ${firstFew(found)}`,
       ]
     : [];
 }

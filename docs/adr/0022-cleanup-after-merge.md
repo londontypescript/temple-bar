@@ -100,12 +100,16 @@ request left behind, and only worktrees their session has released.**
 - Recovery history inside the worktree's git directory (its HEAD reflog) is
   disposable once released. A mounted folder is found by its device number,
   a Windows volume mount point included. On Windows any junction or
-  directory link keeps the worktree, because Git for Windows' removal
-  follows them and deletes through them
-  ([git-for-windows/git#5320](https://github.com/git-for-windows/git/issues/5320)).
-  A pnpm worktree on Windows, where pnpm links every package with a
-  junction, is therefore kept until its node_modules is gone. One mount
-  can't be seen: a bind mount of a folder on the same device.
+  directory link keeps the worktree, because Git for Windows walks into
+  them: in 0.3.0's CI it listed files through a junction leading outside
+  the worktree, and `git worktree remove` on a worktree holding a junction
+  exited 0 and dropped its record but left the folder. `git clean` had the
+  same fault until Git for Windows fixed it
+  ([git-for-windows/git#5320](https://github.com/git-for-windows/git/issues/5320));
+  worktree removal has no such fix. A pnpm worktree on Windows, where pnpm
+  links every package with a junction, is therefore kept until its
+  node_modules is gone. One mount can't be seen: a bind mount of a folder
+  on the same device.
 - On git older than 2.36, which can't list a worktree path containing a
   newline unambiguously, such a worktree stops the command rather than being
   guessed at.

@@ -16,7 +16,7 @@ import { junctionsAndDirectoryLinks } from "./inventory.ts";
 import { write } from "./testing/repos.ts";
 
 const FOLLOWED =
-  "a junction or directory link inside it, which Git for Windows follows when removing (git-for-windows/git#5320): ";
+  "a junction or directory link inside it, which Git for Windows walks into when it removes a worktree: ";
 
 void test("a link to a folder, inside or outside, or to nothing, is found; a link to a file isn't", async (t) => {
   const root = realpathSync.native(
