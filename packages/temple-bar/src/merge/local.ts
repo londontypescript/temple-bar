@@ -122,11 +122,34 @@ export async function bringUpToDate(
         : `could not merge ${upstream} into ${branch}: ${merged.stderr}`,
     );
   }
+  // The branch's reflog, read at once, says who made its newest commit: this
+  // merge writes "merge <upstream>: …" over the entry for `before`, while a
+  // session's amend in the same moment writes "commit (amend): …".
+  const reflog = await git(
+    ctx,
+    [
+      "--no-replace-objects",
+      "log",
+      "-g",
+      "-2",
+      "--format=%H%x00%gs",
+      `refs/heads/${branch}`,
+    ],
+    worktree.path,
+  );
+  const [newest = "", previous = ""] = reflog.ok
+    ? reflog.stdout.split("\n")
+    : [];
   const mergedTip = await resolveCommit(
     ctx,
     `refs/heads/${branch}`,
     worktree.path,
   );
+  const madeByMerge =
+    mergedTip !== undefined &&
+    before !== undefined &&
+    newest.startsWith(`${mergedTip}\0merge ${upstream}:`) &&
+    previous.startsWith(`${before}\0`);
   // git sets ORIG_HEAD to the commit a merge starts from, even when the
   // merge has nothing to do, so it tells this merge's commit from one a
   // session made in the moment before it.
@@ -148,12 +171,16 @@ export async function bringUpToDate(
   if (tip === undefined) {
     refuse(`could not read ${branch} after the push`);
   }
-  // Only a commit this merge made is carried: one made from `before`, still
-  // the tip after the push. carryReleaseForward checks the rest.
+  // Only a commit this merge made is carried: one its reflog entry names,
+  // made from `before`, still the tip after the push. ORIG_HEAD still
+  // catches a session's own merge of the same upstream just before this
+  // one, which writes the same reflog entry. carryReleaseForward checks
+  // the rest.
   if (
     before !== undefined &&
     mergedTip !== undefined &&
     mergedTip !== before &&
+    madeByMerge &&
     startedFrom === before &&
     tip === mergedTip
   ) {

@@ -18,6 +18,7 @@ import {
 } from "../merge/testing/e2e-repos.ts";
 import {
   assertKept,
+  write,
   gitLine,
   release,
   RELEASED_REF,
@@ -179,4 +180,48 @@ void test("a commit that moves HEAD after merge's push is never carried", async 
     gitLine(setup.worktree, "cat-file", "blob", RELEASED_REF),
   ) as { head: string };
   assert.equal(marker.head, setup.pushedTip);
+});
+
+void test("a session's amend right after merge's own merge, with a tracked change, is never carried", async (t) => {
+  const setup = setUp(t);
+  const { gh } = fakeGitHub(setup, OPEN);
+  let amended = false;
+  const w = world({ origin: setup.origin }, () => [], {
+    gh,
+    hooks: {
+      // The moment merge's merge has made its commit, the session amends
+      // it with a change of its own: ORIG_HEAD and the first parent stay.
+      after: ({ args }) => {
+        if (
+          !amended &&
+          args[0] === "merge" &&
+          args.includes("--no-ff") &&
+          args.includes("origin/main")
+        ) {
+          amended = true;
+          write(setup.worktree, "sneaked.ts", "export const s = 1;\n");
+          gitTrimmed(setup.worktree, "add", "sneaked.ts");
+          gitTrimmed(setup.worktree, "commit", "-q", "--amend", "--no-edit");
+        }
+        return Promise.resolve();
+      },
+    },
+  });
+  await release(w, setup.worktree);
+  const ctx = w.context(setup.clone);
+  assert.equal(
+    await createMergeCommand(deps).run(["7"], ctx),
+    0,
+    ctx.stderr.lines.join(""),
+  );
+  assert.ok(amended);
+  assert.doesNotMatch(ctx.stdout.lines.join(""), /moved the release/);
+  const tip = gitLine(setup.worktree, "rev-parse", "HEAD");
+  assert.equal(gitLine(setup.worktree, "rev-parse", "HEAD^1"), setup.pushedTip);
+  await assertKept(
+    world({ origin: setup.origin }, () => [], { gh }),
+    setup.clone,
+    { path: realpathSync(setup.worktree), branch: "feat/x" },
+    `HEAD moved since it was released (from ${setup.pushedTip} to ${tip})`,
+  );
 });
