@@ -3,7 +3,12 @@
 // branches. The report prints these verdicts, and `--remove` acts on them.
 
 import type { Context } from "../context.ts";
-import { finished, verdict, type Verdict } from "./finished.ts";
+import {
+  finished,
+  judgePullRequest,
+  verdict,
+  type Verdict,
+} from "./finished.ts";
 import { undecodable } from "./paths.ts";
 import type { PullRequestFacts, Repo } from "./repository.ts";
 import { judgeWorktree, type WorktreeItem } from "./worktree-verdict.ts";
@@ -87,41 +92,21 @@ function judgeRemoteBranches(repo: Repo): BranchItem[] {
   );
   for (const [ref, tip] of refs) {
     const name = ref.slice(HEADS.length);
-    const newest = repo.pullRequests?.get(ref);
-    if (
-      name === repo.defaultBranch ||
-      newest === undefined ||
-      (newest.kind === "known" && newest.pullRequest.state === "OPEN")
-    ) {
+    const state = judgePullRequest(repo, ref);
+    if (name === repo.defaultBranch || state.kind === "unreported") {
       continue;
     }
-    const pullRequest =
-      newest.kind === "known" ? newest.pullRequest : undefined;
-    const reasons: string[] = [];
-    if (pullRequest === undefined) {
-      reasons.push("its newest pull request can't be read");
-    } else {
-      const label = `pull request #${String(pullRequest.number)}`;
-      if (pullRequest.state === "CLOSED") {
-        reasons.push(`${label} closed without merging`);
-      } else {
-        if (pullRequest.crossRepository) {
-          reasons.push(`${label} came from a fork`);
-        }
-        if (pullRequest.base !== repo.defaultBranch) {
-          reasons.push(
-            `${label} merged into ${pullRequest.base}, not the default branch`,
-          );
-        }
-        if (tip !== pullRequest.head) {
-          reasons.push(
-            `its tip ${tip} isn't ${label}'s head ${pullRequest.head}`,
-          );
-        }
-        reasons.push(...repo.blockers);
-        if (undecodable(name)) {
-          reasons.push("its name isn't valid UTF-8");
-        }
+    const { pullRequest } = state;
+    const reasons = [...state.reasons];
+    if (pullRequest?.state === "MERGED" && reasons.length === 0) {
+      if (tip !== pullRequest.head) {
+        reasons.push(
+          `its tip ${tip} isn't pull request #${String(pullRequest.number)}'s head ${pullRequest.head}`,
+        );
+      }
+      reasons.push(...repo.blockers);
+      if (undecodable(name)) {
+        reasons.push("its name isn't valid UTF-8");
       }
     }
     items.push({ name, tip, pullRequest, verdict: verdict(reasons) });

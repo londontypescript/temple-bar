@@ -26,17 +26,10 @@ export type Finished =
       readonly reasons: string[];
     };
 
-/** Whether a local branch at `tip` is finished: its newest pull request
- * merged into the default branch from this repository, and the branch
- * holds nothing beyond its head. An open pull request, or none, is live
- * work and isn't reported. Ancestry is read with replacement objects off,
- * so a replacement ref can't fake it. */
-export async function finished(
-  ctx: Context,
-  repo: Repo,
-  ref: string,
-  tip: string,
-): Promise<Finished> {
+/** What the branch's newest pull request says, before its tip is looked
+ * at: unreported when it is open or there is none (live work), otherwise
+ * why it isn't a merge into the default branch from this repository. */
+export function judgePullRequest(repo: Repo, ref: string): Finished {
   const newest = repo.pullRequests?.get(ref);
   if (newest === undefined) {
     return { kind: "unreported" };
@@ -69,24 +62,43 @@ export async function finished(
       `${label} merged into ${pullRequest.base}, not the default branch`,
     );
   }
-  if (tip !== pullRequest.head) {
-    const ancestor = await ctx.git.run(
-      [
-        "--no-replace-objects",
-        "merge-base",
-        "--is-ancestor",
-        tip,
-        pullRequest.head,
-      ],
-      repo.primary.path,
-    );
-    if (ancestor.code === 1) {
-      reasons.push(`it holds commits beyond ${label}'s head`);
-    } else if (ancestor.code !== 0) {
-      reasons.push(
-        `can't tell whether it holds commits beyond ${label}'s head`,
-      );
-    }
-  }
   return { kind: "judged", pullRequest, reasons };
+}
+
+/** Whether a local branch at `tip` is finished: its newest pull request
+ * merged into the default branch from this repository, and the branch
+ * holds nothing beyond its head. Ancestry is read with replacement objects
+ * off, so a replacement ref can't fake it. */
+export async function finished(
+  ctx: Context,
+  repo: Repo,
+  ref: string,
+  tip: string,
+): Promise<Finished> {
+  const state = judgePullRequest(repo, ref);
+  if (
+    state.kind === "unreported" ||
+    state.pullRequest?.state !== "MERGED" ||
+    tip === state.pullRequest.head
+  ) {
+    return state;
+  }
+  const label = `pull request #${String(state.pullRequest.number)}`;
+  const ancestor = await ctx.git.run(
+    [
+      "--no-replace-objects",
+      "merge-base",
+      "--is-ancestor",
+      tip,
+      state.pullRequest.head,
+    ],
+    repo.primary.path,
+  );
+  const reasons = [...state.reasons];
+  if (ancestor.code === 1) {
+    reasons.push(`it holds commits beyond ${label}'s head`);
+  } else if (ancestor.code !== 0) {
+    reasons.push(`can't tell whether it holds commits beyond ${label}'s head`);
+  }
+  return { ...state, reasons };
 }
