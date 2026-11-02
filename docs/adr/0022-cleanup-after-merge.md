@@ -99,11 +99,13 @@ request left behind, and only worktrees their session has released.**
   plainly; a session that needs any of it keeps it elsewhere first.
 - Recovery history inside the worktree's git directory (its HEAD reflog) is
   disposable once released. A mounted folder is found by its device number,
-  and on Windows any link or junction pointing outside the worktree keeps
-  it, since a volume mount point looks like a junction there. Git for
-  Windows also lists paths through a junction leading outside the worktree,
-  so git's own removal isn't trusted near one. One mount can't be seen: a
-  bind mount of a folder on the same device.
+  a Windows volume mount point included. On Windows any junction or
+  directory link keeps the worktree, because Git for Windows' removal
+  follows them and deletes through them
+  ([git-for-windows/git#5320](https://github.com/git-for-windows/git/issues/5320)).
+  A pnpm worktree on Windows, where pnpm links every package with a
+  junction, is therefore kept until its node_modules is gone. One mount
+  can't be seen: a bind mount of a folder on the same device.
 - On git older than 2.36, which can't list a worktree path containing a
   newline unambiguously, such a worktree stops the command rather than being
   guessed at.
