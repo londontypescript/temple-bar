@@ -4,6 +4,7 @@
 // fails one part of that, and nothing is deleted.
 
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -125,6 +126,17 @@ void test("guard: the default branch is never deleted, even with a merged pull r
   );
   assert.equal(gitLine(repos.primary, "rev-parse", "main"), main);
   assert.deepEqual(destructive(w.git.calls), []);
+});
+
+void test("guard: a worktree holding the default branch is kept, even with a merged pull request named after it", async (t) => {
+  const repos = makeRepos(t);
+  const main = gitLine(repos.primary, "rev-parse", "main");
+  git(repos.primary, "switch", "-q", "--detach");
+  const m = { path: path.join(repos.root, "m"), branch: "main", head: main };
+  git(repos.primary, "worktree", "add", "-q", m.path, "main");
+  const w = world(repos, () => [merged(m, 7)]);
+  await release(w, m.path);
+  await assertKept(w, repos.primary, m, "it holds the default branch");
 });
 
 void test("guard: a symbolic branch ref is never deleted, so the branch it aliases is safe", async (t) => {

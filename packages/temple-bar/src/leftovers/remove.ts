@@ -90,10 +90,11 @@ async function removeWorktree(
     after === undefined ||
     after.some((worktree) => samePath(worktree.path, at))
   ) {
-    return {
-      line: `could not confirm ${what} is gone: git still lists it`,
-      ok: false,
-    };
+    const why =
+      after === undefined
+        ? "git couldn't list its worktrees afterwards"
+        : "git still lists it";
+    return { line: `could not confirm ${what} is gone: ${why}`, ok: false };
   }
   return { line: `removed ${what}`, ok: true };
 }

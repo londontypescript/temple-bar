@@ -183,10 +183,9 @@ export async function judgeWorktree(
   if (state.reasons.length > 0) {
     return item(state.reasons, state.pullRequest);
   }
+  // git lists a worktree's branch at the end of any chain of symbolic
+  // refs, so the branch itself is never one here.
   const reasons: string[] = [...repo.blockers];
-  if (local.symref !== "") {
-    reasons.push(`its branch is a symbolic ref to ${local.symref}`);
-  }
   if (worktree.branch === repo.defaultBranch) {
     reasons.push("it holds the default branch");
   }

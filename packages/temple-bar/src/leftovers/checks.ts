@@ -21,7 +21,7 @@ import type { MarkerRefs } from "./marker.ts";
 import {
   firstFew,
   isInside,
-  pathKey,
+  samePath,
   splitNul,
   undecodable,
   withoutNewline,
@@ -175,7 +175,7 @@ export async function inspectContents(
   ];
   const nested = others.filter(
     (other) =>
-      pathKey(other.path) !== pathKey(worktree.path) &&
+      !samePath(other.path, worktree.path) &&
       insideOf.some((folder) => isInside(other.path, folder)),
   );
   if (nested.length > 0) {
