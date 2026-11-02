@@ -125,6 +125,16 @@ void test(
   },
 );
 
+/** A file link at `.temple-bar/link` to a file beside it. A file link,
+ * not a folder one: Git for Windows walks into a junction rather than
+ * listing it, so a junction would never be certified as a link at all. */
+function makeLink(worktree: string): string {
+  write(worktree, ".temple-bar/target.txt", "x\n");
+  const link = path.join(worktree, ".temple-bar", "link");
+  realLink("target.txt", link);
+  return link;
+}
+
 /** The real disk, but the link at `link` reads as pointing at a name with
  * bytes that aren't UTF-8, as Node decodes it: U+FFFD. */
 function undecodableLink(link: string): FsSeam {
@@ -141,8 +151,7 @@ function undecodableLink(link: string): FsSeam {
 void test("guard: a link whose target isn't valid UTF-8 can't be certified: --release refuses it", async (t) => {
   const repos = makeRepos(t);
   const x = addWorktree(repos, "x", { push: false });
-  const link = path.join(x.path, ".temple-bar", "link");
-  realLink(x.path, link, true);
+  const link = makeLink(x.path);
   const w = world(repos, () => []);
   const run = await w.leftovers(["--release"], x.path, {
     fs: undecodableLink(link),
@@ -157,8 +166,7 @@ void test("guard: a link whose target isn't valid UTF-8 can't be certified: --re
 void test("guard: a link whose target isn't valid UTF-8 invalidates a marker", async (t) => {
   const repos = makeRepos(t);
   const x = addWorktree(repos, "x", { push: false });
-  const link = path.join(x.path, ".temple-bar", "link");
-  realLink(x.path, link, true);
+  const link = makeLink(x.path);
   const w = world(repos, () => [merged(x, 7)]);
   await release(w, x.path);
   await assertKept(
