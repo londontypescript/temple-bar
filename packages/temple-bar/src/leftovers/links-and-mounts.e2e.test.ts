@@ -124,3 +124,48 @@ void test(
     assert.equal(existsSync(x.path), false);
   },
 );
+
+/** The real disk, but the link at `link` reads as pointing at a name with
+ * bytes that aren't UTF-8, as Node decodes it: U+FFFD. */
+function undecodableLink(link: string): FsSeam {
+  const real = createFsSeam();
+  return {
+    ...real,
+    readlink: (entry) =>
+      samePath(entry, link)
+        ? Promise.resolve("target-�")
+        : real.readlink(entry),
+  };
+}
+
+void test("guard: a link whose target isn't valid UTF-8 can't be certified: --release refuses it", async (t) => {
+  const repos = makeRepos(t);
+  const x = addWorktree(repos, "x", { push: false });
+  const link = path.join(x.path, ".temple-bar", "link");
+  realLink(x.path, link, true);
+  const w = world(repos, () => []);
+  const run = await w.leftovers(["--release"], x.path, {
+    fs: undecodableLink(link),
+  });
+  assert.equal(run.code, 1);
+  assert.equal(
+    run.err,
+    `leftovers: not released, nothing written:\nleftovers:   the link ${JSON.stringify(".temple-bar/link")} points at a name that isn't valid UTF-8, so it can't be certified\n`,
+  );
+});
+
+void test("guard: a link whose target isn't valid UTF-8 invalidates a marker", async (t) => {
+  const repos = makeRepos(t);
+  const x = addWorktree(repos, "x", { push: false });
+  const link = path.join(x.path, ".temple-bar", "link");
+  realLink(x.path, link, true);
+  const w = world(repos, () => [merged(x, 7)]);
+  await release(w, x.path);
+  await assertKept(
+    w,
+    repos.primary,
+    x,
+    `its ignored files can't be compared with its release: the link ${JSON.stringify(".temple-bar/link")} points at a name that isn't valid UTF-8, so it can't be certified`,
+    { fs: undecodableLink(link) },
+  );
+});

@@ -9,7 +9,13 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 
 import type { Context } from "../context.ts";
-import { firstFew, foldersOnTheWay, isInside, splitNul } from "./paths.ts";
+import {
+  firstFew,
+  foldersOnTheWay,
+  isInside,
+  splitNul,
+  undecodable,
+} from "./paths.ts";
 
 export interface Inventory {
   readonly tracked: readonly string[];
@@ -251,6 +257,11 @@ export async function checksums(
       const target = await ctx.fs.readlink(at).catch(() => undefined);
       if (target === undefined) {
         return `the link ${JSON.stringify(entry)} can't be read`;
+      }
+      // Two targets with different invalid bytes both read as U+FFFD, so
+      // their checksums couldn't tell them apart.
+      if (undecodable(target)) {
+        return `the link ${JSON.stringify(entry)} points at a name that isn't valid UTF-8, so it can't be certified`;
       }
       files.set(entry, `link:${linkId(target)}`);
     } else {
