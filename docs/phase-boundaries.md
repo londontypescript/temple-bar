@@ -35,6 +35,10 @@ and person can read.
 
 ## How to resume
 
+If you resume in a worktree, run
+`pnpm exec temple-bar leftovers --unrelease` before anything else; if it
+says the worktree is being removed, stop and work elsewhere.
+
 1. Read the issue, latest comment first.
 2. Read git: the branch, `git log` since the base commit, and
    `git worktree list`.

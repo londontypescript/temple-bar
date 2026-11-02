@@ -80,7 +80,14 @@ if (path.basename(process.execPath).replace(/\\.exe$/i, "") === "gh") {
   }
   if (joined.startsWith("pr list")) {
     answer(JSON.stringify(merged === "" ? [] : [
-      { number, headRefName: branch, headRefOid: merged, state: "MERGED" },
+      {
+        number,
+        headRefName: branch,
+        headRefOid: merged,
+        state: "MERGED",
+        isCrossRepository: false,
+        baseRefName: "main",
+      },
     ]));
   }
   if (joined.startsWith("issue list")) {

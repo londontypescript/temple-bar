@@ -5,6 +5,8 @@
 // branch, only narrows that deletion to the commit that merged.
 
 import type { Context } from "../context.ts";
+import { carryReleaseForward } from "../leftovers/release.ts";
+import { deleteUnderLease, readRemoteTip } from "../leftovers/remote-branch.ts";
 import { refuse } from "./refusal.ts";
 import { isDirty, listWorktrees, type Worktree } from "./worktrees.ts";
 
@@ -84,7 +86,9 @@ export async function worktreeForUpdate(
  * pushes it. A plain push, never a forced one: the branch only gains a
  * merge commit, so nothing on GitHub is rewritten. `beforePush` sees the
  * new tip first and can refuse, leaving the merge commit local. Returns the
- * new tip. */
+ * new tip. A worktree whose session released it stays released: once the
+ * push has succeeded, a release still valid but for merge's own commit
+ * moves to it. */
 export async function bringUpToDate(
   ctx: Context,
   worktree: Worktree,
@@ -93,6 +97,11 @@ export async function bringUpToDate(
   beforePush: (tip: string) => Promise<void>,
 ): Promise<string> {
   const upstream = `origin/${defaultBranch}`;
+  const before = await resolveCommit(
+    ctx,
+    `refs/heads/${branch}`,
+    worktree.path,
+  );
   const merged = await git(
     ctx,
     ["merge", "--no-edit", "--no-ff", upstream],
@@ -113,11 +122,38 @@ export async function bringUpToDate(
         : `could not merge ${upstream} into ${branch}: ${merged.stderr}`,
     );
   }
+  // The branch's reflog, read at once, says who made its newest commit: this
+  // merge writes "merge <upstream>: …" over the entry for `before`, while a
+  // session's amend in the same moment writes "commit (amend): …".
+  const reflog = await git(
+    ctx,
+    [
+      "--no-replace-objects",
+      "log",
+      "-g",
+      "-2",
+      "--format=%H%x00%gs",
+      `refs/heads/${branch}`,
+    ],
+    worktree.path,
+  );
+  const [newest = "", previous = ""] = reflog.ok
+    ? reflog.stdout.split("\n")
+    : [];
   const mergedTip = await resolveCommit(
     ctx,
     `refs/heads/${branch}`,
     worktree.path,
   );
+  const madeByMerge =
+    mergedTip !== undefined &&
+    before !== undefined &&
+    newest.startsWith(`${mergedTip}\0merge ${upstream}:`) &&
+    previous.startsWith(`${before}\0`);
+  // git sets ORIG_HEAD to the commit a merge starts from, even when the
+  // merge has nothing to do, so it tells this merge's commit from one a
+  // session made in the moment before it.
+  const startedFrom = await resolveCommit(ctx, "ORIG_HEAD", worktree.path);
   await beforePush(
     mergedTip ?? refuse(`could not read ${branch} after merging ${upstream}`),
   );
@@ -132,7 +168,33 @@ export async function bringUpToDate(
     );
   }
   const tip = await resolveCommit(ctx, `refs/heads/${branch}`, worktree.path);
-  return tip ?? refuse(`could not read ${branch} after the push`);
+  if (tip === undefined) {
+    refuse(`could not read ${branch} after the push`);
+  }
+  // Only a commit this merge made is carried: one its reflog entry names,
+  // made from `before`, still the tip after the push. ORIG_HEAD still
+  // catches a session's own merge of the same upstream just before this
+  // one, which writes the same reflog entry. carryReleaseForward checks
+  // the rest.
+  if (
+    before !== undefined &&
+    mergedTip !== undefined &&
+    mergedTip !== before &&
+    madeByMerge &&
+    startedFrom === before &&
+    tip === mergedTip
+  ) {
+    const moved = await carryReleaseForward(
+      ctx,
+      worktree.path,
+      before,
+      mergedTip,
+    ).catch(() => undefined);
+    if (moved !== undefined) {
+      ctx.stdout.write(`merge: ${moved}\n`);
+    }
+  }
+  return tip;
 }
 
 export interface CleanupReport {
@@ -192,39 +254,13 @@ async function fastForwardDefault(
   }
 }
 
-/** origin's branch as `ls-remote` reads it. */
-type RemoteTip =
-  | { readonly kind: "at"; readonly tip: string }
-  | { readonly kind: "absent" }
-  | { readonly kind: "unreadable" };
-
-async function readRemoteTip(
-  ctx: Context,
-  branch: string,
-  cwd: string,
-): Promise<RemoteTip> {
-  const ref = `refs/heads/${branch}`;
-  const result = await git(ctx, ["ls-remote", "--heads", "origin", ref], cwd);
-  if (!result.ok) {
-    return { kind: "unreadable" };
-  }
-  for (const line of result.stdout.split("\n")) {
-    const [tip = "", name = ""] = line.trim().split(/\s+/);
-    if (name === ref && tip !== "") {
-      return { kind: "at", tip };
-    }
-  }
-  return { kind: "absent" };
-}
-
 /** Deletes origin's branch only while its tip is still the merged commit.
  * Someone may push to it between GitHub's merge and this step, and deleting
- * it then would lose the only remote copy of that newer work. The lease is
- * the check: git sends the deletion with the commit it expects, and origin
- * refuses it if the branch has moved, so there is no gap between a check
- * and the delete. The read before it only tells a branch GitHub or gh has
- * already deleted from one still to delete; the read after a failure is
- * only to explain it, never to try again. */
+ * it then would lose the only remote copy of that newer work. The lease,
+ * shared with `temple-bar leftovers --remove`, is the check. The read
+ * before it only tells a branch GitHub or gh has already deleted from one
+ * still to delete: merge pushes under the lease even when that read fails,
+ * since it has just seen GitHub merge this head. */
 async function deleteRemoteBranch(
   ctx: Context,
   branch: string,
@@ -232,46 +268,16 @@ async function deleteRemoteBranch(
   cwd: string,
   report: CleanupReport,
 ): Promise<void> {
-  const gone = `confirmed origin/${branch} is gone`;
   if ((await readRemoteTip(ctx, branch, cwd)).kind === "absent") {
-    report.done.push(gone);
+    report.done.push(`confirmed origin/${branch} is gone`);
     return;
   }
-  const ref = `refs/heads/${branch}`;
-  const pushed = await git(
-    ctx,
-    ["push", `--force-with-lease=${ref}:${mergedSha}`, "origin", `:${ref}`],
-    cwd,
-  );
-  if (pushed.ok) {
-    report.done.push(
-      `deleted origin/${branch}, whose tip was still the merged ${mergedSha}`,
-    );
-    return;
+  const result = await deleteUnderLease(ctx, branch, mergedSha, cwd);
+  if (result.done !== undefined) {
+    report.done.push(result.done);
   }
-  // Only git's "stale info" rejection says the tip wasn't the merged commit.
-  // Any other failure (a rule, a permission, the server) says nothing about
-  // the tip, so it is never reported as newer work on that evidence alone.
-  const stale = pushed.stderr.includes("(stale info)");
-  const now = await readRemoteTip(ctx, branch, cwd);
-  if (now.kind === "absent") {
-    report.done.push(gone);
-  } else if (now.kind === "at" && now.tip !== mergedSha) {
-    report.problems.push(
-      `kept origin/${branch}: its tip is ${now.tip}, not the merged ${mergedSha}, so it holds work that didn't merge. ` +
-        "Look at it before deleting it.",
-    );
-  } else {
-    const why = stale
-      ? `git refused to delete it because it was no longer at the merged ${mergedSha} when it pushed`
-      : "the push failed";
-    const tip =
-      now.kind === "at"
-        ? `its tip now reads as the merged ${mergedSha}`
-        : "its tip could not be read afterwards, so look at it before deleting it";
-    report.problems.push(
-      `could not delete origin/${branch}: ${why}, and ${tip}. git said: ${pushed.stderr}`,
-    );
+  if (result.problem !== undefined) {
+    report.problems.push(result.problem);
   }
 }
 
@@ -303,7 +309,7 @@ async function reportKept(
   } else {
     report.done.push(
       `kept the worktree at ${holder.path} on ${branch} (${at}); ` +
-        "your harness removes it when it is done, or inspect it with temple-bar leftovers",
+        "once the session there has released it, `temple-bar leftovers --remove` removes it with its branches",
     );
   }
   return true;
@@ -315,10 +321,9 @@ async function reportKept(
  *
  * Merge never removes the merged branch's worktree or its local branch. The
  * command may have been started by a session working in that very folder,
- * and deleting it would take the session's working folder away. The harness
- * that made the worktree removes it when it is done, and `temple-bar
- * leftovers` lists what is left for a person to remove (it only reports).
- * ADR 0016 has the full story. */
+ * and deleting it would take the session's working folder away. Once the
+ * session there has released it, `temple-bar leftovers --remove` removes
+ * them. ADRs 0016 and 0022 have the full story. */
 export async function cleanUp(
   ctx: Context,
   options: {

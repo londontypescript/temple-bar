@@ -62,9 +62,10 @@ export interface Scenario {
 /** The primary checkout, which stays on the default branch. */
 export const PRIMARY = "/primary";
 
+// As `git worktree list --porcelain -z` writes it.
 const WORKTREE_LIST =
-  `worktree ${PRIMARY}\nHEAD ${"e".repeat(40)}\nbranch refs/heads/main\n\n` +
-  `worktree /repo\nHEAD ${HEAD}\nbranch refs/heads/feat\n`;
+  `worktree ${PRIMARY}\0HEAD ${"e".repeat(40)}\0branch refs/heads/main\0\0` +
+  `worktree /repo\0HEAD ${HEAD}\0branch refs/heads/feat\0\0`;
 
 // `git check-attr -z linguist-generated`: "path\0attribute\0value\0" each.
 function checkAttr(
@@ -166,7 +167,7 @@ export function setup(scenario: Scenario = {}) {
     if (args[0] === "check-attr") {
       return checkAttr(scenario, args, cwd);
     }
-    if (joined === "worktree list --porcelain") {
+    if (joined === "worktree list --porcelain -z") {
       return scenario.worktreeListFails === true
         ? { code: 128, stdout: "", stderr: "fatal: not a git repository\n" }
         : ok(WORKTREE_LIST);

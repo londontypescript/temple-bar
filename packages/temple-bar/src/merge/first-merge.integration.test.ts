@@ -106,7 +106,7 @@ void test("first merge: main fast-forwards and the remote branch goes through th
     assert.match(
       report.done.join("\n"),
       new RegExp(
-        `^kept the worktree at .*setup on feat/x \\(${RegExp.escape(tip)}\\); your harness removes it when it is done, or inspect it with temple-bar leftovers$`,
+        `^kept the worktree at .*setup on feat/x \\(${RegExp.escape(tip)}\\); once the session there has released it, \`temple-bar leftovers --remove\` removes it with its branches$`,
         "m",
       ),
     );

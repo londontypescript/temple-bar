@@ -1,0 +1,14 @@
+error: unknown switch `z'
+usage: git worktree add [<options>] <path> [<commit-ish>]
+   or: git worktree list [<options>]
+   or: git worktree lock [<options>] <path>
+   or: git worktree move <worktree> <new-path>
+   or: git worktree prune [<options>]
+   or: git worktree remove [<options>] <worktree>
+   or: git worktree unlock <path>
+
+    --porcelain           machine-readable output
+    -v, --verbose         show extended annotations and reasons, if available
+    --expire <expiry-date>
+                          add 'prunable' annotation to worktrees older than <time>
+

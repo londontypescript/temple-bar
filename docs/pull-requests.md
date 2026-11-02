@@ -33,6 +33,9 @@ a pull request. temple-bar's setup wrote this file.
 - `pnpm merge <N>` runs whatever the current folder's `package.json` says.
   Inside a pull request's worktree that is the pull request's own scripts,
   so run it from the default-branch checkout.
+- Then, from the main checkout, `pnpm exec temple-bar leftovers --remove`
+  removes every released worktree whose pull request merged, with its local
+  and remote branches, and reports what it kept and why.
 
 ## Merging as admin
 

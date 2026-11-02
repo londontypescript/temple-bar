@@ -1,0 +1,27 @@
+worktree /work/normal/repo
+HEAD f8570f8daa585704a075fe710d3ac126269629b6
+branch refs/heads/main
+
+worktree /work/normal/wt-detached
+HEAD f8570f8daa585704a075fe710d3ac126269629b6
+detached
+
+worktree /work/normal/wt-feature
+HEAD f8570f8daa585704a075fe710d3ac126269629b6
+branch refs/heads/feature
+
+worktree /work/normal/wt-gone
+HEAD f8570f8daa585704a075fe710d3ac126269629b6
+branch refs/heads/gone
+prunable gitdir file points to non-existent location
+
+worktree /work/normal/wt-locked-plain
+HEAD f8570f8daa585704a075fe710d3ac126269629b6
+branch refs/heads/locked-plain
+locked
+
+worktree /work/normal/wt-locked-reason
+HEAD f8570f8daa585704a075fe710d3ac126269629b6
+branch refs/heads/locked-reason
+locked held by tool pid 42
+

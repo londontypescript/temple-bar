@@ -11,14 +11,20 @@ export interface GitResult {
 }
 
 export interface GitSeam {
-  /** Runs `git <args>` in `cwd`. Never throws, including on a non-zero exit. */
-  run(args: readonly string[], cwd: string): Promise<GitResult>;
+  /** Runs `git <args>` in `cwd`, writing `input` to its stdin when given
+   * (for `update-ref --stdin` and `hash-object --stdin`). Never throws,
+   * including on a non-zero exit. */
+  run(args: readonly string[], cwd: string, input?: string): Promise<GitResult>;
 }
 
 export function createGitSeam(env: NodeJS.ProcessEnv = process.env): GitSeam {
   return {
-    async run(args, cwd) {
-      const outcome = await runCommand("git", args, { cwd, env });
+    async run(args, cwd, input) {
+      const outcome = await runCommand(
+        "git",
+        args,
+        input === undefined ? { cwd, env } : { cwd, env, input },
+      );
       return {
         code: outcome.code,
         stdout: outcome.stdout,

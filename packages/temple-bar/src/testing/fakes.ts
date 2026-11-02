@@ -26,8 +26,10 @@ interface RecordedCall {
   readonly cwd: string;
 }
 
+type RecordedGitCall = RecordedCall & { readonly input?: string };
+
 export interface FakeGit extends GitSeam {
-  readonly calls: RecordedCall[];
+  readonly calls: RecordedGitCall[];
 }
 
 export function createFakeGit(
@@ -37,11 +39,11 @@ export function createFakeGit(
     stderr: "",
   }),
 ): FakeGit {
-  const calls: RecordedCall[] = [];
+  const calls: RecordedGitCall[] = [];
   return {
     calls,
-    run(args, cwd) {
-      calls.push({ args, cwd });
+    run(args, cwd, input) {
+      calls.push(input === undefined ? { args, cwd } : { args, cwd, input });
       return Promise.resolve(script(args, cwd));
     },
   };
@@ -218,6 +220,14 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
         ? Promise.reject(new Error(`No stored link target for '${path}'`))
         : Promise.resolve(target);
     },
+    readdir: () => Promise.reject(new Error("readdir isn't faked")),
+    // One disk: every entry that exists is on the same device.
+    deviceId: (path) =>
+      Promise.resolve(
+        exists(path) || symlinks.has(path) || linkTargets.has(path)
+          ? 1n
+          : undefined,
+      ),
     realpath(path) {
       const error = realpathErrors.get(normalize(path));
       if (error !== undefined) return Promise.reject(error);

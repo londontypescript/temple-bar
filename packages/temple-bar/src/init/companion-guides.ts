@@ -44,6 +44,10 @@ and person can read.
 
 ## How to resume
 
+If you resume in a worktree, run
+\`pnpm exec temple-bar leftovers --unrelease\` before anything else; if it
+says the worktree is being removed, stop and work elsewhere.
+
 1. Read the issue, latest comment first.
 2. Read git: the branch, \`git log\` since the base commit, and
    \`git worktree list\`.
@@ -180,6 +184,9 @@ a pull request. temple-bar's setup wrote this file.
 - \`pnpm merge <N>\` runs whatever the current folder's \`package.json\` says.
   Inside a pull request's worktree that is the pull request's own scripts,
   so run it from the default-branch checkout.
+- Then, from the main checkout, \`pnpm exec temple-bar leftovers --remove\`
+  removes every released worktree whose pull request merged, with its local
+  and remote branches, and reports what it kept and why.
 
 ## Merging as admin
 
@@ -246,6 +253,12 @@ delegating. temple-bar's setup wrote this file.
 - **A handoff report** has three parts: _resolved_, _deliberately
   deferred_, _needs a decision_. It gives break-it evidence for each new
   check, and says whether anything ran outside the sandbox.
+- As your last step, after your handoff, run
+  \`pnpm exec temple-bar leftovers --release\` in your worktree. Releasing
+  deletes all ignored local data in the worktree, \`.temple-bar/\` included,
+  once its pull request merges: make sure everything worth keeping is on
+  GitHub first. On Windows, \`--release\` refuses a pnpm worktree while its
+  \`node_modules\` exists, and says why.
 - **The review bar:** the orchestrator reads every line of a subagent's
   change, lists what it must defend against, and checks each item.
   Rerunning the checks is not a review.

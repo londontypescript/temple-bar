@@ -67,15 +67,16 @@ void test("merges a behind branch end to end: main merged in, plain push, squash
     ),
   );
   // GitHub lists the pull request at the head it accepted, so the kept
-  // worktree and branch are listed next, for whoever removes them.
+  // worktree and branch are listed next, with the verdict `leftovers
+  // --remove` would reach: kept, since nobody released the worktree.
   assert.match(out, /merge: leftovers: 2 left behind/);
   assert.match(
     out,
-    /leftovers: {3}worktree .*wt-x: its branch feat\/x's pull request #7 is merged/,
+    /leftovers: {3}worktree .*wt-x \(feat\/x, pull request #7 merged\): kept: [^\n]*not released/,
   );
   assert.match(
     out,
-    /leftovers: {3}local branch feat\/x: pull request #7 merged/,
+    /leftovers: {3}local branch feat\/x \(pull request #7 merged\): kept: [^\n]*which is kept/,
   );
 });
 

@@ -174,3 +174,54 @@ void test("fs seam: copyNew copies with the file's permissions, and never over a
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+void test("fs seam: deviceId reads the entry itself, never a link's target, and only a missing entry is undefined", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-fs-device-"));
+  try {
+    const fs = createFsSeam();
+    writeFileSync(path.join(dir, "file"), "bytes");
+    realLink("missing", path.join(dir, "dangling"));
+    const own = await fs.deviceId(dir);
+    assert.equal(typeof own, "bigint");
+    assert.equal(await fs.deviceId(path.join(dir, "file")), own);
+    // A dangling link has a device of its own: lstat never follows it.
+    assert.equal(await fs.deviceId(path.join(dir, "dangling")), own);
+    assert.equal(await fs.deviceId(path.join(dir, "missing")), undefined);
+    const child = path.join(dir, "file", "child");
+    let code: unknown;
+    try {
+      await fsp.lstat(child);
+    } catch (error) {
+      code = error instanceof Error && "code" in error ? error.code : undefined;
+    }
+    // Filesystems differ on this errno; any but ENOENT must reject.
+    if (code === "ENOENT") assert.equal(await fs.deviceId(child), undefined);
+    else await assert.rejects(fs.deviceId(child), { code });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+void test("fs seam: readdir gives each entry's own kind, a link as a link, and undefined for a missing folder", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-fs-readdir-"));
+  try {
+    const fs = createFsSeam();
+    writeFileSync(path.join(dir, "file"), "bytes");
+    mkdirSync(path.join(dir, "folder"));
+    realLink(path.join(dir, "folder"), path.join(dir, "folder-link"), true);
+    const entries = await fs.readdir(dir);
+    assert.deepEqual(
+      entries?.sort((a, b) => a.name.localeCompare(b.name)),
+      [
+        { name: "file", kind: "file" },
+        { name: "folder", kind: "directory" },
+        { name: "folder-link", kind: "symlink" },
+      ],
+    );
+    assert.equal(await fs.readdir(path.join(dir, "missing")), undefined);
+    // A file read as a folder is an error, not a missing folder.
+    await assert.rejects(fs.readdir(path.join(dir, "file")));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

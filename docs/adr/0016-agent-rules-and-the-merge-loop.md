@@ -37,6 +37,11 @@ made the worktree (an agent harness cleans up its own) and to
 ran merge from inside the branch's own worktree, and merge's clean-up deleted
 the folder the agent's session lived in.
 
+**Partly reversed (2026-11-01).** [ADR 0022](0022-cleanup-after-merge.md)
+(decision 101) keeps this for `merge`, which still removes nothing, and adds
+an explicit `temple-bar leftovers --remove` that removes a worktree and its
+branches once the session there has released it and its pull request merged.
+
 Rejected:
 
 - _Refuse unless merge runs from the main checkout._ It doesn't fix the
@@ -220,7 +225,10 @@ asked only if GitHub's records can't tell which run is newer.
 
 - Decision 80, if `temple-bar leftovers` and the harnesses prove not to clean
   up, and kept worktrees pile up: then merge would need a safe way to tell a
-  worktree a session lives in from one nobody uses.
+  worktree a session lives in from one nobody uses. (2026-11-01:
+  [ADR 0022](0022-cleanup-after-merge.md) gives that way to a separate,
+  explicit `leftovers --remove`, through the session's release; merge itself
+  still removes nothing.)
 - Decision 87, when [#426](https://github.com/londontypescript/temple-bar/issues/426)
   builds the mechanical refusal.
 - Decision 88, if the gate's added time proves too high on grand-union's

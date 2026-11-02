@@ -41,10 +41,11 @@ function scripted(script: Script) {
     switch (args[0]) {
       case "worktree":
         if (args[1] === "list") {
+          // As `git worktree list --porcelain -z` writes it.
           return ok(
-            `worktree /repo\nHEAD ${MERGED}\nbranch refs/heads/${current}\n` +
+            `worktree /repo\0HEAD ${MERGED}\0branch refs/heads/${current}\0\0` +
               (script.holder === "worktree"
-                ? `\nworktree /wt/x\nHEAD ${MERGED}\nbranch refs/heads/feat/x\n`
+                ? `worktree /wt/x\0HEAD ${MERGED}\0branch refs/heads/feat/x\0\0`
                 : ""),
           );
         }
@@ -117,7 +118,7 @@ void test("cleanUp keeps a worktree on the merged branch: main moves, then the r
   assert.deepEqual(report.done, [
     "fast-forwarded main in /repo",
     `deleted origin/feat/x, whose tip was still the merged ${MERGED}`,
-    `kept the worktree at /wt/x on feat/x (${MERGED}); your harness removes it when it is done, or inspect it with temple-bar leftovers`,
+    `kept the worktree at /wt/x on feat/x (${MERGED}); once the session there has released it, \`temple-bar leftovers --remove\` removes it with its branches`,
   ]);
   assert.equal(report.keptBranch, true);
 });
