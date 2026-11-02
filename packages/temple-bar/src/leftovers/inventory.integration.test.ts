@@ -1,7 +1,7 @@
-// Whether a link leads outside the worktree, on a real disk: what counts is
-// where its target really is, so a target written through another name for
-// the worktree's folder (Windows' 8.3 short names, or any alias) is inside,
-// and a target that doesn't resolve is outside.
+// Which links keep a worktree on Windows, on a real disk: Git for Windows'
+// removal follows a junction or a directory link and deletes through it,
+// so any link whose real target is a folder, or can't be resolved, is
+// found, wherever it points. A link to a file is removed as a link.
 
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
@@ -12,10 +12,13 @@ import test from "node:test";
 import { realLink } from "../init/testing/write-target-repo.ts";
 import { createFsSeam } from "../seams/fs.ts";
 import { createFakeContext } from "../testing/fakes.ts";
-import { linksLeadingOutside } from "./inventory.ts";
+import { junctionsAndDirectoryLinks } from "./inventory.ts";
 import { write } from "./testing/repos.ts";
 
-void test("a link counts as inside by its target's real path, and one that doesn't resolve as outside", async (t) => {
+const FOLLOWED =
+  "a junction or directory link inside it, which Git for Windows follows when removing (git-for-windows/git#5320): ";
+
+void test("a link to a folder, inside or outside, or to nothing, is found; a link to a file isn't", async (t) => {
   const root = realpathSync.native(
     mkdtempSync(path.join(tmpdir(), "temple-bar-links-")),
   );
@@ -24,37 +27,32 @@ void test("a link counts as inside by its target's real path, and one that doesn
   });
   const worktree = path.join(root, "wt");
   write(worktree, "packages/pkg/index.ts", "export const p = 1;\n");
+  write(root, "outside/keep.txt", "keep\n");
   mkdirSync(path.join(worktree, "node_modules"));
-  // Another name for the worktree's folder, outside it.
-  const alias = path.join(root, "alias");
-  realLink(worktree, alias, true);
-  realLink(
-    path.join(alias, "packages", "pkg"),
-    path.join(worktree, "node_modules", "pkg"),
-    true,
-  );
-  realLink(
-    path.join(alias, "missing"),
-    path.join(worktree, "node_modules", "gone"),
-    true,
-  );
+  const modules = (name: string) => path.join(worktree, "node_modules", name);
+  realLink(path.join(worktree, "packages", "pkg"), modules("pkg"), true);
+  realLink(path.join(root, "outside"), modules("out"), true);
+  realLink(path.join(root, "missing"), modules("gone"), true);
+  realLink(path.join(worktree, "packages", "pkg", "index.ts"), modules("file"));
   const ctx = createFakeContext({ fs: createFsSeam() });
   const check = (ignored: string[]) =>
-    linksLeadingOutside(ctx, worktree, [worktree], {
+    junctionsAndDirectoryLinks(ctx, worktree, {
       tracked: [],
       untracked: [],
       ignored,
     });
 
-  assert.deepEqual(await check(["node_modules/pkg"]), []);
-  assert.deepEqual(await check(["node_modules/gone"]), [
-    `a link or junction leading outside it: ${JSON.stringify("node_modules/gone")}`,
-  ]);
+  for (const name of ["pkg", "out", "gone"]) {
+    assert.deepEqual(
+      await check([`node_modules/${name}`]),
+      [`${FOLLOWED}${JSON.stringify(`node_modules/${name}`)}`],
+      name,
+    );
+  }
+  assert.deepEqual(await check(["node_modules/file"]), []);
   // Listed itself and as a folder git lists through, it is named once.
   assert.deepEqual(
-    await check(["node_modules/gone", "node_modules/gone/through.txt"]),
-    [
-      `a link or junction leading outside it: ${JSON.stringify("node_modules/gone")}`,
-    ],
+    await check(["node_modules/out", "node_modules/out/keep.txt"]),
+    [`${FOLLOWED}${JSON.stringify("node_modules/out")}`],
   );
 });

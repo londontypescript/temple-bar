@@ -11,7 +11,7 @@ import type { Worktree } from "../merge/worktrees.ts";
 import {
   allPaths,
   bareRepositories,
-  linksLeadingOutside,
+  junctionsAndDirectoryLinks,
   mountedFolders,
   mountReasons,
   nestedRepositories,
@@ -209,7 +209,7 @@ export async function inspectContents(
     reasons.push(...walkReasons(walked));
     if (process.platform === "win32") {
       reasons.push(
-        ...(await linksLeadingOutside(ctx, worktree.path, insideOf, inventory)),
+        ...(await junctionsAndDirectoryLinks(ctx, worktree.path, inventory)),
       );
     }
     const untracked = inventory.untracked.filter(

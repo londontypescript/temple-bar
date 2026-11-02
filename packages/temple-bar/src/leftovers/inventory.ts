@@ -9,13 +9,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 
 import type { Context } from "../context.ts";
-import {
-  firstFew,
-  foldersOnTheWay,
-  isInside,
-  splitNul,
-  undecodable,
-} from "./paths.ts";
+import { firstFew, foldersOnTheWay, splitNul, undecodable } from "./paths.ts";
 
 export interface Inventory {
   readonly tracked: readonly string[];
@@ -210,43 +204,42 @@ export function mountReasons(
   ];
 }
 
-/** On Windows a volume mount point is the same kind of reparse point as a
- * junction, so lstat can't tell them apart. Any link or junction met, as a
- * listed entry or a folder on the way to one, whose target is outside the
- * worktree keeps it. pnpm's own junctions point inside node_modules or at
- * workspace packages, so they pass. A target is read by its real path, and
- * never entered. */
-export async function linksLeadingOutside(
+/** On Windows, Git for Windows' removal follows a junction or a directory
+ * link and deletes through it (git-for-windows/git#5320), so any link met,
+ * as a listed entry or a folder on the way to one, whose real target is a
+ * folder, or can't be resolved, keeps the worktree, wherever it points.
+ * A link to a file is removed as a link, so it passes. pnpm links every
+ * package with a junction, so its worktrees are kept until node_modules is
+ * gone. A volume mount point reads as a folder, and the device checks find
+ * it. A target is only looked at, never entered. */
+export async function junctionsAndDirectoryLinks(
   ctx: Context,
   root: string,
-  /** The worktree's folder as git lists it and as the disk resolves it. */
-  insideOf: readonly string[],
   inventory: Inventory,
 ): Promise<string[]> {
   // A junction can be both a listed entry and a folder git lists through.
   const entries = [...new Set([...folders(inventory), ...allPaths(inventory)])];
-  const outside = await inBatches(entries, async (entry) => {
+  const followed = await inBatches(entries, async (entry) => {
     const at = path.join(root, entry);
     try {
       if ((await ctx.fs.classify(at)) !== "symlink") {
         return undefined;
       }
-      // Where the target really is counts, not how it is written: a
-      // junction made from a Windows short name, or through any other name
-      // for the worktree's folder, still leads inside. One that doesn't
-      // resolve could lead anywhere, so it counts as outside.
       const real = await ctx.fs.realpath(at).catch(() => undefined);
-      return real !== undefined &&
-        insideOf.some((folder) => isInside(real, folder))
-        ? undefined
-        : entry;
+      const kind =
+        real === undefined
+          ? "unresolved"
+          : await ctx.fs.classify(real).catch(() => "unreadable");
+      return kind === "file" ? undefined : entry;
     } catch {
       return entry;
     }
   });
-  const found = outside.filter((entry) => entry !== undefined);
+  const found = followed.filter((entry) => entry !== undefined);
   return found.length > 0
-    ? [`a link or junction leading outside it: ${firstFew(found)}`]
+    ? [
+        `a junction or directory link inside it, which Git for Windows follows when removing (git-for-windows/git#5320): ${firstFew(found)}`,
+      ]
     : [];
 }
 

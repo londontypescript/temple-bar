@@ -4,7 +4,7 @@
 // another device; Windows' junctions are tested where they exist, in CI.
 
 import assert from "node:assert/strict";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
@@ -70,10 +70,13 @@ void test("guard: a folder whose device can't be read keeps it", async (t) => {
   );
 });
 
-// On Windows a volume mount point looks like a junction, and Git for
-// Windows lists paths through a junction leading outside, so its own
-// removal can't be trusted near one: such a junction keeps the worktree.
-// Whether git listed through it is recorded in the test log as evidence.
+/** The reason a junction or directory link keeps a worktree on Windows. */
+const FOLLOWED =
+  "a junction or directory link inside it, which Git for Windows follows when removing (git-for-windows/git#5320): ";
+
+// Git for Windows' removal follows a junction and deletes through it, so
+// any junction keeps the worktree there. Whether git also listed through
+// this one is recorded in the test log as evidence.
 void test(
   "guard: on Windows, a junction leading outside keeps it, though git lists through it",
   { skip: process.platform !== "win32" },
@@ -97,21 +100,20 @@ void test(
       w,
       repos.primary,
       x,
-      `a link or junction leading outside it: ${JSON.stringify("node_modules/out")}`,
+      `${FOLLOWED}${JSON.stringify("node_modules/out")}`,
     );
     assert.ok(existsSync(path.join(outside, "keep.txt")));
   },
 );
 
 void test(
-  "on Windows, a junction to a workspace package inside the worktree passes, and it is removed",
+  "guard: on Windows, a junction to a workspace package inside the worktree keeps it too",
   { skip: process.platform !== "win32" },
   async (t) => {
     const repos = makeRepos(t);
-    const x = addWorktree(repos, "x");
+    const x = addWorktree(repos, "x", { push: false });
     write(x.path, "packages/pkg/index.ts", "export const p = 1;\n");
     const head = commitAll(x.path, "feat: a package");
-    git(x.path, "push", "-q", "origin", x.branch);
     realLink(
       path.join(x.path, "packages", "pkg"),
       path.join(x.path, "node_modules", "pkg"),
@@ -119,17 +121,13 @@ void test(
     );
     const w = world(repos, () => [merged({ ...x, head }, 7)]);
     await release(w, x.path);
-    const removed = await w.leftovers(["--remove"], repos.primary);
-    // What git's removal leaves behind, for the test log: how it treats the
-    // junction shows in which entries survive.
-    if (existsSync(x.path)) {
-      const left = readdirSync(x.path, { recursive: true, encoding: "utf8" });
-      t.diagnostic(
-        `left after --remove (${String(left.length)} entries): ${JSON.stringify(left.slice(0, 20))}`,
-      );
-    }
-    assert.equal(removed.code, 0, removed.out + removed.err);
-    assert.equal(existsSync(x.path), false);
+    await assertKept(
+      w,
+      repos.primary,
+      x,
+      `${FOLLOWED}${JSON.stringify("node_modules/pkg")}`,
+    );
+    assert.ok(existsSync(path.join(x.path, "packages", "pkg", "index.ts")));
   },
 );
 
