@@ -79,6 +79,21 @@ export function gitHubRepositoryOf(url: string): string | undefined {
   return undefined;
 }
 
+/** The URL with its user-info hidden, since it can hold a token: whatever
+ * lies between `scheme://` and the last `@` before the next `/`, even in a
+ * URL that is otherwise malformed. An scp-like `user@host:path` names a
+ * user, not a secret, and is left as it is. */
+export function withoutCredentials(url: string): string {
+  const scheme = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.exec(url)?.[0];
+  if (scheme === undefined) {
+    return url;
+  }
+  const rest = url.slice(scheme.length);
+  const slash = rest.indexOf("/");
+  const at = (slash === -1 ? rest : rest.slice(0, slash)).lastIndexOf("@");
+  return at === -1 ? url : `${scheme}***@${rest.slice(at + 1)}`;
+}
+
 /** origin's fetch URLs and every push URL must all name `nameWithOwner`
  * on github.com: a push URL elsewhere would send the deletions there. */
 async function originProblems(
@@ -101,7 +116,7 @@ async function originProblems(
     for (const url of urls) {
       if (gitHubRepositoryOf(url) !== nameWithOwner.toLowerCase()) {
         problems.push(
-          `origin's ${what} ${url} doesn't name ${nameWithOwner} on github.com`,
+          `origin's ${what} ${withoutCredentials(url)} doesn't name ${nameWithOwner} on github.com`,
         );
       }
     }

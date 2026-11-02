@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { gitHubRepositoryOf } from "./repository.ts";
+import { gitHubRepositoryOf, withoutCredentials } from "./repository.ts";
 
 void test("github.com URLs in the forms git and gh write name their repository, in lower case", () => {
   for (const url of [
@@ -31,5 +31,26 @@ void test("anything else names no repository: another host, a local path, a look
     "",
   ]) {
     assert.equal(gitHubRepositoryOf(url), undefined, url);
+  }
+});
+
+void test("a URL's user-info is hidden, malformed or not; an scp-like user is left as it is", () => {
+  for (const [url, shown] of [
+    [
+      "https://x-access-token:SECRET@github.com/o/r.git",
+      "https://***@github.com/o/r.git",
+    ],
+    ["https://SECRET@github.com/o/r.git", "https://***@github.com/o/r.git"],
+    ["https://a@b:SECRET@example.com/o/r", "https://***@example.com/o/r"],
+    [
+      "ssh://git:SECRET@github.com:22/o/r.git",
+      "ssh://***@github.com:22/o/r.git",
+    ],
+    ["https://SECRET@host", "https://***@host"],
+    ["https://github.com/o/r@v1", "https://github.com/o/r@v1"],
+    ["git@github.com:o/r.git", "git@github.com:o/r.git"],
+    ["/srv/o/r.git", "/srv/o/r.git"],
+  ] as const) {
+    assert.equal(withoutCredentials(url), shown, url);
   }
 });
