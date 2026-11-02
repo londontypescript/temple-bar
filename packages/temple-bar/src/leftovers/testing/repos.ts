@@ -1,11 +1,12 @@
 // Real git repositories for `leftovers`' tests, with only GitHub faked: a
-// bare "origin", a primary clone, and worktrees on pushed branches. The bare
+// bare "origin", a primary clone, and worktrees on branches. The bare
 // repository stands in for github.com/o/r, so origin's URL reads as that
 // repository; everything else is real git. Every git call is recorded, so a
 // test can assert that nothing destructive ran.
 
 import { execFileSync } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -17,18 +18,20 @@ import path from "node:path";
 import type { TestContext } from "node:test";
 
 import type { Context } from "../../context.ts";
-import type { GhResult, GhSeam } from "../../seams/gh.ts";
 import { createFsSeam, type FsSeam } from "../../seams/fs.ts";
-import { createGitSeam, type GitSeam } from "../../seams/git.ts";
+import type { GhResult, GhSeam } from "../../seams/gh.ts";
 import {
-  createFakeHttp,
-  createFakeWriter,
-  type FakeWriter,
-} from "../../testing/fakes.ts";
+  createGitSeam,
+  type GitResult,
+  type GitSeam,
+} from "../../seams/git.ts";
+import { createFakeHttp, createFakeWriter } from "../../testing/fakes.ts";
 import { configureTestRepo } from "../../testing/git-repo.ts";
 import { leftoversCommandEntry } from "../command.ts";
 
 const GITHUB_URL = "https://github.com/o/r.git";
+export const RELEASED_REF = "refs/worktree/temple-bar/released";
+export const REMOVING_REF = "refs/worktree/temple-bar/removing";
 
 export function git(dir: string, ...args: string[]): string {
   return execFileSync("git", args, {
@@ -88,24 +91,50 @@ export interface Branch {
   readonly head: string;
 }
 
-/** A worktree on `feat/<name>` with one commit, pushed to origin. */
-export function addWorktree(repos: Repos, name: string): Branch {
-  const worktree = path.join(repos.root, name);
+/** A worktree on `feat/<name>` with one commit, pushed to origin unless
+ * `push` is false: a test about a kept worktree leaves origin without the
+ * branch, so the only deletion `--remove` could make is the one under test. */
+export function addWorktree(
+  repos: Repos,
+  name: string,
+  options: { readonly push?: boolean; readonly folder?: string } = {},
+): Branch {
+  const worktree = path.join(repos.root, options.folder ?? name);
   const branch = `feat/${name}`;
   git(repos.primary, "worktree", "add", "-q", "-b", branch, worktree);
-  write(
-    worktree,
-    `${name}.ts`,
-    `export const ${name.replace(/\W/g, "_")} = 1;\n`,
-  );
+  write(worktree, `${name}.ts`, "export const x = 1;\n");
+  const head = commitAll(worktree, `feat: ${name}`);
+  if (options.push !== false) {
+    git(worktree, "push", "-q", "-u", "origin", branch);
+  }
+  return { path: worktree, branch, head };
+}
+
+/** Commits everything in the worktree; returns the new head. */
+export function commitAll(worktree: string, message: string): string {
   git(worktree, "add", "-A");
-  git(worktree, "commit", "-q", "-m", `feat: ${name}`);
-  git(worktree, "push", "-q", "-u", "origin", branch);
-  return {
-    path: worktree,
-    branch,
-    head: gitLine(worktree, "rev-parse", "HEAD"),
-  };
+  git(worktree, "commit", "-q", "-m", message);
+  return gitLine(worktree, "rev-parse", "HEAD");
+}
+
+/** Writes a blob from text; returns its id. */
+export function blob(dir: string, text: string): string {
+  return execFileSync("git", ["hash-object", "-w", "--stdin"], {
+    cwd: dir,
+    encoding: "utf8",
+    input: text,
+  }).replace(/\n$/, "");
+}
+
+/** Rewrites the worktree's marker to name `head`, keeping its branch and
+ * files: the marker `--release` would write at that head, for a fixture
+ * whose state `--release` itself refuses. */
+export function moveMarker(worktree: string, head: string): void {
+  const marker = JSON.parse(
+    git(worktree, "cat-file", "blob", RELEASED_REF),
+  ) as Record<string, unknown>;
+  const moved = blob(worktree, `${JSON.stringify({ ...marker, head })}\n`);
+  git(worktree, "update-ref", RELEASED_REF, moved);
 }
 
 export interface FakePullRequest {
@@ -119,7 +148,7 @@ export interface FakePullRequest {
 
 /** The pull request GitHub lists for a branch merged into main. */
 export function merged(
-  branch: Branch,
+  branch: Pick<Branch, "branch" | "head">,
   number: number,
   overrides: Partial<FakePullRequest> = {},
 ): FakePullRequest {
@@ -167,27 +196,38 @@ export interface RecordedCall {
   readonly input: string | undefined;
 }
 
+/** Runs around each git call: `before` may act first (a racing session,
+ * say) or answer in git's place; `after` sees the result. */
+export interface GitHooks {
+  before?: (call: RecordedCall) => Promise<GitResult | undefined>;
+  after?: (call: RecordedCall, result: GitResult) => Promise<void>;
+}
+
 /** Real git, recording every call. origin's URL, the bare repository's
  * path, reads as github.com/o/r, which it stands in for. */
-function recordingGit(repos: Repos): GitSeam & {
-  readonly calls: RecordedCall[];
-} {
+function recordingGit(
+  origin: string,
+  hooks: GitHooks,
+): GitSeam & { readonly calls: RecordedCall[] } {
   const real = createGitSeam();
   const calls: RecordedCall[] = [];
   return {
     calls,
     async run(args, cwd, input) {
-      calls.push({ args, cwd, input });
-      const result = await real.run(args, cwd, input);
-      if (args[0] === "remote" && args[1] === "get-url") {
-        return {
-          ...result,
-          stdout: result.stdout
-            .split("\n")
-            .map((url) => (url === repos.origin ? GITHUB_URL : url))
-            .join("\n"),
-        };
+      const call = { args, cwd, input };
+      calls.push(call);
+      const answer = await hooks.before?.(call);
+      if (answer !== undefined) {
+        return answer;
       }
+      let result = await real.run(args, cwd, input);
+      if (args[0] === "remote" && args[1] === "get-url") {
+        const urls = result.stdout
+          .split("\n")
+          .map((url) => (url === origin ? GITHUB_URL : url));
+        result = { ...result, stdout: urls.join("\n") };
+      }
+      await hooks.after?.(call, result);
       return result;
     },
   };
@@ -222,6 +262,8 @@ interface Run {
 
 export interface World {
   readonly git: ReturnType<typeof recordingGit>;
+  /** A context on the same git and GitHub, for running other commands. */
+  context(cwd: string, env?: NodeJS.ProcessEnv, fs?: FsSeam): Context;
   /** Runs `temple-bar leftovers <args>` in `cwd`. */
   leftovers(
     args: readonly string[],
@@ -231,33 +273,81 @@ export interface World {
 }
 
 export function world(
-  repos: Repos,
+  repos: Pick<Repos, "origin">,
   pullRequests: () => readonly FakePullRequest[],
+  options: { readonly hooks?: GitHooks; readonly gh?: GhSeam } = {},
 ): World {
-  const recording = recordingGit(repos);
+  const recording = recordingGit(repos.origin, options.hooks ?? {});
+  const gh = options.gh ?? fakeGh(pullRequests);
+  const context = (
+    cwd: string,
+    env: NodeJS.ProcessEnv = {},
+    fs: FsSeam = createFsSeam(),
+  ): Context => ({
+    git: recording,
+    gh,
+    fs,
+    clock: { now: () => new Date() },
+    prompt: {
+      isInteractive: () => false,
+      confirm: () => Promise.resolve("no-terminal"),
+    },
+    proc: { run: () => Promise.resolve(0) },
+    http: createFakeHttp(),
+    stdout: createFakeWriter(),
+    stderr: createFakeWriter(),
+    cwd,
+    env,
+  });
   return {
     git: recording,
-    async leftovers(args, cwd, options = {}) {
-      const stdout: FakeWriter = createFakeWriter();
-      const stderr: FakeWriter = createFakeWriter();
+    context,
+    async leftovers(args, cwd, runOptions = {}) {
+      const stdout = createFakeWriter();
+      const stderr = createFakeWriter();
       const ctx: Context = {
-        git: recording,
-        gh: fakeGh(pullRequests),
-        fs: options.fs ?? createFsSeam(),
-        clock: { now: () => new Date() },
-        prompt: {
-          isInteractive: () => false,
-          confirm: () => Promise.resolve("no-terminal"),
-        },
-        proc: { run: () => Promise.resolve(0) },
-        http: createFakeHttp(),
+        ...context(cwd, runOptions.env, runOptions.fs),
         stdout,
         stderr,
-        cwd,
-        env: options.env ?? {},
       };
       const code = await leftoversCommandEntry.run(args, ctx);
       return { code, out: stdout.lines.join(""), err: stderr.lines.join("") };
     },
   };
+}
+
+/** Releases the worktree, failing the test if `--release` refuses. */
+export async function release(w: World, worktree: string): Promise<void> {
+  const run = await w.leftovers(["--release"], worktree);
+  if (run.code !== 0) {
+    throw new Error(`--release refused: ${run.err}`);
+  }
+}
+
+/** Runs `--remove` and asserts the worktree is kept for exactly `reason`
+ * (one reason, no other), still exists, and that no git call anywhere in
+ * this world deleted a worktree, a branch or origin's branch. */
+export async function assertKept(
+  w: World,
+  from: string,
+  worktree: Pick<Branch, "path" | "branch">,
+  reason: string,
+  options: { env?: NodeJS.ProcessEnv; fs?: FsSeam } = {},
+): Promise<void> {
+  const run = await w.leftovers(["--remove"], from, options);
+  const line = `leftovers: kept the worktree at ${worktree.path} (${worktree.branch}): ${reason}\n`;
+  if (!run.err.includes(line)) {
+    throw new Error(
+      `expected the line\n  ${JSON.stringify(line)}\nbut --remove said:\n${run.out}${run.err}`,
+    );
+  }
+  if (run.code !== 1 || !existsSync(worktree.path)) {
+    throw new Error(
+      `--remove exited ${String(run.code)}; the worktree ${existsSync(worktree.path) ? "stayed" : "went"}`,
+    );
+  }
+  const deleted = destructive(w.git.calls);
+  if (deleted.length > 0) {
+    throw new Error(`destructive git calls ran: ${deleted.join(" | ")}`);
+  }
 }

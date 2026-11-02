@@ -236,7 +236,11 @@ export async function checksums(
 ): Promise<Map<string, string> | string> {
   const files = new Map<string, string>();
   const toHash: string[] = [];
-  for (const entry of ignored.filter(watched)) {
+  // A nested repository ("x/") is never certified: it keeps the worktree
+  // on its own, wherever it is.
+  for (const entry of ignored.filter(
+    (entry) => watched(entry) && !entry.endsWith("/"),
+  )) {
     const at = path.join(worktree, entry);
     const kind = await ctx.fs.classify(at).catch(() => "unreadable");
     if (kind === "file") {

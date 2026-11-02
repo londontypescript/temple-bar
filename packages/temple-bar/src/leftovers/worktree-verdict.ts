@@ -85,9 +85,8 @@ async function markerProblems(
       `HEAD moved since it was released (from ${marker.head} to ${at ?? "unknown"})`,
     );
   }
-  if (contents.inventory === undefined) {
-    problems.push("its ignored files can't be compared with its release");
-  } else {
+  // Without git's lists the worktree is already kept for that reason.
+  if (contents.inventory !== undefined) {
     const files = await checksums(ctx, worktree, contents.inventory.ignored);
     if (typeof files === "string") {
       problems.push(
