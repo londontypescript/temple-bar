@@ -103,19 +103,24 @@ async function removeWorktree(
 async function removeLocalBranches(
   ctx: Context,
   found: Classification,
+  /** Branches whose worktree this run meant to remove but kept. */
+  keptWith: ReadonlyMap<string, string>,
 ): Promise<Outcome[]> {
   const outcomes: Outcome[] = [];
   const cwd = found.repo.primary.path;
   for (const item of found.localBranches) {
     const label = `the local branch ${item.name}`;
-    if (!item.verdict.remove) {
+    const ref = `refs/heads/${item.name}`;
+    // A failed removal can leave the folder after git has stopped listing
+    // it, so the re-list alone can't be trusted to keep the branch.
+    const keptAt = keptWith.get(ref);
+    if (!item.verdict.remove || keptAt !== undefined) {
       outcomes.push({
-        line: `kept ${label}: ${reasonsOf(item.verdict)}`,
+        line: `kept ${label}: ${keptAt === undefined ? reasonsOf(item.verdict) : `its worktree at ${keptAt} was kept`}`,
         ok: false,
       });
       continue;
     }
-    const ref = `refs/heads/${item.name}`;
     const worktrees = await listWorktrees(ctx, cwd).catch(() => undefined);
     const holder = worktrees?.find((worktree) => worktree.branchRef === ref);
     if (worktrees === undefined || holder !== undefined) {
@@ -193,17 +198,20 @@ export async function removeLeftovers(
     await readRepo(ctx, ctx.cwd, { remote: true }),
   );
   const outcomes: Outcome[] = [];
+  const keptWith = new Map<string, string>();
   for (const item of found.worktrees) {
-    outcomes.push(
-      item.verdict.remove
-        ? await removeWorktree(ctx, found.repo, item)
-        : {
-            line: `kept the worktree at ${item.worktree.path} (${item.worktree.branch ?? "detached"}): ${reasonsOf(item.verdict)}`,
-            ok: false,
-          },
-    );
+    const outcome = item.verdict.remove
+      ? await removeWorktree(ctx, found.repo, item)
+      : {
+          line: `kept the worktree at ${item.worktree.path} (${item.worktree.branch ?? "detached"}): ${reasonsOf(item.verdict)}`,
+          ok: false,
+        };
+    if (!outcome.ok && item.worktree.branchRef !== undefined) {
+      keptWith.set(item.worktree.branchRef, item.worktree.path);
+    }
+    outcomes.push(outcome);
   }
-  outcomes.push(...(await removeLocalBranches(ctx, found)));
+  outcomes.push(...(await removeLocalBranches(ctx, found, keptWith)));
   outcomes.push(...(await removeRemoteBranches(ctx, found)));
   for (const { line, ok } of outcomes) {
     (ok ? ctx.stdout : ctx.stderr).write(`${prefix}${line}\n`);

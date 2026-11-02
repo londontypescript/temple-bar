@@ -165,8 +165,10 @@ export async function mountedFolders(
   const mounted = checked
     .filter(({ device }) => typeof device === "bigint" && device !== own)
     .map(({ folder }) => folder);
+  // A folder that doesn't exist (a deleted file's) holds nothing, mounted
+  // or not; one that can't be looked at might hold anything.
   const unknown = checked
-    .filter(({ device }) => typeof device !== "bigint")
+    .filter(({ device }) => device === "unreadable")
     .map(({ folder }) => folder);
   return [
     ...(mounted.length > 0

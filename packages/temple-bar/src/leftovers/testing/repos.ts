@@ -325,20 +325,28 @@ export async function release(w: World, worktree: string): Promise<void> {
 }
 
 /** Runs `--remove` and asserts the worktree is kept for exactly `reason`
- * (one reason, no other), still exists, and that no git call anywhere in
- * this world deleted a worktree, a branch or origin's branch. */
+ * (the whole of its reasons: a string is compared exactly, a pattern must
+ * match all of it), still exists, and that no git call anywhere in this
+ * world deleted a worktree, a branch or origin's branch. */
 export async function assertKept(
   w: World,
   from: string,
   worktree: Pick<Branch, "path" | "branch">,
-  reason: string,
+  reason: string | RegExp,
   options: { env?: NodeJS.ProcessEnv; fs?: FsSeam } = {},
 ): Promise<void> {
   const run = await w.leftovers(["--remove"], from, options);
-  const line = `leftovers: kept the worktree at ${worktree.path} (${worktree.branch}): ${reason}\n`;
-  if (!run.err.includes(line)) {
+  const prefix = `leftovers: kept the worktree at ${worktree.path} (${worktree.branch}): `;
+  const said = run.err
+    .split("\n")
+    .find((line) => line.startsWith(prefix))
+    ?.slice(prefix.length);
+  const matches =
+    said !== undefined &&
+    (typeof reason === "string" ? said === reason : reason.test(said));
+  if (!matches) {
     throw new Error(
-      `expected the line\n  ${JSON.stringify(line)}\nbut --remove said:\n${run.out}${run.err}`,
+      `expected ${JSON.stringify(prefix)} with the reason ${String(reason)}\nbut --remove said:\n${run.out}${run.err}`,
     );
   }
   if (run.code !== 1 || !existsSync(worktree.path)) {
@@ -350,4 +358,26 @@ export async function assertKept(
   if (deleted.length > 0) {
     throw new Error(`destructive git calls ran: ${deleted.join(" | ")}`);
   }
+}
+
+/** A released worktree on a merged, unpushed branch. */
+export async function releasedWorktree(t: Pick<TestContext, "after">): Promise<{
+  repos: Repos;
+  x: Branch;
+  w: World;
+  merge: (head: string) => void;
+}> {
+  const repos = makeRepos(t);
+  const x = addWorktree(repos, "x", { push: false });
+  let head = x.head;
+  const w = world(repos, () => [merged({ ...x, head }, 7)]);
+  await release(w, x.path);
+  return {
+    repos,
+    x,
+    w,
+    merge: (at) => {
+      head = at;
+    },
+  };
 }
