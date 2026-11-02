@@ -53,7 +53,8 @@ function repoWithCommit(t: { after: (fn: () => void) => void }): {
   root: string;
   repo: string;
 } {
-  const root = realpathSync(
+  // The long form git gives: realpathSync keeps a Windows 8.3 short name.
+  const root = realpathSync.native(
     mkdtempSync(path.join(tmpdir(), "temple-bar-worktrees-")),
   );
   t.after(() => {

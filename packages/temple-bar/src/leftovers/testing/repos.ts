@@ -72,9 +72,10 @@ const GITIGNORE =
   "node_modules/\ndist/\ncoverage/\n.temple-bar/\n.env\n.tool/settings.local.json\n";
 
 /** origin with main, and a primary clone of it. Real paths throughout, so
- * `/var` and `/private/var` never differ. */
+ * `/var` and `/private/var` never differ, and in the long form git and the
+ * fs seam give (`realpathSync` keeps a Windows 8.3 short name). */
 export function makeRepos(t: Pick<TestContext, "after">): Repos {
-  const root = realpathSync(
+  const root = realpathSync.native(
     mkdtempSync(path.join(tmpdir(), "temple-bar-leftovers-")),
   );
   t.after(() => {

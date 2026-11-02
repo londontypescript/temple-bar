@@ -87,7 +87,7 @@ void test("a commit made in the worktree after its release, merged the same way,
   await assertKept(
     world({ origin: setup.origin }, () => [], { gh }),
     setup.clone,
-    { path: realpathSync(setup.worktree), branch: "feat/x" },
+    { path: realpathSync.native(setup.worktree), branch: "feat/x" },
     `HEAD moved since it was released (from ${setup.pushedTip} to ${tip})`,
   );
 });
@@ -135,7 +135,7 @@ void test("a session's own merge commit, made just before merge's, is never carr
   await assertKept(
     world({ origin: setup.origin }, () => [], { gh }),
     setup.clone,
-    { path: realpathSync(setup.worktree), branch: "feat/x" },
+    { path: realpathSync.native(setup.worktree), branch: "feat/x" },
     `HEAD moved since it was released (from ${setup.pushedTip} to ${tip})`,
   );
 });
@@ -221,7 +221,7 @@ void test("a session's amend right after merge's own merge, with a tracked chang
   await assertKept(
     world({ origin: setup.origin }, () => [], { gh }),
     setup.clone,
-    { path: realpathSync(setup.worktree), branch: "feat/x" },
+    { path: realpathSync.native(setup.worktree), branch: "feat/x" },
     `HEAD moved since it was released (from ${setup.pushedTip} to ${tip})`,
   );
 });
