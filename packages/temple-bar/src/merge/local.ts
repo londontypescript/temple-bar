@@ -127,6 +127,10 @@ export async function bringUpToDate(
     `refs/heads/${branch}`,
     worktree.path,
   );
+  // git sets ORIG_HEAD to the commit a merge starts from, even when the
+  // merge has nothing to do, so it tells this merge's commit from one a
+  // session made in the moment before it.
+  const startedFrom = await resolveCommit(ctx, "ORIG_HEAD", worktree.path);
   await beforePush(
     mergedTip ?? refuse(`could not read ${branch} after merging ${upstream}`),
   );
@@ -144,12 +148,20 @@ export async function bringUpToDate(
   if (tip === undefined) {
     refuse(`could not read ${branch} after the push`);
   }
-  if (before !== undefined) {
+  // Only a commit this merge made is carried: one made from `before`, still
+  // the tip after the push. carryReleaseForward checks the rest.
+  if (
+    before !== undefined &&
+    mergedTip !== undefined &&
+    mergedTip !== before &&
+    startedFrom === before &&
+    tip === mergedTip
+  ) {
     const moved = await carryReleaseForward(
       ctx,
       worktree.path,
       before,
-      tip,
+      mergedTip,
     ).catch(() => undefined);
     if (moved !== undefined) {
       ctx.stdout.write(`merge: ${moved}\n`);
