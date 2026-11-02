@@ -231,3 +231,34 @@ void test("after the claim, the whole check runs again: an ignored file written 
   assert.equal(git(x.path, "for-each-ref", "refs/worktree/"), "");
   assert.deepEqual(destructive(w.git.calls), []);
 });
+
+void test("race: a removal claiming the worktree while --release runs wins, and the release isn't written", async (t) => {
+  const repos = makeRepos(t);
+  const x = addWorktree(repos, "x", { push: false });
+  const w = world(repos, () => [merged(x, 7)], {
+    hooks: {
+      // Right before the release's own transaction, a claim lands.
+      before: ({ args, input }) => {
+        if (
+          args[0] === "update-ref" &&
+          (input ?? "").includes(`create ${RELEASED_REF}`)
+        ) {
+          git(
+            x.path,
+            "update-ref",
+            REMOVING_REF,
+            gitLine(x.path, "hash-object", "-w", "README.md"),
+          );
+        }
+        return Promise.resolve(undefined);
+      },
+    },
+  });
+  const run = await w.leftovers(["--release"], x.path);
+  assert.equal(run.code, 1);
+  assert.equal(
+    run.err,
+    "leftovers: this worktree is being removed; don't work in it\n",
+  );
+  assert.equal(git(x.path, "for-each-ref", RELEASED_REF), "");
+});
