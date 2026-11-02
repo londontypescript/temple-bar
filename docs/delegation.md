@@ -16,7 +16,8 @@ delegating. temple-bar's setup wrote this file.
   `pnpm exec temple-bar leftovers --release` in your worktree. Releasing
   deletes all ignored local data in the worktree, `.temple-bar/` included,
   once its pull request merges: make sure everything worth keeping is on
-  GitHub first.
+  GitHub first. On Windows, `--release` refuses a pnpm worktree while its
+  `node_modules` exists, and says why.
 - **The review bar:** the orchestrator reads every line of a subagent's
   change, lists what it must defend against, and checks each item.
   Rerunning the checks is not a review.

@@ -108,8 +108,9 @@ request left behind, and only worktrees their session has released.**
   ([git-for-windows/git#5320](https://github.com/git-for-windows/git/issues/5320));
   worktree removal has no such fix. A pnpm worktree on Windows, where pnpm
   links every package with a junction, is therefore kept until its
-  node_modules is gone. One mount can't be seen: a bind mount of a folder
-  on the same device.
+  node_modules is gone, and `--release` refuses one while its node_modules
+  exists, saying why. One mount can't be seen: a bind mount of a folder on
+  the same device.
 - On git older than 2.36, which can't list a worktree path containing a
   newline unambiguously, such a worktree stops the command rather than being
   guessed at.
