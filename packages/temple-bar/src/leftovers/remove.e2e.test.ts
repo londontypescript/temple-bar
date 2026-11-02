@@ -37,7 +37,7 @@ void test("a released worktree on a merged branch goes with its branches and ign
   write(x.path, "dist/out.js", "built\n");
   write(x.path, ".temple-bar/notes.md", "secret notes\n");
   write(x.path, ".env", "TOKEN=abc\n");
-  write(x.path, ".claude/settings.local.json", "{}\n");
+  write(x.path, ".tool/settings.local.json", "{}\n");
   const w = world(repos, () => [merged(x, 7)]);
 
   const released = await w.leftovers(["--release"], x.path);
@@ -45,7 +45,7 @@ void test("a released worktree on a merged branch goes with its branches and ign
   for (const file of [
     ".env",
     ".temple-bar/notes.md",
-    ".claude/settings.local.json",
+    ".tool/settings.local.json",
   ]) {
     assert.ok(released.out.includes(`"${file}"`), released.out);
   }

@@ -27,7 +27,7 @@ export function undecodable(text: string): boolean {
 
 /** How two paths are compared: one separator, no trailing one, and case
  * folded where the file system folds it by default (Windows and macOS). */
-export function pathKey(
+function pathKey(
   entry: string,
   platform: NodeJS.Platform = process.platform,
 ): string {

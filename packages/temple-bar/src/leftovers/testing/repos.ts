@@ -66,10 +66,10 @@ export interface Repos {
   readonly primary: string;
 }
 
-/** What a project's .gitignore usually holds, a harness's local settings
+/** What a project's .gitignore usually holds, a tool's local settings
  * file included. */
 const GITIGNORE =
-  "node_modules/\ndist/\ncoverage/\n.temple-bar/\n.env\n.claude/settings.local.json\n";
+  "node_modules/\ndist/\ncoverage/\n.temple-bar/\n.env\n.tool/settings.local.json\n";
 
 /** origin with main, and a primary clone of it. Real paths throughout, so
  * `/var` and `/private/var` never differ. */

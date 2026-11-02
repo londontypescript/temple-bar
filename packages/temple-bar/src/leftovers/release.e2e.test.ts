@@ -29,7 +29,7 @@ void test("--release works from the session's own folder in a worktree another t
     "held by tool pid 42",
     x.path,
   );
-  write(x.path, ".claude/settings.local.json", "{}\n");
+  write(x.path, ".tool/settings.local.json", "{}\n");
   const w = world(repos, () => []);
   const run = await w.leftovers(["--release"], x.path, {
     env: { PWD: x.path, INIT_CWD: x.path },
@@ -37,7 +37,7 @@ void test("--release works from the session's own folder in a worktree another t
   assert.equal(run.code, 0, run.err);
   assert.match(run.out, /released .*x on feat\/x at [0-9a-f]{40}/);
   assert.ok(
-    run.out.includes(`  ${JSON.stringify(".claude/settings.local.json")}\n`),
+    run.out.includes(`  ${JSON.stringify(".tool/settings.local.json")}\n`),
   );
 });
 
