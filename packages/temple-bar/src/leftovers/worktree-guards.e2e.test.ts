@@ -3,7 +3,7 @@
 // and the worktree is kept for exactly that reason with nothing deleted.
 
 import assert from "node:assert/strict";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
@@ -91,9 +91,14 @@ void test("guard: a listed worktree that is another repository's is kept", async
     world({ origin: repos.origin }, () => []),
     twin,
   );
+  // Overwritten in place: Git for Windows marks `.git` hidden, and Windows
+  // refuses to recreate a hidden file.
+  const dotGit = path.join(x.path, ".git");
+  truncateSync(dotGit, 0);
   writeFileSync(
-    path.join(x.path, ".git"),
+    dotGit,
     `gitdir: ${path.join(other, ".git", "worktrees", "twin")}\n`,
+    { flag: "r+" },
   );
   await assertKept(
     w,
