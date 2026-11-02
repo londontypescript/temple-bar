@@ -148,19 +148,27 @@ function folders(inventory: Inventory): string[] {
   return [...all];
 }
 
+export interface Mounts {
+  /** The worktree's own folder's device couldn't be read. */
+  readonly ownUnreadable: boolean;
+  /** Folders on another device than the worktree's own. */
+  readonly mounted: readonly string[];
+  /** Folders whose device couldn't be read: anything could be there. */
+  readonly unknown: readonly string[];
+}
+
 /** A folder on another filesystem has another device number; removing
  * the worktree would delete what is mounted there. Each folder on the way
- * to each listed path is compared with the worktree's own folder. A mount
- * holding only empty folders lists no path, so it can't be seen (ADR 0022
- * names that limit). */
+ * to each listed path is compared with the worktree's own folder; the walk
+ * for `.git` entries finds mounts git lists nothing through. */
 export async function mountedFolders(
   ctx: Context,
   worktree: string,
   inventory: Inventory,
-): Promise<string[]> {
+): Promise<Mounts> {
   const own = await ctx.fs.deviceId(worktree).catch(() => undefined);
   if (own === undefined) {
-    return ["its folder's device can't be read"];
+    return { ownUnreadable: true, mounted: [], unknown: [] };
   }
   const checked = await inBatches(folders(inventory), async (folder) => ({
     folder,
@@ -168,20 +176,36 @@ export async function mountedFolders(
       .deviceId(path.join(worktree, folder))
       .catch(() => "unreadable" as const),
   }));
-  const mounted = checked
-    .filter(({ device }) => typeof device === "bigint" && device !== own)
-    .map(({ folder }) => folder);
-  // A folder that doesn't exist (a deleted file's) holds nothing, mounted
-  // or not; one that can't be looked at might hold anything.
-  const unknown = checked
-    .filter(({ device }) => device === "unreadable")
-    .map(({ folder }) => folder);
+  return {
+    ownUnreadable: false,
+    mounted: checked
+      .filter(({ device }) => typeof device === "bigint" && device !== own)
+      .map(({ folder }) => folder),
+    // A folder that doesn't exist (a deleted file's) holds nothing, mounted
+    // or not; one that can't be looked at might hold anything.
+    unknown: checked
+      .filter(({ device }) => device === "unreadable")
+      .map(({ folder }) => folder),
+  };
+}
+
+/** One reason per kind, the mounts found by both lists merged. */
+export function mountReasons(
+  mounts: Mounts,
+  alsoMounted: readonly string[],
+): string[] {
+  if (mounts.ownUnreadable) {
+    return ["its folder's device can't be read"];
+  }
+  const mounted = [...new Set([...mounts.mounted, ...alsoMounted])].sort();
   return [
     ...(mounted.length > 0
       ? [`a mounted folder inside it: ${firstFew(mounted)}`]
       : []),
-    ...(unknown.length > 0
-      ? [`can't tell whether these are mounted folders: ${firstFew(unknown)}`]
+    ...(mounts.unknown.length > 0
+      ? [
+          `can't tell whether these are mounted folders: ${firstFew(mounts.unknown)}`,
+        ]
       : []),
   ];
 }

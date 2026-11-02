@@ -130,10 +130,11 @@ void test("guard: a folder the walk can't read keeps it", async (t) => {
   );
 });
 
-void test("the walk doesn't enter a folder on another device: the mount check speaks for it", async (t) => {
+void test("guard: a mount git lists nothing through (it holds only a hidden repository) keeps it, and the walk doesn't enter it", async (t) => {
   const { repos, x, w } = await released(t);
-  write(x.path, "node_modules/mnt/data.bin", "x\n");
-  write(x.path, "node_modules/mnt/inner/.git/HEAD", "ref: refs/heads/main\n");
+  const plain = path.join(x.path, "node_modules", "mnt", "cache", ".git");
+  mkdirSync(plain, { recursive: true });
+  git(repos.root, "init", "-q", "--bare", path.join(plain, "backup.git"));
   const real = createFsSeam();
   const mnt = path.join(x.path, "node_modules", "mnt");
   await assertKept(

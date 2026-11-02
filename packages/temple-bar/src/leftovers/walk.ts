@@ -4,7 +4,8 @@
 // repository kept inside a plain `.git` folder, or a note written into one
 // is invisible to every list git gives, yet removing the worktree would
 // delete it. The walk never follows a link, and doesn't enter a folder on
-// another device: the mount check keeps the worktree for that.
+// another device, but reports it as a mounted folder: git lists nothing
+// through a mount that holds only what git can't see.
 
 import path from "node:path";
 
@@ -14,10 +15,12 @@ import { firstFew, undecodable } from "./paths.ts";
 /** Folders read at once, so a large node_modules doesn't take long. */
 const PARALLEL = 64;
 
-interface Found {
+export interface Found {
   readonly gitEntries: string[];
   /** Folders the walk couldn't read or look at: anything could be there. */
   readonly unread: string[];
+  /** Folders on another device, which the walk doesn't enter. */
+  readonly mounted: string[];
 }
 
 /** Reads one folder; resolves the subfolders to walk next. */
@@ -54,20 +57,19 @@ async function visit(
         found.unread.push(child);
       } else if (device === own) {
         next.push(child);
+      } else {
+        found.mounted.push(child);
       }
     }
   }
   return next;
 }
 
-/** Why the walk keeps the worktree: a `.git` entry anywhere in it but its
- * own, or a folder it couldn't read. */
-export async function gitEntriesInside(
-  ctx: Context,
-  root: string,
-): Promise<string[]> {
+/** Walks the worktree: every `.git` entry in it but its own, every folder
+ * it couldn't read, and every mounted folder it met. */
+export async function walkWorktree(ctx: Context, root: string): Promise<Found> {
   const own = await ctx.fs.deviceId(root).catch(() => undefined);
-  const found: Found = { gitEntries: [], unread: [] };
+  const found: Found = { gitEntries: [], unread: [], mounted: [] };
   if (own === undefined) {
     found.unread.push(".");
   } else {
@@ -85,6 +87,12 @@ export async function gitEntriesInside(
       level = next;
     }
   }
+  return found;
+}
+
+/** Why the walk keeps the worktree, mounts aside (the mount reason merges
+ * them with the mount check's). */
+export function walkReasons(found: Found): string[] {
   return [
     ...(found.gitEntries.length > 0
       ? [

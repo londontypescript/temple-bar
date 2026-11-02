@@ -13,6 +13,7 @@ import {
   bareRepositories,
   linksLeadingOutside,
   mountedFolders,
+  mountReasons,
   nestedRepositories,
   readInventory,
   type Inventory,
@@ -26,7 +27,7 @@ import {
   undecodable,
   withoutNewline,
 } from "./paths.ts";
-import { gitEntriesInside } from "./walk.ts";
+import { walkReasons, walkWorktree } from "./walk.ts";
 
 /** Files git leaves in a worktree's own git folder while an operation is
  * under way; deleting the folder would lose the operation's state. */
@@ -196,8 +197,10 @@ export async function inspectContents(
     }
     reasons.push(...nestedRepositories(inventory));
     reasons.push(...(await bareRepositories(ctx, worktree.path, inventory)));
-    reasons.push(...(await mountedFolders(ctx, worktree.path, inventory)));
-    reasons.push(...(await gitEntriesInside(ctx, worktree.path)));
+    const mounts = await mountedFolders(ctx, worktree.path, inventory);
+    const walked = await walkWorktree(ctx, worktree.path);
+    reasons.push(...mountReasons(mounts, walked.mounted));
+    reasons.push(...walkReasons(walked));
     if (process.platform === "win32") {
       reasons.push(
         ...(await linksLeadingOutside(ctx, worktree.path, insideOf, inventory)),
