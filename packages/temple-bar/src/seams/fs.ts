@@ -7,6 +7,12 @@ import path from "node:path";
 
 type PathKind = "missing" | "file" | "directory" | "symlink" | "other";
 
+/** One entry of a folder, its kind read from the entry itself. */
+export interface DirEntry {
+  readonly name: string;
+  readonly kind: Exclude<PathKind, "missing">;
+}
+
 export interface FsSeam {
   /** Classifies the entry itself, never following links. Only ENOENT is missing. */
   classify(path: string): Promise<PathKind>;
@@ -16,6 +22,10 @@ export interface FsSeam {
    * Resolves undefined when the entry doesn't exist; rejects on any other
    * error, so a caller can't mistake "couldn't look" for "same device". */
   deviceId(path: string): Promise<bigint | undefined>;
+  /** The entries of a folder, each with its kind read from the entry
+   * itself: a link is a link, never its target's kind. Undefined when the
+   * folder doesn't exist; rejects on any other error. */
+  readdir(path: string): Promise<DirEntry[] | undefined>;
   /** The path with every symlink, `.` and `..` resolved, the way the
    * operating system names it (on Windows, long names, not 8.3 short ones).
    * Rejects when the path doesn't exist. */
@@ -66,6 +76,26 @@ export function createFsSeam(): FsSeam {
       try {
         // As a bigint: device numbers can be larger than a number holds exactly.
         return (await fsp.lstat(path, { bigint: true })).dev;
+      } catch (error) {
+        if (isErrnoException(error) && error.code === "ENOENT")
+          return undefined;
+        throw error;
+      }
+    },
+    async readdir(path) {
+      try {
+        // Dirent kinds come from the entry itself, as lstat would.
+        const entries = await fsp.readdir(path, { withFileTypes: true });
+        return entries.map((entry) => ({
+          name: entry.name,
+          kind: entry.isSymbolicLink()
+            ? "symlink"
+            : entry.isFile()
+              ? "file"
+              : entry.isDirectory()
+                ? "directory"
+                : "other",
+        }));
       } catch (error) {
         if (isErrnoException(error) && error.code === "ENOENT")
           return undefined;

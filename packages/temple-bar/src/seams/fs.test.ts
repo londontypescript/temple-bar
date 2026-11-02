@@ -201,3 +201,27 @@ void test("fs seam: deviceId reads the entry itself, never a link's target, and 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+void test("fs seam: readdir gives each entry's own kind, a link as a link, and undefined for a missing folder", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-fs-readdir-"));
+  try {
+    const fs = createFsSeam();
+    writeFileSync(path.join(dir, "file"), "bytes");
+    mkdirSync(path.join(dir, "folder"));
+    realLink(path.join(dir, "folder"), path.join(dir, "folder-link"), true);
+    const entries = await fs.readdir(dir);
+    assert.deepEqual(
+      entries?.sort((a, b) => a.name.localeCompare(b.name)),
+      [
+        { name: "file", kind: "file" },
+        { name: "folder", kind: "directory" },
+        { name: "folder-link", kind: "symlink" },
+      ],
+    );
+    assert.equal(await fs.readdir(path.join(dir, "missing")), undefined);
+    // A file read as a folder is an error, not a missing folder.
+    await assert.rejects(fs.readdir(path.join(dir, "file")));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

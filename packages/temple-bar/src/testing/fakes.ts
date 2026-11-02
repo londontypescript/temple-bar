@@ -220,6 +220,7 @@ export function createFakeFs(initial: Record<string, string> = {}): FakeFs {
         ? Promise.reject(new Error(`No stored link target for '${path}'`))
         : Promise.resolve(target);
     },
+    readdir: () => Promise.reject(new Error("readdir isn't faked")),
     // One disk: every entry that exists is on the same device.
     deviceId: (path) =>
       Promise.resolve(
