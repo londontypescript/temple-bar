@@ -23,6 +23,9 @@ import {
   write,
 } from "./testing/repos.ts";
 
+/** The walk's reason for a `.git` entry git's lists can't show. */
+const HIDES = "a .git entry inside it, which hides what is under it from git: ";
+
 /** `node_modules`, `dist` and `.temple-bar/`, several folders down. */
 const DEEP = ["node_modules/a/b/c", "dist/a/b/c", ".temple-bar/a/b/c"] as const;
 
@@ -54,7 +57,7 @@ for (const deep of DEEP) {
       w,
       repos.primary,
       x,
-      `a repository inside it: ${JSON.stringify(`${deep}/clone/`)}`,
+      `a repository inside it: ${JSON.stringify(`${deep}/clone/`)}; ${HIDES}${JSON.stringify(`${deep}/clone/.git`)}`,
     );
   });
 
@@ -66,7 +69,7 @@ for (const deep of DEEP) {
       w,
       repos.primary,
       x,
-      `another worktree is inside it: ${JSON.stringify(asGit(nested))}; a repository inside it: ${JSON.stringify(`${deep}/wt/`)}`,
+      `another worktree is inside it: ${JSON.stringify(asGit(nested))}; a repository inside it: ${JSON.stringify(`${deep}/wt/`)}; ${HIDES}${JSON.stringify(`${deep}/wt/.git`)}`,
     );
   });
 
@@ -123,7 +126,7 @@ void test(
       w,
       repos.primary,
       x,
-      `a path named .git inside it: ${JSON.stringify("node_modules/pkg/.GIT/keep")}`,
+      `a path named .git inside it: ${JSON.stringify("node_modules/pkg/.GIT/keep")}; ${HIDES}${JSON.stringify("node_modules/pkg/.GIT")}`,
     );
   },
 );

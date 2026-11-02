@@ -76,7 +76,10 @@ void test("--release refuses each thing that would keep the worktree at removal,
           path.join(x.path, "node_modules", "dep"),
         );
       },
-      `a repository inside it: ${JSON.stringify("node_modules/dep/")}`,
+      [
+        `a repository inside it: ${JSON.stringify("node_modules/dep/")}`,
+        `a .git entry inside it, which hides what is under it from git: ${JSON.stringify("node_modules/dep/.git")}`,
+      ],
     ],
     [
       "gitlink",

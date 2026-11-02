@@ -56,7 +56,8 @@ void test("guard: a folder whose device can't be read keeps it", async (t) => {
     w,
     repos.primary,
     x,
-    `can't tell whether these are mounted folders: ${JSON.stringify("node_modules/mnt")}`,
+    // The walk for .git entries can't look into it either.
+    `can't tell whether these are mounted folders: ${JSON.stringify("node_modules/mnt")}; folders that can't be walked: ${JSON.stringify("node_modules/mnt")}`,
     {
       fs: {
         ...real,
