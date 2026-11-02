@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 
 import { realLink } from "../init/testing/write-target-repo.ts";
 import { createFsSeam, type FsSeam } from "../seams/fs.ts";
@@ -75,8 +75,8 @@ const FOLLOWED =
   "a junction or directory link inside it, which Git for Windows walks into when it removes a worktree: ";
 
 // Git for Windows walks into a junction when it lists or removes a
-// worktree's files, so any junction keeps the worktree there. Whether git also listed through
-// this one is recorded in the test log as evidence.
+// worktree's files, so any junction keeps the worktree there. Whether git
+// also listed through this one is recorded in the test log as evidence.
 void test(
   "guard: on Windows, a junction leading outside keeps it, though git lists through it",
   { skip: process.platform !== "win32" },
@@ -106,21 +106,50 @@ void test(
   },
 );
 
-void test(
-  "guard: on Windows, a junction to a workspace package inside the worktree keeps it too",
-  { skip: process.platform !== "win32" },
-  async (t) => {
-    const repos = makeRepos(t);
-    const x = addWorktree(repos, "x", { push: false });
-    write(x.path, "packages/pkg/index.ts", "export const p = 1;\n");
-    const head = commitAll(x.path, "feat: a package");
+/** A worktree on a merged branch with a workspace package, committed, as
+ * pnpm's junctions point at. */
+function packageWorktree(t: Pick<TestContext, "after">) {
+  const repos = makeRepos(t);
+  const x = addWorktree(repos, "x", { push: false });
+  write(x.path, "packages/pkg/index.ts", "export const p = 1;\n");
+  const head = commitAll(x.path, "feat: a package");
+  const linkPackage = (): void => {
     realLink(
       path.join(x.path, "packages", "pkg"),
       path.join(x.path, "node_modules", "pkg"),
       true,
     );
+  };
+  return { repos, x, head, linkPackage };
+}
+
+// What removal would keep, the release refuses while the session can still
+// act: on Windows, a pnpm worktree can't be released while node_modules
+// holds its junctions.
+void test(
+  "guard: on Windows, --release refuses a worktree holding a junction to a workspace package, writing nothing",
+  { skip: process.platform !== "win32" },
+  async (t) => {
+    const { repos, x, linkPackage } = packageWorktree(t);
+    linkPackage();
+    const run = await world(repos, () => []).leftovers(["--release"], x.path);
+    assert.equal(run.code, 1);
+    assert.equal(
+      run.err,
+      `leftovers: not released, nothing written:\nleftovers:   ${FOLLOWED}${JSON.stringify("node_modules/pkg")}\n`,
+    );
+    assert.equal(git(x.path, "for-each-ref", "refs/worktree/"), "");
+  },
+);
+
+void test(
+  "guard: on Windows, a junction to a workspace package made after the release keeps it at --remove",
+  { skip: process.platform !== "win32" },
+  async (t) => {
+    const { repos, x, head, linkPackage } = packageWorktree(t);
     const w = world(repos, () => [merged({ ...x, head }, 7)]);
     await release(w, x.path);
+    linkPackage();
     await assertKept(
       w,
       repos.primary,
