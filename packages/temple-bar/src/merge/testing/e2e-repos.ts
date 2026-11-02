@@ -80,7 +80,7 @@ export function setUp(t: Pick<TestContext, "after">): Setup {
   return { origin, clone, worktree, pushedTip };
 }
 
-export function ok(stdout = ""): GhResult {
+function ok(stdout = ""): GhResult {
   return { code: 0, stdout, stderr: "", notFound: false };
 }
 

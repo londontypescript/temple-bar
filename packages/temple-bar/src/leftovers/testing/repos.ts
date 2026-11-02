@@ -25,13 +25,17 @@ import {
   type GitResult,
   type GitSeam,
 } from "../../seams/git.ts";
-import { createFakeHttp, createFakeWriter } from "../../testing/fakes.ts";
+import {
+  createFakeHttp,
+  createFakeWriter,
+  type FakeWriter,
+} from "../../testing/fakes.ts";
 import { configureTestRepo } from "../../testing/git-repo.ts";
 import { leftoversCommandEntry } from "../command.ts";
+import { RELEASED, REMOVING } from "../marker.ts";
 
 const GITHUB_URL = "https://github.com/o/r.git";
-export const RELEASED_REF = "refs/worktree/temple-bar/released";
-export const REMOVING_REF = "refs/worktree/temple-bar/removing";
+export { RELEASED as RELEASED_REF, REMOVING as REMOVING_REF };
 
 export function git(dir: string, ...args: string[]): string {
   return execFileSync("git", args, {
@@ -131,10 +135,10 @@ export function blob(dir: string, text: string): string {
  * whose state `--release` itself refuses. */
 export function moveMarker(worktree: string, head: string): void {
   const marker = JSON.parse(
-    git(worktree, "cat-file", "blob", RELEASED_REF),
+    git(worktree, "cat-file", "blob", RELEASED),
   ) as Record<string, unknown>;
   const moved = blob(worktree, `${JSON.stringify({ ...marker, head })}\n`);
-  git(worktree, "update-ref", RELEASED_REF, moved);
+  git(worktree, "update-ref", RELEASED, moved);
 }
 
 export interface FakePullRequest {
@@ -263,7 +267,11 @@ interface Run {
 export interface World {
   readonly git: ReturnType<typeof recordingGit>;
   /** A context on the same git and GitHub, for running other commands. */
-  context(cwd: string, env?: NodeJS.ProcessEnv, fs?: FsSeam): Context;
+  context(
+    cwd: string,
+    env?: NodeJS.ProcessEnv,
+    fs?: FsSeam,
+  ): Context & { readonly stdout: FakeWriter; readonly stderr: FakeWriter };
   /** Runs `temple-bar leftovers <args>` in `cwd`. */
   leftovers(
     args: readonly string[],
@@ -283,7 +291,10 @@ export function world(
     cwd: string,
     env: NodeJS.ProcessEnv = {},
     fs: FsSeam = createFsSeam(),
-  ): Context => ({
+  ): Context & {
+    readonly stdout: FakeWriter;
+    readonly stderr: FakeWriter;
+  } => ({
     git: recording,
     gh,
     fs,

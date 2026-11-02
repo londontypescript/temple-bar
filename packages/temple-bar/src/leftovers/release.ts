@@ -30,7 +30,11 @@ async function readLine(
 }
 
 /** The branch HEAD is on, when it is a real branch: not detached, and not
- * a symbolic ref standing in for another branch. */
+ * a symbolic ref standing in for another branch. `git symbolic-ref` follows
+ * a chain to its end (and git before 2.37 can't be told to stop), so the
+ * first step is read from the worktree's own HEAD file: it must name the
+ * branch itself. A HEAD git keeps elsewhere (another ref store) can't be
+ * read that way, and is refused rather than guessed at. */
 async function branchProblems(
   ctx: Context,
   worktree: string,
@@ -39,16 +43,33 @@ async function branchProblems(
   if (branch?.startsWith("refs/heads/") !== true) {
     return { branch: undefined, reasons: ["HEAD isn't on a branch"] };
   }
-  const local = (await readLocalRefs(ctx, worktree))?.get(branch);
-  if (local === undefined) {
-    return { branch, reasons: [`its branch ${branch} can't be read`] };
+  const headFile = await readLine(
+    ctx,
+    ["rev-parse", "--path-format=absolute", "--git-path", "HEAD"],
+    worktree,
+  );
+  const head =
+    headFile === undefined
+      ? undefined
+      : await ctx.fs.readText(headFile).catch(() => undefined);
+  if (head !== `ref: ${branch}\n`) {
+    const first =
+      head?.startsWith("ref: ") === true
+        ? head.slice(5).replace(/\n$/, "")
+        : undefined;
+    return {
+      branch,
+      reasons: [
+        first === undefined
+          ? "HEAD can't be read directly, so it may be an alias of its branch"
+          : `HEAD is on ${first}, a symbolic ref to ${branch}`,
+      ],
+    };
   }
-  return local.symref === ""
-    ? { branch, reasons: [] }
-    : {
-        branch,
-        reasons: [`HEAD is on ${branch}, a symbolic ref to ${local.symref}`],
-      };
+  const local = (await readLocalRefs(ctx, worktree))?.get(branch);
+  return local === undefined
+    ? { branch, reasons: [`its branch ${branch} can't be read`] }
+    : { branch, reasons: [] };
 }
 
 /** Writes the release marker for the worktree at `ctx.cwd`, or refuses
