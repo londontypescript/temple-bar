@@ -71,37 +71,37 @@ void test("guard: origin's push URL naming another repository: nothing counts as
     w,
     repos.primary,
     x,
-    "origin's push URL https://github.com/other/r.git doesn't name o/r on github.com",
+    "origin's push URL names other/r on github.com, not o/r",
   );
   assert.equal(gitLine(repos.origin, "rev-parse", x.branch), x.head);
 });
 
-void test("a token in a URL origin names is never printed", async (t) => {
+void test("a token in a URL origin names is never printed, in any of git's URL forms", async (t) => {
   const repos = makeRepos(t);
   const x = addWorktree(repos, "x", { push: false });
   const w = world(repos, () => [merged(x, 7)]);
   await release(w, x.path);
-  // A second fetch URL, which is also a push URL while none is set.
-  git(
-    repos.primary,
-    "remote",
-    "set-url",
-    "--add",
-    "origin",
+  // More fetch URLs, which are also push URLs while none is set.
+  for (const url of [
+    "https::https://x-access-token:SECRET@github.com/other/r.git",
     "https://x-access-token:SECRET@github.com/other/r.git",
-  );
+    "https://x-access-token:SECRET@github.com:/other r.git",
+  ]) {
+    git(repos.primary, "remote", "set-url", "--add", "origin", url);
+  }
   const report = await w.leftovers([], repos.primary);
   const removed = await w.leftovers(["--remove"], repos.primary);
   const said = [report.out, report.err, removed.out, removed.err].join("");
-  assert.match(
-    said,
-    /origin's push URL https:\/\/\*\*\*@github\.com\/other\/r\.git doesn't name o\/r on github\.com/,
-  );
-  assert.match(
-    said,
-    /origin's URL https:\/\/\*\*\*@github\.com\/other\/r\.git doesn't name/,
-  );
   assert.doesNotMatch(said, /SECRET|x-access-token/);
+  assert.match(
+    said,
+    /origin's push URL names other\/r on github\.com, not o\/r/,
+  );
+  assert.match(said, /origin's URL names other\/r on github\.com, not o\/r/);
+  assert.match(
+    said,
+    /origin's push URL isn't a github\.com repository URL temple-bar recognises \(see `git remote get-url --push --all origin`\)/,
+  );
   assert.deepEqual(destructive(w.git.calls), []);
 });
 

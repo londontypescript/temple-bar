@@ -79,21 +79,6 @@ export function gitHubRepositoryOf(url: string): string | undefined {
   return undefined;
 }
 
-/** The URL with its user-info hidden, since it can hold a token: whatever
- * lies between `scheme://` and the last `@` before the next `/`, even in a
- * URL that is otherwise malformed. An scp-like `user@host:path` names a
- * user, not a secret, and is left as it is. */
-export function withoutCredentials(url: string): string {
-  const scheme = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.exec(url)?.[0];
-  if (scheme === undefined) {
-    return url;
-  }
-  const rest = url.slice(scheme.length);
-  const slash = rest.indexOf("/");
-  const at = (slash === -1 ? rest : rest.slice(0, slash)).lastIndexOf("@");
-  return at === -1 ? url : `${scheme}***@${rest.slice(at + 1)}`;
-}
-
 /** origin's fetch URLs and every push URL must all name `nameWithOwner`
  * on github.com: a push URL elsewhere would send the deletions there. */
 async function originProblems(
@@ -113,10 +98,17 @@ async function originProblems(
       problems.push(`origin's ${what} couldn't be read`);
       continue;
     }
+    // A reason never quotes a URL: in any of git's forms it can carry a
+    // token, so it names only the repository it was read as.
     for (const url of urls) {
-      if (gitHubRepositoryOf(url) !== nameWithOwner.toLowerCase()) {
+      const named = gitHubRepositoryOf(url);
+      if (named === undefined) {
         problems.push(
-          `origin's ${what} ${withoutCredentials(url)} doesn't name ${nameWithOwner} on github.com`,
+          `origin's ${what} isn't a github.com repository URL temple-bar recognises (see \`git remote get-url ${push ? "--push " : ""}--all origin\`)`,
+        );
+      } else if (named !== nameWithOwner.toLowerCase()) {
+        problems.push(
+          `origin's ${what} names ${named} on github.com, not ${nameWithOwner}`,
         );
       }
     }
