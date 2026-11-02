@@ -50,4 +50,11 @@ void test("a link counts as inside by its target's real path, and one that doesn
   assert.deepEqual(await check(["node_modules/gone"]), [
     `a link or junction leading outside it: ${JSON.stringify("node_modules/gone")}`,
   ]);
+  // Listed itself and as a folder git lists through, it is named once.
+  assert.deepEqual(
+    await check(["node_modules/gone", "node_modules/gone/through.txt"]),
+    [
+      `a link or junction leading outside it: ${JSON.stringify("node_modules/gone")}`,
+    ],
+  );
 });

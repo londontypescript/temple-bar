@@ -223,7 +223,8 @@ export async function linksLeadingOutside(
   insideOf: readonly string[],
   inventory: Inventory,
 ): Promise<string[]> {
-  const entries = [...folders(inventory), ...allPaths(inventory)];
+  // A junction can be both a listed entry and a folder git lists through.
+  const entries = [...new Set([...folders(inventory), ...allPaths(inventory)])];
   const outside = await inBatches(entries, async (entry) => {
     const at = path.join(root, entry);
     try {
