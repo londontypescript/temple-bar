@@ -178,17 +178,28 @@ async function checkAgainstRecords(
     throw unreadable("git couldn't say where the repository's records are");
   }
   const folder = path.join(common.stdout.slice(0, -1), "worktrees");
-  // Dot-named records too: git names a record after the folder's name.
-  const found = await ctx.fs.glob(folder, "{*,.*}/gitdir").catch(() => {
+  // Every record folder, whatever its name: git names it after the
+  // worktree's folder, which can be `node_modules` or start with a dot.
+  const entries = await ctx.fs.readdir(folder).catch(() => {
     throw unreadable("git's worktree records couldn't be read");
   });
   const recorded: string[] = [];
-  for (const record of found) {
-    const text = await ctx.fs
-      .readText(path.join(folder, record))
-      .catch(() => undefined);
+  for (const entry of entries ?? []) {
+    if (entry.kind !== "directory") {
+      continue;
+    }
+    const record = path.join(folder, entry.name, "gitdir");
+    const kind = await ctx.fs.classify(record).catch(() => "unreadable");
+    // A record with no gitdir file isn't listed by git either.
+    if (kind === "missing") {
+      continue;
+    }
+    const text =
+      kind === "file"
+        ? await ctx.fs.readText(record).catch(() => undefined)
+        : undefined;
     if (text?.endsWith(RECORD_END) !== true) {
-      throw unreadable(`git's record ${record} isn't a worktree's path`);
+      throw unreadable(`git's record ${entry.name} isn't a worktree's path`);
     }
     recorded.push(text.slice(0, -RECORD_END.length));
   }

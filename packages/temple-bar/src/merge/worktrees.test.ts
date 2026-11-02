@@ -7,10 +7,12 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
+import type { DirEntry, FsSeam } from "../seams/fs.ts";
 import {
   createFakeContext,
   createFakeFs,
   createFakeGit,
+  type FakeFs,
 } from "../testing/fakes.ts";
 import {
   listWorktrees,
@@ -26,35 +28,77 @@ function read(name: string, file: string): string {
   return readFileSync(new URL(`${name}/${file}`, FIXTURES), "utf8");
 }
 
-/** A context whose git answers as git 2.34.1 did for the fixture `name`,
- * with git's `gitdir` records on its disk. */
-function oldGit(name: string) {
-  const commonDir = read(name, "common-dir.txt");
-  const fs = createFakeFs();
-  for (const id of readdirSync(new URL(`${name}/gitdir/`, FIXTURES))) {
-    fs.files.set(
+/** The fake disk, with a readdir over its stored files: a folder's
+ * entries are the first parts of the paths below it. */
+function withReaddir(fake: FakeFs): FsSeam {
+  return {
+    ...fake,
+    readdir(folder) {
+      const prefix = path.normalize(`${folder}/`);
+      const entries = new Map<string, DirEntry["kind"]>();
+      for (const file of fake.files.keys()) {
+        if (file.startsWith(prefix)) {
+          const [first = "", ...rest] = file
+            .slice(prefix.length)
+            .split(path.sep);
+          entries.set(first, rest.length > 0 ? "directory" : "file");
+        }
+      }
+      return Promise.resolve(
+        entries.size === 0
+          ? undefined
+          : [...entries].map(([name, kind]) => ({ name, kind })),
+      );
+    },
+  };
+}
+
+/** A git before 2.36 answering with `listing` in the newline format, and
+ * git's `gitdir` records, id to text, on its disk. */
+function oldGitWith(
+  listing: string,
+  commonDir: string,
+  records: readonly (readonly [string, string])[],
+  zExit = { code: 129, stdout: "", stderr: "error: unknown switch `z'\n" },
+) {
+  const fake = createFakeFs();
+  for (const [id, text] of records) {
+    fake.files.set(
       path.join(commonDir.slice(0, -1), "worktrees", id, "gitdir"),
-      read(name, `gitdir/${id}`),
+      text,
     );
   }
   const git = createFakeGit((args) => {
     const joined = args.join(" ");
     if (joined === "worktree list --porcelain -z") {
-      return {
-        code: Number(read(name, "z-exit.txt")),
-        stdout: read(name, "z-stdout.txt"),
-        stderr: read(name, "z-stderr.txt"),
-      };
+      return zExit;
     }
     if (joined === "worktree list --porcelain") {
-      return { code: 0, stdout: read(name, "porcelain.txt"), stderr: "" };
+      return { code: 0, stdout: listing, stderr: "" };
     }
     if (joined === "rev-parse --path-format=absolute --git-common-dir") {
       return { code: 0, stdout: commonDir, stderr: "" };
     }
     return { code: 1, stdout: "", stderr: "unexpected" };
   });
-  return { ctx: createFakeContext({ git, fs }), git };
+  return { ctx: createFakeContext({ git, fs: withReaddir(fake) }), git, fake };
+}
+
+/** A context whose git answers as git 2.34.1 did for the fixture `name`,
+ * with git's `gitdir` records on its disk. */
+function oldGit(name: string) {
+  return oldGitWith(
+    read(name, "porcelain.txt"),
+    read(name, "common-dir.txt"),
+    readdirSync(new URL(`${name}/gitdir/`, FIXTURES)).map(
+      (id) => [id, read(name, `gitdir/${id}`)] as const,
+    ),
+    {
+      code: Number(read(name, "z-exit.txt")),
+      stdout: read(name, "z-stdout.txt"),
+      stderr: read(name, "z-stderr.txt"),
+    },
+  );
 }
 
 function entry(worktreePath: string, fields: Partial<Worktree> = {}): Worktree {
@@ -184,4 +228,27 @@ void test("a git that fails to list worktrees for another reason is an error, no
     /could not list git worktrees: fatal: not a git repository/,
   );
   assert.equal(git.calls.length, 1);
+});
+
+void test("on old git, records named node_modules or starting with a dot are counted, and one with no gitdir isn't", async () => {
+  const common = "/w/repo/.git\n";
+  const block = (at: string, branch: string) =>
+    `worktree ${at}\nHEAD ${SHA}\nbranch refs/heads/${branch}\n\n`;
+  const { ctx, fake } = oldGitWith(
+    block("/w/repo", "main") +
+      block("/w/node_modules", "a") +
+      block("/w/.hidden", "b"),
+    common,
+    [
+      ["node_modules", "/w/node_modules/.git\n"],
+      [".hidden", "/w/.hidden/.git\n"],
+    ],
+  );
+  // A stale record folder: git lists no worktree from it.
+  fake.files.set(path.join("/w/repo/.git/worktrees/stale", "locked"), "");
+  const listed = await listWorktrees(ctx, "/w/repo");
+  assert.deepEqual(
+    listed.map((worktree) => worktree.path),
+    ["/w/repo", "/w/node_modules", "/w/.hidden"],
+  );
 });
