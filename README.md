@@ -6,7 +6,7 @@
 
 Agents drift. After a long session or a context reset, the agent that used branches all day commits straight to `main`, and an agent chasing a goal will bend a rule to reach it. Written instructions don't stop that, so temple-bar enforces the rules instead: git hooks refuse commits to `main`, a quality gate refuses changes that fail their checks, and GitHub only accepts changes through pull requests.
 
-The workflow is opinionated on purpose, and every [London TypeScript](https://github.com/londontypescript) repository runs on it. Any TypeScript project on GitHub using pnpm can adopt it as it is.
+The workflow is opinionated on purpose, and every [London TypeScript](https://github.com/londontypescript) repository runs on it. Any TypeScript project on GitHub using pnpm in a GitHub organisation can adopt it as it is.
 
 > **Pre-release.** Setup, the git hooks and the gate work today; more is on the way. Progress: [GitHub issues](https://github.com/londontypescript/temple-bar/issues).
 

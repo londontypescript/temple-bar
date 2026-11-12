@@ -75,10 +75,16 @@ list every distinct commit identity the push would publish (the history's
 authors, committers and co-authors, the configured identity, and any
 environment override), with a short code. `--create-repo` goes ahead only
 with `--identities <code>` matching the identities read at that moment,
-so a commit or setting changed after the user agreed stops it. Setup never
-rewrites history and states no preference for GitHub's noreply addresses.
-A public repository with no LICENSE gets a note, never a failure; the
-licence is the user's choice.
+so a commit or setting changed after the user agreed stops it. Setup makes
+that first push itself, not through `gh repo create --push`: it creates the
+repository, reads the identities once more, then pushes exactly the commit
+it read to its branch, never tags, and only when every push URL of `origin`
+is that repository. So a refusal to create and a failed push are told apart,
+and each is reported with its fix. A creation whose push didn't happen is
+finished by the same `--create-repo` command while GitHub lists no branches
+in the repository. Setup never rewrites history and states no preference
+for GitHub's noreply addresses. A public repository with no LICENSE gets a
+note, never a failure; the licence is the user's choice.
 
 ADR 0004's sentences about private repositories (CodeQL left off on one;
 decision 43's ruleset check) still describe the gate, but setup no longer
