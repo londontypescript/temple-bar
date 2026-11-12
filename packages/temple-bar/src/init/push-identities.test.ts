@@ -50,6 +50,27 @@ function annRepo(): string {
   return dir;
 }
 
+/** Gives HEAD a signature header. It needn't verify: with
+ * `log.showSignature` on, git prints a line for any signed commit into the
+ * same output, even "No signature" when it can't check one. */
+function signHead(dir: string): void {
+  const lines = git(dir, ["cat-file", "commit", "HEAD"]).split("\n");
+  const committer = lines.findIndex((line) => line.startsWith("committer "));
+  lines.splice(
+    committer + 1,
+    0,
+    "gpgsig -----BEGIN SSH SIGNATURE-----",
+    " U1NIU0lHAAAAAQ==",
+    " -----END SSH SIGNATURE-----",
+  );
+  const signed = execFileSync(
+    "git",
+    ["hash-object", "-t", "commit", "-w", "--stdin"],
+    { cwd: dir, encoding: "utf8", input: `${lines.join("\n")}\n` },
+  ).trim();
+  git(dir, ["update-ref", "refs/heads/main", signed]);
+}
+
 function contextIn(dir: string, env: NodeJS.ProcessEnv = {}): Context {
   const full = { ...process.env, ...env };
   return {
@@ -103,6 +124,7 @@ void test(
 void test(
   "git settings don't change the read: a mailmap, signatures shown, trailer separators, output encoding",
   withRepo(async (dir) => {
+    signHead(dir);
     const plain = await read(dir);
     writeFileSync(
       path.join(dir, ".mailmap"),

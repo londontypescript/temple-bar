@@ -42,22 +42,27 @@ function gitCalls(fixture: Fixture): string[] {
   ];
 }
 
-void test("a wrong call exits 2 before any git, gh or file access", async () => {
-  for (const args of [
-    ["--bogus"],
-    ["stray"],
-    ["--owner"],
-    ["--owner", "--create-repo"],
-    ["--owner="],
-    ["--owner", "acme", "--owner=acme"],
-    ["--owner", "acme/widgets"],
-    ["--owner", "two words"],
-    ["--owner", "-acme"],
-    ["--identities", "ABCDEF123456"],
-    ["--identities=12345"],
-    ["--create-repo"],
-    ["--create-repo", "--identities", "0123456789ab"],
-  ]) {
+void test("a wrong call exits 2 before any git, gh or file access, saying what is wrong", async () => {
+  const cases: [string[], RegExp][] = [
+    [["--bogus"], /unknown option: --bogus/],
+    [["stray"], /unexpected argument: stray/],
+    [["--owner"], /--owner needs a value/],
+    // A forgotten value, never an owner named "--create-repo".
+    [["--owner", "--create-repo"], /--owner needs a value/],
+    [["--owner="], /--owner needs a value/],
+    [["--owner", "-acme"], /--owner needs a value/],
+    [["--owner", "acme", "--owner=acme"], /--owner is given more than once/],
+    [["--owner", "acme/widgets"], /isn't a GitHub organisation's name/],
+    [["--owner", "two words"], /isn't a GitHub organisation's name/],
+    [["--identities", "ABCDEF123456"], /isn't the 12-character code/],
+    [["--identities=12345"], /isn't the 12-character code/],
+    [["--create-repo"], /--create-repo needs --owner/],
+    [
+      ["--create-repo", "--identities", "0123456789ab"],
+      /--create-repo needs --owner/,
+    ],
+  ];
+  for (const [args, expected] of cases) {
     const fs = createFakeFs();
     const git = createFakeGit(defaultGitScript);
     const gh = createFakeGh(defaultGhScript);
@@ -65,7 +70,9 @@ void test("a wrong call exits 2 before any git, gh or file access", async () => 
     assert.equal(await runInitFor(fixture, args), 2, args.join(" "));
     assert.equal(git.calls.length + gh.calls.length, 0, args.join(" "));
     assert.deepEqual(fs.writes, []);
-    assert.match(fixture.stderr.lines.join(""), /^init: /);
+    const said = fixture.stderr.lines.join("");
+    assert.match(said, /^init: /);
+    assert.match(said, expected, args.join(" "));
   }
 });
 
