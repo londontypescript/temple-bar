@@ -10,6 +10,7 @@ import {
   createRepoRerun,
   identitiesNotAgreed,
   pushAgreed,
+  sameRepository,
 } from "./first-push.ts";
 import {
   identitiesText,
@@ -195,7 +196,7 @@ export async function offerRepoCreation(
   }
   const read = await readPushIdentities(ctx, repoRoot, head);
   if (!read.ok) {
-    return declined(read.message);
+    return declined(`${read.message} Nothing was created or pushed.`);
   }
   const identities = read.value;
   const { owner } = request;
@@ -223,18 +224,45 @@ export async function offerRepoCreation(
   if (created.code !== 0) {
     return failed(creationFailure(full, created, originUrl.code === 0, rerun));
   }
-  const origin = parseGithubOrigin(originUrl.stdout);
-  if (origin?.owner.toLowerCase() !== owner.toLowerCase()) {
+  const made = createdRepository(created.stdout, { owner, repo: name });
+  const madeName = `${made.owner}/${made.repo}`;
+  if (made.owner.toLowerCase() !== owner.toLowerCase()) {
     return failed(
-      `Created ${full}, but "origin" doesn't point at a repository owned by ` +
-        `${owner} (got: ${originUrl.stdout.trim()}), so nothing was pushed.`,
+      `gh reports creating ${madeName}, which isn't owned by ${owner}, so ` +
+        "nothing was pushed. Check with the user which repository is right.",
+    );
+  }
+  // Only the repository just made, as agreed: origin read back could name
+  // another one (a `url.<base>.insteadOf` setting rewrites it).
+  const origin = parseGithubOrigin(originUrl.stdout);
+  if (origin === undefined || !sameRepository(origin, made)) {
+    return failed(
+      `Created ${madeName}, but "origin" points at ` +
+        `${originUrl.stdout.trim() || "nothing"}, not at it, so nothing was ` +
+        "pushed. Make origin point at it (a `url.<base>.insteadOf` setting " +
+        `can rewrite it), then run ${rerun} again.`,
     );
   }
   if (commitProblem !== undefined) {
     return failed(commitNeededSteps(commitProblem, rerun));
   }
   const pushed = await pushAgreed(ctx, repoRoot, origin, identities);
-  return pushed.ok ? { kind: "created", origin } : failed(pushed.message);
+  return pushed.ok
+    ? { kind: "created", origin }
+    : failed(`Created the GitHub repository ${madeName}. ${pushed.message}`);
+}
+
+/** The repository gh made. gh prints its URL, which carries the name GitHub
+ * gave it (GitHub replaces characters a name can't hold); without one, the
+ * name asked for. */
+function createdRepository(stdout: string, asked: GithubOrigin): GithubOrigin {
+  for (const line of stdout.split("\n")) {
+    const parsed = parseGithubOrigin(line);
+    if (parsed !== undefined) {
+      return parsed;
+    }
+  }
+  return asked;
 }
 
 /** What went wrong when `gh repo create` failed, and the fix. gh creates

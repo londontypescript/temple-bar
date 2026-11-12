@@ -65,7 +65,7 @@ function fullName(origin: GithubOrigin): string {
 }
 
 /** GitHub's owner and repository names ignore case. */
-function sameRepository(a: GithubOrigin, b: GithubOrigin): boolean {
+export function sameRepository(a: GithubOrigin, b: GithubOrigin): boolean {
   return fullName(a).toLowerCase() === fullName(b).toLowerCase();
 }
 
@@ -161,6 +161,10 @@ export async function pushAgreed(
       // would also send annotated tags, and their taggers.
       "-c",
       "push.followTags=false",
+      // `push.recurseSubmodules=only` would push no commit here and still
+      // succeed, so a repository left empty would read as pushed.
+      "-c",
+      "push.recurseSubmodules=no",
       "push",
       "origin",
       `${head.commit}:refs/heads/${head.branch}`,
@@ -213,7 +217,7 @@ export async function finishCreation(
   }
   const identities = await readPushIdentities(ctx, repoRoot, head);
   if (!identities.ok) {
-    return identities.message;
+    return `${identities.message} Nothing was pushed to ${full}.`;
   }
   if (code !== identities.value.code) {
     return identitiesNotAgreed(origin.owner, code, identities.value);

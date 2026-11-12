@@ -68,7 +68,7 @@ function firstLine(text: string): string {
 
 /** `origin` already exists: the repository must be public and owned by an
  * organisation. `owner` is the user's `--owner`, which must agree. */
-export async function checkExistingRepository(
+async function checkExistingRepository(
   ctx: Context,
   repoRoot: string,
   origin: GithubOrigin,
@@ -115,8 +115,9 @@ export async function checkExistingRepository(
     visibility === "internal" ||
     isPrivate === true
   ) {
+    // "private" too when GitHub contradicts itself (public, yet private).
     return fail(
-      `${full} is ${typeof visibility === "string" ? visibility : "private"}. ` +
+      `${full} is ${visibility === "internal" ? "internal" : "private"}. ` +
         "temple-bar supports only public repositories, and setup never " +
         "changes a repository's visibility: making it public publishes its " +
         "whole history, every commit's name and email included, so that is " +
@@ -130,7 +131,7 @@ export async function checkExistingRepository(
  * pushed, so the first push is still to come, and it is setup's (see
  * first-push.ts). Asked only under `--create-repo`, the one run that may
  * make that push; an answer it can't read stops setup. */
-export async function hasNoBranches(
+async function hasNoBranches(
   ctx: Context,
   repoRoot: string,
   origin: GithubOrigin,
@@ -151,7 +152,7 @@ export async function hasNoBranches(
 }
 
 /** No `origin` yet: the owner the user named must be an organisation. */
-export async function checkNewOwner(
+async function checkNewOwner(
   ctx: Context,
   repoRoot: string,
   owner: string,

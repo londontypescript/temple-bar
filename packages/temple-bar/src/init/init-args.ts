@@ -20,10 +20,10 @@ export interface InitArgs {
  * starting or ending with a hyphen. So never a path (`org/name`) or an
  * option. Double hyphens are let through: some older names have them, and
  * GitHub itself says whether the account exists. */
-export const OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+const OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 
 /** The code setup prints for the identities it disclosed. */
-export const IDENTITIES_PATTERN = /^[0-9a-f]{12}$/;
+const IDENTITIES_PATTERN = /^[0-9a-f]{12}$/;
 
 const VALUE_OPTIONS = {
   "--owner": {

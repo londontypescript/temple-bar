@@ -313,7 +313,7 @@ void test("--create-repo finishes an empty repository's first push, on the agree
   assert.equal(exit, 0, fixture.stderr.lines.join(""));
   assert.ok(
     world.calls.includes(
-      "git -c push.followTags=false push origin c0ffee:refs/heads/main",
+      "git -c push.followTags=false -c push.recurseSubmodules=no push origin c0ffee:refs/heads/main",
     ),
   );
   assert.match(
@@ -360,4 +360,26 @@ void test("the LICENSE note goes to stdout when no licence file exists, and neve
   );
   assert.equal(await runInitFor(licensed), 0);
   assert.doesNotMatch(licensed.stdout.lines.join(""), /LICENSE/);
+});
+
+void test("when gh prints no URL, origin must name the repository asked for, or nothing is pushed or protected", async () => {
+  const silent: GhResult = reply("Created\n");
+  const asked = newWorld({ createAnswer: silent });
+  const fine = worldFixture(asked, "yes", { fs: setUpFiles() });
+  assert.equal(await runInitFor(fine, ["--owner", "acme"]), 0);
+  assert.ok(asked.calls.some((c) => c.includes(" push origin c0ffee:")));
+
+  const elsewhere = "git@github.com:acme/other.git";
+  const fs = setUpFiles();
+  const rewritten = newWorld({
+    createAnswer: silent,
+    originAfterCreate: elsewhere,
+  });
+  const stopped = worldFixture(rewritten, "yes", { fs });
+  assert.equal(await runInitFor(stopped, ["--owner", "acme"]), 1);
+  assert.match(
+    stopped.stderr.lines.join(""),
+    /Created acme\/widgets, but "origin" points at git@github\.com:acme\/other\.git/,
+  );
+  assert.ok(!rewritten.calls.some((c) => / push |POST|PUT|PATCH/.test(c)));
 });

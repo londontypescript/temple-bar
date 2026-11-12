@@ -1,5 +1,5 @@
-// Setup's own push, with real git: exactly the commit read, never tags, and
-// only to origin's own repository.
+// Setup's own push, with real git: exactly the commit read, never tags or
+// submodules only, and only to origin's own repository.
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -20,7 +20,8 @@ function git(dir: string, args: string[]): string {
 const ORIGIN = { owner: "acme", repo: "widgets" };
 
 /** A repository with one commit and an annotated tag, whose pushes follow
- * tags, and a bare repository standing in for GitHub. */
+ * tags and push submodules only (leaving the commit unpushed), and a bare
+ * repository standing in for GitHub. */
 function repos(): { dir: string; github: string; ctx: Context } {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-push-"));
   const github = mkdtempSync(path.join(tmpdir(), "temple-bar-push-github-"));
@@ -29,6 +30,7 @@ function repos(): { dir: string; github: string; ctx: Context } {
   git(dir, ["commit", "--allow-empty", "-m", "one"]);
   git(dir, ["tag", "-a", "v1", "-m", "v1"]);
   git(dir, ["config", "push.followTags", "true"]);
+  git(dir, ["config", "push.recurseSubmodules", "only"]);
   git(dir, ["remote", "add", "origin", "git@github.com:acme/widgets.git"]);
   const real = createRealContext();
   // origin's URL stays GitHub's; only the push itself lands in the bare
@@ -39,8 +41,8 @@ function repos(): { dir: string; github: string; ctx: Context } {
     git: {
       run: (args, cwd, input) =>
         real.git.run(
-          args[2] === "push" && args[3] === "origin"
-            ? [...args.slice(0, 3), github, ...args.slice(4)]
+          args.includes("push")
+            ? args.map((arg) => (arg === "origin" ? github : arg))
             : args,
           cwd,
           input,
@@ -60,7 +62,7 @@ async function agreed(ctx: Context, dir: string) {
   return read.value;
 }
 
-void test("the push sends the commit read to its branch, and no tag, whatever push.followTags says", async () => {
+void test("the push sends the commit read to its branch, and no tag, whatever push.followTags or push.recurseSubmodules says", async () => {
   const { dir, github, ctx } = repos();
   try {
     const outcome = await pushAgreed(ctx, dir, ORIGIN, await agreed(ctx, dir));

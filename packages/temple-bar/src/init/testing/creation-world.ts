@@ -13,7 +13,7 @@ import {
 import type { GhResult } from "../../seams/gh.ts";
 import type { GitResult } from "../../seams/git.ts";
 
-export interface WorldCommit {
+interface WorldCommit {
   readonly author: string;
   readonly authorEmail: string;
   readonly committer?: string;
@@ -33,8 +33,14 @@ export interface World {
   /** Defaults to origin's own URL. */
   pushUrls: string[] | undefined;
   createAnswer: GhResult;
+  /** The repository `gh repo create` makes, and prints the URL of when it
+   * succeeds. Undefined: the one asked for (GitHub may rename it). */
+  createdAs: string | undefined;
   /** Whether a `gh repo create` (even a failing one) added origin. */
   createAddsOrigin: boolean;
+  /** What origin then reads as. Undefined: the made repository's URL (a
+   * `url.<base>.insteadOf` setting can rewrite it). */
+  originAfterCreate: string | undefined;
   /** Owner GitHub answers for `users/<owner>`; anything else is a 404. */
   accounts: Record<string, "Organization" | "User">;
   commitAnswer: GitResult;
@@ -68,7 +74,9 @@ export function newWorld(overrides: Partial<World> = {}): World {
     origin: undefined,
     pushUrls: undefined,
     createAnswer: { code: 0, stdout: "", stderr: "", notFound: false },
+    createdAs: undefined,
     createAddsOrigin: true,
+    originAfterCreate: undefined,
     accounts: { acme: "Organization", ada: "User" },
     commitAnswer: OK,
     hookAddsLine: undefined,
@@ -173,13 +181,18 @@ function ghAnswer(
     notFound: false,
   });
   if (args[0] === "repo" && args[1] === "create") {
+    const made = world.createdAs ?? args[2] ?? "";
     if (world.createAddsOrigin) {
-      world.origin = `git@github.com:${args[2] ?? ""}.git`;
+      world.origin = world.originAfterCreate ?? `git@github.com:${made}.git`;
     }
-    if (world.createAnswer.code === 0) {
-      world.remoteHasBranches = false;
+    if (world.createAnswer.code !== 0) {
+      return world.createAnswer;
     }
-    return world.createAnswer;
+    world.remoteHasBranches = false;
+    return {
+      ...world.createAnswer,
+      stdout: world.createAnswer.stdout || `https://github.com/${made}\n`,
+    };
   }
   const path = args[1] ?? "";
   if (args[0] === "api" && args[2] === "--hostname") {

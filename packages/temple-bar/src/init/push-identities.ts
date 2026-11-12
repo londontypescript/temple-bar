@@ -160,9 +160,9 @@ function fail(message: string): {
   return { ok: false, message };
 }
 
-const UNREADABLE =
-  "Couldn't read the commits a first push would publish, so nothing was " +
-  "created or pushed";
+/** Only what went wrong: the reader runs before and after the repository
+ * is created, so each caller says what did and didn't happen. */
+const UNREADABLE = "Couldn't read the commits a first push would publish";
 
 /** Every commit reachable from `commit`, which is what pushing it sends, as
  * author, committer and co-author identities; a problem when the history

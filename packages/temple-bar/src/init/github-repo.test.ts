@@ -2,18 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  licenseNote,
   offerRepoCreation,
   repoCreateCommand,
   type RepoCreateRequest,
 } from "./github-repo.ts";
 import { readHeadState, readPushIdentities } from "./push-identities.ts";
 import { newWorld, worldSeams, type World } from "./testing/creation-world.ts";
-import {
-  createFakeContext,
-  createFakeFs,
-  createFakePrompt,
-} from "../testing/fakes.ts";
+import { createFakeContext, createFakePrompt } from "../testing/fakes.ts";
 import type { Context } from "../context.ts";
 import type { ConfirmResult } from "../seams/prompt.ts";
 
@@ -172,7 +167,7 @@ void test("--create-repo with the matching code creates <org>/<name> without --p
     "gh repo create acme/widgets --public --source . --remote origin",
   ]);
   assert.deepEqual(pushes(world), [
-    "git -c push.followTags=false push origin c0ffee:refs/heads/main",
+    "git -c push.followTags=false -c push.recurseSubmodules=no push origin c0ffee:refs/heads/main",
   ]);
 });
 
@@ -209,7 +204,7 @@ void test("an unborn branch: setup's files, its first commit, then creation and 
     "git add -A",
     "git commit -m Initial commit",
     "gh repo create acme/widgets --public --source . --remote origin",
-    "git -c push.followTags=false push origin 5e7c0de:refs/heads/main",
+    "git -c push.followTags=false -c push.recurseSubmodules=no push origin 5e7c0de:refs/heads/main",
   ]);
 });
 
@@ -327,6 +322,7 @@ void test("a failed push is reported as not completed, with the fixes and the re
     request(),
   );
   assert.equal(outcome.kind, "failed");
+  assert.match(outcome.message, /^Created the GitHub repository acme\/widgets/);
   assert.match(
     outcome.message,
     /didn't complete \(it may or may not have reached/,
@@ -350,6 +346,28 @@ void test("a push URL elsewhere stops the push", async () => {
   assert.deepEqual(pushes(world), []);
 });
 
+void test("setup pushes only to the repository gh made, under the name GitHub gave it", async () => {
+  const renamed = newWorld({ createdAs: "acme/wid-gets" });
+  assert.deepEqual(
+    await offerRepoCreation(contextFor(renamed, "yes"), ROOT, request()),
+    { kind: "created", origin: { owner: "acme", repo: "wid-gets" } },
+  );
+  for (const [overrides, said] of [
+    [{ originAfterCreate: "git@github.com:acme/other.git" }, /acme\/other/],
+    [{ createdAs: "elsewhere/widgets" }, /isn't owned by acme/],
+  ] as const) {
+    const world = newWorld(overrides);
+    const outcome = await offerRepoCreation(
+      contextFor(world, "yes"),
+      ROOT,
+      request(),
+    );
+    assert.equal(outcome.kind, "failed");
+    assert.match(outcome.message, said);
+    assert.deepEqual(pushes(world), []);
+  }
+});
+
 void test("a detached HEAD stops before asking or creating", async () => {
   const world = newWorld({ detached: true });
   let asked = false;
@@ -362,31 +380,6 @@ void test("a detached HEAD stops before asking or creating", async () => {
   assert.match(outcome.message, /HEAD is detached/);
   assert.equal(asked, false);
   assert.deepEqual(created(world), []);
-});
-
-void test("the LICENSE note appears with no licence file, never with one, and never when the root can't be listed", async () => {
-  const without = createFakeContext({
-    fs: createFakeFs({ "/repo/README.md": "x" }),
-  });
-  assert.match((await licenseNote(without, "/repo")) ?? "", /no LICENSE file/);
-  for (const name of [
-    "LICENSE",
-    "licence.md",
-    "COPYING",
-    "UNLICENSE",
-    "LICENSE-MIT",
-  ]) {
-    const ctx = createFakeContext({
-      fs: createFakeFs({ [`/repo/${name}`]: "x" }),
-    });
-    assert.equal(await licenseNote(ctx, "/repo"), undefined, name);
-  }
-  const fs = createFakeFs();
-  fs.globErrors.set("*", new Error("EACCES"));
-  assert.equal(
-    await licenseNote(createFakeContext({ fs }), "/repo"),
-    undefined,
-  );
 });
 
 void test("an interactive yes asks, then creates", async () => {

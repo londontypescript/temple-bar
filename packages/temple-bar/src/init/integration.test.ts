@@ -177,11 +177,17 @@ void test("integration: init sets up a real repo (AGENTS.md, scripts, real hooks
 });
 
 void test("integration: an empty repo, yes: first commit has setup's files and no node_modules/, then GitHub, then hooks; a second run changes nothing", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-init-integration-"));
+  const parent = mkdtempSync(
+    path.join(tmpdir(), "temple-bar-init-integration-"),
+  );
+  // Named after the one repository the fake GitHub answers for, so the
+  // repository setup creates is that one.
+  const dir = path.join(parent, "widgets");
   // Where setup's push lands instead of GitHub: the push itself is real.
   const github = mkdtempSync(path.join(tmpdir(), "temple-bar-github-"));
   execFileSync("git", ["init", "--bare", "--initial-branch=main", github]);
   try {
+    mkdirSync(dir);
     initTestRepo(dir);
     mkdirSync(path.join(dir, "node_modules", "dep"), { recursive: true });
     writeFileSync(path.join(dir, "node_modules", "dep", "index.js"), "x");
@@ -195,15 +201,16 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
       git: {
         run: (args, cwd, input) =>
           real.git.run(
-            args[2] === "push" && args[3] === "origin"
-              ? [...args.slice(0, 3), github, ...args.slice(4)]
+            args.includes("push")
+              ? args.map((arg) => (arg === "origin" ? github : arg))
               : args,
             cwd,
             input,
           ),
       },
-      // `gh repo create` is faked, but does what the real one does to the
-      // local repo: adds origin. The hooks must not exist yet at that point.
+      // `gh repo create` is faked, but does what the real one does: adds
+      // origin for the repository it made, and prints that repository's
+      // URL. The hooks must not exist yet at that point.
       gh: createFakeGh((args) => {
         if (args[0] === "repo") {
           ghCalls.push(args.join(" "));
@@ -211,14 +218,17 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
             existsSync(path.join(dir, ".git", "hooks", "pre-commit")),
             false,
           );
-          // The fake GitHub answers for acme/widgets only, so origin is
-          // that, whatever the folder's name.
           execFileSync(
             "git",
-            ["remote", "add", "origin", "git@github.com:acme/widgets.git"],
+            ["remote", "add", "origin", `git@github.com:${args[2] ?? ""}.git`],
             { cwd: dir },
           );
-          return { code: 0, stdout: "", stderr: "", notFound: false };
+          return {
+            code: 0,
+            stdout: `https://github.com/${args[2] ?? ""}\n`,
+            stderr: "",
+            notFound: false,
+          };
         }
         return fakeGhScript(args);
       }),
@@ -284,6 +294,6 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
     assert.equal(ghCalls.length, 1);
   } finally {
     rmSync(github, { recursive: true, force: true });
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(parent, { recursive: true, force: true });
   }
 });
