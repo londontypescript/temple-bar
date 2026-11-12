@@ -169,6 +169,7 @@ void test("lintScriptFindings: anything outside the grammar that names a tool ca
     // refused for what the grammar never reads.
     "pnpm run a\n",
     "\npnpm run a",
+    'pnpm run "a"\n',
   ]) {
     assert.equal(
       verdict(check(lint, { a: "eslint . --max-warnings 0" })),

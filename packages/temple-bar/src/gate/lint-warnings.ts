@@ -73,11 +73,7 @@ function scriptText(scripts: Scripts, name: string): string | undefined {
  * trailing line break, say) is still matched by its words, so that what it
  * runs is read too; `expand` keeps it, to be refused. */
 function referenced(text: string, scripts: Scripts): string | undefined {
-  const read = wordsOf(text);
-  const words =
-    typeof read === "string"
-      ? text.trim().split(/\s+/)
-      : read.map((word) => word.value);
+  const words = splitWords(text, /\s/)?.map((word) => word.value) ?? [];
   const [first, second, third] = words;
   let name: string | undefined;
   if (words.length === 3 && (first === "pnpm" || first === "npm")) {
@@ -167,6 +163,12 @@ function wordsOf(text: string): Word[] | string {
   if (text.trim() === "") {
     return 'it has an empty command around "&&"';
   }
+  return splitWords(text, /[ \t]/) ?? "it has an unclosed quote";
+}
+
+/** `text` split into words at each `separator` outside quotes, the quotes
+ * removed from each word's value; undefined when a quote is left open. */
+function splitWords(text: string, separator: RegExp): Word[] | undefined {
   const words: Word[] = [];
   let raw = "";
   let value = "";
@@ -180,7 +182,7 @@ function wordsOf(text: string): Word[] | string {
       } else {
         value += char;
       }
-    } else if (char === " " || char === "\t") {
+    } else if (separator.test(char)) {
       if (started) {
         words.push({ raw, value });
       }
@@ -198,7 +200,7 @@ function wordsOf(text: string): Word[] | string {
     }
   }
   if (quote !== undefined) {
-    return "it has an unclosed quote";
+    return undefined;
   }
   if (started) {
     words.push({ raw, value });
