@@ -1,153 +1,264 @@
 // Offers to create the GitHub repository when `origin` is missing. Only ever
 // acts on an explicit "yes" (ctx.prompt, or the --create-repo flag an agent
-// passes after the user said yes in chat); the two declined paths and the
-// no-commits-yet path all stop `init` before it writes anything.
+// passes after the user said yes in chat), and only for an owner the user
+// named, which the caller has already confirmed is an organisation (ADR
+// 0021). Every path that doesn't create stops `init` before it writes
+// anything more.
 
 import type { Context } from "../context.ts";
+import {
+  createRepoRerun,
+  identitiesNotAgreed,
+  pushAgreed,
+} from "./first-push.ts";
+import {
+  identitiesText,
+  readHeadState,
+  readPushIdentities,
+  type PushIdentities,
+} from "./push-identities.ts";
 import { mainCheckoutName } from "./repo-name.ts";
 import {
   parseGithubOrigin,
   RERUN_INIT,
-  rerunInit,
   type GithubOrigin,
 } from "./requirements.ts";
 
-export function repoCreateCommand(name: string): string {
-  return `gh repo create ${name} --public --source . --remote origin --push`;
+const SOME_ORGANISATION = "<organisation>";
+
+/** The command people who'd rather create the repository themselves are
+ * given. It always names the owner: without one, gh picks the signed-in
+ * personal account. */
+export function repoCreateCommand(owner: string, name: string): string {
+  return `gh repo create ${owner}/${name} --public --source . --remote origin --push`;
 }
 
-function repoCreateQuestion(name: string): string {
+/** What setup runs on a yes: no `--push`, because setup pushes itself. */
+function createArgs(full: string): readonly string[] {
+  return [
+    "repo",
+    "create",
+    full,
+    "--public",
+    "--source",
+    ".",
+    "--remote",
+    "origin",
+  ];
+}
+
+function byHand(owner: string, name: string): string {
   return (
-    `No GitHub remote found. Create a public GitHub repository named ` +
-    `"${name}" and push this folder's current commits to it? ` +
-    `(GitHub Free requires a public repository for rulesets.) This runs: ` +
-    repoCreateCommand(name)
+    `To create it yourself instead, run:\n  ${repoCreateCommand(owner, name)}\n` +
+    `then run ${RERUN_INIT} again.\n`
   );
 }
 
-function noTerminalSteps(name: string): string {
+/** No `--owner`: setup can't name the owner, so it never guesses one. */
+function ownerNeededSteps(name: string, identities: PushIdentities): string {
+  return (
+    "No GitHub remote found, so nothing was created. temple-bar sets up " +
+    "only public repositories owned by a GitHub organisation, never a " +
+    "personal account. An agent: ask the user which organisation should " +
+    `own the new public repository "${name}", and show them the identities ` +
+    "below. Only if they agree, run " +
+    `${createRepoRerun(SOME_ORGANISATION, identities.code)}. ` +
+    byHand(SOME_ORGANISATION, name) +
+    identitiesText(identities)
+  );
+}
+
+function repoCreateQuestion(
+  owner: string,
+  name: string,
+  identities: PushIdentities,
+): string {
+  const full = `${owner}/${name}`;
+  return (
+    `No GitHub remote found. Create the public repository ${full}, owned ` +
+    `by the organisation ${owner}, and push this branch to it? ` +
+    identitiesText(identities) +
+    `This runs \`gh ${createArgs(full).join(" ")}\`, then pushes this ` +
+    "branch's commits (never tags)."
+  );
+}
+
+function noTerminalSteps(
+  owner: string,
+  name: string,
+  identities: PushIdentities,
+): string {
   return (
     "No terminal to ask in, so nothing was created. An agent: ask the user " +
-    `whether to create the repository, and only if they say yes run ` +
-    `${rerunInit("--create-repo")}. To finish setup yourself, run:\n  ` +
-    `${repoCreateCommand(name)}\nthen run ${RERUN_INIT} again.`
+    `whether to create the public repository ${owner}/${name}, owned by the ` +
+    `organisation ${owner}, and show them the identities below. Only if ` +
+    `they say yes, run ${createRepoRerun(owner, identities.code)}. ` +
+    byHand(owner, name) +
+    identitiesText(identities)
   );
 }
 
-function declinedSteps(name: string): string {
+function declinedSteps(owner: string, name: string): string {
   return (
     "OK, nothing was created. Run this yourself when you're ready:\n  " +
-    `${repoCreateCommand(name)}\nthen run ${RERUN_INIT} again.`
+    `${repoCreateCommand(owner, name)}\nthen run ${RERUN_INIT} again.`
   );
 }
 
 const FIRST_COMMIT_MESSAGE = "Initial commit";
 
-/** The one command left when setup couldn't make the first commit itself
- * (for example signing needs a passphrase an agent can't type). The repo
- * already exists on GitHub by then; only the commit and the push are left. */
-function commitNeededSteps(detail: string): string {
+/** Setup couldn't make the first commit itself (for example signing needs
+ * a passphrase an agent can't type). The repository exists on GitHub by
+ * then, empty; the commit is left, and the rerun pushes it. */
+function commitNeededSteps(detail: string, rerun: string): string {
   return (
     "Created the GitHub repository, but couldn't make the first commit " +
-    `here${detail === "" ? "" : ` (${detail})`}. Everything is staged. ` +
-    "Hooks are not installed yet, because they refuse commits to main. " +
-    "Run this yourself:\n" +
-    `  git commit -m "${FIRST_COMMIT_MESSAGE}" && git push -u origin HEAD\n` +
-    `then run ${RERUN_INIT} again to finish.`
+    `here${detail === "" ? "" : ` (${detail})`}, so nothing was pushed. ` +
+    "Everything is staged. Hooks are not installed yet, because they " +
+    "refuse commits to main. Commit it yourself:\n" +
+    `  git commit -m "${FIRST_COMMIT_MESSAGE}"\n` +
+    `then run ${rerun} to push it and finish.`
   );
 }
 
 export type RepoCreateOutcome =
   | { readonly kind: "declined"; readonly message: string }
   | { readonly kind: "created"; readonly origin: GithubOrigin }
-  | {
-      readonly kind: "commit-needed";
-      readonly origin: GithubOrigin;
-      readonly message: string;
-    }
   | { readonly kind: "failed"; readonly message: string };
+
+/** What the caller knows before asking. */
+export interface RepoCreateRequest {
+  /** `--owner`: the organisation the user named, already confirmed to be
+   * one. Undefined when they haven't named it yet. */
+  readonly owner: string | undefined;
+  /** `--create-repo`: the user already said yes in chat. Answers this
+   * question, and only this one. */
+  readonly approved: boolean;
+  /** `--identities`: the code of the identities the user was shown. */
+  readonly identitiesCode: string | undefined;
+}
+
+/** Asks, unless `--create-repo` answered with the code of the identities
+ * read now. Resolves undefined on a yes, or the stop's message. */
+async function agreed(
+  ctx: Context,
+  request: RepoCreateRequest & { readonly owner: string },
+  name: string,
+  identities: PushIdentities,
+): Promise<string | undefined> {
+  const { owner } = request;
+  if (request.approved) {
+    return request.identitiesCode === identities.code
+      ? undefined
+      : identitiesNotAgreed(owner, request.identitiesCode, identities);
+  }
+  const answer = await ctx.prompt.confirm(
+    repoCreateQuestion(owner, name, identities),
+  );
+  if (answer === "no-terminal") {
+    return noTerminalSteps(owner, name, identities);
+  }
+  return answer === "no" ? declinedSteps(owner, name) : undefined;
+}
 
 /**
  * Runs the whole "no origin yet" flow: asks, and on yes makes the first
- * commit if the repo has none (before hooks exist to refuse it), then
- * shells out to `gh repo create`. Never called when origin
- * already exists.
+ * commit if the branch has none (before hooks exist to refuse it), creates
+ * the repository with `gh repo create`, then pushes. Never called when
+ * origin already exists.
  */
 export async function offerRepoCreation(
   ctx: Context,
   repoRoot: string,
+  request: RepoCreateRequest,
   /** Writes the files that belong in the first commit. Only called when
    * there is no commit yet. */
   prepareFirstCommit: () => Promise<void> = () => Promise.resolve(),
-  /** The user already said yes in chat and the agent passed
-   * --create-repo: answers this question, and only this one. */
-  approved = false,
 ): Promise<RepoCreateOutcome> {
+  const declined = (message: string): RepoCreateOutcome => ({
+    kind: "declined",
+    message,
+  });
+  const failed = (message: string): RepoCreateOutcome => ({
+    kind: "failed",
+    message,
+  });
   // Only offered when there is no origin, so the main checkout's folder is
   // the whole rule.
   const name = await mainCheckoutName(ctx, repoRoot);
-  const answer = approved
-    ? "yes"
-    : await ctx.prompt.confirm(repoCreateQuestion(name));
-
-  if (answer === "no-terminal") {
-    return { kind: "declined", message: noTerminalSteps(name) };
+  const head = await readHeadState(ctx, repoRoot);
+  if (head.kind === "detached") {
+    return declined(
+      "HEAD is detached, so there is no branch to publish and nothing was " +
+        `created. Switch to the branch to publish, then run ${RERUN_INIT} again.`,
+    );
   }
-  if (answer === "no") {
-    return { kind: "declined", message: declinedSteps(name) };
+  const read = await readPushIdentities(ctx, repoRoot, head);
+  if (!read.ok) {
+    return declined(read.message);
+  }
+  const identities = read.value;
+  const { owner } = request;
+  if (owner === undefined) {
+    return declined(ownerNeededSteps(name, identities));
+  }
+  const stop = await agreed(ctx, { ...request, owner }, name, identities);
+  if (stop !== undefined) {
+    return declined(stop);
   }
 
-  const head = await ctx.git.run(["rev-parse", "HEAD"], repoRoot);
   let commitProblem: string | undefined;
-  if (head.code !== 0) {
+  if (head.kind === "unborn") {
     await prepareFirstCommit();
     commitProblem = await makeFirstCommit(ctx, repoRoot);
   }
 
-  const result = await ctx.gh.run(
-    [
-      "repo",
-      "create",
-      name,
-      "--public",
-      "--source",
-      ".",
-      "--remote",
-      "origin",
-      // Without a commit there is nothing to push; the user's commit
-      // command pushes it.
-      ...(commitProblem === undefined ? ["--push"] : []),
-    ],
-    repoRoot,
-  );
-  if (result.code !== 0) {
-    return {
-      kind: "failed",
-      message: `\`gh repo create\` failed:\n${result.stderr || result.stdout}`,
-    };
-  }
-
+  const full = `${owner}/${name}`;
+  const rerun = createRepoRerun(owner, identities.code);
+  const created = await ctx.gh.run(createArgs(full), repoRoot);
   const originUrl = await ctx.git.run(
     ["remote", "get-url", "origin"],
     repoRoot,
   );
-  // gh repo create --remote origin --push already set origin on success, so
-  // this only fails if something unexpected happened between the two calls.
+  if (created.code !== 0) {
+    return failed(creationFailure(full, created, originUrl.code === 0, rerun));
+  }
   const origin = parseGithubOrigin(originUrl.stdout);
-  if (!origin) {
-    return {
-      kind: "failed",
-      message: `Repository created, but couldn't read the new "origin" URL back (got: ${originUrl.stdout.trim()}).`,
-    };
+  if (origin?.owner.toLowerCase() !== owner.toLowerCase()) {
+    return failed(
+      `Created ${full}, but "origin" doesn't point at a repository owned by ` +
+        `${owner} (got: ${originUrl.stdout.trim()}), so nothing was pushed.`,
+    );
   }
   if (commitProblem !== undefined) {
-    return {
-      kind: "commit-needed",
-      origin,
-      message: commitNeededSteps(commitProblem),
-    };
+    return failed(commitNeededSteps(commitProblem, rerun));
   }
-  return { kind: "created", origin };
+  const pushed = await pushAgreed(ctx, repoRoot, origin, identities);
+  return pushed.ok ? { kind: "created", origin } : failed(pushed.message);
+}
+
+/** What went wrong when `gh repo create` failed, and the fix. gh creates
+ * the repository, then adds origin, and stops at the first step that
+ * fails, undoing nothing. So with origin there, only the push is left.
+ * With origin missing setup infers nothing: the name may belong to a
+ * repository that already existed, which is not one setup made. */
+function creationFailure(
+  full: string,
+  result: { readonly stdout: string; readonly stderr: string },
+  hasOrigin: boolean,
+  rerun: string,
+): string {
+  const said = (result.stderr || result.stdout).trim();
+  if (hasOrigin) {
+    return (
+      `gh created ${full} and set it as "origin", then failed, so nothing ` +
+      `was pushed. gh said:\n${said}\nRun ${rerun} again to push.`
+    );
+  }
+  return (
+    `\`gh repo create ${full}\` failed, and setup pushed nothing. gh ` +
+    `said:\n${said}\nFix what gh reports, then run ${rerun} again.`
+  );
 }
 
 /** Stages everything (the .gitignore already keeps node_modules/ out) and
@@ -170,4 +281,31 @@ async function makeFirstCommit(
     return (commit.stderr || commit.stdout).trim().split("\n")[0] ?? "";
   }
   return undefined;
+}
+
+/** A licence file GitHub recognises, at the repository's root. */
+const LICENSE_NAME = /^(?:un)?licen[cs]e(?:[.-].*)?$|^copying(?:[.-].*)?$/i;
+
+/** A note, never a failure, for a public repository with no licence: the
+ * code is public, but nobody else may reuse it until one is added. The
+ * licence is the user's choice, so setup never picks one. Says nothing
+ * when the root can't be listed. */
+export async function licenseNote(
+  ctx: Context,
+  repoRoot: string,
+): Promise<string | undefined> {
+  let files: string[];
+  try {
+    files = await ctx.fs.glob(repoRoot, "*");
+  } catch {
+    return undefined;
+  }
+  if (files.some((file) => LICENSE_NAME.test(file))) {
+    return undefined;
+  }
+  return (
+    "Note: this public repository has no LICENSE file, so nobody else may " +
+    "reuse its code. Ask the user which licence they want and add it as " +
+    "LICENSE; setup never picks one.\n"
+  );
 }
