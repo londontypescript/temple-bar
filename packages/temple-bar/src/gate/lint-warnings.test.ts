@@ -5,11 +5,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  formatLintFindings,
-  lintScriptFindings,
-  type LintFinding,
-} from "./lint-warnings.ts";
+import { formatLintFindings } from "./lint-message.ts";
+import { lintScriptFindings, type LintFinding } from "./lint-warnings.ts";
 
 type Verdict = "pass" | "no-flag" | "unreadable" | "too-deep";
 
@@ -100,9 +97,15 @@ void test("lintScriptFindings: each tool's own flag, by bare name or from node_m
     "tsc -p . && oxlint --deny-warnings && prettier --check .",
     "npm run lint:js",
     "pnpm lint:js",
+    'pnpm run "lint:js"',
+    "pnpm run lint,js",
+    "eslint . --max-warnings --max-warnings=0",
   ]) {
     assert.deepEqual(
-      check(lint, { "lint:js": "eslint . --max-warnings 0" }),
+      check(lint, {
+        "lint:js": "eslint . --max-warnings 0",
+        "lint,js": "eslint . --max-warnings 0",
+      }),
       [],
       lint,
     );
@@ -123,8 +126,15 @@ void test("lintScriptFindings: a flag that isn't the tool's own, or isn't 0, or 
     "biome check . -- --error-on-warnings",
     "eslint . && eslint --max-warnings 0 .",
     "npx eslint .",
+    "eslint . --max-warnings=0 --max-warnings --fix",
+    "pnpm run lint,js",
+    "pnpm run 'lint,js'",
   ]) {
-    assert.equal(verdict(check(lint)), "no-flag", lint);
+    assert.equal(
+      verdict(check(lint, { "lint,js": "eslint ." })),
+      "no-flag",
+      lint,
+    );
   }
 });
 
@@ -153,8 +163,18 @@ void test("lintScriptFindings: anything outside the grammar that names a tool ca
     "pnpm exec -c eslint . --max-warnings 0",
     "echo eslint",
     "pnpm run lint:eslint",
+    "./fake_node_modules/.bin/eslint . --max-warnings 0",
+    "node_modules/.bin/eslint-wrapper . --max-warnings 0",
+    // A command that runs another script is read through, and still
+    // refused for what the grammar never reads.
+    "pnpm run a\n",
+    "\npnpm run a",
   ]) {
-    assert.equal(verdict(check(lint)), "unreadable", JSON.stringify(lint));
+    assert.equal(
+      verdict(check(lint, { a: "eslint . --max-warnings 0" })),
+      "unreadable",
+      JSON.stringify(lint),
+    );
   }
 });
 
@@ -165,6 +185,7 @@ void test("lintScriptFindings: a script that names no tool is the project's own,
     "cargo clippy -- -D warnings | tee out.txt",
     "next lint",
     "pnpm run lint:rs",
+    "pnpm run lint:rs\n",
     "pnpm run missing",
   ]) {
     assert.deepEqual(check(lint, { "lint:rs": "cargo clippy" }), [], lint);

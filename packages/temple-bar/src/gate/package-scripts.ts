@@ -14,7 +14,8 @@
 // warning would otherwise pass (see lint-warnings.ts).
 
 import type { Context } from "../context.ts";
-import { formatLintFindings, lintScriptFindings } from "./lint-warnings.ts";
+import { formatLintFindings } from "./lint-message.ts";
+import { lintScriptFindings } from "./lint-warnings.ts";
 import type { CheckOutcome } from "./report.ts";
 import {
   isNoOpScript,

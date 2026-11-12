@@ -67,13 +67,17 @@ function scriptText(scripts: Scripts, name: string): string | undefined {
   return typeof text === "string" ? text : undefined;
 }
 
-/** A script name plain enough to take from a command without quoting. */
-const PLAIN_NAME = /^[\w:.@/+-]+$/;
-
 /** The script a command runs when it is exactly `pnpm run X`, `pnpm X` or
- * `npm run X` and X is a script in the same package. */
+ * `npm run X` and X is a script in the same package, its words read as
+ * anywhere else. One holding a character the grammar never reads (a
+ * trailing line break, say) is still matched by its words, so that what it
+ * runs is read too; `expand` keeps it, to be refused. */
 function referenced(text: string, scripts: Scripts): string | undefined {
-  const words = text.trim().split(/[ \t]+/);
+  const read = wordsOf(text);
+  const words =
+    typeof read === "string"
+      ? text.trim().split(/\s+/)
+      : read.map((word) => word.value);
   const [first, second, third] = words;
   let name: string | undefined;
   if (words.length === 3 && (first === "pnpm" || first === "npm")) {
@@ -81,9 +85,7 @@ function referenced(text: string, scripts: Scripts): string | undefined {
   } else if (words.length === 2 && first === "pnpm" && second !== "run") {
     name = second;
   }
-  return name !== undefined &&
-    PLAIN_NAME.test(name) &&
-    scriptText(scripts, name) !== undefined
+  return name !== undefined && scriptText(scripts, name) !== undefined
     ? name
     : undefined;
 }
@@ -99,9 +101,13 @@ function expand(scripts: Scripts, name: string, text: string): Piece[] {
     const target = referenced(piece.text, scripts);
     const targetText =
       target === undefined ? undefined : scriptText(scripts, target);
-    return target === undefined || targetText === undefined
-      ? [piece]
-      : piecesOf(targetText, target);
+    if (target === undefined || targetText === undefined) {
+      return [piece];
+    }
+    const replaced = piecesOf(targetText, target);
+    return typeof wordsOf(piece.text) === "string"
+      ? [piece, ...replaced]
+      : replaced;
   });
 }
 
@@ -204,7 +210,10 @@ const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 function toolOf(word: string | undefined): LintTool | undefined {
   return TOOLS.find(
-    (tool) => word === tool || word?.endsWith(`node_modules/.bin/${tool}`),
+    (tool) =>
+      word === tool ||
+      word === `node_modules/.bin/${tool}` ||
+      word?.endsWith(`/node_modules/.bin/${tool}`),
   );
 }
 
@@ -241,13 +250,15 @@ function hasFlag(tool: LintTool, args: readonly string[]): boolean {
   if (tool === "biome") {
     return args.includes("--error-on-warnings");
   }
-  // The last --max-warnings wins, as it does for ESLint.
+  // The last --max-warnings wins, as it does for ESLint. One whose next word
+  // is another option has no value, and leaves that option to be read.
   let limit: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index] ?? "";
     if (arg === "--max-warnings") {
-      limit = args[index + 1];
-      index += 1;
+      const next = args[index + 1];
+      limit = next?.startsWith("--") === false ? next : undefined;
+      index += limit === undefined ? 0 : 1;
     } else if (arg.startsWith("--max-warnings=")) {
       limit = arg.slice("--max-warnings=".length);
     }
@@ -307,7 +318,10 @@ export function lintScriptFindings(
     return [];
   }
   const pieces = expand(scripts, name, text);
-  const deep = deeperTool(scripts, pieces, [name], new Set([name]));
+  // The script's own commands that run another script were read in place
+  // already; only what those scripts run is any deeper.
+  const below = pieces.filter((piece) => piece.from !== name);
+  const deep = deeperTool(scripts, below, [name], new Set([name]));
   if (deep !== undefined) {
     return [{ kind: "too-deep", ...deep }];
   }
@@ -339,47 +353,4 @@ export function lintScriptFindings(
     }
   }
   return findings;
-}
-
-function flagsOf(tools: readonly LintTool[]): string {
-  return tools
-    .map((tool) => `each ${tool} call with ${DENY_WARNINGS_FLAG[tool]}`)
-    .join(", ");
-}
-
-/** The gate's message for `findings` in the manifest at `label`, naming the
- * script, the tool and the flag to add. */
-export function formatLintFindings(
-  label: string,
-  findings: readonly LintFinding[],
-  name = "lint",
-): string {
-  const lines = [
-    `gate: ${label} has a "${name}" script that lets warnings pass`,
-  ];
-  for (const finding of findings) {
-    switch (finding.kind) {
-      case "no-flag": {
-        const where = finding.from === name ? "" : ` (in "${finding.from}")`;
-        const flag = DENY_WARNINGS_FLAG[finding.tool];
-        lines.push(
-          `  "${finding.command}"${where} runs ${finding.tool} without ${flag}: add ${flag} to it`,
-        );
-        break;
-      }
-      case "unreadable":
-        lines.push(
-          `  it calls ${finding.tools.join(", ")}, but the gate can't read it: ${finding.reason}`,
-          `  write it as plain commands joined by "&&", ${flagsOf(finding.tools)}`,
-        );
-        break;
-      case "too-deep":
-        lines.push(
-          `  it reaches ${finding.tool} too deep, through ${finding.chain.map((script) => `"${script}"`).join(" > ")}`,
-          `  call ${finding.tool} from "${name}" or a script "${name}" runs directly, with ${DENY_WARNINGS_FLAG[finding.tool]}`,
-        );
-        break;
-    }
-  }
-  return `${lines.join("\n")}\n`;
 }
