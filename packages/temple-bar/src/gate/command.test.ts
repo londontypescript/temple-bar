@@ -50,7 +50,7 @@ function scriptRuns(proc: ReturnType<typeof createFakeProc>): string[] {
 
 const ALL_SCRIPTS = {
   typecheck: "tsc",
-  lint: "eslint .",
+  lint: "eslint . --max-warnings 0",
   "format:check": "prettier --check .",
   test: "node --test",
 };

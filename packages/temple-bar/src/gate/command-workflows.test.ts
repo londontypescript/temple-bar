@@ -27,7 +27,7 @@ import { answerExec } from "./testing/workspace-fixture.ts";
 
 const ALL_SCRIPTS = {
   typecheck: "tsc",
-  lint: "eslint .",
+  lint: "eslint . --max-warnings 0",
   "format:check": "prettier --check .",
   test: "node --test",
 };

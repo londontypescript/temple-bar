@@ -54,7 +54,7 @@ function root(): Record<string, string> {
       engines: { node: ">=24" },
       scripts: {
         typecheck: "tsc --noEmit -p tsconfig.json",
-        lint: "eslint .",
+        lint: "eslint . --max-warnings 0",
         "format:check": "prettier --check .",
         test: "vitest run --config vitest.root.config.ts",
       },

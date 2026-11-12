@@ -29,7 +29,11 @@ const PACKAGES = ["apps/web", "packages/a", "packages/b"];
 const OPTIONS: WorkspaceOptions = {
   packages: {
     "apps/web": ALL_SCRIPTS,
-    "packages/a": { typecheck: "tsc", lint: "eslint .", test: "node --test" },
+    "packages/a": {
+      typecheck: "tsc",
+      lint: "eslint . --max-warnings 0",
+      test: "node --test",
+    },
     "packages/b": ALL_SCRIPTS,
   },
   listing: { stdout: pnpmListing(["", ...PACKAGES]) },

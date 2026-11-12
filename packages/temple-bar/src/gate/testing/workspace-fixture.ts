@@ -28,7 +28,7 @@ export const NPM_EXEC = path.join("/tools", "npm", "bin", "npm-cli.js");
 
 export const ALL_SCRIPTS: Readonly<Record<string, string>> = {
   typecheck: "tsc",
-  lint: "eslint .",
+  lint: "eslint . --max-warnings 0",
   "format:check": "prettier --check .",
   test: "node --test",
 };
