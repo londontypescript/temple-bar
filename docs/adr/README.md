@@ -122,3 +122,4 @@ Settled before the numbering began:
 | 98  | In a parallel wave, `docs/enforcement.md` rows land after the wave                    | [0019](0019-rules-every-project-needs.md)          |
 | 99  | temple-bar supports only the current Node LTS, and moves up after each new LTS        | [0020](0020-only-the-current-node-lts.md)          |
 | 101 | An explicit `leftovers --remove` removes a merged pull request's released worktree    | [0022](0022-cleanup-after-merge.md)                |
+| 102 | A lint script running ESLint, oxlint or Biome must carry its deny-warnings flag       | [0007](0007-what-the-gate-checks.md)               |
