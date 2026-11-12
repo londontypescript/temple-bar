@@ -8,8 +8,14 @@
 // check yet. A workspace package gets no such allowance: it needs all four,
 // real, from the moment pnpm lists it (see
 // docs/adr/0015-every-package-checked-and-guarded.md).
+//
+// A `lint` script that runs ESLint, oxlint or Biome without its
+// deny-warnings flag still runs, so its output is seen, but fails: a
+// warning would otherwise pass (see lint-warnings.ts).
 
 import type { Context } from "../context.ts";
+import { formatLintFindings } from "./lint-message.ts";
+import { lintScriptFindings } from "./lint-warnings.ts";
 import type { CheckOutcome } from "./report.ts";
 import {
   isNoOpScript,
@@ -114,6 +120,18 @@ async function runEach(
   return results;
 }
 
+/** The lint outcome's detail when the script lets warnings pass, with its
+ * own exit code when it failed too, or that it couldn't run. */
+function lintDetail(results: readonly ScriptRunResult[]): string {
+  const exitCode = results.find(({ script }) => script === "lint")?.exitCode;
+  if (exitCode === undefined) {
+    return "lets warnings pass; not run: the gate can't start its package manager";
+  }
+  return exitCode === 0
+    ? "lets warnings pass"
+    : `lets warnings pass; exit ${String(exitCode)}`;
+}
+
 /** Runs the four scripts in `target`'s folder, each through `commandFor`,
  * and reports each one's outcome. Without `commandFor` (the gate can't
  * start its package manager again) nothing runs: each script that would
@@ -151,6 +169,11 @@ export async function runPackageScripts(
       ? [{ name, command }]
       : [];
   });
+  const lintFindings =
+    typeof scripts.lint === "string" &&
+    !noOps.some(({ name }) => name === "lint")
+      ? lintScriptFindings(scripts)
+      : [];
   const runnable = REQUIRED_SCRIPTS.filter(
     (name) =>
       !missing.includes(name) && !noOps.some((noOp) => noOp.name === name),
@@ -167,6 +190,9 @@ export async function runPackageScripts(
       const noOp = noOps.find((entry) => entry.name === script);
       if (noOp !== undefined) {
         return { name, status: "no-op", detail: JSON.stringify(noOp.command) };
+      }
+      if (script === "lint" && lintFindings.length > 0) {
+        return { name, status: "failed", detail: lintDetail(results) };
       }
       if (commandFor === undefined && runnable.includes(script)) {
         return {
@@ -186,6 +212,9 @@ export async function runPackageScripts(
     incomplete: missing.length > 0 || noOps.length > 0,
     message:
       (missing.length > 0 ? formatMissingScripts(target, missing) : "") +
-      (noOps.length > 0 ? formatNoOpScripts(target, noOps) : ""),
+      (noOps.length > 0 ? formatNoOpScripts(target, noOps) : "") +
+      (lintFindings.length > 0
+        ? formatLintFindings(manifestLabel(target), lintFindings)
+        : ""),
   };
 }

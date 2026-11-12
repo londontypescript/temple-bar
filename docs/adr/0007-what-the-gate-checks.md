@@ -1,7 +1,10 @@
 # ADR 0007: What the gate checks
 
-Date: 2026-10-01, updated 2026-10-03 and 2026-10-09. Status: accepted (decisions 10, 15, 20, 23, 36, 43 and 59; 10 and 15
-are recorded below with their implementation status).
+Date: 2026-10-01, updated 2026-10-03 and 2026-10-09, revised 2026-11-12:
+lint scripts deny warnings
+([#496](https://github.com/londontypescript/temple-bar/issues/496)). Status:
+accepted (decisions 10, 15, 20, 23, 36, 43, 59 and 102; 10 and 15 are
+recorded below with their implementation status).
 
 ## Context
 
@@ -145,6 +148,21 @@ own design (theme B).
 In a pnpm workspace the gate runs these four scripts in every package as
 well as the root
 ([ADR 0015](0015-every-package-checked-and-guarded.md)).
+
+**Decision 102: a lint script denies warnings.** A `lint` script that calls
+ESLint, oxlint or Biome without that tool's deny-warnings flag
+(`--max-warnings 0`, `--deny-warnings`, `--error-on-warnings`) fails the
+gate, naming the package, the script, the tool and the flag to add
+([#496](https://github.com/londontypescript/temple-bar/issues/496)): a
+linter that finds only warnings exits 0, so they would pass. The script still
+runs, and its outcome fails with exit 1. The gate reads the script by a
+bounded grammar, never a shell parser: `pnpm run X`, `pnpm X` and
+`npm run X` are followed one level down, and a tool any deeper is a finding;
+a script that names one of the three tools must be plain commands joined by
+`&&`, or it is refused as unreadable. Only the flag counts, never a config
+file, so the rule is easy to check and to fix. Other tools and languages are
+the project's own. It holds in every package the gate checks, under
+[ADR 0015](0015-every-package-checked-and-guarded.md)'s decision 67.
 
 ## What would end it
 

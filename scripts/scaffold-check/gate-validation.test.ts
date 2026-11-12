@@ -113,7 +113,7 @@ void test("script expectations are fixed fixture data, never learned from the li
 void test("a scaffold with all scripts needs real gate success", () => {
   const project = tempProject({
     "package.json":
-      '{"scripts":{"typecheck":"tsc","lint":"eslint","format:check":"prettier","test":"node --test"}}',
+      '{"scripts":{"typecheck":"tsc","lint":"eslint --max-warnings 0","format:check":"prettier","test":"node --test"}}',
   });
   const complete = report
     .split("\n")
@@ -144,6 +144,99 @@ void test("a scaffold with all scripts needs real gate success", () => {
   } finally {
     project.close();
   }
+});
+
+const LINT_MESSAGE = `gate: package.json has a "lint" script that lets warnings pass
+  "eslint ." runs eslint without --max-warnings 0: add --max-warnings 0 to it
+`;
+/** The report for a scaffold whose `lint` is `eslint .`, as the gate
+ * refuses it, beside the three missing scripts. */
+const refused = report
+  .replace("gate: checks:", `${LINT_MESSAGE}gate: checks:`)
+  .replace("  passed   lint", "  failed   lint (lets warnings pass)")
+  .replace(
+    "gate: failed: typecheck, format:check, test",
+    "gate: failed: typecheck, lint, format:check, test",
+  );
+
+function judgeLint(
+  output: string,
+  code: number,
+  scripts: string,
+  expected: readonly string[] = missing,
+): string[] {
+  const project = tempProject({ "package.json": scripts });
+  try {
+    return validateGate(
+      project.snapshot,
+      { code, timedOut: false, output, stdout: "" },
+      expected,
+    );
+  } finally {
+    project.close();
+  }
+}
+
+const ESLINT_ONLY = '{"scripts":{"lint":"eslint ."}}';
+
+void test("a scaffold lint script without its tool's flag expects the gate's lint finding, not a pass", () => {
+  assert.deepEqual(judgeLint(refused, 2, ESLINT_ONLY), []);
+  for (const [changed, finding] of [
+    [report, "expected the lint finding"],
+    [refused.replace(LINT_MESSAGE, ""), "expected the lint message"],
+    [
+      refused.replace("(lets warnings pass)", "(lets warnings pass; exit 1)"),
+      "expected the lint finding",
+    ],
+    [
+      refused.replace(
+        "gate: failed: typecheck, lint, format:check, test",
+        "gate: failed: typecheck, format:check, test",
+      ),
+      "unexpected verdict",
+    ],
+  ] as const) {
+    assert.ok(
+      judgeLint(changed, 2, ESLINT_ONLY).some((line) => line.includes(finding)),
+      finding,
+    );
+  }
+  // With the flag, the same scaffold needs the lint check to pass.
+  assert.ok(
+    judgeLint(
+      refused,
+      2,
+      '{"scripts":{"lint":"eslint . --max-warnings 0"}}',
+    ).some((line) => line.includes("unexpected check outcome: failed   lint")),
+  );
+});
+
+void test("a scaffold with every script but an unflagged lint expects exit 1 and lint alone failed", () => {
+  const scripts =
+    '{"scripts":{"typecheck":"tsc","lint":"oxlint","format:check":"prettier","test":"node --test"}}';
+  const complete = refused
+    .replace(LINT_MESSAGE, "")
+    .replace(
+      "gate: checks:",
+      `gate: package.json has a "lint" script that lets warnings pass\n  "oxlint" runs oxlint without --deny-warnings: add --deny-warnings to it\ngate: checks:`,
+    )
+    .split("\n")
+    .slice(1)
+    .join("\n")
+    .replaceAll(
+      /missing {2}(typecheck|format:check|test) \(not in package.json\)/g,
+      "passed   $1",
+    )
+    .replace(
+      "gate: failed: typecheck, lint, format:check, test",
+      "gate: failed: lint",
+    );
+  assert.deepEqual(judgeLint(complete, 1, scripts, []), []);
+  assert.ok(
+    judgeLint(complete, 0, scripts, []).some((line) =>
+      line.includes("unexpected exit 0"),
+    ),
+  );
 });
 
 void test("unexpected analyzer failure becomes setup failed in the real checker orchestration", async () => {

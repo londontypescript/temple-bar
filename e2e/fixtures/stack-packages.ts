@@ -8,7 +8,7 @@
  * runs from the package with the root's shared config. */
 export const PACKAGE_SCRIPTS: Readonly<Record<string, string>> = {
   typecheck: "tsc --noEmit -p tsconfig.json",
-  lint: "eslint .",
+  lint: "eslint . --max-warnings 0",
   "format:check": "prettier --check .",
   test: "vitest run --root . --config ../../vitest.config.ts",
 };

@@ -36,6 +36,11 @@ Add a convention when the user settles one, in a line or two, with the
 reason where it isn't obvious. Keep rules about how work is done in
 AGENTS.md; this file is about the code.
 
+The gate fails a \`lint\` script that runs ESLint, oxlint or Biome without its
+deny-warnings flag (\`--max-warnings 0\`, \`--deny-warnings\`,
+\`--error-on-warnings\`); any other linter or language (clippy, go vet, turbo,
+nx) is this project's own to make fail on warnings.
+
 None yet.
 `;
 

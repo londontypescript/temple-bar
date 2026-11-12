@@ -121,6 +121,29 @@ void test("gate --part exits as the whole gate would for its checks: 2 for a mis
   });
 });
 
+void test("gate --part <package> fails a lint script that lets warnings pass, as the whole gate would, and reports it", async () => {
+  const { ctx, proc, files } = fixture({
+    packages: {
+      "packages/a": ALL_SCRIPTS,
+      "packages/b": { ...ALL_SCRIPTS, lint: "eslint src" },
+    },
+  });
+
+  assert.equal(await runGate(ctx, files, partArgs("packages/b", "b.json")), 1);
+
+  assert.deepEqual(
+    scriptRuns(proc),
+    EVERY.map((script) => `packages/b:${script}`),
+  );
+  const report = readReport(files, "b.json");
+  assert.equal(report.exitCode, 1);
+  assert.deepEqual(report.outcomes[1], {
+    name: "lint (packages/b)",
+    status: "failed",
+    detail: "lets warnings pass",
+  });
+});
+
 void test("gate --part refuses outside GitHub Actions, naming each variable it lacks, before running anything", async () => {
   const { ctx, proc, files, stderr } = fixture({
     env: { npm_execpath: ACTIONS_ENV.npm_execpath, GITHUB_RUN_ID: "1" },

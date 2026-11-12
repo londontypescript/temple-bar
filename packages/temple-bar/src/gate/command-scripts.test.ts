@@ -25,7 +25,7 @@ import { answerExec } from "./testing/workspace-fixture.ts";
 
 const ALL_SCRIPTS = {
   typecheck: "tsc",
-  lint: "eslint .",
+  lint: "eslint . --max-warnings 0",
   "format:check": "prettier --check .",
   test: "node --test",
 };
@@ -182,4 +182,64 @@ void test("gate: real commands next to an echo still run and pass", async () => 
 
   assert.equal(await run(), 0);
   assert.equal(ran(proc).length, 4);
+});
+
+void test("gate: a lint script that lets warnings pass still runs, then fails with exit 1, naming the tool and the flag to add", async () => {
+  const { run, proc, stderr } = project(["package.json", "src/index.ts"], {
+    ...ALL_SCRIPTS,
+    lint: "pnpm run lint:js && oxlint --deny-warnings",
+    "lint:js": "eslint .",
+  });
+
+  assert.equal(await run(), 1);
+  assert.deepEqual(ran(proc), ["typecheck", "lint", "format:check", "test"]);
+  const text = stderr.lines.join("");
+  assert.match(
+    messageBeforeReport(stderr),
+    /^gate: package\.json has a "lint" script that lets warnings pass\n {2}"eslint \." \(in "lint:js"\) runs eslint without --max-warnings 0: add --max-warnings 0 to it\n/m,
+  );
+  assert.match(text, /^ {2}failed {3}lint \(lets warnings pass\)$/m);
+  assert.match(text, /^gate: failed: lint$/m);
+});
+
+void test("gate: a lint script the gate can't read fails, and its own failure is reported beside it", async () => {
+  const { run, stderr } = project(
+    ["package.json", "src/index.ts"],
+    { ...ALL_SCRIPTS, lint: "eslint . --max-warnings 0 || true" },
+    (script) => (script === "lint" ? 1 : 0),
+  );
+
+  assert.equal(await run(), 1);
+  const text = stderr.lines.join("");
+  assert.match(
+    text,
+    /^ {2}it calls eslint, but the gate can't read it: it holds "\|"$/m,
+  );
+  assert.match(text, /^ {2}failed {3}lint \(lets warnings pass; exit 1\)$/m);
+});
+
+void test("gate: a lint script that lets warnings pass doesn't hide a missing script, which still exits 2", async () => {
+  const { run, stderr } = project(["package.json", "src/index.ts"], {
+    lint: "biome check .",
+  });
+
+  assert.equal(await run(), 2);
+  const text = stderr.lines.join("");
+  assert.match(text, /missing script\(s\): typecheck, format:check, test\n/);
+  assert.match(
+    text,
+    /"biome check \." runs biome without --error-on-warnings: add --error-on-warnings to it\n/,
+  );
+});
+
+void test("gate: a lint script that does nothing is reported as a no-op, not as letting warnings pass", async () => {
+  const { run, stderr } = project(["package.json", "src/index.ts"], {
+    ...ALL_SCRIPTS,
+    lint: "echo eslint",
+  });
+
+  assert.equal(await run(), 2);
+  const text = stderr.lines.join("");
+  assert.match(text, /^ {2}no-op {4}lint \("echo eslint"\)$/m);
+  assert.doesNotMatch(text, /lets warnings pass/);
 });

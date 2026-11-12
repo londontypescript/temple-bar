@@ -156,6 +156,33 @@ void test("gate: a package's removed typecheck, or one that does nothing, exits 
   );
 });
 
+void test("gate: a package's lint script that lets warnings pass exits 1, naming the package, while the root's passes", async () => {
+  const { ctx, proc, stderr } = workspace({
+    packages: {
+      "packages/a": { ...ALL_SCRIPTS, lint: "oxlint" },
+      "packages/b": ALL_SCRIPTS,
+    },
+  });
+
+  assert.equal(await runGate(ctx), 1);
+  assert.deepEqual(scriptRuns(proc), [
+    ...each(""),
+    ...each("packages/a"),
+    ...each("packages/b"),
+  ]);
+  const text = stderr.lines.join("");
+  assert.match(
+    text,
+    /^gate: packages\/a\/package\.json has a "lint" script that lets warnings pass\n {2}"oxlint" runs oxlint without --deny-warnings: add --deny-warnings to it$/m,
+  );
+  assert.match(
+    text,
+    /^ {2}failed {3}lint \(packages\/a\) \(lets warnings pass\)$/m,
+  );
+  assert.match(text, /^ {2}passed {3}lint$/m);
+  assert.match(text, /^gate: failed: lint \(packages\/a\)$/m);
+});
+
 void test("gate: the inventory failing exits 1 even when every script passed", async () => {
   const { ctx, stderr } = workspace({
     extraTracked: ["tools/c/package.json"],
