@@ -12,6 +12,7 @@ import {
   launchCommand,
   packageManagerRequiredMessage,
   pnpmRequiredMessage,
+  parseInitArgs,
   runInitCommand,
 } from "./package-manager.ts";
 
@@ -174,11 +175,49 @@ void test("foreignLockfileMessage doesn't offer pnpm import for bun, which it ca
   }
 });
 
-void test("runInitCommand passes on only the two approval flags", () => {
-  assert.deepEqual(
-    runInitCommand(["--create-repo", "--evil", "--create-ruleset"]).args,
-    ["exec", "temple-bar", "init", "--create-repo", "--create-ruleset"],
-  );
+void test("runInitCommand passes on the approvals and the checked values, after `=`, and nothing else", () => {
+  const args = parseInitArgs([
+    "--create-repo",
+    "--evil",
+    "--owner",
+    "acme",
+    "--identities=0123456789ab",
+    "--create-ruleset",
+    "stray",
+  ]);
+  assert.ok(typeof args !== "string");
+  assert.deepEqual(runInitCommand(args).args, [
+    "exec",
+    "temple-bar",
+    "init",
+    "--create-repo",
+    "--create-ruleset",
+    "--owner=acme",
+    "--identities=0123456789ab",
+  ]);
+});
+
+void test("parseInitArgs refuses a bad --owner or --identities, and --create-repo without --owner", () => {
+  for (const [argv, expected] of [
+    [["--owner"], /--owner needs a value/],
+    [["--owner", "--create-repo"], /--owner needs a value/],
+    [["--owner="], /--owner needs a value/],
+    [["--owner", "-x"], /--owner needs a value/],
+    [["--owner", "a", "--owner=b"], /--owner is given more than once/],
+    [["--owner", "acme/widgets"], /isn't a GitHub organisation's name/],
+    [["--owner", "a b"], /isn't a GitHub organisation's name/],
+    [["--identities", "XYZ"], /isn't the 12-character code/],
+    [["--identities"], /--identities needs a value/],
+    [
+      ["--identities=0123456789ab", "--identities=0123456789ab"],
+      /given more than once/,
+    ],
+    [["--create-repo"], /--create-repo needs --owner/],
+  ] as const) {
+    const result = parseInitArgs(argv);
+    assert.ok(typeof result === "string", argv.join(" "));
+    assert.match(result, expected);
+  }
 });
 
 void test("installCommand runs normal project installation with a frozen lockfile", () => {

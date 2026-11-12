@@ -21,7 +21,7 @@ import { createInitCommand } from "./command.ts";
 import { COMPANION_FILES } from "./companion-docs.ts";
 import { JUDGE_RULESET_NAME } from "./judge-ruleset.ts";
 import { codeScanningAnswer } from "./testing/code-scanning-fake.ts";
-import { PNPM_USER_AGENT } from "./testing/command-fixture.ts";
+import { ACME_WIDGETS, PNPM_USER_AGENT } from "./testing/command-fixture.ts";
 import { CHECKED_WORKFLOWS } from "./workflows.ts";
 import { createRealContext } from "../context.ts";
 import { installHooks } from "../hooks/install.ts";
@@ -56,6 +56,22 @@ function makeRepo(withCommit: boolean): string {
 function fakeGhScript(args: readonly string[]): GhResult {
   if (args[0] === "--version") {
     return { code: 0, stdout: "gh 2.0.0", stderr: "", notFound: false };
+  }
+  // Setup's owner checks: acme is an organisation, and its repositories
+  // are public.
+  if (args[0] === "api" && args[2] === "--hostname") {
+    const path = args[1] ?? "";
+    if (path === "users/acme") {
+      return {
+        code: 0,
+        stdout: JSON.stringify({ login: "acme", type: "Organization" }),
+        stderr: "",
+        notFound: false,
+      };
+    }
+    if (/^repos\/acme\/[^/]+$/.test(path)) {
+      return { code: 0, stdout: ACME_WIDGETS, stderr: "", notFound: false };
+    }
   }
   const codeScanning = codeScanningAnswer(args, "required");
   if (codeScanning !== undefined) {
@@ -162,6 +178,9 @@ void test("integration: init sets up a real repo (AGENTS.md, scripts, real hooks
 
 void test("integration: an empty repo, yes: first commit has setup's files and no node_modules/, then GitHub, then hooks; a second run changes nothing", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "temple-bar-init-integration-"));
+  // Where setup's push lands instead of GitHub: the push itself is real.
+  const github = mkdtempSync(path.join(tmpdir(), "temple-bar-github-"));
+  execFileSync("git", ["init", "--bare", "--initial-branch=main", github]);
   try {
     initTestRepo(dir);
     mkdirSync(path.join(dir, "node_modules", "dep"), { recursive: true });
@@ -169,9 +188,20 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
     writeFileSync(path.join(dir, "keep.txt"), "already here");
     const ghCalls: string[] = [];
     const stderr = createFakeWriter();
+    const real = realContext();
     const ctx: Context = {
-      ...realContext(),
+      ...real,
       fs: createFsSeam(),
+      git: {
+        run: (args, cwd, input) =>
+          real.git.run(
+            args[2] === "push" && args[3] === "origin"
+              ? [...args.slice(0, 3), github, ...args.slice(4)]
+              : args,
+            cwd,
+            input,
+          ),
+      },
       // `gh repo create` is faked, but does what the real one does to the
       // local repo: adds origin. The hooks must not exist yet at that point.
       gh: createFakeGh((args) => {
@@ -181,6 +211,8 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
             existsSync(path.join(dir, ".git", "hooks", "pre-commit")),
             false,
           );
+          // The fake GitHub answers for acme/widgets only, so origin is
+          // that, whatever the folder's name.
           execFileSync(
             "git",
             ["remote", "add", "origin", "git@github.com:acme/widgets.git"],
@@ -197,11 +229,25 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
     };
     const command = createInitCommand({ installHooks });
 
-    const code = await command.run([], ctx);
+    const code = await command.run(["--owner", "acme"], ctx);
 
     assert.equal(code, 0, stderr.lines.join(""));
     assert.equal(ghCalls.length, 1);
-    assert.match(ghCalls[0] ?? "", /--push$/);
+    assert.equal(
+      ghCalls[0],
+      `repo create acme/${path.basename(dir)} --public --source . --remote origin`,
+    );
+    // Exactly the first commit went to GitHub's main, and no tag.
+    const pushed = execFileSync(
+      "git",
+      ["for-each-ref", "--format=%(refname) %(objectname)"],
+      { cwd: github, encoding: "utf8" },
+    );
+    const head = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: dir,
+      encoding: "utf8",
+    }).trim();
+    assert.equal(pushed, `refs/heads/main ${head}\n`);
     const tracked = execFileSync("git", ["ls-files"], {
       cwd: dir,
       encoding: "utf8",
@@ -237,6 +283,7 @@ void test("integration: an empty repo, yes: first commit has setup's files and n
     assert.equal(readFileSync(path.join(dir, ".gitignore"), "utf8"), before);
     assert.equal(ghCalls.length, 1);
   } finally {
+    rmSync(github, { recursive: true, force: true });
     rmSync(dir, { recursive: true, force: true });
   }
 });

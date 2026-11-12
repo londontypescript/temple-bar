@@ -15,14 +15,21 @@ workspace and runs its lifecycle scripts.
 
 Run it from your project's root folder.
 
-Options:
-  --create-repo     The user already said yes to creating the GitHub
-                    repository (passed on to \`temple-bar init\`)
-  --create-ruleset  The user already said yes to creating the \`main\`
-                    ruleset (passed on to \`temple-bar init\`)
-  -h, --help        Show this help and change nothing
+temple-bar sets up only public repositories owned by a GitHub organisation.
 
-An agent passes a flag only after the user said yes in chat.
+Options (passed on to \`temple-bar init\`):
+  --create-repo           The user already said yes to creating the GitHub
+                          repository and to its first push. Needs --owner.
+  --owner <organisation>  The organisation the user agreed should own the
+                          new repository.
+  --identities <code>     The code setup showed with the commit identities
+                          the user agreed to publish.
+  --create-ruleset        The user already said yes to creating the \`main\`
+                          ruleset
+  -h, --help              Show this help and change nothing
+
+An agent passes a flag only after the user said yes in chat. A bad value,
+or --create-repo without --owner, is refused before anything changes.
 `;
 
 export function wantsHelp(argv: readonly string[]): boolean {

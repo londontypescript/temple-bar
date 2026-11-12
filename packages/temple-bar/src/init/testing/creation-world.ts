@@ -41,6 +41,11 @@ export interface World {
   /** A line a commit-msg hook adds to setup's first commit. */
   hookAddsLine: string | undefined;
   pushAnswer: GitResult;
+  /** What GitHub says about origin's repository. */
+  remote: { type: string; visibility: string; private: boolean };
+  /** Whether GitHub lists a branch in origin's repository: false once
+   * `gh repo create` made it, true again after a push. */
+  remoteHasBranches: boolean;
   /** Every call, as `git <args>` or `gh <args>`. */
   readonly calls: string[];
 }
@@ -68,6 +73,8 @@ export function newWorld(overrides: Partial<World> = {}): World {
     commitAnswer: OK,
     hookAddsLine: undefined,
     pushAnswer: OK,
+    remote: { type: "Organization", visibility: "public", private: false },
+    remoteHasBranches: true,
     calls: [],
     ...overrides,
   };
@@ -92,7 +99,13 @@ function answer(stdout: string, code = 0): GitResult {
   return { code, stdout, stderr: "" };
 }
 
-function gitAnswer(world: World, args: readonly string[]): GitResult {
+type Fallback<T> = (args: readonly string[]) => T;
+
+function gitAnswer(
+  world: World,
+  args: readonly string[],
+  fallback: Fallback<GitResult>,
+): GitResult {
   const [first, second] = args;
   const ref = `refs/heads/${world.branch}`;
   if (first === "symbolic-ref") {
@@ -140,12 +153,19 @@ function gitAnswer(world: World, args: readonly string[]): GitResult {
     return world.commitAnswer;
   }
   if (args.includes("push")) {
+    if (world.pushAnswer.code === 0) {
+      world.remoteHasBranches = true;
+    }
     return world.pushAnswer;
   }
-  return OK;
+  return fallback(args);
 }
 
-function ghAnswer(world: World, args: readonly string[]): GhResult {
+function ghAnswer(
+  world: World,
+  args: readonly string[],
+  fallback: Fallback<GhResult>,
+): GhResult {
   const ok = (stdout: string): GhResult => ({
     code: 0,
     stdout,
@@ -156,7 +176,26 @@ function ghAnswer(world: World, args: readonly string[]): GhResult {
     if (world.createAddsOrigin) {
       world.origin = `git@github.com:${args[2] ?? ""}.git`;
     }
+    if (world.createAnswer.code === 0) {
+      world.remoteHasBranches = false;
+    }
     return world.createAnswer;
+  }
+  const path = args[1] ?? "";
+  if (args[0] === "api" && args[2] === "--hostname") {
+    if (/^repos\/[^/]+\/[^/]+$/.test(path)) {
+      const [, owner = ""] = path.split("/");
+      return ok(
+        JSON.stringify({
+          owner: { login: owner, type: world.remote.type },
+          visibility: world.remote.visibility,
+          private: world.remote.private,
+        }),
+      );
+    }
+    if (path.endsWith("/branches?per_page=1")) {
+      return ok(world.remoteHasBranches ? '[{"name":"main"}]' : "[]");
+    }
   }
   const account = /^users\/(.+)$/.exec(args[1] ?? "")?.[1];
   if (args[0] === "api" && account !== undefined) {
@@ -170,19 +209,28 @@ function ghAnswer(world: World, args: readonly string[]): GhResult {
         }
       : ok(JSON.stringify({ login: account, type }));
   }
-  return ok("");
+  return fallback(args);
 }
 
-/** git and gh fakes acting on `world`, recording each call there. */
-export function worldSeams(world: World): { git: FakeGit; gh: FakeGh } {
+/** git and gh fakes acting on `world`, recording each call there. Calls
+ * the world doesn't model go to the fallbacks (by default, a success with
+ * no output). */
+export function worldSeams(
+  world: World,
+  fallbacks: { git?: Fallback<GitResult>; gh?: Fallback<GhResult> } = {},
+): { git: FakeGit; gh: FakeGh } {
+  const git = fallbacks.git ?? (() => OK);
+  const gh =
+    fallbacks.gh ??
+    ((): GhResult => ({ code: 0, stdout: "", stderr: "", notFound: false }));
   return {
     git: createFakeGit((args) => {
       world.calls.push(`git ${args.join(" ")}`);
-      return gitAnswer(world, args);
+      return gitAnswer(world, args, git);
     }),
     gh: createFakeGh((args) => {
       world.calls.push(`gh ${args.join(" ")}`);
-      return ghAnswer(world, args);
+      return ghAnswer(world, args, gh);
     }),
   };
 }

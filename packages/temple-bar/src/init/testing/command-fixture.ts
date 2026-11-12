@@ -18,6 +18,7 @@ import { CHECKED_WORKFLOWS } from "../workflows.ts";
 import { JUDGE_WORKFLOW_PATH, judgeWorkflow } from "../../judge/workflow.ts";
 import { JUDGE_RULESET_NAME } from "../judge-ruleset.ts";
 import { codeScanningAnswer } from "./code-scanning-fake.ts";
+import { worldSeams, type World } from "./creation-world.ts";
 import type { InstallReport } from "../../hooks/install.ts";
 import {
   createFakeContext,
@@ -64,6 +65,19 @@ export function defaultGitScript(args: readonly string[]): GitResult {
   return { code: 0, stdout: "", stderr: "" };
 }
 
+/** GitHub's answer for an organisation's public repository. */
+export const ACME_WIDGETS = JSON.stringify({
+  owner: { login: "acme", type: "Organization" },
+  visibility: "public",
+  private: false,
+});
+
+/** Setup's reads of who owns a repository or account always name the host
+ * github.com, which the other `gh api` reads don't. */
+export function isOwnerCheck(args: readonly string[], path: string): boolean {
+  return args[0] === "api" && args[1] === path && args[2] === "--hostname";
+}
+
 export function defaultGhScript(args: readonly string[]): GhResult {
   if (args[0] === "--version") {
     return { code: 0, stdout: "gh 2.0.0", stderr: "", notFound: false };
@@ -73,6 +87,11 @@ export function defaultGhScript(args: readonly string[]): GhResult {
   }
   if (args.includes("POST")) {
     return { code: 0, stdout: "", stderr: "", notFound: false };
+  }
+  // origin is an organisation's public repository, the only kind setup
+  // works on.
+  if (isOwnerCheck(args, "repos/acme/widgets")) {
+    return { code: 0, stdout: ACME_WIDGETS, stderr: "", notFound: false };
   }
   // The usual state: main is already protected by both rulesets and
   // requires CodeQL (a real second run), so most tests aren't about GitHub
@@ -183,9 +202,27 @@ export function makeFixture(
   return { ctx, hookCalls, stdout, stderr };
 }
 
-export async function runInitFor(fixture: Fixture): Promise<number> {
+/** A fixture whose git and gh act on a creation world (see
+ * creation-world.ts); anything the world doesn't model answers as
+ * defaultGitScript and `gh` do. */
+export function worldFixture(
+  world: World,
+  promptAnswer: ConfirmResult = "no-terminal",
+  overrides: Partial<Context> = {},
+  gh: (args: readonly string[]) => GhResult = defaultGhScript,
+): Fixture {
+  return makeFixture(
+    { ...worldSeams(world, { git: defaultGitScript, gh }), ...overrides },
+    promptAnswer,
+  );
+}
+
+export async function runInitFor(
+  fixture: Fixture,
+  args: readonly string[] = [],
+): Promise<number> {
   const command = createInitCommand({
     installHooks: fakeInstallHooks(fixture.hookCalls),
   });
-  return command.run([], fixture.ctx);
+  return command.run(args, fixture.ctx);
 }

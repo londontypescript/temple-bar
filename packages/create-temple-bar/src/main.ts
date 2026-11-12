@@ -18,6 +18,7 @@ import {
   installCommand,
   launchCommand,
   packageManagerRequiredMessage,
+  parseInitArgs,
   pnpmRequiredMessage,
   runInitCommand,
 } from "./package-manager.ts";
@@ -98,6 +99,12 @@ export async function main(deps: MainDeps): Promise<number> {
   if (wantsHelp(deps.argv)) {
     deps.stdout.write(HELP_TEXT);
     return 0;
+  }
+  // Before anything else, so a wrong call changes nothing.
+  const initArgs = parseInitArgs(deps.argv);
+  if (typeof initArgs === "string") {
+    deps.stderr.write(`${initArgs} Nothing was changed.\n`);
+    return 1;
   }
   const launch = launchCommand(deps.ownVersion);
   const userAgent = deps.env.npm_config_user_agent;
@@ -192,7 +199,7 @@ export async function main(deps: MainDeps): Promise<number> {
     return installResult.code ?? 1;
   }
 
-  const init = runInitCommand(deps.argv);
+  const init = runInitCommand(initArgs);
   const initResult = await deps.run(init.command, init.args, options);
   return initResult.code ?? 1;
 }
