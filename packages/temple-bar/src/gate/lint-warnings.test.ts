@@ -208,6 +208,10 @@ void test("lintScriptFindings: a loop of scripts ends, and a name that isn't a s
   assert.deepEqual(check("pnpm run constructor"), []);
   assert.deepEqual(lintScriptFindings({}), []);
   assert.deepEqual(lintScriptFindings({ lint: ["eslint ."] }), []);
+  // Read through itself, the script's own call is said once.
+  assert.deepEqual(check("pnpm lint && eslint ."), [
+    { kind: "no-flag", tool: "eslint", command: "eslint .", from: "lint" },
+  ]);
 });
 
 void test("formatLintFindings: names the manifest, the script, the tool and the flag to add", () => {

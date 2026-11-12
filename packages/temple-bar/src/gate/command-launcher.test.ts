@@ -123,3 +123,20 @@ void test("gate: a launcher it can't start still names a missing script, which m
   assert.match(text, /^ {2}not-run {2}typecheck /m);
   assert.deepEqual(scriptRuns(proc), []);
 });
+
+void test("gate: a launcher it can't start still fails a lint script that lets warnings pass, saying it wasn't run", async () => {
+  const { ctx, proc, stderr } = started(SHIM, {
+    workspaceFile: false,
+    packages: {},
+    rootScripts: { ...ALL_SCRIPTS, lint: "eslint ." },
+  });
+
+  assert.equal(await runGate(ctx), 1);
+  assert.equal(proc.calls.length, 0);
+  const text = stderr.lines.join("");
+  assert.match(
+    text,
+    /^ {2}failed {3}lint \(lets warnings pass; not run: the gate can't start its package manager\)$/m,
+  );
+  assert.match(text, /runs eslint without --max-warnings 0/);
+});

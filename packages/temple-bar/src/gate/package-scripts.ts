@@ -120,10 +120,13 @@ async function runEach(
 }
 
 /** The lint outcome's detail when the script lets warnings pass, with its
- * own exit code when it ran and failed too. */
+ * own exit code when it failed too, or that it couldn't run. */
 function lintDetail(results: readonly ScriptRunResult[]): string {
   const exitCode = results.find(({ script }) => script === "lint")?.exitCode;
-  return exitCode === undefined || exitCode === 0
+  if (exitCode === undefined) {
+    return "lets warnings pass; not run: the gate can't start its package manager";
+  }
+  return exitCode === 0
     ? "lets warnings pass"
     : `lets warnings pass; exit ${String(exitCode)}`;
 }

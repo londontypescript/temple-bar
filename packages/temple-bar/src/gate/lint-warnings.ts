@@ -329,7 +329,12 @@ export function lintScriptFindings(
     if (finding?.kind === "unreadable") {
       return [finding];
     }
-    if (finding !== undefined) {
+    // The same call twice (`pnpm lint && eslint .` reads the script's own
+    // commands once more) is said once.
+    if (
+      finding !== undefined &&
+      !findings.some((seen) => JSON.stringify(seen) === JSON.stringify(finding))
+    ) {
       findings.push(finding);
     }
   }
