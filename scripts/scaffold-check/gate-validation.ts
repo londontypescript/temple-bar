@@ -1,4 +1,8 @@
-import { REQUIRED_SCRIPTS } from "../../packages/temple-bar/src/gate/stack.ts";
+import { lintScriptFindings } from "../../packages/temple-bar/src/gate/lint-warnings.ts";
+import {
+  isNoOpScript,
+  REQUIRED_SCRIPTS,
+} from "../../packages/temple-bar/src/gate/stack.ts";
 import { manifest, object } from "./expectation.ts";
 import type { RunResult } from "./runner.ts";
 import type { Snapshot } from "./snapshot.ts";
@@ -15,6 +19,7 @@ const BASE_CHECKS = [
   "local links",
   "unused code (knip)",
 ];
+const LINT_MESSAGE = 'package.json has a "lint" script that lets warnings pass';
 const REMOTE_CHECKS = [
   "branch ruleset",
   "judge ruleset",
@@ -46,7 +51,20 @@ export function validateGate(
     findings.push(
       `gate: expected missing script(s): ${expectedMissing.join(", ") || "none"}; got ${JSON.stringify(reported)}`,
     );
-  if (result.timedOut || result.code !== (expectedMissing.length > 0 ? 2 : 0))
+  // A scaffold lint script that runs ESLint, oxlint or Biome without its
+  // deny-warnings flag is the gate's intended refusal (#496), not a
+  // compatibility break: its row fails and its message comes first.
+  const lint = scripts.lint;
+  const lintRefused =
+    typeof lint === "string" &&
+    !isNoOpScript(lint) &&
+    lintScriptFindings(scripts).length > 0;
+  const failing = REQUIRED_SCRIPTS.filter(
+    (name) =>
+      expectedMissing.includes(name) || (name === "lint" && lintRefused),
+  );
+  const expectedCode = expectedMissing.length > 0 ? 2 : lintRefused ? 1 : 0;
+  if (result.timedOut || result.code !== expectedCode)
     findings.push(
       `gate: unexpected exit ${String(result.code)}${result.timedOut ? " (deadline)" : ""}`,
     );
@@ -70,6 +88,8 @@ export function validateGate(
     findings.push("gate: missing, duplicate or incomplete closing report");
     return findings;
   }
+  if (lintRefused && !lines.slice(0, start).includes(`gate: ${LINT_MESSAGE}`))
+    findings.push(`gate: expected the lint message: ${LINT_MESSAGE}`);
   const names = [
     INVENTORY_CHECK,
     ...REQUIRED_SCRIPTS,
@@ -108,14 +128,17 @@ export function validateGate(
         findings.push(
           `gate: expected missing check: ${name}; got ${row.trim()}`,
         );
+    } else if (name === "lint" && lintRefused) {
+      if (status !== "failed" || label !== "lint (lets warnings pass)")
+        findings.push(`gate: expected the lint finding; got ${row.trim()}`);
     } else if (status !== "passed") {
       findings.push(`gate: unexpected check outcome: ${row.trim()}`);
     }
   }
   const verdict =
-    expectedMissing.length === 0
+    failing.length === 0
       ? "gate: passed"
-      : `gate: failed: ${expectedMissing.join(", ")}`;
+      : `gate: failed: ${failing.join(", ")}`;
   if (lines[end] !== verdict)
     findings.push(
       `gate: unexpected verdict: ${lines[end] ?? ""}; expected ${verdict}`,
