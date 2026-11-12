@@ -189,6 +189,30 @@ void test(
 );
 
 void test(
+  "workspace gate: a package's lint script that lets ESLint warnings pass fails with exit 1, naming the flag",
+  { timeout: 600_000 },
+  async () => {
+    const gate = await gateWith(["packages/a/package.json"], () => {
+      writeFileSync(
+        file("packages/a/package.json"),
+        packageManifest("pkg-a", { ...PASSING_SCRIPTS, lint: "eslint ." }),
+      );
+    });
+    // ESLint isn't installed here, so the script also fails on its own;
+    // the finding is the gate's either way, and never exit 2.
+    assert.equal(gate.code, 1, describe(gate));
+    assert.match(
+      gate.stderr,
+      /^gate: packages\/a\/package\.json has a "lint" script that lets warnings pass\r?\n {2}"eslint \." runs eslint without --max-warnings 0: add --max-warnings 0 to it\r?$/m,
+    );
+    assert.match(
+      gate.stderr,
+      /^ {2}failed {3}lint \(packages\/a\) \(lets warnings pass(; exit \d+)?\)\r?$/m,
+    );
+  },
+);
+
+void test(
   "workspace gate: a package.json outside the workspace's list fails, named relative to the root",
   { timeout: 600_000 },
   async () => {
