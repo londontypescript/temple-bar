@@ -38,7 +38,7 @@ for (const manager of ["npm@99.1.0", "yarn@4.3.0"]) {
       assert.equal(result.code, 0, result.report);
       assert.match(
         result.report,
-        new RegExp(manager.replaceAll(".", "\\.")),
+        new RegExp(RegExp.escape(manager)),
         "refusal names the live value",
       );
       assert.equal(

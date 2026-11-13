@@ -43,7 +43,9 @@
     "directory": "packages/temple-bar"
   },
   "dependencies": {
+    "@eslint-community/regexpp": "4.12.2",
     "knip": "6.39.0",
-    "markdownlint": "0.41.1"
+    "markdownlint": "0.41.1",
+    "oxc-parser": "0.150.0"
   }
 }

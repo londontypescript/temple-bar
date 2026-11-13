@@ -283,6 +283,7 @@ export function world(
             "markdown lint",
             "local links",
             "unused code (knip)",
+            "regex shapes in tests",
           ].map((name) => `  passed   ${name}`),
           ...[
             "branch ruleset",
