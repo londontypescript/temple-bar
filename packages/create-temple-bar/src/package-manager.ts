@@ -201,21 +201,103 @@ export function installCommand(): CommandLine {
   return { command: "pnpm", args: ["install", "--frozen-lockfile"] };
 }
 
-/** The only flags passed on to init: each carries the user's yes to one
- * question. Anything else is dropped, so the launcher never hands arbitrary
- * arguments to `pnpm exec`. */
-const INIT_FLAGS: readonly string[] = ["--create-repo", "--create-ruleset"];
+/** What the launcher passes on to init: each approval carries the user's
+ * yes to one question, and the two values carry their answers. */
+export interface InitArgs {
+  readonly createRepo: boolean;
+  readonly createRuleset: boolean;
+  readonly owner: string | undefined;
+  readonly identities: string | undefined;
+}
+
+/** The same filters `temple-bar init` applies, so a bad value is refused
+ * before the launcher writes anything: an account name (never a path or an
+ * option), and the 12-character code setup prints. */
+const VALUE_OPTIONS = {
+  "--owner": {
+    pattern: /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/,
+    expected: "a GitHub organisation's name",
+  },
+  "--identities": {
+    pattern: /^[0-9a-f]{12}$/,
+    expected: "the 12-character code setup printed with the identities",
+  },
+} as const;
+type ValueOption = keyof typeof VALUE_OPTIONS;
+
+function valueOption(arg: string): ValueOption | undefined {
+  const name = arg.split("=", 1)[0] ?? "";
+  return Object.hasOwn(VALUE_OPTIONS, name) ? (name as ValueOption) : undefined;
+}
+
+/** The arguments passed on to init, or why the launcher refuses them.
+ * Anything else is dropped, never passed on, so the launcher never hands
+ * arbitrary text to `pnpm exec`. */
+export function parseInitArgs(argv: readonly string[]): InitArgs | string {
+  const values = new Map<ValueOption, string>();
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index] ?? "";
+    const name = valueOption(arg);
+    if (name === undefined) {
+      continue;
+    }
+    if (values.has(name)) {
+      return `${name} is given more than once.`;
+    }
+    let value: string | undefined;
+    if (arg === name) {
+      value = argv[index + 1];
+      index += 1;
+    } else {
+      value = arg.slice(name.length + 1);
+    }
+    if (value === undefined || value === "" || value.startsWith("-")) {
+      return `${name} needs a value: ${VALUE_OPTIONS[name].expected}.`;
+    }
+    if (!VALUE_OPTIONS[name].pattern.test(value)) {
+      return `${name} ${JSON.stringify(value)} isn't ${VALUE_OPTIONS[name].expected}.`;
+    }
+    values.set(name, value);
+  }
+  const createRepo = argv.includes("--create-repo");
+  const owner = values.get("--owner");
+  if (createRepo && owner === undefined) {
+    return (
+      "--create-repo needs --owner <organisation>: the GitHub organisation " +
+      "the user agreed should own the new repository."
+    );
+  }
+  return {
+    createRepo,
+    createRuleset: argv.includes("--create-ruleset"),
+    owner,
+    identities: values.get("--identities"),
+  };
+}
 
 /** Runs `temple-bar init`, which isn't on PATH, from the project's copy,
- * passing on the answers an agent got from the user. */
-export function runInitCommand(argv: readonly string[] = []): CommandLine {
+ * passing on the answers an agent got from the user. Values go after `=`,
+ * so none can be read as an option. */
+export function runInitCommand(
+  args: InitArgs = {
+    createRepo: false,
+    createRuleset: false,
+    owner: undefined,
+    identities: undefined,
+  },
+): CommandLine {
   return {
     command: "pnpm",
     args: [
       "exec",
       "temple-bar",
       "init",
-      ...INIT_FLAGS.filter((flag) => argv.includes(flag)),
+      ...(args.createRepo ? ["--create-repo"] : []),
+      ...(args.createRuleset ? ["--create-ruleset"] : []),
+      ...(args.owner === undefined ? [] : [`--owner=${args.owner}`]),
+      ...(args.identities === undefined
+        ? []
+        : [`--identities=${args.identities}`]),
     ],
   };
 }

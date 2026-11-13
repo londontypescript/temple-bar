@@ -1,265 +1,396 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { offerRepoCreation, repoCreateCommand } from "./github-repo.ts";
 import {
-  createFakeContext,
-  createFakeGh,
-  createFakeGit,
-  createFakePrompt,
-} from "../testing/fakes.ts";
+  offerRepoCreation,
+  repoCreateCommand,
+  type RepoCreateRequest,
+} from "./github-repo.ts";
+import { readHeadState, readPushIdentities } from "./push-identities.ts";
+import { newWorld, worldSeams, type World } from "./testing/creation-world.ts";
+import { createFakeContext, createFakePrompt } from "../testing/fakes.ts";
+import type { Context } from "../context.ts";
+import type { ConfirmResult } from "../seams/prompt.ts";
 
-void test("offerRepoCreation: no-terminal prints the steps and doesn't touch gh", async () => {
-  const gh = createFakeGh();
-  const ctx = createFakeContext({
-    prompt: createFakePrompt({ interactive: false, answer: "no-terminal" }),
-    gh,
-  });
-  const outcome = await offerRepoCreation(ctx, "/repo");
-  assert.equal(outcome.kind, "declined");
-  assert.ok(outcome.message.includes(repoCreateCommand("repo")));
-  assert.equal(gh.calls.length, 0);
-});
+const ROOT = "/repo/widgets";
 
-void test("offerRepoCreation: an explicit no prints the command and doesn't touch gh", async () => {
-  const gh = createFakeGh();
-  const ctx = createFakeContext({
-    prompt: createFakePrompt({ interactive: true, answer: "no" }),
-    gh,
-  });
-  const outcome = await offerRepoCreation(ctx, "/repo");
-  assert.equal(outcome.kind, "declined");
-  assert.equal(gh.calls.length, 0);
-});
-
-void test("offerRepoCreation suggests and creates with the main checkout's name in a worktree", async () => {
-  for (const answer of ["no-terminal", "no", "yes"] as const) {
-    let created = false;
-    const gh = createFakeGh(() => {
-      created = true;
-      return { code: 0, stdout: "", stderr: "", notFound: false };
-    });
-    const git = createFakeGit((args) => {
-      if (args[0] === "remote") {
-        return {
-          code: created ? 0 : 2,
-          stdout: created ? "git@github.com:acme/widgets.git" : "",
-          stderr: "",
-        };
-      }
-      return {
-        code: 0,
-        stdout: args[1] === "--git-common-dir" ? "/repo/widgets/.git" : "false",
-        stderr: "",
-      };
-    });
-    const ctx = createFakeContext({
-      git,
-      gh,
-      prompt: {
-        isInteractive: () => answer !== "no-terminal",
-        confirm: (question) => {
-          assert.ok(question.includes(repoCreateCommand("widgets")));
-          return Promise.resolve(answer);
-        },
+function contextFor(
+  world: World,
+  answer: ConfirmResult = "no-terminal",
+  onQuestion: (question: string) => void = () => undefined,
+): Context {
+  return createFakeContext({
+    ...worldSeams(world),
+    prompt: {
+      isInteractive: () => answer !== "no-terminal",
+      confirm: (question) => {
+        onQuestion(question);
+        return Promise.resolve(answer);
       },
-    });
-    const outcome = await offerRepoCreation(
-      ctx,
-      "/repo/widgets/.claude/worktrees/setup",
-    );
-    if (answer === "yes") {
-      assert.equal(outcome.kind, "created");
-      assert.equal(gh.calls[0]?.args[2], "widgets");
-    } else {
-      assert.equal(outcome.kind, "declined");
-      assert.ok(outcome.message.includes(repoCreateCommand("widgets")));
-      assert.equal(gh.calls.length, 0);
-    }
-  }
-});
-
-function noCommitGit(commitCode: number, calls: string[]) {
-  return createFakeGit((args) => {
-    calls.push(`git ${args.join(" ")}`);
-    if (args[0] === "rev-parse" && args[1] === "HEAD") {
-      return { code: 128, stdout: "", stderr: "unknown revision" };
-    }
-    if (args[0] === "commit") {
-      return commitCode === 0
-        ? { code: 0, stdout: "", stderr: "" }
-        : { code: 1, stdout: "", stderr: "error: gpg failed to sign\nmore" };
-    }
-    if (args[0] === "remote") {
-      return {
-        code: 0,
-        stdout: "git@github.com:acme/widgets.git\n",
-        stderr: "",
-      };
-    }
-    return { code: 0, stdout: "", stderr: "" };
+    },
   });
 }
 
-void test("offerRepoCreation: yes with no commits writes the files, commits, then creates and pushes", async () => {
-  const calls: string[] = [];
-  const gh = createFakeGh((args) => {
-    calls.push(`gh ${args.join(" ")}`);
-    return { code: 0, stdout: "", stderr: "", notFound: false };
-  });
-  const ctx = createFakeContext({
-    prompt: createFakePrompt({ interactive: true, answer: "yes" }),
-    git: noCommitGit(0, calls),
-    gh,
-  });
-  const outcome = await offerRepoCreation(ctx, "/repo/widgets", () => {
-    calls.push("prepare");
-    return Promise.resolve();
-  });
-  assert.equal(outcome.kind, "created");
-  const order = calls.filter(
-    (c) => !c.startsWith("git rev-parse") && !c.startsWith("git remote"),
+/** The code setup shows for the world as it stands. */
+async function codeFor(world: World): Promise<string> {
+  const ctx = contextFor(newWorld({ ...world, calls: [] }));
+  const read = await readPushIdentities(
+    ctx,
+    ROOT,
+    await readHeadState(ctx, ROOT),
   );
-  assert.deepEqual(order.slice(0, 3), [
-    "prepare",
-    "git add -A",
-    "git commit -m Initial commit",
-  ]);
-  assert.match(order[3] ?? "", /^gh repo create widgets .* --push$/);
-});
+  assert.ok(read.ok);
+  return read.value.code;
+}
 
-void test("offerRepoCreation: a first commit that can't be made still creates the repo, without pushing, and names the one command left", async () => {
-  const calls: string[] = [];
-  const gh = createFakeGh((args) => {
-    calls.push(`gh ${args.join(" ")}`);
-    return { code: 0, stdout: "", stderr: "", notFound: false };
-  });
-  const ctx = createFakeContext({
-    prompt: createFakePrompt({ interactive: true, answer: "yes" }),
-    git: noCommitGit(1, calls),
-    gh,
-  });
-  const outcome = await offerRepoCreation(ctx, "/repo/widgets");
-  assert.equal(outcome.kind, "commit-needed");
-  assert.ok(!calls.some((c) => c.endsWith("--push")), "nothing to push yet");
-  assert.match(outcome.message, /gpg failed to sign/);
+function request(
+  overrides: Partial<RepoCreateRequest> = {},
+): RepoCreateRequest {
+  return {
+    owner: "acme",
+    approved: false,
+    identitiesCode: undefined,
+    ...overrides,
+  };
+}
+
+const created = (world: World) =>
+  world.calls.filter((call) => call.startsWith("gh repo create"));
+const pushes = (world: World) =>
+  world.calls.filter((call) => call.includes(" push "));
+
+void test("with no owner named, setup stops, asks for an organisation and shows the identities, creating nothing", async () => {
+  const world = newWorld();
+  const outcome = await offerRepoCreation(
+    contextFor(world),
+    ROOT,
+    request({ owner: undefined }),
+  );
+  assert.equal(outcome.kind, "declined");
+  assert.ok(!("origin" in outcome));
+  const code = await codeFor(world);
+  assert.match(outcome.message, /never a\s+personal account/);
   assert.ok(
     outcome.message.includes(
-      'git commit -m "Initial commit" && git push -u origin HEAD',
+      `\`pnpm exec temple-bar init --create-repo --owner <organisation> --identities ${code}\``,
     ),
   );
+  assert.ok(
+    outcome.message.includes(repoCreateCommand("<organisation>", "widgets")),
+  );
+  assert.ok(
+    outcome.message.includes(
+      "Ada Lovelace <ada@example.com>: author, committer",
+    ),
+  );
+  assert.deepEqual(created(world), []);
 });
 
-void test("offerRepoCreation: with commits already there it commits nothing", async () => {
-  const calls: string[] = [];
-  const git = createFakeGit((args) => {
-    calls.push(args[0] ?? "");
-    return args[0] === "remote"
-      ? { code: 0, stdout: "git@github.com:acme/widgets.git\n", stderr: "" }
-      : { code: 0, stdout: "abc\n", stderr: "" };
-  });
-  const ctx = createFakeContext({
-    prompt: createFakePrompt({ interactive: true, answer: "yes" }),
-    git,
-    gh: createFakeGh(() => ({
-      code: 0,
-      stdout: "",
-      stderr: "",
-      notFound: false,
-    })),
-  });
-  await offerRepoCreation(ctx, "/repo/widgets", () => {
-    throw new Error("must not prepare");
-  });
-  assert.ok(!calls.includes("add") && !calls.includes("commit"));
+void test("no terminal: the stop names <org>/<name> and the full rerun, and creates nothing", async () => {
+  const world = newWorld();
+  const outcome = await offerRepoCreation(contextFor(world), ROOT, request());
+  assert.equal(outcome.kind, "declined");
+  const code = await codeFor(world);
+  assert.ok(outcome.message.includes("acme/widgets"));
+  assert.ok(
+    outcome.message.includes(
+      `\`pnpm exec temple-bar init --create-repo --owner acme --identities ${code}\``,
+    ),
+  );
+  assert.ok(outcome.message.includes(repoCreateCommand("acme", "widgets")));
+  assert.deepEqual(created(world), []);
 });
 
-void test("offerRepoCreation: yes with commits creates and pushes, returning the parsed origin", async () => {
-  const git = createFakeGit((args) => {
-    if (args[0] === "rev-parse" && args[1] === "HEAD") {
-      return { code: 0, stdout: "abc123\n", stderr: "" };
-    }
-    if (args[0] === "remote") {
-      return {
-        code: 0,
-        stdout: "git@github.com:acme/widgets.git\n",
-        stderr: "",
-      };
-    }
-    return { code: 0, stdout: "", stderr: "" };
+void test("the question names the owner and every identity; a no prints the command by hand", async () => {
+  const world = newWorld({
+    history: [
+      {
+        author: "Ada Lovelace",
+        authorEmail: "ada@example.com",
+        committer: "Build Bot",
+        committerEmail: "bot@example.com",
+        message: "Start\n\nCo-Authored-By: Grace Hopper <grace@example.com>\n",
+      },
+    ],
+    ident: "Ada L <ada@home.example>",
   });
-  const gh = createFakeGh(() => ({
-    code: 0,
-    stdout: "",
-    stderr: "",
-    notFound: false,
-  }));
-  const ctx = createFakeContext({
-    prompt: createFakePrompt({ interactive: true, answer: "yes" }),
-    git,
-    gh,
-    cwd: "/repo/widgets",
-  });
-  const outcome = await offerRepoCreation(ctx, "/repo/widgets");
+  let asked = "";
+  const outcome = await offerRepoCreation(
+    contextFor(world, "no", (question) => (asked = question)),
+    ROOT,
+    request(),
+  );
+  assert.match(
+    asked,
+    /Create the public repository acme\/widgets, owned by the organisation acme/,
+  );
+  for (const line of [
+    "Ada Lovelace <ada@example.com>: author",
+    "Build Bot <bot@example.com>: committer",
+    "Grace Hopper <grace@example.com>: co-author",
+    "Ada L <ada@home.example>: your git author identity, your git committer identity",
+  ]) {
+    assert.ok(asked.includes(line), line);
+  }
+  assert.equal(outcome.kind, "declined");
+  assert.ok(outcome.message.includes(repoCreateCommand("acme", "widgets")));
+  assert.deepEqual(created(world), []);
+});
+
+void test("--create-repo without the code, or with another one, stops before creating", async () => {
+  for (const identitiesCode of [undefined, "0123456789ab"]) {
+    const world = newWorld();
+    const outcome = await offerRepoCreation(
+      contextFor(world),
+      ROOT,
+      request({ approved: true, identitiesCode }),
+    );
+    assert.equal(outcome.kind, "declined");
+    assert.ok(outcome.message.includes(await codeFor(world)));
+    assert.deepEqual(created(world), []);
+  }
+});
+
+void test("--create-repo with the matching code creates <org>/<name> without --push, then pushes exactly the commit read", async () => {
+  const world = newWorld();
+  const code = await codeFor(world);
+  const outcome = await offerRepoCreation(
+    contextFor(world),
+    ROOT,
+    request({ approved: true, identitiesCode: code }),
+  );
   assert.deepEqual(outcome, {
     kind: "created",
     origin: { owner: "acme", repo: "widgets" },
   });
-  assert.deepEqual(gh.calls[0]?.args.slice(0, 2), ["repo", "create"]);
+  assert.deepEqual(created(world), [
+    "gh repo create acme/widgets --public --source . --remote origin",
+  ]);
+  assert.deepEqual(pushes(world), [
+    "git -c push.followTags=false -c push.recurseSubmodules=no push origin c0ffee:refs/heads/main",
+  ]);
 });
 
-void test("offerRepoCreation: yes with commits but a failing `gh repo create` reports failure", async () => {
-  const git = createFakeGit((args) =>
-    args[0] === "rev-parse" && args[1] === "HEAD"
-      ? { code: 0, stdout: "abc123\n", stderr: "" }
-      : { code: 0, stdout: "", stderr: "" },
+void test("in a worktree, the main checkout's folder names the repository", async () => {
+  const world = newWorld();
+  await offerRepoCreation(
+    contextFor(world, "yes"),
+    `${ROOT}/.claude/worktrees/setup`,
+    request(),
   );
-  const gh = createFakeGh(() => ({
+  assert.equal(created(world)[0]?.split(" ")[3], "acme/widgets");
+});
+
+void test("an unborn branch: setup's files, its first commit, then creation and the push of that commit", async () => {
+  const world = newWorld({ commit: undefined, history: [] });
+  const code = await codeFor(world);
+  const order: string[] = [];
+  const outcome = await offerRepoCreation(
+    contextFor(world),
+    ROOT,
+    request({ approved: true, identitiesCode: code }),
+    () => {
+      world.calls.push("prepare");
+      order.push("prepare");
+      return Promise.resolve();
+    },
+  );
+  assert.equal(outcome.kind, "created");
+  const steps = world.calls.filter((call) =>
+    /^(prepare|git add|git commit|gh repo create|git -c)/.test(call),
+  );
+  assert.deepEqual(steps, [
+    "prepare",
+    "git add -A",
+    "git commit -m Initial commit",
+    "gh repo create acme/widgets --public --source . --remote origin",
+    "git -c push.followTags=false -c push.recurseSubmodules=no push origin 5e7c0de:refs/heads/main",
+  ]);
+});
+
+void test("a hook's co-author in setup's first commit stops the push", async () => {
+  const world = newWorld({
+    commit: undefined,
+    history: [],
+    hookAddsLine: "Co-authored-by: Someone <someone@example.com>\n",
+  });
+  const code = await codeFor(world);
+  const outcome = await offerRepoCreation(
+    contextFor(world),
+    ROOT,
+    request({ approved: true, identitiesCode: code }),
+  );
+  assert.equal(outcome.kind, "failed");
+  assert.ok(
+    outcome.message.includes("Someone <someone@example.com>: co-author"),
+  );
+  assert.deepEqual(pushes(world), []);
+});
+
+void test("a commit by someone new while the question waits stops the push", async () => {
+  const world = newWorld();
+  const outcome = await offerRepoCreation(
+    contextFor(world, "yes", () => {
+      world.commit = "bada55";
+      world.history = [
+        { author: "Mallory", authorEmail: "m@example.com", message: "x\n" },
+        ...world.history,
+      ];
+    }),
+    ROOT,
+    request(),
+  );
+  assert.equal(outcome.kind, "failed");
+  assert.match(outcome.message, /Nothing was pushed to acme\/widgets/);
+  assert.ok(outcome.message.includes("Mallory <m@example.com>: author"));
+  assert.deepEqual(pushes(world), []);
+});
+
+void test("a first commit setup can't make still creates the repository, pushes nothing and names the rerun", async () => {
+  const world = newWorld({
+    commit: undefined,
+    history: [],
+    commitAnswer: {
+      code: 1,
+      stdout: "",
+      stderr: "error: gpg failed to sign\nmore",
+    },
+  });
+  const code = await codeFor(world);
+  const outcome = await offerRepoCreation(
+    contextFor(world, "yes"),
+    ROOT,
+    request(),
+  );
+  assert.equal(outcome.kind, "failed");
+  assert.equal(created(world).length, 1);
+  assert.deepEqual(pushes(world), []);
+  assert.match(outcome.message, /gpg failed to sign/);
+  assert.ok(
+    outcome.message.includes(
+      `\`pnpm exec temple-bar init --create-repo --owner acme --identities ${code}\``,
+    ),
+  );
+});
+
+void test("gh failing after adding origin leaves only the push; gh failing before says setup pushed nothing and infers nothing", async () => {
+  const failing = {
     code: 1,
     stdout: "",
     stderr: "HTTP 422: name already exists",
     notFound: false,
-  }));
-  const ctx = createFakeContext({
-    prompt: createFakePrompt({ interactive: true, answer: "yes" }),
-    git,
-    gh,
-  });
-  const outcome = await offerRepoCreation(ctx, "/repo");
-  assert.equal(outcome.kind, "failed");
+  };
+  const added = newWorld({ createAnswer: failing });
+  const afterOrigin = await offerRepoCreation(
+    contextFor(added, "yes"),
+    ROOT,
+    request(),
+  );
+  assert.equal(afterOrigin.kind, "failed");
+  assert.match(
+    afterOrigin.message,
+    /gh created acme\/widgets and set it as "origin", then failed/,
+  );
+
+  const none = newWorld({ createAnswer: failing, createAddsOrigin: false });
+  const before = await offerRepoCreation(
+    contextFor(none, "yes"),
+    ROOT,
+    request(),
+  );
+  assert.equal(before.kind, "failed");
+  assert.match(before.message, /failed, and setup pushed nothing/);
+  assert.match(before.message, /name already exists/);
+  assert.doesNotMatch(before.message, /^Created/);
+  for (const world of [added, none]) {
+    assert.deepEqual(pushes(world), []);
+    assert.ok(!world.calls.some((call) => call.startsWith("gh api")));
+  }
 });
 
-void test("offerRepoCreation: no terminal names the flag an agent passes after asking the user", async () => {
-  const ctx = createFakeContext({
-    prompt: createFakePrompt({ interactive: false, answer: "no-terminal" }),
-    gh: createFakeGh(),
-  });
-  const outcome = await offerRepoCreation(ctx, "/repo");
-  assert.equal(outcome.kind, "declined");
-  // The flag sits inside the quote, so copying the command copies the flag.
-  assert.match(outcome.message, /`pnpm exec temple-bar init --create-repo`/);
-});
-
-void test("offerRepoCreation: approved (--create-repo) creates with no prompt, even with no terminal", async () => {
-  let asked = false;
-  const gh = createFakeGh();
-  const ctx = createFakeContext({
-    git: createFakeGit((args) =>
-      args[0] === "remote"
-        ? { code: 0, stdout: "git@github.com:acme/widgets.git\n", stderr: "" }
-        : { code: 0, stdout: "abc\n", stderr: "" },
-    ),
-    prompt: {
-      isInteractive: () => false,
-      confirm: () => {
-        asked = true;
-        return Promise.resolve("no-terminal");
-      },
+void test("a failed push is reported as not completed, with the fixes and the rerun", async () => {
+  const world = newWorld({
+    pushAnswer: {
+      code: 128,
+      stdout: "",
+      stderr: "fatal: Authentication failed",
     },
-    gh,
   });
-  const outcome = await offerRepoCreation(ctx, "/repo", undefined, true);
-  assert.equal(outcome.kind, "created");
+  const outcome = await offerRepoCreation(
+    contextFor(world, "yes"),
+    ROOT,
+    request(),
+  );
+  assert.equal(outcome.kind, "failed");
+  assert.match(outcome.message, /^Created the GitHub repository acme\/widgets/);
+  assert.match(
+    outcome.message,
+    /didn't complete \(it may or may not have reached/,
+  );
+  assert.match(outcome.message, /Authentication failed/);
+  assert.match(outcome.message, /gh auth setup-git/);
+  assert.match(outcome.message, /--create-repo --owner acme --identities/);
+});
+
+void test("a push URL elsewhere stops the push", async () => {
+  const world = newWorld({
+    pushUrls: ["git@github.com:acme/widgets.git", "git@example.com:x/y.git"],
+  });
+  const outcome = await offerRepoCreation(
+    contextFor(world, "yes"),
+    ROOT,
+    request(),
+  );
+  assert.equal(outcome.kind, "failed");
+  assert.match(outcome.message, /git@example\.com:x\/y\.git/);
+  assert.deepEqual(pushes(world), []);
+});
+
+void test("setup pushes only to the repository gh made, under the name GitHub gave it", async () => {
+  const renamed = newWorld({ createdAs: "acme/wid-gets" });
+  assert.deepEqual(
+    await offerRepoCreation(contextFor(renamed, "yes"), ROOT, request()),
+    { kind: "created", origin: { owner: "acme", repo: "wid-gets" } },
+  );
+  for (const [overrides, said] of [
+    [{ originAfterCreate: "git@github.com:acme/other.git" }, /acme\/other/],
+    [{ createdAs: "elsewhere/widgets" }, /isn't owned by acme/],
+  ] as const) {
+    const world = newWorld(overrides);
+    const outcome = await offerRepoCreation(
+      contextFor(world, "yes"),
+      ROOT,
+      request(),
+    );
+    assert.equal(outcome.kind, "failed");
+    assert.match(outcome.message, said);
+    assert.deepEqual(pushes(world), []);
+  }
+});
+
+void test("a detached HEAD stops before asking or creating", async () => {
+  const world = newWorld({ detached: true });
+  let asked = false;
+  const outcome = await offerRepoCreation(
+    contextFor(world, "yes", () => (asked = true)),
+    ROOT,
+    request(),
+  );
+  assert.equal(outcome.kind, "declined");
+  assert.match(outcome.message, /HEAD is detached/);
   assert.equal(asked, false);
-  assert.equal(gh.calls[0]?.args[0], "repo");
+  assert.deepEqual(created(world), []);
+});
+
+void test("an interactive yes asks, then creates", async () => {
+  const world = newWorld();
+  const outcome = await offerRepoCreation(
+    createFakeContext({
+      ...worldSeams(world),
+      prompt: createFakePrompt({ interactive: true, answer: "yes" }),
+    }),
+    ROOT,
+    request(),
+  );
+  assert.equal(outcome.kind, "created");
 });

@@ -1,11 +1,13 @@
-// `temple-bar init`: checks the requirements, offers the GitHub changes
-// (repo creation; the rulesets and CodeQL under one yes) only on an explicit
-// yes, writes AGENTS.md, its companion docs, the workflows and package.json
-// where they're missing, then installs the hooks. Every hard stop below
-// happens before any write, so a failed run leaves the repo untouched. A path
-// setup refuses to write through (a symlink) is reported when it's found, and
-// the run still writes every other file and installs the hooks, then ends
-// non-zero.
+// `temple-bar init`: checks the requirements and which repository it may
+// set up (a public one owned by an organisation, ADR 0021), offers the
+// GitHub changes (repo creation; the rulesets and CodeQL under one yes) only
+// on an explicit yes, writes AGENTS.md, its companion docs, the workflows
+// and package.json where they're missing, then installs the hooks. Every
+// hard stop below happens before any write, so a failed run leaves the repo
+// untouched; a stop at a GitHub question writes only .gitignore. A path
+// setup refuses to write through (a symlink) is reported when it's found,
+// and the run still writes every other file and installs the hooks, then
+// ends non-zero.
 
 import type { CommandEntry } from "../registry.ts";
 import type { Context } from "../context.ts";
@@ -13,11 +15,13 @@ import {
   checkGhInstalled,
   checkGhSignedIn,
   checkGitRepo,
-  checkOrigin,
   wrongHostMessage,
   type GithubOrigin,
 } from "./requirements.ts";
-import { offerRepoCreation } from "./github-repo.ts";
+import { finishCreation } from "./first-push.ts";
+import { licenseNote, offerRepoCreation } from "./github-repo.ts";
+import { parseInitArgs, type InitArgs } from "./init-args.ts";
+import { planRepository, type RepositoryPlan } from "./repo-owner.ts";
 import { offerProtection } from "./github-protection.ts";
 import {
   ensureGitignore,
@@ -35,19 +39,6 @@ import { GITATTRIBUTES_PATH } from "./gitattributes.ts";
 import { findProtectedBranch } from "../hooks/protected-branch.ts";
 
 export type { InitDeps } from "./types.ts";
-
-/** Each flag means "the user already said yes in chat" for one question. */
-interface Approvals {
-  readonly createRepo: boolean;
-  readonly createRuleset: boolean;
-}
-
-function parseApprovals(args: readonly string[]): Approvals {
-  return {
-    createRepo: args.includes("--create-repo"),
-    createRuleset: args.includes("--create-ruleset"),
-  };
-}
 
 /** The hooks protect origin's default branch, which they read from
  * `refs/remotes/origin/HEAD`. A clone records it, but an origin added by
@@ -70,41 +61,62 @@ async function recordDefaultBranch(
   }
 }
 
-/** Resolves origin: either it already exists, or offers to create it. Returns
+/** Carries out the plan for origin: an existing one as it is (making its
+ * first push when `--create-repo` asks), or a new one offered. Returns
  * undefined when the run should stop here (message already printed).
  * `writeFiles` writes setup's files; it runs here only if the first commit
  * has to be made, so those files are in it. */
 async function resolveOrigin(
   ctx: Context,
   repoRoot: string,
+  plan: Exclude<RepositoryPlan, { kind: "refused" }>,
+  args: InitArgs,
   writeFiles: () => Promise<unknown>,
-  approved: boolean,
 ): Promise<GithubOrigin | undefined> {
-  const originCheck = await checkOrigin(ctx, repoRoot);
-
-  if (originCheck.state === "ok") {
-    return originCheck.origin;
-  }
-  if (originCheck.state === "wrong-host") {
-    ctx.stderr.write(`${wrongHostMessage(originCheck.url)}\n`);
+  if (plan.kind === "wrong-host") {
+    ctx.stderr.write(`${wrongHostMessage(plan.url)}\n`);
     return undefined;
+  }
+  if (plan.kind === "existing") {
+    if (plan.finish) {
+      const stop = await finishCreation(
+        ctx,
+        repoRoot,
+        plan.origin,
+        args.identities,
+      );
+      if (stop !== undefined) {
+        ctx.stderr.write(`${stop}\n`);
+        return undefined;
+      }
+      ctx.stdout.write(
+        `Pushed this branch to ${plan.origin.owner}/${plan.origin.repo}.\n`,
+      );
+    }
+    return plan.origin;
   }
 
   const outcome = await offerRepoCreation(
     ctx,
     repoRoot,
+    {
+      owner: args.owner,
+      approved: args.createRepo,
+      identitiesCode: args.identities,
+    },
     async () => {
       await writeFiles();
     },
-    approved,
   );
   if (outcome.kind === "created") {
-    ctx.stdout.write("Created the GitHub repository and pushed.\n");
+    ctx.stdout.write(
+      `Created the GitHub repository ${outcome.origin.owner}/${outcome.origin.repo} and pushed.\n`,
+    );
     return outcome.origin;
   }
-  // declined, commit-needed and failed all stop init with an explanatory
-  // message. Only commit-needed has written anything: setup's files, staged
-  // for the commit the user is asked to make.
+  // declined and failed both stop init with an explanatory message. Only a
+  // first commit setup couldn't make has written anything: setup's files,
+  // staged for the commit the user is asked to make.
   ctx.stderr.write(`${outcome.message}\n`);
   return undefined;
 }
@@ -112,7 +124,7 @@ async function resolveOrigin(
 async function runInit(
   deps: InitDeps,
   ctx: Context,
-  approvals: Approvals,
+  args: InitArgs,
 ): Promise<number> {
   const repoCheck = await checkGitRepo(ctx, ctx.cwd);
   if (!repoCheck.ok) {
@@ -133,6 +145,14 @@ async function runInit(
     return 1;
   }
 
+  // Who owns the repository, and whether it is public, is settled before
+  // anything is written.
+  const plan = await planRepository(ctx, repoRoot, args);
+  if (plan.kind === "refused") {
+    ctx.stderr.write(`${plan.message}\n`);
+    return 1;
+  }
+
   // By now the launcher has installed temple-bar into node_modules/, so
   // .gitignore has to cover it even if the run stops at a GitHub question:
   // otherwise the user's next `git add -A` commits node_modules/.
@@ -145,14 +165,13 @@ async function runInit(
   const writeFiles = async (): Promise<SetupFilesOutcome> =>
     (written ??= await writeSetupFiles(ctx, repoRoot, targets));
 
-  const origin = await resolveOrigin(
-    ctx,
-    repoRoot,
-    writeFiles,
-    approvals.createRepo,
-  );
+  const origin = await resolveOrigin(ctx, repoRoot, plan, args, writeFiles);
   if (!origin) {
     return 1;
+  }
+  const note = await licenseNote(ctx, repoRoot);
+  if (note !== undefined) {
+    ctx.stdout.write(note);
   }
   await recordDefaultBranch(ctx, repoRoot);
 
@@ -165,7 +184,7 @@ async function runInit(
     ctx,
     repoRoot,
     origin,
-    approvals.createRuleset,
+    args.createRuleset,
   );
   if (rulesetOutcome.kind === "not-created") {
     ctx.stderr.write(`${rulesetOutcome.message}\n`);
@@ -298,19 +317,36 @@ export function createInitCommand(deps: InitDeps): CommandEntry {
   return {
     name: "init",
     summary: "Set up temple-bar in this repository.",
-    args: "[--create-repo] [--create-ruleset]",
+    args: "[--create-repo] [--owner <organisation>] [--identities <code>] [--create-ruleset]",
     details:
-      "Asks before creating a GitHub repository, and once more before " +
-      "changing GitHub's protection of `main`: its rulesets and CodeQL " +
-      "code scanning. " +
+      "temple-bar sets up only public repositories owned by a GitHub " +
+      "organisation: a personal account's repository, or one that isn't " +
+      "public, is refused before anything is written. " +
+      "Setup asks before creating a GitHub repository and making its first " +
+      "push, showing every commit identity that push makes public, and once " +
+      "more before changing GitHub's protection of `main`: its rulesets and " +
+      "CodeQL code scanning. " +
       "With no terminal to ask in (an agent's shell), nothing is created " +
-      "and setup says which flag to pass.\n\n" +
+      "and setup says which flags to pass.\n\n" +
       "Options:\n" +
-      "  --create-repo     The user already said yes to creating the GitHub\n" +
-      "                    repository. Answers only that question.\n" +
-      "  --create-ruleset  The user already said yes to the rulesets and\n" +
-      "                    CodeQL. Answers only that question.\n\n" +
-      "An agent passes a flag only after the user said yes in chat.",
-    run: (args, ctx) => runInit(deps, ctx, parseApprovals(args)),
+      "  --create-repo           The user already said yes to creating the\n" +
+      "                          GitHub repository and to its first push.\n" +
+      "                          Needs --owner and --identities.\n" +
+      "  --owner <organisation>  The organisation the user agreed should own\n" +
+      "                          the new repository.\n" +
+      "  --identities <code>     The code setup showed with the commit\n" +
+      "                          identities the user agreed to publish.\n" +
+      "  --create-ruleset        The user already said yes to the rulesets\n" +
+      "                          and CodeQL. Answers only that question.\n\n" +
+      "An agent passes a flag only after the user said yes in chat. A wrong " +
+      "call (an unknown option, a missing or malformed value) exits 2.",
+    run: (args, ctx) => {
+      const parsed = parseInitArgs(args);
+      if (typeof parsed === "string") {
+        ctx.stderr.write(`init: ${parsed}\n`);
+        return Promise.resolve(2);
+      }
+      return runInit(deps, ctx, parsed);
+    },
   };
 }

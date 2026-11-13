@@ -130,3 +130,22 @@ void test("main: packageManager refuses foreign strings before writes or runs an
     }
   }
 });
+
+for (const argv of [
+  ["--create-repo"],
+  ["--owner"],
+  ["--owner", "--create-repo"],
+  ["--owner", "acme", "--owner", "acme"],
+  ["--owner", "acme/widgets"],
+  ["--identities", "not-a-code"],
+]) {
+  void test(`main: \`${argv.join(" ")}\` is refused before any check, write or spawn`, async () => {
+    // Even a launch npm started is refused for the arguments first: they
+    // are checked before anything else.
+    const { deps, runner, writes, stderr } = refusalFixture(userAgents.pnpm);
+    assert.equal(await main({ ...deps, argv }), 1);
+    assert.equal(runner.calls.length, 0, "nothing may be spawned");
+    assert.deepEqual(writes, [], "nothing may be written");
+    assert.match(stderr.lines.join(""), /Nothing was changed\.\n$/);
+  });
+}

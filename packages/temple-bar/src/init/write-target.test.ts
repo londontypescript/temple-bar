@@ -11,7 +11,9 @@ import {
   makeFixture,
   defaultGitScript,
   runInitFor,
+  worldFixture,
 } from "./testing/command-fixture.ts";
+import { newWorld } from "./testing/creation-world.ts";
 import { classifyDiskTarget, setupWriteTargets } from "./write-target.ts";
 import { ensureGitignore, writeSetupFiles } from "./files.ts";
 
@@ -176,7 +178,7 @@ void test("write safety: early gitignore refusal is reported before origin stops
     fs,
     git: createFakeGit((args) =>
       args[0] === "remote" && args[1] === "get-url"
-        ? { code: 1, stdout: "", stderr: "no origin" }
+        ? { code: 2, stdout: "", stderr: "error: No such remote 'origin'" }
         : defaultGitScript(args),
     ),
   });
@@ -191,19 +193,13 @@ void test("write safety: early gitignore refusal is reported before origin stops
 void test("write safety: origin's first-commit path reports refusals before returning", async () => {
   const fs = createFakeFs();
   fs.linkTargets.set("/repo/AGENTS.md", "missing");
-  const fixture = makeFixture(
-    {
-      fs,
-      git: createFakeGit((args) =>
-        (args[0] === "remote" && args[1] === "get-url") ||
-        (args[0] === "rev-parse" && args[1] === "HEAD")
-          ? { code: 1, stdout: "", stderr: "unborn" }
-          : defaultGitScript(args),
-      ),
-    },
-    "yes",
-  );
-  assert.equal(await runInitFor(fixture), 1);
+  const world = newWorld({
+    commit: undefined,
+    history: [],
+    commitAnswer: { code: 1, stdout: "", stderr: "gpg failed to sign" },
+  });
+  const fixture = worldFixture(world, "yes", { fs });
+  assert.equal(await runInitFor(fixture, ["--owner", "acme"]), 1);
   assert.ok(
     fixture.stderr.lines.some(
       (line) =>

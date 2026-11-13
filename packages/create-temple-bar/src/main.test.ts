@@ -178,12 +178,12 @@ for (const flag of ["--help", "-h"]) {
   });
 }
 
-void test("main: the approval flags reach `temple-bar init`", async () => {
+void test("main: the approval flags and their values reach `temple-bar init`", async () => {
   const { run, calls } = makeFakeRunner(() => ({ code: 0 }));
   const code = await main({
     cwd: "/app",
     env: { npm_config_user_agent: userAgents.pnpm },
-    argv: ["--create-repo"],
+    argv: ["--create-repo", "--owner", "acme", "--identities", "0123456789ab"],
     stdout: makeFakeWriter(),
     ownVersion: "0.3.0",
     fs: makeFakeFs({ "/app/package.json": "{}" }),
@@ -196,6 +196,8 @@ void test("main: the approval flags reach `temple-bar init`", async () => {
     "temple-bar",
     "init",
     "--create-repo",
+    "--owner=acme",
+    "--identities=0123456789ab",
   ]);
 });
 

@@ -79,6 +79,25 @@ export async function checkGhSignedIn(
   return { ok: true, value: undefined };
 }
 
+/** temple-bar works with github.com only (decision 3). `GH_HOST` sends
+ * every `gh api` call that names no host to another one, so the checks of
+ * a repository's owner and visibility would read some other repository. */
+export function checkGhHost(ctx: Context): RequirementResult {
+  const host = ctx.env.GH_HOST;
+  if (
+    host === undefined ||
+    host === "" ||
+    host.toLowerCase() === "github.com"
+  ) {
+    return { ok: true, value: undefined };
+  }
+  return fail(
+    `GH_HOST is set to "${host}", but temple-bar works only with ` +
+      "github.com, and gh would send setup's GitHub calls there. Fix: run " +
+      `setup without GH_HOST, then run ${RERUN_INIT} again.`,
+  );
+}
+
 export interface GithubOrigin {
   readonly owner: string;
   readonly repo: string;
@@ -112,18 +131,41 @@ export type OriginCheck =
   | { readonly state: "ok"; readonly origin: GithubOrigin }
   | { readonly state: "wrong-host"; readonly url: string };
 
+/** git's exit code for `remote get-url` naming a remote that doesn't
+ * exist. Any other failure says nothing about whether origin exists. */
+const NO_SUCH_REMOTE = 2;
+
 /**
  * Distinguishes "no origin yet" (init offers to create one) from "origin
  * exists but isn't GitHub" (a hard stop with a fix, since init can't safely
- * guess what the user wants there).
+ * guess what the user wants there). For readers that only skip when there
+ * is no GitHub origin; setup itself uses readOrigin.
  */
 export async function checkOrigin(
   ctx: Context,
   repoRoot: string,
 ): Promise<OriginCheck> {
+  const origin = await readOrigin(ctx, repoRoot);
+  return origin.state === "unreadable" ? { state: "missing" } : origin;
+}
+
+/** Like checkOrigin, but "git couldn't say" is its own answer: setup never
+ * takes it as "no origin", which would offer to create a repository. */
+export async function readOrigin(
+  ctx: Context,
+  repoRoot: string,
+): Promise<
+  OriginCheck | { readonly state: "unreadable"; readonly reason: string }
+> {
   const result = await ctx.git.run(["remote", "get-url", "origin"], repoRoot);
-  if (result.code !== 0) {
+  if (result.code === NO_SUCH_REMOTE) {
     return { state: "missing" };
+  }
+  if (result.code !== 0) {
+    return {
+      state: "unreadable",
+      reason: result.stderr.trim().split("\n")[0] ?? "",
+    };
   }
   const url = result.stdout.trim();
   const origin = parseGithubOrigin(url);

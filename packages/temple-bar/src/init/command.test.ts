@@ -21,7 +21,9 @@ import {
   runInitFor,
   setUpFiles,
   unchangedReport,
+  worldFixture,
 } from "./testing/command-fixture.ts";
+import { newWorld } from "./testing/creation-world.ts";
 
 void test("init: name is 'init'", () => {
   const command = createInitCommand({
@@ -64,32 +66,17 @@ void test("init: a second run changes nothing", async () => {
   assert.equal(fs.writes.length, 0, "a second run must write nothing");
 });
 void test("init: repo creation accepted with 'yes' and commits present proceeds to write files", async () => {
-  let getUrlCalls = 0;
-  const gitWithCreation = createFakeGit((args) => {
-    if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
-      return { code: 0, stdout: "/repo\n", stderr: "" };
-    }
-    if (args[0] === "rev-parse" && args[1] === "HEAD") {
-      return { code: 0, stdout: "abc123\n", stderr: "" };
-    }
-    if (args[0] === "remote") {
-      getUrlCalls += 1;
-      if (getUrlCalls === 1) {
-        return { code: 1, stdout: "", stderr: "no such remote" };
-      }
-      return {
-        code: 0,
-        stdout: "git@github.com:acme/widgets.git\n",
-        stderr: "",
-      };
-    }
-    return { code: 0, stdout: "", stderr: "" };
-  });
+  const world = newWorld();
   const fs = createFakeFs();
-  const fixture = makeFixture({ git: gitWithCreation, fs }, "yes");
-  const code = await runInitFor(fixture);
+  const fixture = worldFixture(world, "yes", { fs });
+  const code = await runInitFor(fixture, ["--owner", "acme"]);
   assert.equal(code, 0);
   assert.ok(fs.files.get("/repo/AGENTS.md"));
+  assert.ok(
+    world.calls.includes(
+      "gh repo create acme/widgets --public --source . --remote origin",
+    ),
+  );
 });
 
 void test("init: an existing `prepare` script gets temple-bar's command chained after it", async () => {
@@ -221,33 +208,12 @@ void test("init: hook install conflicts make the final exit code non-zero", asyn
   assert.match(fixture.stderr.lines.join(""), /\.git\/hooks\/pre-commit/);
 });
 
-function emptyRepoGit(calls: string[], commitFails: boolean) {
-  let remoteCalls = 0;
-  return createFakeGit((args) => {
-    calls.push(`git ${args[0] ?? ""}`);
-    if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
-      return { code: 0, stdout: "/repo\n", stderr: "" };
-    }
-    if (args[0] === "rev-parse" && args[1] === "HEAD") {
-      return { code: 128, stdout: "", stderr: "unknown revision" };
-    }
-    if (args[0] === "commit" && commitFails) {
-      return { code: 1, stdout: "", stderr: "gpg failed to sign" };
-    }
-    if (args[0] === "remote") {
-      remoteCalls += 1;
-      return remoteCalls === 1
-        ? { code: 1, stdout: "", stderr: "no such remote" }
-        : { code: 0, stdout: "git@github.com:acme/widgets.git\n", stderr: "" };
-    }
-    return { code: 0, stdout: "", stderr: "" };
-  });
-}
+const emptyRepo = () => newWorld({ commit: undefined, history: [] });
 
 void test("init: in an empty repo, yes puts .gitignore in the first commit and installs hooks only afterwards", async () => {
-  const calls: string[] = [];
+  const world = emptyRepo();
   const fs = createFakeFs();
-  const fixture = makeFixture({ git: emptyRepoGit(calls, false), fs }, "yes");
+  const fixture = worldFixture(world, "yes", { fs });
   const commitSawGitignore: boolean[] = [];
   const base = fixture.ctx.git;
   const ctx = {
@@ -264,33 +230,30 @@ void test("init: in an empty repo, yes puts .gitignore in the first commit and i
       },
     },
   };
-  const code = await runInitFor({ ...fixture, ctx });
+  const code = await runInitFor({ ...fixture, ctx }, ["--owner", "acme"]);
   assert.equal(code, 0);
   assert.deepEqual(commitSawGitignore, [true]);
   assert.equal(fixture.hookCalls.calls, 1);
-  assert.ok(calls.includes("git add") && calls.includes("git commit"));
+  assert.ok(world.calls.includes("git add -A"));
 });
 
 void test("init: in an empty repo, a commit that can't be made stops before the hooks and names the command", async () => {
-  const fixture = makeFixture(
-    { git: emptyRepoGit([], true), fs: createFakeFs() },
-    "yes",
-  );
-  const code = await runInitFor(fixture);
+  const world = emptyRepo();
+  world.commitAnswer = { code: 1, stdout: "", stderr: "gpg failed to sign" };
+  const fixture = worldFixture(world, "yes", { fs: createFakeFs() });
+  const code = await runInitFor(fixture, ["--owner", "acme"]);
   assert.equal(code, 1);
   assert.equal(fixture.hookCalls.calls, 0);
-  assert.match(fixture.stderr.lines.join(""), /git push -u origin HEAD/);
+  const stderr = fixture.stderr.lines.join("");
+  assert.match(stderr, /git commit -m "Initial commit"/);
+  assert.match(stderr, /--create-repo --owner acme --identities [0-9a-f]{12}/);
 });
 
 void test("init: in an empty repo, no changes nothing on GitHub and writes only .gitignore", async () => {
-  const calls: string[] = [];
+  const world = emptyRepo();
   const fs = createFakeFs();
-  const gh = createFakeGh(defaultGhScript);
-  const fixture = makeFixture(
-    { git: emptyRepoGit(calls, false), fs, gh },
-    "no",
-  );
-  const code = await runInitFor(fixture);
+  const fixture = worldFixture(world, "no", { fs });
+  const code = await runInitFor(fixture, ["--owner", "acme"]);
   assert.equal(code, 1);
   // Only .gitignore: node_modules/ is already there by now, so it must
   // be ignored even when setup stops here.
@@ -298,8 +261,8 @@ void test("init: in an empty repo, no changes nothing on GitHub and writes only 
     fs.writes.map((w) => w.path),
     [normalize("/repo/.gitignore")],
   );
-  assert.ok(!gh.calls.some((c) => c.args[0] === "repo"));
-  assert.ok(!calls.includes("git commit"));
+  assert.ok(!world.calls.some((c) => c.startsWith("gh repo")));
+  assert.ok(!world.calls.some((c) => c.startsWith("git commit")));
 });
 
 void test("init: records origin's default branch so the hooks protect it", async () => {

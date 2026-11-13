@@ -48,6 +48,7 @@ still in place compares GitHub's active rules with that definition
 [ADR 0007](0007-what-the-gate-checks.md)). It supports public repos only: on a private repo CI's default token can't read
 rulesets (that needs the Administration read permission), so that case is
 decided when the first private London TypeScript repo comes along.
+2026-11-12: setup no longer reaches a private repository (decision 100, [ADR 0021](0021-organisation-owned-public-repositories.md)): it refuses one before writing anything, so these sentences describe the gate only.
 
 Creating the ruleset, like creating the repo, needs the user's yes. At a
 terminal setup asks. An agent without one asks the user in chat and reruns
