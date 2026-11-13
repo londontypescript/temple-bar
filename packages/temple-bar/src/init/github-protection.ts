@@ -7,7 +7,8 @@
 //   `main` ruleset on a later run, once CodeQL has analysed the default
 //   branch (code-scanning.ts);
 // - the gate and title checks, once their workflows are on the default
-//   branch (required-checks.ts).
+//   branch (required-checks.ts);
+// - the squash merge defaults (repo-settings.ts).
 //
 // Only an explicit yes (the prompt, or the --create-ruleset flag an agent
 // passes after the user said yes in chat) changes anything, and the question
@@ -53,6 +54,12 @@ import {
   withRequiredChecks,
   type RequiredChecksPlan,
 } from "./required-checks.ts";
+import {
+  MANUAL_SQUASH_DEFAULTS_STEPS,
+  readSquashDefaults,
+  setSquashDefaults,
+  SQUASH_DEFAULTS_SUMMARY,
+} from "./repo-settings.ts";
 import { rerunInit, type GithubOrigin } from "./requirements.ts";
 
 const MAIN_SUMMARY =
@@ -76,6 +83,8 @@ export interface ProtectionWork {
    * added to the existing one. */
   readonly requireCodeQl: boolean;
   readonly checks?: RequiredChecksPlan["checks"];
+  /** Set the squash merge defaults (repo-settings.ts). */
+  readonly squashDefaults?: boolean;
 }
 
 /** The one question, naming everything the yes covers. */
@@ -101,6 +110,9 @@ export function protectionQuestion(work: ProtectionWork): string {
       "turn on CodeQL code scanning (GitHub's default setup; its results " +
         "are required on a later run, once it has analysed the default branch)",
     );
+  }
+  if (work.squashDefaults === true) {
+    parts.push(SQUASH_DEFAULTS_SUMMARY);
   }
   const last = parts.pop() ?? "";
   const list = parts.length === 0 ? last : `${parts.join(", ")}, and ${last}`;
@@ -196,6 +208,7 @@ export async function offerProtection(
     mainId,
   );
   const checks = needMain || mainId !== undefined ? checksPlan.checks : [];
+  const squash = await readSquashDefaults(ctx, repoRoot, origin);
 
   const requireCodeQl =
     plan.kind === "require" && (needMain || mainId !== undefined);
@@ -205,6 +218,7 @@ export async function offerProtection(
     turnOnCodeQl: plan.kind === "turn-on",
     requireCodeQl,
     checks,
+    squashDefaults: squash.kind === "differs",
   };
 
   // Said after the outcome, whatever it is.
@@ -224,6 +238,7 @@ export async function offerProtection(
       ? notSetupsRuleset(checksPlan.checks)
       : undefined,
     plan.kind === "unreadable" ? unreadableMessage(plan.reason) : undefined,
+    squash.kind === "unreadable" ? squash.message : undefined,
     plan.kind === "require" && !requireCodeQl
       ? "CodeQL has analysed the default branch, but its ruleset isn't one " +
         "setup created, so setup leaves it alone. To require CodeQL's " +
@@ -295,6 +310,12 @@ export async function offerProtection(
               )
             : await addCodeScanningRule(ctx, repoRoot, origin, mainId),
         ),
+    });
+  }
+  if (work.squashDefaults === true) {
+    steps.push({
+      manual: MANUAL_SQUASH_DEFAULTS_STEPS,
+      run: async () => fromStep(await setSquashDefaults(ctx, repoRoot, origin)),
     });
   }
 

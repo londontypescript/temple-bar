@@ -46,7 +46,9 @@ export const CODEQL_RULE = {
 };
 
 /** GitHub's answer to a code scanning question, or undefined when `args`
- * asks something else. Writes (PATCH, PUT) succeed. */
+ * asks something else. Writes (PATCH, PUT) succeed. The repository
+ * already has setup's squash merge defaults, so a test about other
+ * settings never meets that step. */
 export function codeScanningAnswer(
   args: readonly string[],
   state: CodeQlState,
@@ -59,7 +61,12 @@ export function codeScanningAnswer(
       : undefined;
   }
   if (target === "repos/acme/widgets") {
-    return ok({ private: state === "private", default_branch: "main" });
+    return ok({
+      private: state === "private",
+      default_branch: "main",
+      squash_merge_commit_title: "PR_TITLE",
+      squash_merge_commit_message: "PR_BODY",
+    });
   }
   if (target.includes("/rules/branches/")) {
     return ok([
