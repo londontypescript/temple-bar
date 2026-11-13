@@ -111,6 +111,21 @@ void test("the pull request guide says a reviewer goes on a commit, not in the d
   }
 });
 
+// A new repository's first push and every squash merge publish names and
+// emails, and a repository with no licence can't be reused, so the guide
+// setup ships says what to check with the user.
+void test("the pull request guide covers a new repository's licence and what pushing publishes", () => {
+  const guide = flat(companion("docs/pull-requests.md"));
+  for (const required of [
+    "Ask the user which licence they want and add it as LICENSE",
+    "first show the user every author, committer and `Co-authored-by` name and email",
+    "`git -c push.followTags=false push -u origin <branch>`), never `--tags` or `--follow-tags`",
+    "Use GitHub's noreply address if an identity shouldn't be public",
+  ]) {
+    assert.ok(guide.includes(required), required);
+  }
+});
+
 void test("every doc the rules link to is one setup writes", () => {
   const written = new Set(COMPANION_FILES.map((file) => file.path));
   const links = [...templeBarBlock().matchAll(/\]\((docs\/[^)]+)\)/g)].map(
@@ -271,7 +286,7 @@ const APPROVED_COMPANION_SHA256: Readonly<Record<string, string>> = {
   "docs/planning.md":
     "664be6f35c101086696802793f5b7c57923385144f518044a8d7a54a7edb1b5f",
   "docs/pull-requests.md":
-    "c30bad36e6ee5e7147e618461c08b4d4a4b627e75ee78d2531726a6fb01ccce1",
+    "87ebe27e74f7d91450e67c3cbc6fedc620573c1895271e9a8f84d5ab1cd66da3",
   "docs/delegation.md":
     "0e5cff9bdc35a0eb0d4c6ea33f67aeb881a17e73ac8d5743c97fe7505a5a20a9",
   "docs/incidents.md":

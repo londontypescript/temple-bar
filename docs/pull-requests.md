@@ -37,6 +37,24 @@ a pull request. temple-bar's setup wrote this file.
   removes every released worktree whose pull request merged, with its local
   and remote branches, and reports what it kept and why.
 
+## A new repository
+
+- **Licence and description.** A public repository with no LICENSE file
+  can't be reused by anyone else. Ask the user which licence they want and
+  add it as LICENSE; setup notes its absence but never picks one. Add a
+  one-line description on GitHub
+  (`gh repo edit --description "<what it is>"`), in the user's words.
+- **Pushing by hand.** If you push a new repository's first commits
+  yourself instead of letting setup do it, first show the user every
+  author, committer and `Co-authored-by` name and email in the commits
+  being pushed: GitHub makes them public. Push the branch only
+  (`git -c push.followTags=false push -u origin <branch>`), never
+  `--tags` or `--follow-tags`.
+- **Squash attribution.** A squash merge keeps the pull request author and
+  the `Co-authored-by` trailers the merge copies into it; those names and
+  emails are public once merged. Use GitHub's noreply address if an
+  identity shouldn't be public; setup states no preference.
+
 ## Merging as admin
 
 The judge refuses a pull request that changes the checks it guards, so
