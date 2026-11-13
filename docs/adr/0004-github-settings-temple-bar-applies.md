@@ -1,6 +1,7 @@
 # ADR 0004: Which GitHub settings temple-bar applies
 
-Date: 2026-10-01. Status: accepted (decisions 25, 34 and 40).
+Date: 2026-10-01, amended 2026-11-12 and 2026-11-13. Status: accepted
+(decisions 25, 34 and 40).
 
 ## Context
 
@@ -59,6 +60,17 @@ its own question.
 settings manager.** It applies and checks a short, fixed list of settings
 through `gh`: the ones the workflow depends on. Anything beyond that list is
 out of scope.
+2026-11-13: the list gains the squash merge defaults
+([#497](https://github.com/londontypescript/temple-bar/issues/497)). Squash is
+the only merge method the `main` ruleset allows, and with GitHub's own default
+a merge on the site suggests a body made of the branch's commit messages, which
+can drop the description's bullets and trailers. Setup sets the squash commit
+title to the pull request's title and the body to its description
+(`PR_TITLE` and `PR_BODY`), under the same yes as the rulesets, then reads
+them back: settings it can't read, or that still differ after the change,
+leave setup not finished, and it never changes them without the yes. The gate
+doesn't check them; the required title check validates the description
+instead (decision 86, [ADR 0016](0016-agent-rules-and-the-merge-loop.md)).
 
 ## What would end it
 
