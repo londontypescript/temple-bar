@@ -48,9 +48,13 @@ void test("workflows: the title check runs on edits too, so a changed title is c
   assert.doesNotMatch(title, /^ {2}(push|pull_request_target|workflow_\w+):/m);
 });
 
-void test("workflows: the token can only read the code", () => {
+void test("workflows: the gate's token can only read the code; the title check's can also read pull requests", () => {
+  assert.match(gate, /^permissions:\n {2}contents: read\n\n/m);
+  assert.match(
+    title,
+    /^permissions:\n {2}contents: read\n {2}pull-requests: read\n\n/m,
+  );
   for (const code of [gate, title]) {
-    assert.match(code, /^permissions:\n {2}contents: read\n\n/m);
     assert.doesNotMatch(code, /: write/);
   }
 });
@@ -82,9 +86,15 @@ void test("workflows: nothing changes what a step runs: no shell, folder or defa
       code,
       /^\s*(- )?["']?(shell|working-directory|defaults)["']?:/m,
     );
-    // Checking out another ref or repository would gate other code.
-    assert.doesNotMatch(code, /^\s*(- )?["']?(ref|repository)["']?:/m);
+    // Checking out another repository would gate other code.
+    assert.doesNotMatch(code, /^\s*(- )?["']?repository["']?:/m);
   }
+  assert.doesNotMatch(gate, /^\s*(- )?["']?ref["']?:/m);
+  // The title check checks out the pull request's own head, and only that.
+  assert.deepEqual(
+    [...title.matchAll(/^\s*(?:- )?["']?ref["']?:(.*)$/gm)].map((m) => m[1]),
+    [" ${{ github.event.pull_request.head.sha }}"],
+  );
 });
 
 void test("workflows: one job each, named by the check a ruleset requires, on Node 26", () => {
@@ -132,7 +142,7 @@ void test("workflows: the gate's steps, in order, with the token on the gate ste
   );
 });
 
-void test("workflows: the title check's steps, in order, from a default-depth checkout", () => {
+void test("workflows: the title check's steps, in order, from a whole checkout of the head, with the token on the check step", () => {
   assert.deepEqual(stepsOf(title), [
     "actions/checkout",
     "pnpm/action-setup",
@@ -140,8 +150,15 @@ void test("workflows: the title check's steps, in order, from a default-depth ch
     "pnpm install --frozen-lockfile",
     "pnpm exec temple-bar pr-title",
   ]);
-  assert.match(title, /^ {10}persist-credentials: false\n\n/m);
-  assert.doesNotMatch(title, /fetch-depth|GH_TOKEN/);
+  assert.match(
+    title,
+    /^ {10}persist-credentials: false\n {10}ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}\n {10}fetch-depth: 0\n\n/m,
+  );
+  assert.match(
+    title,
+    /^ {8}run: pnpm exec temple-bar pr-title\n {8}env:\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/m,
+  );
+  assert.equal(title.match(/GH_TOKEN/g)?.length, 1, "only the check step");
 });
 
 void test("workflows: pnpm comes from package.json, and Node caches its store", () => {
