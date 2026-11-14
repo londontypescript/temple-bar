@@ -25,8 +25,10 @@ export type Value =
 const DYNAMIC: Value = { kind: "dynamic" };
 const TOO_COMPLEX: Value = { kind: "too-complex" };
 
-// The work budget. A conditional multiplies alternatives and concatenation
-// grows text; past these the value is reported as too complex to read.
+// The work budget. A conditional multiplies alternatives, following one
+// constant to another goes deeper, and concatenation grows text; past these
+// the value is reported as too complex to read. Only following counts
+// towards the depth, so a long concatenation of known text stays known.
 const MAX_ALTERNATIVES = 16;
 const MAX_DEPTH = 32;
 const MAX_TEXT = 64 * 1024;
@@ -163,7 +165,7 @@ export function createEvaluator(
         ? ({ kind: "text", text: "," } as const)
         : separatorNode.type === "SpreadElement"
           ? DYNAMIC
-          : evaluate(separatorNode, depth + 1);
+          : evaluate(separatorNode, depth);
     if (separator.kind !== "text") return undefined;
     const mapCall = normalized(callee.object);
     if (mapCall.type !== "CallExpression") return undefined;
@@ -189,10 +191,17 @@ export function createEvaluator(
   const regExpOf = (args: readonly Argument[], _at: Node, depth = 0): Value => {
     const [sourceNode, flagsNode] = args;
     if (sourceNode?.type === "SpreadElement") return DYNAMIC;
-    if (flagsNode?.type === "SpreadElement") return DYNAMIC;
+    // Flags spread in, or not known text, leave the flags unknown: the
+    // pattern is then read under every flag combination that matters.
     const flagsValue =
-      flagsNode === undefined ? undefined : evaluate(flagsNode, depth + 1);
-    const flagsFor = (own: string): string | undefined =>
+      flagsNode === undefined
+        ? undefined
+        : flagsNode.type === "SpreadElement"
+          ? DYNAMIC
+          : evaluate(flagsNode, depth);
+    // With no flags argument, a regex source keeps its own flags, known or
+    // not, and text gets none.
+    const flagsFor = (own: string | undefined): string | undefined =>
       flagsValue === undefined
         ? own
         : flagsValue.kind === "text"
@@ -204,7 +213,7 @@ export function createEvaluator(
           return {
             kind: "regex",
             source: source.source,
-            flags: flagsFor(source.flags ?? ""),
+            flags: flagsFor(source.flags),
           };
         case "text":
           return { kind: "regex", source: source.text, flags: flagsFor("") };
@@ -217,7 +226,7 @@ export function createEvaluator(
       }
     };
     if (sourceNode === undefined) return build({ kind: "text", text: "" });
-    return build(evaluate(sourceNode, depth + 1));
+    return build(evaluate(sourceNode, depth));
   };
 
   const templateParts = (
@@ -230,7 +239,7 @@ export function createEvaluator(
       value = concat(value, { kind: "text", text: quasi });
       const expression = expressions[index];
       if (expression !== undefined) {
-        value = concat(value, evaluate(expression, depth + 1));
+        value = concat(value, evaluate(expression, depth));
       }
     });
     return value;
@@ -270,14 +279,11 @@ export function createEvaluator(
       }
       case "BinaryExpression":
         if (node.operator !== "+") return DYNAMIC;
-        return concat(
-          evaluate(node.left, depth + 1),
-          evaluate(node.right, depth + 1),
-        );
+        return concat(evaluate(node.left, depth), evaluate(node.right, depth));
       case "ConditionalExpression":
         return either([
-          evaluate(node.consequent, depth + 1),
-          evaluate(node.alternate, depth + 1),
+          evaluate(node.consequent, depth),
+          evaluate(node.alternate, depth),
         ]);
       case "Identifier": {
         const binding = scopes.resolve(node.name, node);
@@ -300,7 +306,7 @@ export function createEvaluator(
             ? { kind: "escaped", source: object.source }
             : { kind: "text", text: object.source };
         };
-        return pick(evaluate(node.object, depth + 1));
+        return pick(evaluate(node.object, depth));
       }
       case "CallExpression": {
         if (isEscapeCallee(node.callee, node)) {
@@ -316,7 +322,7 @@ export function createEvaluator(
               ? { kind: "text", text: RegExp.escape(value.text) }
               : { kind: "escaped", source: ESCAPED_PART };
           };
-          return escape(evaluate(argument, depth + 1));
+          return escape(evaluate(argument, depth));
         }
         const joined = escapedJoin(node, depth);
         if (joined !== undefined) return joined;

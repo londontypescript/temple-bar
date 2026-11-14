@@ -6,46 +6,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { RegExpParser } from "@eslint-community/regexpp";
-import { parseSync } from "oxc-parser";
-
-import { findShapes, type CodeFinding } from "./test-shapes-code.ts";
-
-const PARSERS = {
-  parseSync,
-  createPatternParser: () => new RegExpParser({ ecmaVersion: 2025 }),
-};
-
-type Verdict = "refused" | "passed" | "reported";
-
-function verdictOf(findings: readonly CodeFinding[]): Verdict {
-  if (
-    findings.some(
-      (finding) =>
-        finding.kind !== "deletes-tags" && finding.kind !== "unescaped-regexp",
-    )
-  ) {
-    return "reported";
-  }
-  return findings.length > 0 ? "refused" : "passed";
-}
-
-function check(
-  rows: readonly (readonly [string, string, Verdict, string?])[],
-): void {
-  for (const [id, code, expected, file = "a.test.ts"] of rows) {
-    const findings = findShapes(file, code, PARSERS);
-    assert.equal(
-      verdictOf(findings),
-      expected,
-      `row ${id}: ${code}\n${JSON.stringify(findings)}`,
-    );
-  }
-}
-
-const R = "refused";
-const P = "passed";
-const U = "reported";
+import { findShapes } from "./test-shapes-code.ts";
+import { check, P, PARSERS, R, U } from "./testing/shape-rows.ts";
 
 void test("shape 1: a replace that deletes markup tags is refused", () => {
   check([
@@ -305,78 +267,4 @@ void test("files: an unparseable file reports the module error's line and reason
   if (finding?.kind !== "unparseable") assert.fail(JSON.stringify(finding));
   assert.equal(finding.line, 2);
   assert.match(finding.reason, /\S/);
-});
-
-void test("budget: a value past the work budget is reported, never guessed", () => {
-  const doubling = ["const a0 = '<b>';"];
-  for (let index = 1; index <= 20; index++) {
-    doubling.push(
-      `const a${String(index)} = a${String(index - 1)} + a${String(index - 1)};`,
-    );
-  }
-  doubling.push("html.replace(new RegExp(a20), '');");
-  check([
-    ["f.14", doubling.join("\n"), U],
-    [
-      "f.14",
-      `new RegExp(${Array.from({ length: 6 }, (_, i) => `(c${String(i)} ? 'a' : 'b')`).join(" + ")})`,
-      U,
-    ],
-  ]);
-});
-
-void test("trust: RegExp.escape proves nothing once RegExp is shadowed or reassigned", () => {
-  check([
-    [
-      "t.1",
-      "function f(RegExp: { escape(x: string): string }) { return new globalThis.RegExp(RegExp.escape(name)); }",
-      R,
-    ],
-    [
-      "t.2",
-      "RegExp.escape = (x) => x;\nnew RegExp(RegExp.escape(name));",
-      R,
-      "a.test.js",
-    ],
-    [
-      "t.3",
-      "globalThis.String = { raw: () => input };\nnew RegExp(String.raw`x`);",
-      R,
-      "a.test.js",
-    ],
-    ["t.4", "new RegExp(RegExp.escape(name))", P],
-  ]);
-});
-
-void test("scopes: shadowing, hoisting and blocks", () => {
-  check([
-    ["s.1", "const p = 'a';\ntry { x(); } catch (p) { new RegExp(p); }", R],
-    ["s.2", "const p = 'a';\nfunction f() { new RegExp(p); var p = g(); }", R],
-    ["s.3", "function f() { return new RegExp(P); }\nconst P = 'later';", P],
-    ["s.4", "const p = 'a';\nfunction f(q = new RegExp(p)) { return q; }", P],
-    [
-      "s.5",
-      "const p = 'a';\nfunction f(p = 'b', q = new RegExp(p)) { return q; }",
-      R,
-    ],
-    [
-      "s.6",
-      "const p = 'a';\nswitch (new RegExp(p).source) { case 'x': { const p = g(); } }",
-      P,
-    ],
-    [
-      "s.7",
-      "const p = 'a';\nclass A { static { const p = g(); new RegExp(p); } }",
-      R,
-    ],
-    [
-      "s.8",
-      "const p = 'a';\nconst f = function p() { return new RegExp(p); };",
-      R,
-    ],
-    ["s.9", "const p = 'a', q = p;\nnew RegExp(q);", P],
-    ["s.10", "const { p } = { p: 'a' };\nnew RegExp(p);", R],
-    ["s.11", "const a = b;\nconst b = a;\nnew RegExp(a);", R],
-    ["s.12", "export const P = 'a';\nnew RegExp(P);", P],
-  ]);
 });

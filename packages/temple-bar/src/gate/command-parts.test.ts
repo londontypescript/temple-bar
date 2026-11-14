@@ -144,6 +144,55 @@ void test("gate --part <package> fails a lint script that lets warnings pass, as
   });
 });
 
+void test("the whole gate and gate --part repo fail a test file that deletes markup tags, both reporting it; fixed, both pass", async () => {
+  const testFile = "packages/a/src/view.test.ts";
+  const run = async (text: string, args: readonly string[]) => {
+    const made = fixture({
+      extraTracked: [testFile],
+      untracked: { [path.join("/repo", ...testFile.split("/"))]: text },
+    });
+    const code = await runGate(made.ctx, made.files, args);
+    return { ...made, code };
+  };
+  const refused = "const text = html.replace(/<[^>]+>/g, '');\n";
+  const outcome = {
+    name: "regex shapes in tests",
+    status: "failed",
+    detail: "1 finding(s) in 1 test file(s)",
+  };
+
+  const whole = await run(refused, []);
+  assert.equal(whole.code, 1);
+  assert.match(
+    whole.stderr.lines.join(""),
+    /^ {2}packages\/a: src\/view\.test\.ts:1: a regular expression deletes markup tags$/m,
+  );
+  assert.match(
+    whole.stdout.lines.join("") + whole.stderr.lines.join(""),
+    /failed +regex shapes in tests \(1 finding\(s\) in 1 test file\(s\)\)/,
+  );
+
+  const part = await run(refused, partArgs("repo", "repo.json"));
+  assert.equal(part.code, 1);
+  const report = readReport(part.files, "repo.json");
+  assert.equal(report.exitCode, 1);
+  assert.deepEqual(
+    report.outcomes.find((each) => each.name === outcome.name),
+    outcome,
+  );
+
+  const fixed = "const text = html.replace(/</g, '&lt;');\n";
+  assert.equal((await run(fixed, [])).code, 0);
+  const fixedPart = await run(fixed, partArgs("repo", "repo.json"));
+  assert.equal(fixedPart.code, 0);
+  assert.deepEqual(
+    readReport(fixedPart.files, "repo.json").outcomes.find(
+      (each) => each.name === outcome.name,
+    ),
+    { ...outcome, status: "passed", detail: "1 test file(s) read" },
+  );
+});
+
 void test("gate --part refuses outside GitHub Actions, naming each variable it lacks, before running anything", async () => {
   const { ctx, proc, files, stderr } = fixture({
     env: { npm_execpath: ACTIONS_ENV.npm_execpath, GITHUB_RUN_ID: "1" },
