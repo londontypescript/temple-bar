@@ -235,6 +235,16 @@ void test("pr-title: any failure to read the pull request fails, and nothing els
   }
 });
 
+void test("pr-title: an answer that isn't 200 fails on its status, even with a whole pull request in it", async () => {
+  for (const status of [201, 304, 403, 404]) {
+    const reply = { ...pullRequest(), status };
+    const t = world({ reply });
+    assert.equal(await t.run(), 1, String(status));
+    assert.match(t.text(), new RegExp(`GitHub answered ${String(status)}`));
+    assert.equal(t.git.calls.length, 0);
+  }
+});
+
 void test("pr-title: in Actions with no token it fails, naming the setup rerun; elsewhere it reads without one", async () => {
   const actions = world({ env: { GH_TOKEN: undefined, GITHUB_TOKEN: "" } });
   assert.equal(await actions.run(), 1);
