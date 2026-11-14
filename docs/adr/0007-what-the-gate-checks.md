@@ -171,27 +171,27 @@ temple-bar sets up, whatever its linter, the gate fails a test file holding
 either of two shapes CodeQL flags only after a push
 ([#512](https://github.com/londontypescript/temple-bar/issues/512)): a
 `replace` or `replaceAll` that deletes markup tags with a regular expression,
-and a `RegExp` built from a value the check can't prove is a regex or text
-escaped with `RegExp.escape`. Its promise is narrow: these shapes aren't in
-the tests. CodeQL on GitHub stays the wider check. Test files are a fixed
-convention: `.test` and `.spec` files and anything under `__tests__/`,
+and a `RegExp` built from a value the check can't prove is fixed text, a regex
+or text escaped with `RegExp.escape`. Its promise is narrow: these shapes
+aren't in the tests. CodeQL on GitHub stays the wider check. Test files are a
+fixed convention: `.test` and `.spec` files and anything under `__tests__/`,
 `testing/` or `e2e/`, in every JS and TS extension; adding paths is
 [#523](https://github.com/londontypescript/temple-bar/issues/523). The gate
 reads code with `oxc-parser` and patterns with `@eslint-community/regexpp`,
-both pinned exactly in the package (oxc-parser's pin moves with knip's,
-which depends on it), never with a text search. A pattern is a tag pattern
-when a `<` written in it can be followed by a letter, `/` or `!`, read
+both pinned exactly in the package (oxc-parser's pin moves with knip's, which
+depends on it), never with a text search. A pattern is a tag pattern when a
+`<` written in it can be followed by a letter, `/` or `!`, read
 conservatively: lookarounds and backreferences never rule a tag out. A
 replacement deletes when its known text keeps no markup and is empty or
-whitespace. Local constants are followed by JavaScript's scope rules;
-imports, `let`, object properties, unknown replacements, string patterns
-and indirect calls are not, and pass. A file the check can't read (a parse
-error, a pattern regexpp can't read, Vue, Svelte, Astro or MDX in a test
-path, a link, a value past the check's work budget) fails, never passes.
-There are no exemptions: a wrong refusal is fixed in the check, through a
-reviewed change. The message names the package, file and line, and points
-to role and name queries for accessible names, a parser for document text,
-exact output for fixed markup, and `RegExp.escape` for patterns.
+whitespace. Local constants are followed by JavaScript's scope rules; imports,
+`let`, object properties, unknown replacements, string patterns and indirect
+calls are not, and pass. A file the check can't read (a parse error, a pattern
+regexpp can't read, Vue, Svelte, Astro or MDX in a test path, a link, a value
+past the check's work budget) fails, never passes. There are no exemptions: a
+wrong refusal is fixed in the check, through a reviewed change. The message
+names the package, file and line, and points to role and name queries for
+accessible names, a parser for document text, exact output for fixed markup,
+and `RegExp.escape` for patterns.
 
 ## What would end it
 
