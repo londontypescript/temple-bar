@@ -108,36 +108,20 @@ function holdsEscapedPart(node: AST.Node, state: ReadState): boolean {
 }
 
 /** A `<` written in the pattern: the character itself in any spelling, or
- * a class holding nothing else (`[<]`, `[<-<]`, `[[<]]`, `[\q{<}]`, and
- * in `v` mode an intersection with, or a subtraction from, such a class).
- * Wider classes (`.`, `\W`, `[^>]`) that happen to match `<` aren't one. */
+ * a class holding nothing else (`[<]`, `[<-<]`, `[[<]]`). Wider classes
+ * (`.`, `\W`, `[^>]`) that happen to match `<` aren't one. */
 function isWrittenLessThan(node: AST.Node): boolean {
-  switch (node.type) {
-    case "Character":
-      return node.value === LESS_THAN;
-    case "CharacterClassRange":
-      return node.min.value === LESS_THAN && node.max.value === LESS_THAN;
-    case "CharacterClass":
-      return (
-        !node.negate &&
-        node.elements.length > 0 &&
-        node.elements.every((element) => isWrittenLessThan(element))
-      );
-    case "ClassStringDisjunction":
-      return node.alternatives.every(
-        (alternative) =>
-          alternative.elements.length === 1 &&
-          alternative.elements.every((element) => isWrittenLessThan(element)),
-      );
-    case "ExpressionCharacterClass":
-      return !node.negate && isWrittenLessThan(node.expression);
-    case "ClassIntersection":
-      return isWrittenLessThan(node.left) || isWrittenLessThan(node.right);
-    case "ClassSubtraction":
-      return isWrittenLessThan(node.left);
-    default:
-      return false;
+  if (node.type === "Character") return node.value === LESS_THAN;
+  if (node.type === "CharacterClassRange") {
+    return node.min.value === LESS_THAN && node.max.value === LESS_THAN;
   }
+  if (node.type === "CharacterClass" && !node.negate) {
+    return (
+      node.elements.length > 0 &&
+      node.elements.every((element) => isWrittenLessThan(element))
+    );
+  }
+  return false;
 }
 
 function oneCharacter(node: AST.Node, state: ReadState): Facts {

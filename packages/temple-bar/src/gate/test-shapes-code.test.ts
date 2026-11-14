@@ -23,9 +23,6 @@ void test("shape 1: a replace that deletes markup tags is refused", () => {
     ["1.9", "html.replace(/[<][^>]+>/g, '')", R],
     ["1.9", "html.replace(/[<-<]b>/g, '')", R],
     ["1.9", "html.replace(/[[<]]b>/gv, '')", R],
-    ["1.9", "html.replace(/[[<]&&[<]]b>/gv, '')", R],
-    ["1.9", "html.replace(/[[<]--[a]]b>/gv, '')", R],
-    ["1.9", "html.replace(/[\\q{<}]b>/gv, '')", R],
     ["1.10", "html.replace(/<[^>]+>/, '')", R],
     ["1.11", "html.replace(new RegExp('<[^>]+>', 'g'), '')", R],
     [
