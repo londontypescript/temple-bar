@@ -4,7 +4,7 @@ import test from "node:test";
 import type { GhResult } from "../seams/gh.ts";
 import { createFakeContext, createFakeGh } from "../testing/fakes.ts";
 import {
-  MANUAL_SQUASH_DEFAULTS_STEPS,
+  manualSquashDefaultsSteps,
   readSquashDefaults,
   setSquashDefaults,
 } from "./repo-settings.ts";
@@ -162,13 +162,24 @@ void test("setSquashDefaults: an accepted PATCH whose read-back still differs, o
   }
 });
 
-void test("the manual steps name the setting as the site words it", () => {
+void test("the manual steps name the setting as the site words it, and the gh command", () => {
+  const steps = manualSquashDefaultsSteps(origin);
+  assert.match(steps, /Settings > General > Pull Requests/);
+  assert.match(steps, /"Default to pull request title and description"/);
   assert.match(
-    MANUAL_SQUASH_DEFAULTS_STEPS,
-    /Settings > General > Pull Requests/,
+    steps,
+    /\n {2}gh api --method PATCH repos\/acme\/widgets -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY$/,
   );
-  assert.match(
-    MANUAL_SQUASH_DEFAULTS_STEPS,
-    /"Default to pull request title and description"/,
-  );
+});
+
+void test("the manual steps leave out the command for a name GitHub wouldn't allow", () => {
+  for (const odd of [
+    { owner: "acme;rm", repo: "widgets" },
+    { owner: "acme", repo: "wid gets" },
+    { owner: "acme", repo: "$(x)" },
+  ]) {
+    const steps = manualSquashDefaultsSteps(odd);
+    assert.match(steps, /Settings > General > Pull Requests/);
+    assert.doesNotMatch(steps, /gh api/);
+  }
 });

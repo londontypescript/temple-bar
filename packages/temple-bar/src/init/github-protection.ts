@@ -55,7 +55,7 @@ import {
   type RequiredChecksPlan,
 } from "./required-checks.ts";
 import {
-  MANUAL_SQUASH_DEFAULTS_STEPS,
+  manualSquashDefaultsSteps,
   readSquashDefaults,
   setSquashDefaults,
   SQUASH_DEFAULTS_SUMMARY,
@@ -314,7 +314,7 @@ export async function offerProtection(
   }
   if (work.squashDefaults === true) {
     steps.push({
-      manual: MANUAL_SQUASH_DEFAULTS_STEPS,
+      manual: manualSquashDefaultsSteps(origin),
       run: async () => fromStep(await setSquashDefaults(ctx, repoRoot, origin)),
     });
   }

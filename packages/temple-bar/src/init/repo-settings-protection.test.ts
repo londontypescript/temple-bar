@@ -8,7 +8,7 @@ import test from "node:test";
 import type { GhResult } from "../seams/gh.ts";
 import { createFakeContext, createFakeGh } from "../testing/fakes.ts";
 import { offerProtection } from "./github-protection.ts";
-import { MANUAL_SQUASH_DEFAULTS_STEPS } from "./repo-settings.ts";
+import { manualSquashDefaultsSteps } from "./repo-settings.ts";
 import { codeScanningAnswer } from "./testing/code-scanning-fake.ts";
 import { error, JUDGE, MAIN, ok } from "./testing/required-checks-world.ts";
 
@@ -150,7 +150,7 @@ void test("a no changes nothing and gives the manual step", async () => {
   const outcome = await t.run();
   assert.equal(outcome.kind, "declined");
   assert.equal(t.patches().length, 0);
-  assert.ok(outcome.message.includes(MANUAL_SQUASH_DEFAULTS_STEPS));
+  assert.ok(outcome.message.includes(manualSquashDefaultsSteps(origin)));
 });
 
 void test("no terminal changes nothing, names the flag, and gives the manual step", async () => {
@@ -159,7 +159,7 @@ void test("no terminal changes nothing, names the flag, and gives the manual ste
   assert.equal(outcome.kind, "not-created");
   assert.equal(t.patches().length, 0);
   assert.match(outcome.message, /--create-ruleset/);
-  assert.ok(outcome.message.includes(MANUAL_SQUASH_DEFAULTS_STEPS));
+  assert.ok(outcome.message.includes(manualSquashDefaultsSteps(origin)));
 });
 
 void test("unreadable squash settings: nothing asked or changed for them, and setup isn't finished", async () => {
@@ -187,6 +187,6 @@ void test("a write that fails, or a read-back that still differs, isn't finished
     const t = world(options);
     const outcome = await t.run();
     assert.equal(outcome.kind, "not-created");
-    assert.ok(outcome.message.includes(MANUAL_SQUASH_DEFAULTS_STEPS));
+    assert.ok(outcome.message.includes(manualSquashDefaultsSteps(origin)));
   }
 });
