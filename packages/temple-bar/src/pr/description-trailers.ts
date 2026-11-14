@@ -20,13 +20,18 @@ const TRAILER_LINE = /^[A-Za-z0-9][A-Za-z0-9-]*[ \t]*:/;
  * onto an indented line. */
 const CONTINUATION = /^[ \t]/;
 
+/** A blank line as git counts one: only spaces, tabs and carriage
+ * returns. Not JavaScript's trim(), which also drops a no-break space and
+ * other Unicode spaces that git reads as text, so a line git sees as the
+ * end of the trailer block would vanish here. */
+const BLANK = /^[ \t\r]*$/;
+
 /** The description's last paragraph as one "Key: value" line per trailer,
  * wrapped values joined, or undefined when that paragraph isn't wholly
- * trailers (or there is no text at all). Blank lines are lines of only
- * spaces and tabs, as git counts them. */
+ * trailers (or there is no text at all). */
 export function finalTrailerBlock(description: string): string | undefined {
   const lines = description.split(/\r?\n/);
-  const isBlank = (line: string) => line.trim() === "";
+  const isBlank = (line: string) => BLANK.test(line);
   let end = lines.length;
   while (end > 0 && isBlank(lines[end - 1] ?? "")) {
     end -= 1;

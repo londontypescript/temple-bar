@@ -80,6 +80,16 @@ const CASES: readonly (readonly [string, string, readonly string[]])[] = [
     `- one\n\n  Co-Authored-By: ${ADA}`,
     [],
   ],
+  [
+    "a no-break space line after the trailers, which git reads as text",
+    `- one\n\nCo-Authored-By: ${ADA}\n\u00a0`,
+    [],
+  ],
+  [
+    "a no-break space line between the bullets and the trailers",
+    `- one\n\u00a0\nCo-Authored-By: ${ADA}`,
+    [],
+  ],
   ["no description", "", []],
 ];
 

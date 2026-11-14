@@ -240,7 +240,7 @@ void test("pr-title: an answer that isn't 200 fails on its status, even with a w
     const reply = { ...pullRequest(), status };
     const t = world({ reply });
     assert.equal(await t.run(), 1, String(status));
-    assert.match(t.text(), new RegExp(`GitHub answered ${String(status)}`));
+    assert.ok(t.text().includes(`GitHub answered ${String(status)}`), t.text());
     assert.equal(t.git.calls.length, 0);
   }
 });
