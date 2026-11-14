@@ -1,11 +1,11 @@
-// What the test-shapes check knows about a value in a test file: known
+// What the regex-shapes check knows about a value in a test file: known
 // text, text escaped with RegExp.escape, a regular expression, one of a few
 // alternatives, or something it can't see ("dynamic"). Local constants are
-// followed through test-shapes-scope.ts; everything else is dynamic.
+// followed through regex-shapes-scope.ts; everything else is dynamic.
 
 import type { Argument, Expression, Node } from "oxc-parser";
-import type { PatternSource } from "./test-shapes-pattern.ts";
-import { memberName, normalized, type Scopes } from "./test-shapes-scope.ts";
+import type { PatternSource } from "./regex-shapes-pattern.ts";
+import { memberName, normalized, type Scopes } from "./regex-shapes-scope.ts";
 
 export type Value =
   | { readonly kind: "text"; readonly text: string }

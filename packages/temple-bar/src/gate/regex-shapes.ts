@@ -18,7 +18,7 @@ import {
   findShapes,
   type CodeFinding,
   type CodeParsers,
-} from "./test-shapes-code.ts";
+} from "./regex-shapes-code.ts";
 
 export const TEST_SHAPES_CHECK = "regex shapes in tests";
 

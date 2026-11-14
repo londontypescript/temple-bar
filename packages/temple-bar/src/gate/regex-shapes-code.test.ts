@@ -1,4 +1,4 @@
-// The test-shapes check on one file's code. The first tests are the example
+// The regex-shapes check on one file's code. The first tests are the example
 // table approved for #512, row by row with its verdict; every example is
 // held as a string, never as a real test file, so this repository's own
 // gate never reads one as code.
@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { findShapes } from "./test-shapes-code.ts";
+import { findShapes } from "./regex-shapes-code.ts";
 import { check, P, PARSERS, R, U } from "./testing/shape-rows.ts";
 
 void test("shape 1: a replace that deletes markup tags is refused", () => {

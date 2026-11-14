@@ -1,12 +1,12 @@
-// Runs rows of the test-shapes check's example table: each row is code held
+// Runs rows of the regex-shapes check's example table: each row is code held
 // as a string, never as a real test file, so this repository's own gate
 // never reads an example as code. The parsers come through the check's own
 // loader, as they do when the gate runs.
 
 import assert from "node:assert/strict";
 
-import { findShapes, type CodeFinding } from "../test-shapes-code.ts";
-import { loadParsers } from "../test-shapes.ts";
+import { findShapes, type CodeFinding } from "../regex-shapes-code.ts";
+import { loadParsers } from "../regex-shapes.ts";
 
 export const PARSERS = await loadParsers();
 

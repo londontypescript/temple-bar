@@ -1,4 +1,4 @@
-// The test-shapes check through the gate command: the whole gate and
+// The regex-shapes check through the gate command: the whole gate and
 // `gate --part repo` fail a test file the check refuses or can't read,
 // each with its own message, list the outcome in their reports, and pass
 // once the file is fixed.

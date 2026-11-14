@@ -10,18 +10,18 @@ import {
   readPattern,
   type PatternParserFactory,
   type TagReading,
-} from "./test-shapes-pattern.ts";
+} from "./regex-shapes-pattern.ts";
 import {
   buildScopes,
   childNodes,
   memberName,
   normalized,
-} from "./test-shapes-scope.ts";
+} from "./regex-shapes-scope.ts";
 import {
   createEvaluator,
   type Evaluator,
   type Value,
-} from "./test-shapes-values.ts";
+} from "./regex-shapes-values.ts";
 
 export type CodeFinding =
   | { readonly kind: "deletes-tags"; readonly line: number }

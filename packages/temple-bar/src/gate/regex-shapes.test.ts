@@ -1,4 +1,4 @@
-// The test-shapes check as a gate outcome: which files it reads, what it
+// The regex-shapes check as a gate outcome: which files it reads, what it
 // says, and that every way it can fail comes back as its own failed
 // outcome. Test file contents are strings in a fake filesystem.
 
@@ -28,7 +28,7 @@ import {
   runTestShapesCheck,
   TEST_SHAPES_CHECK,
   testFileKind,
-} from "./test-shapes.ts";
+} from "./regex-shapes.ts";
 
 const INVENTORY: Inventory = {
   packages: [{ relative: "packages/app", folder: "/repo/packages/app" }],
@@ -253,7 +253,7 @@ void test("loading: only the check loads the parsers, and only when it runs", ()
       if (valueImport.test(text)) offenders.push(path.relative(root, full));
       if (
         /import\("(?:oxc-parser|@eslint-community\/regexpp)"\)/.test(text) &&
-        !full.endsWith(path.join("gate", "test-shapes.ts"))
+        !full.endsWith(path.join("gate", "regex-shapes.ts"))
       ) {
         offenders.push(path.relative(root, full));
       }

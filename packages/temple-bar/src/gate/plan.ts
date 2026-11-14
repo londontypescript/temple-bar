@@ -43,7 +43,7 @@ import {
   runLengthCheck,
 } from "./size-checks.ts";
 import type { ScriptCommand } from "./stack.ts";
-import { runTestShapesCheck, TEST_SHAPES_CHECK } from "./test-shapes.ts";
+import { runTestShapesCheck, TEST_SHAPES_CHECK } from "./regex-shapes.ts";
 import type { GateTools } from "./tools.ts";
 import { runUnusedCheck, UNUSED_CHECK } from "./unused.ts";
 import { runWorkflowCopiesCheck, WORKFLOWS_CHECK } from "./workflow-copies.ts";

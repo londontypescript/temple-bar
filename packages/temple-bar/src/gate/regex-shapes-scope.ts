@@ -1,11 +1,11 @@
 // Which declaration a name in a test file refers to, by JavaScript's own
-// scope rules, so the test-shapes check can follow a local `const` to its
+// scope rules, so the regex-shapes check can follow a local `const` to its
 // value and never follow a name that something closer shadows. Only what
 // the check needs: a `const` with its initializer, or "something else".
 
 import type { Expression, Node, Program } from "oxc-parser";
 
-export type Binding =
+type Binding =
   | { readonly kind: "const"; readonly init: Expression }
   | { readonly kind: "other" };
 

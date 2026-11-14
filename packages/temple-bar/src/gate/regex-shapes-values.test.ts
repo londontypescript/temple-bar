@@ -1,7 +1,7 @@
-// The test-shapes check's reading of values: the work budget, flags,
+// The regex-shapes check's reading of values: the work budget, flags,
 // when RegExp.escape and String.raw are trusted, and JavaScript's scope
 // rules for following a local constant. Examples are strings, as in
-// test-shapes-code.test.ts.
+// regex-shapes-code.test.ts.
 
 import test from "node:test";
 

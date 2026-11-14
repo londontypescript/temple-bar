@@ -1,6 +1,6 @@
-// Reads a regular expression's pattern for the test-shapes check: can it
+// Reads a regular expression's pattern for the regex-shapes check: can it
 // match a markup tag, and which of its groups put markup back when a
-// replacement names them? See test-shapes.ts for the check as a whole and
+// replacement names them? See regex-shapes.ts for the check as a whole and
 // docs/adr/0007-what-the-gate-checks.md (decision 103) for why it exists.
 //
 // The reading is deliberately conservative: it says "tag" whenever a `<`
