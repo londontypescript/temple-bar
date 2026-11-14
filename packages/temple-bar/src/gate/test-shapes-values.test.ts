@@ -70,6 +70,18 @@ void test("trust: RegExp.escape proves nothing once RegExp is shadowed or reassi
       R,
       "a.test.js",
     ],
+    [
+      "t.5",
+      "({ escape: RegExp.escape } = { escape: (x) => x });\nnew RegExp(RegExp.escape(name));",
+      R,
+      "a.test.js",
+    ],
+    [
+      "t.6",
+      "[String.raw] = [() => input];\nnew RegExp(String.raw`x`);",
+      R,
+      "a.test.js",
+    ],
     ["t.4", "new RegExp(RegExp.escape(name))", P],
   ]);
 });
@@ -104,5 +116,16 @@ void test("scopes: shadowing, hoisting and blocks", () => {
     ["s.10", "const { p } = { p: 'a' };\nnew RegExp(p);", R],
     ["s.11", "const a = b;\nconst b = a;\nnew RegExp(a);", R],
     ["s.12", "export const P = 'a';\nnew RegExp(P);", P],
+    // A default can't see a `var` in the body: it reads the outer constant.
+    [
+      "s.13",
+      "const TAG = /<b>/g;\nfunction f(v = html.replace(TAG, '')) { var TAG = g(); return v; }",
+      R,
+    ],
+    [
+      "s.14",
+      "const p = 'a';\nfunction f(q = new RegExp(p)) { var p = g(); return q; }",
+      P,
+    ],
   ]);
 });

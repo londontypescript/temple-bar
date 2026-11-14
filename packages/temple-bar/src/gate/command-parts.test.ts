@@ -144,16 +144,20 @@ void test("gate --part <package> fails a lint script that lets warnings pass, as
   });
 });
 
-void test("the whole gate and gate --part repo fail a test file that deletes markup tags, both reporting it; fixed, both pass", async () => {
+/** Runs the gate with `args` in a workspace whose one test file, in
+ * packages/a, holds `text`. */
+async function runWithTestFile(text: string, args: readonly string[]) {
   const testFile = "packages/a/src/view.test.ts";
-  const run = async (text: string, args: readonly string[]) => {
-    const made = fixture({
-      extraTracked: [testFile],
-      untracked: { [path.join("/repo", ...testFile.split("/"))]: text },
-    });
-    const code = await runGate(made.ctx, made.files, args);
-    return { ...made, code };
-  };
+  const made = fixture({
+    extraTracked: [testFile],
+    untracked: { [path.join("/repo", ...testFile.split("/"))]: text },
+  });
+  const code = await runGate(made.ctx, made.files, args);
+  return { ...made, code };
+}
+
+void test("the whole gate and gate --part repo fail a test file that deletes markup tags, both reporting it; fixed, both pass", async () => {
+  const run = runWithTestFile;
   const refused = "const text = html.replace(/<[^>]+>/g, '');\n";
   const outcome = {
     name: "regex shapes in tests",
@@ -190,6 +194,33 @@ void test("the whole gate and gate --part repo fail a test file that deletes mar
       (each) => each.name === outcome.name,
     ),
     { ...outcome, status: "passed", detail: "1 test file(s) read" },
+  );
+});
+
+void test("the whole gate and gate --part repo fail a test file the check can't read, both reporting it", async () => {
+  const unreadable = "const x = ;\n";
+  const whole = await runWithTestFile(unreadable, []);
+  assert.equal(whole.code, 1);
+  assert.match(
+    whole.stderr.lines.join(""),
+    /^ {2}packages\/a: src\/view\.test\.ts:1: the file can't be read \(.+\)$/m,
+  );
+  assert.match(
+    whole.stderr.lines.join(""),
+    /^The check fails rather than pass a test file it can't read\.$/m,
+  );
+
+  const part = await runWithTestFile(unreadable, partArgs("repo", "repo.json"));
+  assert.equal(part.code, 1);
+  assert.deepEqual(
+    readReport(part.files, "repo.json").outcomes.find(
+      (each) => each.name === "regex shapes in tests",
+    ),
+    {
+      name: "regex shapes in tests",
+      status: "failed",
+      detail: "1 finding(s) in 1 test file(s)",
+    },
   );
 });
 

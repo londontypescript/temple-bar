@@ -3,9 +3,18 @@
 // outcome. Test file contents are strings in a fake filesystem.
 
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   createFakeContext,
@@ -252,4 +261,57 @@ void test("loading: only the check loads the parsers, and only when it runs", ()
   };
   visit(root);
   assert.deepEqual(offenders, []);
+});
+
+// Prints a line whenever anything resolves either parser, so a run shows
+// whether it loaded one.
+const PARSER_WATCH =
+  "data:text/javascript," +
+  encodeURIComponent(
+    [
+      'import { registerHooks } from "node:module";',
+      "registerHooks({ resolve(specifier, context, next) {",
+      '  if (specifier === "oxc-parser" || specifier === "@eslint-community/regexpp")',
+      '    process.stderr.write("parser loaded: " + specifier + "\\n");',
+      "  return next(specifier, context);",
+      "} });",
+    ].join("\n"),
+  );
+
+void test("loading: a hook, pr-title, help and version run without loading either parser", () => {
+  const folder = mkdtempSync(path.join(tmpdir(), "temple-bar-shapes-load-"));
+  try {
+    const message = path.join(folder, "COMMIT_EDITMSG");
+    writeFileSync(message, "feat: add a thing\n");
+    const cli = fileURLToPath(new URL("../cli.ts", import.meta.url));
+    for (const args of [
+      ["hook", "commit-msg", message],
+      ["pr-title", "feat: add a thing"],
+      ["--help"],
+      ["--version"],
+    ]) {
+      const result = spawnSync(
+        process.execPath,
+        ["--import", PARSER_WATCH, cli, ...args],
+        { cwd: folder, encoding: "utf8" },
+      );
+      assert.equal(result.status, 0, `${args.join(" ")}: ${result.stderr}`);
+      assert.doesNotMatch(result.stderr, /parser loaded/, args.join(" "));
+    }
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+  // The watch does see a load, so its silence above means something.
+  const control = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      PARSER_WATCH,
+      "--input-type=module",
+      "-e",
+      'await import("oxc-parser");',
+    ],
+    { cwd: import.meta.dirname, encoding: "utf8" },
+  );
+  assert.match(control.stderr, /parser loaded: oxc-parser/);
 });

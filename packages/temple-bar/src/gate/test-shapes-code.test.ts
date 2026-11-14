@@ -21,6 +21,8 @@ void test("shape 1: a replace that deletes markup tags is refused", () => {
     ["1.8", "html.replace(/\\x3c[^>]+>/g, '')", R],
     ["1.8", "html.replace(/\\u{3c}[^>]+>/gu, '')", R],
     ["1.9", "html.replace(/[<][^>]+>/g, '')", R],
+    ["1.9", "html.replace(/[<-<]b>/g, '')", R],
+    ["1.9", "html.replace(/[[<]]b>/gv, '')", R],
     ["1.10", "html.replace(/<[^>]+>/, '')", R],
     ["1.11", "html.replace(new RegExp('<[^>]+>', 'g'), '')", R],
     [
@@ -43,6 +45,7 @@ void test("shape 1: a replace that deletes markup tags is refused", () => {
     ["1.19", "html.replace(/\\s*<br>\\s*/g, '')", R],
     ["1.20", "html.replace(/<(?:b|i)>/g, '')", R],
     ["1.21", "const SEP = ' ';\nhtml.replace(/<[^>]+>/g, flag ? '' : SEP);", R],
+    ["1.21", "html.replace(/<b>/g, flag ? () => '' : 'kept')", R],
     ["1.22", "html.replace(/<[^>]+>/g, '' as string)", R],
     [
       "1.23",
@@ -106,6 +109,7 @@ void test("shape 1: encoding, matching and other shapes pass", () => {
     ["1.p25", "html.replace(/(<b>)/g, '$1')", P],
     ["1.p26", "html.replace(/<b>/g, () => '$1')", P],
     ["1.p26", "html.replace(/<b>/g, async () => '')", P],
+    ["1.p26", "html.replace(/<b>/g, flag ? () => '$1' : '<i>')", P],
     [
       "1.p27",
       "text.replace(new RegExp('[a-' + RegExp.escape(end) + ']', 'g'), '')",
@@ -208,6 +212,7 @@ void test("shape 2: literals, escaped text and local constants pass", () => {
     ["2.p5", "new RegExp(/a+/, 'g')", P],
     ["2.p6", "const BASE = /^v\\d+/;\nnew RegExp(BASE.source + '$');", P],
     ["2.p7", "new RegExp(names.map(RegExp.escape).join('|'))", P],
+    ["2.p7", "new RegExp(names.map(RegExp.escape).join(flag ? '|' : ','))", P],
     ["2.p8", "new RegExp(names.map((n) => RegExp.escape(n)).join('|'))", P],
     ["2.p9", "new RegExp(String.raw`\\d+\\.\\d+`)", P],
     ["2.p10", "new RegExp()", P],
@@ -267,4 +272,34 @@ void test("files: an unparseable file reports the module error's line and reason
   if (finding?.kind !== "unparseable") assert.fail(JSON.stringify(finding));
   assert.equal(finding.line, 2);
   assert.match(finding.reason, /\S/);
+});
+
+void test("files: lines count every JavaScript line terminator, CRLF once", () => {
+  const findings = findShapes(
+    "a.test.ts",
+    "a();\rb(); c(); d();\r\nhtml.replace(/<b>/g, '');",
+    PARSERS,
+  );
+  assert.deepEqual(findings, [{ kind: "deletes-tags", line: 5 }]);
+});
+
+void test("patterns: only a syntax error lets a reading pass; anything else the pattern parser throws fails the check", () => {
+  const throwing = {
+    ...PARSERS,
+    createPatternParser: () =>
+      ({
+        parsePattern: () => {
+          throw new RangeError("Maximum call stack size exceeded");
+        },
+      }) as unknown as ReturnType<typeof PARSERS.createPatternParser>,
+  };
+  assert.throws(
+    () =>
+      findShapes(
+        "a.test.ts",
+        "html.replace(new RegExp(`<${RegExp.escape(x)}>`), '')",
+        throwing,
+      ),
+    /Maximum call stack size exceeded/,
+  );
 });

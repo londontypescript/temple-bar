@@ -63,10 +63,16 @@ function sourceTypesOf(file: string): ("module" | "commonjs")[] {
   return ["module", "commonjs"];
 }
 
+/** The line `offset` sits on, counting every JavaScript line terminator:
+ * LF, CR (CRLF counting once), and the line and paragraph separators. */
 function lineAt(text: string, offset: number): number {
   let line = 1;
   for (let index = 0; index < offset && index < text.length; index++) {
-    if (text.charCodeAt(index) === 10) line++;
+    const code = text.charCodeAt(index);
+    if (code === 13 && text.charCodeAt(index + 1) === 10) continue;
+    if (code === 10 || code === 13 || code === 0x2028 || code === 0x2029) {
+      line++;
+    }
   }
   return line;
 }
@@ -127,15 +133,20 @@ function stringDeletes(replacement: string, reading: TagReading): boolean {
 
 type Verdict = "deletes" | "keeps" | "unknown" | "too-complex";
 
+/** A choice between replacements: past the budget if any branch is, else
+ * deleting if any branch deletes, else unknown if any is. */
+function anyOf(verdicts: readonly Verdict[]): Verdict {
+  for (const verdict of ["too-complex", "deletes", "unknown"] as const) {
+    if (verdicts.includes(verdict)) return verdict;
+  }
+  return "keeps";
+}
+
 function textDeletes(value: Value, judge: (text: string) => boolean): Verdict {
   if (value.kind === "text") return judge(value.text) ? "deletes" : "keeps";
   if (value.kind === "too-complex") return "too-complex";
   if (value.kind === "either") {
-    const verdicts = value.options.map((option) => textDeletes(option, judge));
-    for (const verdict of ["too-complex", "deletes", "unknown"] as const) {
-      if (verdicts.includes(verdict)) return verdict;
-    }
-    return "keeps";
+    return anyOf(value.options.map((option) => textDeletes(option, judge)));
   }
   return "unknown";
 }
@@ -149,6 +160,14 @@ function replacementVerdict(
   if (argument === undefined) return "keeps";
   if (argument.type === "SpreadElement") return "unknown";
   const node = normalized(argument);
+  if (node.type === "ConditionalExpression") {
+    // Either branch may be the replacement used. Each is judged by its own
+    // rules, so a callback in a branch is still read as a callback.
+    return anyOf([
+      replacementVerdict(node.consequent, reading, evaluator),
+      replacementVerdict(node.alternate, reading, evaluator),
+    ]);
+  }
   if (node.type === "ArrowFunctionExpression") {
     // A callback's result is inserted as it is, with no substitution; an
     // async one inserts a Promise.
@@ -325,10 +344,42 @@ function assignsBuiltins(program: Node): boolean {
     }
     return (name === "escape" || name === "raw") && touches(object);
   };
+  // A destructuring target assigns to every name and member inside it.
+  const assigns = (target: Node | null): boolean => {
+    if (target === null) return false;
+    switch (target.type) {
+      case "ObjectPattern":
+        return target.properties.some((property) =>
+          assigns(
+            property.type === "RestElement"
+              ? property.argument
+              : property.value,
+          ),
+        );
+      case "ArrayPattern":
+        return target.elements.some((element) => assigns(element));
+      case "AssignmentPattern":
+        return assigns(target.left);
+      case "RestElement":
+        return assigns(target.argument);
+      default:
+        return touches(target);
+    }
+  };
   let found = false;
   const visit = (node: Node): void => {
     if (found) return;
-    if (node.type === "AssignmentExpression" && touches(node.left)) {
+    const target =
+      node.type === "AssignmentExpression"
+        ? node.left
+        : node.type === "UpdateExpression"
+          ? node.argument
+          : (node.type === "ForInStatement" ||
+                node.type === "ForOfStatement") &&
+              node.left.type !== "VariableDeclaration"
+            ? node.left
+            : null;
+    if (assigns(target)) {
       found = true;
       return;
     }

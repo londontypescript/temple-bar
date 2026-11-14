@@ -103,17 +103,17 @@ function holdsEscapedPart(node: AST.Node, state: ReadState): boolean {
 }
 
 /** A `<` written in the pattern: the character itself in any spelling, or
- * a class holding nothing else. Wider classes (`.`, `\W`, `[^>]`) that
- * happen to match `<` aren't one. */
+ * a class holding nothing else (`[<]`, `[<-<]`, `[[<]]`). Wider classes
+ * (`.`, `\W`, `[^>]`) that happen to match `<` aren't one. */
 function isWrittenLessThan(node: AST.Node): boolean {
   if (node.type === "Character") return node.value === LESS_THAN;
+  if (node.type === "CharacterClassRange") {
+    return node.min.value === LESS_THAN && node.max.value === LESS_THAN;
+  }
   if (node.type === "CharacterClass" && !node.negate) {
     return (
       node.elements.length > 0 &&
-      node.elements.every(
-        (element) =>
-          element.type === "Character" && element.value === LESS_THAN,
-      )
+      node.elements.every((element) => isWrittenLessThan(element))
     );
   }
   return false;
@@ -281,13 +281,18 @@ export function readPattern(
       : reading.includes("u")
         ? "u"
         : "";
+    const parser = createParser();
     let pattern: AST.Pattern;
     try {
-      pattern = createParser().parsePattern(text, 0, text.length, {
+      pattern = parser.parsePattern(text, 0, text.length, {
         unicode: mode === "u",
         unicodeSets: mode === "v",
       });
-    } catch {
+    } catch (error) {
+      // Only a pattern this reading can't parse moves on to the next one
+      // (regexpp's syntax errors are SyntaxErrors). Anything else, such as
+      // running out of stack, fails the check rather than pass the pattern.
+      if (!(error instanceof SyntaxError)) throw error;
       continue;
     }
     const state = { ignoreCase: reading.includes("i"), mode, escaped, memo };

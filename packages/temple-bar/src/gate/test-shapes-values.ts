@@ -159,14 +159,9 @@ export function createEvaluator(
       return undefined;
     }
     const [separatorNode, ...extra] = node.arguments;
-    if (extra.length > 0) return undefined;
-    const separator =
-      separatorNode === undefined
-        ? ({ kind: "text", text: "," } as const)
-        : separatorNode.type === "SpreadElement"
-          ? DYNAMIC
-          : evaluate(separatorNode, depth);
-    if (separator.kind !== "text") return undefined;
+    if (extra.length > 0 || separatorNode?.type === "SpreadElement") {
+      return undefined;
+    }
     const mapCall = normalized(callee.object);
     if (mapCall.type !== "CallExpression") return undefined;
     const mapCallee = normalized(mapCall.callee);
@@ -182,10 +177,24 @@ export function createEvaluator(
     const fn = normalized(mapper);
     const escapes = isEscapeCallee(fn, fn) || isEscapingArrow(fn);
     if (!escapes) return undefined;
-    return {
-      kind: "escaped",
-      source: `${ESCAPED_PART}${separator.text}${ESCAPED_PART}`,
-    };
+    // The separator is pattern text between escaped parts; each known
+    // alternative gives one source, and a budget overrun stays one.
+    const separator: Value =
+      separatorNode === undefined
+        ? { kind: "text", text: "," }
+        : evaluate(separatorNode, depth);
+    if (separator.kind === "too-complex") return separator;
+    const options =
+      separator.kind === "either" ? separator.options : [separator];
+    const sources: Value[] = [];
+    for (const option of options) {
+      if (option.kind !== "text") return DYNAMIC;
+      sources.push({
+        kind: "escaped",
+        source: `${ESCAPED_PART}${option.text}${ESCAPED_PART}`,
+      });
+    }
+    return either(sources);
   };
 
   const regExpOf = (args: readonly Argument[], _at: Node, depth = 0): Value => {

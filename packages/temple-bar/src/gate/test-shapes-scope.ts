@@ -168,6 +168,16 @@ export function buildScopes(program: Program, strict: boolean): Scopes {
         }
         for (const child of childNodes(node)) {
           if (child === node.id) continue;
+          if (child === body && body.type === "BlockStatement") {
+            // The body's own declarations sit beneath the parameters, so a
+            // parameter's default never sees a `var` declared in the body.
+            const bodyScope = new Scope(inner, true, inner.strict);
+            scopeAt.set(body, bodyScope);
+            for (const statement of childNodes(body)) {
+              visit(statement, bodyScope);
+            }
+            continue;
+          }
           visit(child, inner);
         }
         return;
