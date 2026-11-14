@@ -41,6 +41,14 @@ deny-warnings flag (\`--max-warnings 0\`, \`--deny-warnings\`,
 \`--error-on-warnings\`); any other linter or language (clippy, go vet, turbo,
 nx) is this project's own to make fail on warnings.
 
+The gate fails a test file (\`.test\` and \`.spec\` files, and anything under
+\`__tests__/\`, \`testing/\` or \`e2e/\`) that deletes markup tags with a regular
+expression, or builds a \`RegExp\` from a value it can't prove is a regex or
+text wrapped in \`RegExp.escape\`. To check rendered markup, query by role and
+name for an accessible name, parse the markup for its text, and compare fixed
+markup with its exact output. A test file it can't read, Vue, Svelte, Astro
+or MDX included, fails too: keep such components outside the test folders.
+
 None yet.
 `;
 
