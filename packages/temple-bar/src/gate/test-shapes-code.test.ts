@@ -23,6 +23,9 @@ void test("shape 1: a replace that deletes markup tags is refused", () => {
     ["1.9", "html.replace(/[<][^>]+>/g, '')", R],
     ["1.9", "html.replace(/[<-<]b>/g, '')", R],
     ["1.9", "html.replace(/[[<]]b>/gv, '')", R],
+    ["1.9", "html.replace(/[[<]&&[<]]b>/gv, '')", R],
+    ["1.9", "html.replace(/[[<]--[a]]b>/gv, '')", R],
+    ["1.9", "html.replace(/[\\q{<}]b>/gv, '')", R],
     ["1.10", "html.replace(/<[^>]+>/, '')", R],
     ["1.11", "html.replace(new RegExp('<[^>]+>', 'g'), '')", R],
     [
@@ -277,7 +280,7 @@ void test("files: an unparseable file reports the module error's line and reason
 void test("files: lines count every JavaScript line terminator, CRLF once", () => {
   const findings = findShapes(
     "a.test.ts",
-    "a();\rb(); c(); d();\r\nhtml.replace(/<b>/g, '');",
+    "a();\rb();\u2028c();\u2029d();\r\nhtml.replace(/<b>/g, '');",
     PARSERS,
   );
   assert.deepEqual(findings, [{ kind: "deletes-tags", line: 5 }]);

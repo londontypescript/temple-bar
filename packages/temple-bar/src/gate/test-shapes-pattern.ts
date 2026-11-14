@@ -11,9 +11,14 @@
 
 import type { AST, RegExpParser } from "@eslint-community/regexpp";
 
-/** Marks one escaped part in a partly known pattern source. A character
- * from the private use area, so no real pattern text holds it. */
-export const ESCAPED_PART = "\u{E000}";
+/** A pattern's source as far as it is known: its text, with the letter `a`
+ * standing at each offset in `parts` for a part escaped with RegExp.escape,
+ * whose real text isn't known. The offsets travel beside the text, so no
+ * character of real text is ever mistaken for an escaped part. */
+export interface PatternSource {
+  readonly text: string;
+  readonly parts: readonly number[];
+}
 
 /** What a reading needs from regexpp, passed in so the parser is loaded
  * only when the check runs. */
@@ -103,20 +108,36 @@ function holdsEscapedPart(node: AST.Node, state: ReadState): boolean {
 }
 
 /** A `<` written in the pattern: the character itself in any spelling, or
- * a class holding nothing else (`[<]`, `[<-<]`, `[[<]]`). Wider classes
- * (`.`, `\W`, `[^>]`) that happen to match `<` aren't one. */
+ * a class holding nothing else (`[<]`, `[<-<]`, `[[<]]`, `[\q{<}]`, and
+ * in `v` mode an intersection with, or a subtraction from, such a class).
+ * Wider classes (`.`, `\W`, `[^>]`) that happen to match `<` aren't one. */
 function isWrittenLessThan(node: AST.Node): boolean {
-  if (node.type === "Character") return node.value === LESS_THAN;
-  if (node.type === "CharacterClassRange") {
-    return node.min.value === LESS_THAN && node.max.value === LESS_THAN;
+  switch (node.type) {
+    case "Character":
+      return node.value === LESS_THAN;
+    case "CharacterClassRange":
+      return node.min.value === LESS_THAN && node.max.value === LESS_THAN;
+    case "CharacterClass":
+      return (
+        !node.negate &&
+        node.elements.length > 0 &&
+        node.elements.every((element) => isWrittenLessThan(element))
+      );
+    case "ClassStringDisjunction":
+      return node.alternatives.every(
+        (alternative) =>
+          alternative.elements.length === 1 &&
+          alternative.elements.every((element) => isWrittenLessThan(element)),
+      );
+    case "ExpressionCharacterClass":
+      return !node.negate && isWrittenLessThan(node.expression);
+    case "ClassIntersection":
+      return isWrittenLessThan(node.left) || isWrittenLessThan(node.right);
+    case "ClassSubtraction":
+      return isWrittenLessThan(node.left);
+    default:
+      return false;
   }
-  if (node.type === "CharacterClass" && !node.negate) {
-    return (
-      node.elements.length > 0 &&
-      node.elements.every((element) => isWrittenLessThan(element))
-    );
-  }
-  return false;
 }
 
 function oneCharacter(node: AST.Node, state: ReadState): Facts {
@@ -249,23 +270,15 @@ function groupsOf(pattern: AST.Pattern): Omit<TagReading, "tag"> {
   return { keeping, groupCount: groups.length, groupNames };
 }
 
-/** Reads `source` (which may hold ESCAPED_PART marks) under `flags`, or
- * under every combination that matters when the flags aren't known. */
+/** Reads `source` under `flags`, or under every combination that matters
+ * when the flags aren't known. */
 export function readPattern(
-  source: string,
+  source: PatternSource,
   flags: string | undefined,
   createParser: PatternParserFactory,
 ): PatternResult {
-  const escaped = new Set<number>();
-  let text = "";
-  for (const character of source) {
-    if (character === ESCAPED_PART) {
-      escaped.add(text.length);
-      text += "a";
-    } else {
-      text += character;
-    }
-  }
+  const { text } = source;
+  const escaped = new Set(source.parts);
   const partly = escaped.size > 0;
   const readingsOf =
     flags === undefined

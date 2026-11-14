@@ -206,7 +206,13 @@ function walk(
     kind: Exclude<CodeFinding["kind"], "unparseable">,
     at: Node,
   ): void => {
-    findings.push({ kind, line: lineAt(text, at.start) });
+    const line = lineAt(text, at.start);
+    // One message per kind and line: a RegExp too complex to read inside a
+    // replace is one problem to fix, not two.
+    if (findings.some((each) => each.kind === kind && each.line === line)) {
+      return;
+    }
+    findings.push({ kind, line });
   };
   const visit = (node: Node): void => {
     if (

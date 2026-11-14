@@ -129,3 +129,15 @@ void test("scopes: shadowing, hoisting and blocks", () => {
     ],
   ]);
 });
+
+void test("escaped parts: real text is never taken for an escaped part, whatever its characters", () => {
+  check([
+    ["e.1", "html.replace(new RegExp('<\\uE000>'), '')", P],
+    ["e.2", "html.replace(new RegExp('(\\uE000'), '')", U],
+    [
+      "e.3",
+      "html.replace(new RegExp('<' + RegExp.escape(t) + '\\uE000'), '')",
+      R,
+    ],
+  ]);
+});

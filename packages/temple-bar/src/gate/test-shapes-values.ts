@@ -4,17 +4,17 @@
 // followed through test-shapes-scope.ts; everything else is dynamic.
 
 import type { Argument, Expression, Node } from "oxc-parser";
-import { ESCAPED_PART } from "./test-shapes-pattern.ts";
+import type { PatternSource } from "./test-shapes-pattern.ts";
 import { memberName, normalized, type Scopes } from "./test-shapes-scope.ts";
 
 export type Value =
   | { readonly kind: "text"; readonly text: string }
-  /** Pattern text in which each ESCAPED_PART stands for escaped text. */
-  | { readonly kind: "escaped"; readonly source: string }
-  /** `flags` undefined: not known. `source` may hold ESCAPED_PART. */
+  /** Pattern text holding at least one part escaped with RegExp.escape. */
+  | { readonly kind: "escaped"; readonly source: PatternSource }
+  /** `flags` undefined: not known. */
   | {
       readonly kind: "regex";
-      readonly source: string;
+      readonly source: PatternSource;
       readonly flags: string | undefined;
     }
   | { readonly kind: "either"; readonly options: readonly Value[] }
@@ -24,6 +24,20 @@ export type Value =
 
 const DYNAMIC: Value = { kind: "dynamic" };
 const TOO_COMPLEX: Value = { kind: "too-complex" };
+
+/** One part escaped with RegExp.escape, whose text isn't known. */
+const ESCAPED_PART: PatternSource = { text: "a", parts: [0] };
+
+function knownSource(text: string): PatternSource {
+  return { text, parts: [] };
+}
+
+function joinSources(a: PatternSource, b: PatternSource): PatternSource {
+  return {
+    text: a.text + b.text,
+    parts: [...a.parts, ...b.parts.map((offset) => offset + a.text.length)],
+  };
+}
 
 // The work budget. A conditional multiplies alternatives, following one
 // constant to another goes deeper, and concatenation grows text; past these
@@ -77,17 +91,17 @@ function concat(a: Value, b: Value): Value {
     if (a.text.length + b.text.length > MAX_TEXT) return TOO_COMPLEX;
     return { kind: "text", text: a.text + b.text };
   }
-  const source = (value: Value): string | undefined =>
+  const source = (value: Value): PatternSource | undefined =>
     value.kind === "text"
-      ? value.text
+      ? knownSource(value.text)
       : value.kind === "escaped"
         ? value.source
         : undefined;
   const left = source(a);
   const right = source(b);
   if (left === undefined || right === undefined) return DYNAMIC;
-  if (left.length + right.length > MAX_TEXT) return TOO_COMPLEX;
-  return { kind: "escaped", source: left + right };
+  if (left.text.length + right.text.length > MAX_TEXT) return TOO_COMPLEX;
+  return { kind: "escaped", source: joinSources(left, right) };
 }
 
 export function createEvaluator(
@@ -191,7 +205,10 @@ export function createEvaluator(
       if (option.kind !== "text") return DYNAMIC;
       sources.push({
         kind: "escaped",
-        source: `${ESCAPED_PART}${option.text}${ESCAPED_PART}`,
+        source: joinSources(
+          joinSources(ESCAPED_PART, knownSource(option.text)),
+          ESCAPED_PART,
+        ),
       });
     }
     return either(sources);
@@ -225,7 +242,11 @@ export function createEvaluator(
             flags: flagsFor(source.flags),
           };
         case "text":
-          return { kind: "regex", source: source.text, flags: flagsFor("") };
+          return {
+            kind: "regex",
+            source: knownSource(source.text),
+            flags: flagsFor(""),
+          };
         case "escaped":
           return { kind: "regex", source: source.source, flags: flagsFor("") };
         case "either":
@@ -260,7 +281,7 @@ export function createEvaluator(
         if ("regex" in node) {
           return {
             kind: "regex",
-            source: node.regex.pattern,
+            source: knownSource(node.regex.pattern),
             flags: node.regex.flags,
           };
         }
@@ -311,9 +332,9 @@ export function createEvaluator(
               ? DYNAMIC
               : { kind: "text", text: object.flags };
           }
-          return object.source.includes(ESCAPED_PART)
+          return object.source.parts.length > 0
             ? { kind: "escaped", source: object.source }
-            : { kind: "text", text: object.source };
+            : { kind: "text", text: object.source.text };
         };
         return pick(evaluate(node.object, depth));
       }
