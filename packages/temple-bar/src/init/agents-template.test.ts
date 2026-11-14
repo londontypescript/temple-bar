@@ -101,14 +101,31 @@ void test("the update before work stops keeps its fields in the guide the block 
 
 // merge reads reviewers only from the branch's commits, so a reviewer named
 // only in the description is lost from the squash.
-void test("the pull request guide says a reviewer goes on a commit, not in the description", () => {
+void test("the pull request guide says a reviewer goes on a commit, not only in the description", () => {
   const guide = flat(companion("docs/pull-requests.md"));
   for (const required of [
     "`Reviewed-by: <reviewer>` as a trailer to the branch's last commit before its one push",
-    "a line in the description doesn't count",
+    "a line only in the description doesn't count",
   ]) {
     assert.ok(guide.includes(required), required);
   }
+});
+
+// The required title check fails a description that doesn't end with the
+// branch's trailers, and setup sets the squash defaults, so the guide setup
+// ships must say both, or agents meet the failure with no rule behind it.
+void test("the pull request guide says the description ends with the branch's trailers, and why", () => {
+  const guide = flat(companion("docs/pull-requests.md"));
+  for (const required of [
+    "**End the description with the branch's co-author and reviewer lines**, after a blank line and with nothing after them",
+    "the title check fails a description missing any `Co-Authored-By:` or `Reviewed-by:` line the branch's commits carry",
+    "Setup sets GitHub's squash-message default to the pull request's title and description",
+  ]) {
+    assert.ok(guide.includes(required), required);
+  }
+  assert.ok(
+    !guide.includes("Setup doesn't set GitHub's squash-message default"),
+  );
 });
 
 // A new repository's first push and every squash merge publish names and
@@ -286,7 +303,7 @@ const APPROVED_COMPANION_SHA256: Readonly<Record<string, string>> = {
   "docs/planning.md":
     "664be6f35c101086696802793f5b7c57923385144f518044a8d7a54a7edb1b5f",
   "docs/pull-requests.md":
-    "87ebe27e74f7d91450e67c3cbc6fedc620573c1895271e9a8f84d5ab1cd66da3",
+    "94ab3c5b8733b32087b333a871276e2b43aaffc4dbc69988826f9d9a8107f5af",
   "docs/delegation.md":
     "0e5cff9bdc35a0eb0d4c6ea33f67aeb881a17e73ac8d5743c97fe7505a5a20a9",
   "docs/incidents.md":
