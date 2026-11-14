@@ -1,7 +1,7 @@
 // The test-shapes check on one file's code. The first tests are the example
-// table approved in phase T's brief (#512), row by row with its verdict;
-// every example is held as a string, never as a real test file, so this
-// repository's own gate never reads one as code.
+// table approved for #512, row by row with its verdict; every example is
+// held as a string, never as a real test file, so this repository's own
+// gate never reads one as code.
 
 import assert from "node:assert/strict";
 import test from "node:test";
