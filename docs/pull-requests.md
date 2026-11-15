@@ -9,7 +9,11 @@ a pull request. temple-bar's setup wrote this file.
   (`feat`, `fix`, `docs` or `chore`), is proportional to the change, and
   names the change, never the trigger ("address feedback").
 - **One bullet per distinct change,** as a top-level list: merge turns the
-  title and those bullets into the squash commit.
+  title and those bullets into the squash commit. **End the description
+  with the branch's co-author and reviewer lines**, after a blank line and
+  with nothing after them: the title check fails a description missing
+  any `Co-Authored-By:` or `Reviewed-by:` line the branch's commits carry,
+  so a squash merged on GitHub keeps them.
 - **Each issue or pull request reference** goes on its own nested line
   under the change bullet it belongs to, for example `  - Closes #N`, on
   one physical line: a wrapped nested line is joined onto its parent
@@ -28,8 +32,9 @@ a pull request. temple-bar's setup wrote this file.
 - **A reviewer is recorded on a commit.** When someone other than the
   author reviewed the change, add `Reviewed-by: <reviewer>` as a trailer
   to the branch's last commit before its one push. `pnpm merge` copies
-  each one from the branch's commits into the squash message; a line in the
-  description doesn't count.
+  each one from the branch's commits into the squash message. The
+  description repeats them at its end, but a line only in the description
+  doesn't count.
 - `pnpm merge <N>` runs whatever the current folder's `package.json` says.
   Inside a pull request's worktree that is the pull request's own scripts,
   so run it from the default-branch checkout.
@@ -101,5 +106,7 @@ short.
 update it and let CI rerun before asking for the admin merge: each other
 merge can leave it behind.
 
-Setup doesn't set GitHub's squash-message default, so a repository's default
-may differ: the merge preview is where a wrong message is caught.
+Setup sets GitHub's squash-message default to the pull request's title
+and description, and the title check makes the description end with the
+branch's co-author and reviewer lines. Whoever merges can still edit the
+message, so the merge preview is where a wrong one is caught.

@@ -12,7 +12,7 @@ import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 // Answers as a signed-in `gh` for an organisation's public repo whose `main` ruleset already
-// exists, with none of setup's workflows on the default branch yet, with CodeQL on but not yet through its first analysis of the
+// exists and whose squash merge defaults are already setup's, with none of setup's workflows on the default branch yet, with CodeQL on but not yet through its first analysis of the
 // default branch (GitHub answers 404 for no analyses). Node resolves the first argument to an absolute path (it takes it
 // for a script), so only its basename is the subcommand.
 const PRELOAD = `"use strict";
@@ -35,7 +35,7 @@ if (path.basename(process.execPath).replace(/\\.exe$/i, "") === "gh") {
     process.exit(1);
   }
   if (args[0] === "api" && args[1] === "repos/acme/widgets") {
-    process.stdout.write('{"private":false,"visibility":"public","default_branch":"main","owner":{"login":"acme","type":"Organization"}}');
+    process.stdout.write('{"private":false,"visibility":"public","default_branch":"main","owner":{"login":"acme","type":"Organization"},"squash_merge_commit_title":"PR_TITLE","squash_merge_commit_message":"PR_BODY"}');
     process.exit(0);
   }
   if (args[0] === "api" && args[1] === "repos/acme/widgets/rules/branches/main") {

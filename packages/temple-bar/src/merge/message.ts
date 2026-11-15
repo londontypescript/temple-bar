@@ -110,6 +110,16 @@ export async function readTrailers(
       `could not read the branch's commits for co-authors and reviewers: ${result.stderr.trim()}`,
     );
   }
+  return collectTrailers(result.stdout);
+}
+
+/** The co-authors and reviewers in `text`, one "Key: value" trailer per
+ * line with wrapped values already joined (as `git log` prints them with
+ * `unfold`), each once, in the order first seen. Other lines and other
+ * keys are skipped. The pull request title check reads a description's
+ * trailers with this too, so both sides of its comparison match names
+ * exactly as merge does. */
+export function collectTrailers(text: string): CommitTrailers {
   const coAuthors = new Map<string, string>();
   const reviewers = new Map<string, string>();
   // Git matches the keys without case and prints each as the commit spells
@@ -119,7 +129,7 @@ export async function readTrailers(
     [CO_AUTHOR_KEY.toLowerCase(), coAuthors],
     [REVIEWER_KEY.toLowerCase(), reviewers],
   ]);
-  for (const line of result.stdout.split("\n")) {
+  for (const line of text.split("\n")) {
     const colon = line.indexOf(":");
     if (colon === -1) {
       continue;
@@ -129,14 +139,44 @@ export async function readTrailers(
       .slice(colon + 1)
       .trim()
       .replace(/\s+/g, " ");
-    if (list !== undefined && name !== "" && !list.has(name.toLowerCase())) {
-      list.set(name.toLowerCase(), name);
+    if (list !== undefined && name !== "" && !list.has(nameKey(name))) {
+      list.set(nameKey(name), name);
     }
   }
   return {
     coAuthors: [...coAuthors.values()],
     reviewers: [...reviewers.values()],
   };
+}
+
+/** Names are compared without case, because the same person is often
+ * typed two ways. */
+function nameKey(name: string): string {
+  return name.toLowerCase();
+}
+
+/** Who `required` credits that `credited` doesn't, matched as
+ * `collectTrailers` matches them. */
+export function missingTrailers(
+  required: CommitTrailers,
+  credited: CommitTrailers,
+): CommitTrailers {
+  const absent = (names: readonly string[], from: readonly string[]) => {
+    const have = new Set(from.map(nameKey));
+    return names.filter((name) => !have.has(nameKey(name)));
+  };
+  return {
+    coAuthors: absent(required.coAuthors, credited.coAuthors),
+    reviewers: absent(required.reviewers, credited.reviewers),
+  };
+}
+
+/** The trailer lines for `credited`, as the squash message writes them. */
+export function creditLines(credited: CommitTrailers): string[] {
+  return [
+    ...credited.coAuthors.map((author) => `Co-Authored-By: ${author}`),
+    ...credited.reviewers.map((reviewer) => `${REVIEWER_KEY}: ${reviewer}`),
+  ];
 }
 
 export interface SquashMessage {
@@ -173,8 +213,7 @@ export function buildSquashMessage(
     ...(maintainerApproved.length > 0
       ? [`${MAINTAINER_APPROVED_TRAILER}: ${maintainerApproved.join("; ")}`]
       : []),
-    ...credited.coAuthors.map((author) => `Co-Authored-By: ${author}`),
-    ...credited.reviewers.map((reviewer) => `${REVIEWER_KEY}: ${reviewer}`),
+    ...creditLines(credited),
   ];
   const lines =
     bullets.length > 0 && trailers.length > 0

@@ -118,19 +118,24 @@ export function prTitleWorkflow(): string {
   return `${openingComment(PR_TITLE_CHECK)}
 name: ${PR_TITLE_CHECK}
 
-# Its own workflow, so a changed title is checked again without rerunning
-# the whole gate. It runs on every edit, even one that left the title alone:
-# a skipped check counts as passed, so skipping would let a description edit
-# clear a failed title.
+# Its own workflow, so a changed title or description is checked again
+# without rerunning the whole gate. It checks the title, and that the
+# description ends with every co-author and reviewer the branch's commits
+# credit. It runs on every edit: the description counts too.
+# pull_request, never pull_request_target: a fork's pull request gets a
+# read-only token and runs nothing with the base repository's trust.
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
 
+# Read only: the code, and the pull request's title, description and head.
 permissions:
   contents: read
+  pull-requests: read
 
 # Its own group: a title edit never cancels a gate run. A newer run
-# cancelling an older one is safe, since both check the title as it is now.
+# cancelling an older one is safe, since both read the pull request as it
+# is now.
 concurrency:
   group: temple-bar-pr-title-${githubExpression("github.ref")}
   cancel-in-progress: true
@@ -142,11 +147,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-${installSteps("")}
-      # Reads the title from the event payload, never from the command line,
-      # so a title can't run code.
-      - name: Pull request title
+${installSteps(`          # The pull request's own head, not GitHub's trial merge, with the
+          # whole history of every branch: the branch's commits are read
+          # from here. The check fails if the head has moved on since.
+          ref: ${githubExpression("github.event.pull_request.head.sha")}
+          fetch-depth: 0
+`)}
+      # Takes only the pull request's number from the event and reads the
+      # rest from GitHub as it is now. No text from the pull request is put
+      # on a command line, where it could run code.
+      - name: Pull request title and trailers
         run: pnpm exec temple-bar pr-title
+        env:
+          GH_TOKEN: ${githubExpression("github.token")}
 `;
 }
 

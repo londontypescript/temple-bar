@@ -149,6 +149,20 @@ lockfile integrity hash matching the one npm publishes. Setup doesn't set
 GitHub's squash-message default, so the template doesn't promise it in every
 adopting repo; the preview item covers it.
 ([#270](https://github.com/londontypescript/temple-bar/issues/270))
+2026-11-13: setup now sets that default, title and body from the pull request,
+under the same yes as the rulesets (decision 40's list,
+[ADR 0004](0004-github-settings-temple-bar-applies.md)), which replaces the
+sentence above. And the required `temple-bar pr-title` check fails a pull
+request whose description doesn't end with a trailer block holding every
+`Co-Authored-By:` and `Reviewed-by:` line on the branch's commits, so a merge
+on the site keeps them
+([#497](https://github.com/londontypescript/temple-bar/issues/497)). It reads
+the commits from a whole checkout of the head with merge's own trailer reader,
+and the description and head live from the API, never the saved event; a moved
+head, and any failure to read, fail it. `ready` can't do this, since it runs
+before the pull request exists, and the `main` ruleset has no bypass, so the
+check holds for admin merges too. It validates the description, not the squash
+message, which whoever merges can still edit, so the preview item stays.
 
 **Decision 87: a pin bump's mixing is disclosed, not yet refused.** AGENTS.md
 says a pin bump is its own pull request, never a side effect of other work.
