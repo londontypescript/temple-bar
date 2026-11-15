@@ -19,6 +19,7 @@ gate: checks:
   passed   markdown lint (7 markdown file(s))
   passed   local links (7 markdown file(s))
   passed   unused code (knip) (only comment-only unused files)
+  passed   regex shapes in tests (no test files)
   skipped  branch ruleset (origin is not on GitHub)
   skipped  judge ruleset (origin is not on GitHub)
   skipped  code scanning rule (origin is not on GitHub)
@@ -55,6 +56,7 @@ for (const name of [
   "markdown lint",
   "local links",
   "unused code (knip)",
+  "regex shapes in tests",
 ]) {
   for (const status of ["failed", "no-op", "missing", "skipped"]) {
     void test(`strict scaffold checker rejects ${status} ${name} despite expected missing scripts`, () => {

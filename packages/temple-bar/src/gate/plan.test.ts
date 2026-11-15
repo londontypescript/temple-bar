@@ -61,6 +61,7 @@ void test("plan: each part's outcomes come from the plan alone, coverage's two a
     "markdown lint",
     "local links",
     "unused code (knip)",
+    "regex shapes in tests",
     "branch ruleset",
     "judge ruleset",
     "code scanning rule",

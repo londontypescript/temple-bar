@@ -18,6 +18,7 @@ const BASE_CHECKS = [
   "markdown lint",
   "local links",
   "unused code (knip)",
+  "regex shapes in tests",
 ];
 const LINT_MESSAGE = 'package.json has a "lint" script that lets warnings pass';
 const REMOTE_CHECKS = [

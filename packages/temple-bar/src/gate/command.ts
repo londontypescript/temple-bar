@@ -111,7 +111,7 @@ export function createGateCommand(
   return {
     name: "gate",
     summary:
-      "Run the merge gate: stack checks in every workspace package, setup's core, the gate and title workflows, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code, the branch ruleset, the judge's ruleset and the gate and title checks rule.",
+      "Run the merge gate: stack checks in every workspace package, setup's core, the gate and title workflows, the file-length cap, the AGENTS.md size limit, markdown lint, local links, unused code, regex shapes in tests, the branch ruleset, the judge's ruleset and the gate and title checks rule.",
     details: [
       "Once the repo has files of its own (beyond package.json, the lockfile,",
       "AGENTS.md, .gitignore, README.md, LICENSE, temple-bar.config.json and",

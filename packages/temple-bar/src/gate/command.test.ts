@@ -223,6 +223,7 @@ void test("gate: a pass lists every check that ran, each passed, on stdout", asy
       "  skipped  markdown lint (no markdown files)",
       "  skipped  local links (no markdown files)",
       "  passed   unused code (knip)",
+      "  passed   regex shapes in tests (no test files)",
       "  skipped  branch ruleset (origin is not on GitHub)",
       "  skipped  judge ruleset (origin is not on GitHub)",
       "  skipped  code scanning rule (origin is not on GitHub)",

@@ -143,6 +143,23 @@ void test("the pull request guide covers a new repository's licence and what pus
   }
 });
 
+// The gate refuses two regex shapes in test files with no exemption, so the
+// conventions guide setup ships says which files count and gives the same
+// three remedies for checking markup as the gate's message.
+void test("the conventions guide names the test files the regex check reads and its three remedies", () => {
+  const guide = flat(companion("docs/conventions.md"));
+  for (const required of [
+    "`.test` and `.spec` files, and anything under `__tests__/`, `testing/` or `e2e/`",
+    "deletes markup tags with a regular expression",
+    "a value it can't prove is fixed text, a regex or text wrapped in `RegExp.escape`",
+    "query by role and name for an accessible name",
+    "parse the markup for its text",
+    "compare fixed markup with its exact output",
+  ]) {
+    assert.ok(guide.includes(required), required);
+  }
+});
+
 void test("every doc the rules link to is one setup writes", () => {
   const written = new Set(COMPANION_FILES.map((file) => file.path));
   const links = [...templeBarBlock().matchAll(/\]\((docs\/[^)]+)\)/g)].map(

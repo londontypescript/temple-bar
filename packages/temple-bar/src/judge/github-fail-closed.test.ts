@@ -213,7 +213,7 @@ void test("the head moving, the base tip moving or the base branch changing whil
   for (const script of scripts) {
     await assertCantRead(
       setup(t, CODE_ONLY, script).read,
-      new RegExp(MOVED_WHILE_READ.slice(0, 40)),
+      new RegExp(RegExp.escape(MOVED_WHILE_READ.slice(0, 40))),
     );
   }
 });
