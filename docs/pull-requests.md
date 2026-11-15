@@ -110,3 +110,17 @@ Setup sets GitHub's squash-message default to the pull request's title
 and description, and the title check makes the description end with the
 branch's co-author and reviewer lines. Whoever merges can still edit the
 message, so the merge preview is where a wrong one is caught.
+
+## Release notes
+
+A release's notes take temple-bar's own format:
+
+- **The title** is `<repo> <version>`.
+- **Features** (`feat`), **Fixes** (`fix`) and **Other changes** (every
+  other type): one line per pull request merged since the last release, the
+  commit subject with its type dropped, its scope in bold and the pull
+  request number, for example "**init:** write .gitattributes for LF
+  checkouts (#N)". The version bump commit is left out.
+- **Upgrading** next: the commands, and what a user of the repository must
+  do. Then **Guides this release changed** and **Incidents fixed**, where
+  they apply.
