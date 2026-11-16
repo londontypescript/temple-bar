@@ -143,6 +143,23 @@ void test("the pull request guide covers a new repository's licence and what pus
   }
 });
 
+// Nothing else setup installs mentions releases, so without this section an
+// agent drafts a project's release notes in a style of its own.
+void test("the pull request guide gives temple-bar's release notes format", () => {
+  const guide = flat(companion("docs/pull-requests.md"));
+  for (const required of [
+    "## Release notes",
+    "**The title** is `<repo> <version>`",
+    "**Features** (`feat`), **Fixes** (`fix`) and **Other changes** (every other type): one line per pull request merged since the last release",
+    "the commit subject with its type dropped, its scope in bold and the pull request number",
+    "The version bump commit is left out",
+    "**Upgrading** next: the commands, and what a user of the repository must do",
+    "Then **Guides this release changed** and **Incidents fixed**, where they apply",
+  ]) {
+    assert.ok(guide.includes(required), required);
+  }
+});
+
 // The gate refuses two regex shapes in test files with no exemption, so the
 // conventions guide setup ships says which files count and gives the same
 // three remedies for checking markup as the gate's message.
@@ -320,7 +337,7 @@ const APPROVED_COMPANION_SHA256: Readonly<Record<string, string>> = {
   "docs/planning.md":
     "664be6f35c101086696802793f5b7c57923385144f518044a8d7a54a7edb1b5f",
   "docs/pull-requests.md":
-    "94ab3c5b8733b32087b333a871276e2b43aaffc4dbc69988826f9d9a8107f5af",
+    "7cb9be75e273615924455c4b7d7ec2e351fc6ea754ae1ce947ca5fc57664b4e7",
   "docs/delegation.md":
     "0e5cff9bdc35a0eb0d4c6ea33f67aeb881a17e73ac8d5743c97fe7505a5a20a9",
   "docs/incidents.md":

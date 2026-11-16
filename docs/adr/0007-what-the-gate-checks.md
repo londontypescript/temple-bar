@@ -185,13 +185,17 @@ conservatively: lookarounds and backreferences never rule a tag out. A
 replacement deletes when its known text keeps no markup and is empty or
 whitespace. Local constants are followed by JavaScript's scope rules; imports,
 `let`, object properties, unknown replacements, string patterns and indirect
-calls are not, and pass. A file the check can't read (a parse error, a pattern
-regexpp can't read, Vue, Svelte, Astro or MDX in a test path, a link, a value
-past the check's work budget) fails, never passes. There are no exemptions: a
-wrong refusal is fixed in the check, through a reviewed change. The message
-names the package, file and line, and points to role and name queries for
-accessible names, a parser for document text, exact output for fixed markup,
-and `RegExp.escape` for patterns.
+calls are not, and pass. A `v`-mode set expression whose only member is `<`,
+for example `[[<a]&&[<b]]`, passes too (2026-11-15): CodeQL is the backstop,
+and it is revisited only if a real accidental case turns up
+([#512](https://github.com/londontypescript/temple-bar/issues/512)). A file
+the check can't read (a parse error, a pattern regexpp can't read, Vue,
+Svelte, Astro or MDX in a test path, a link, a value past the check's work
+budget) fails, never passes. There are no exemptions: a wrong refusal is fixed
+in the check, through a reviewed change. The message names the package, file
+and line, and points to role and name queries for accessible names, a parser
+for document text, exact output for fixed markup, and `RegExp.escape` for
+patterns.
 
 ## What would end it
 

@@ -124,3 +124,4 @@ Settled before the numbering began:
 | 100 | Setup works only on public repositories owned by a GitHub organisation                | [0021](0021-organisation-owned-public-repositories.md) |
 | 101 | An explicit `leftovers --remove` removes a merged pull request's released worktree    | [0022](0022-cleanup-after-merge.md)                    |
 | 102 | A lint script running ESLint, oxlint or Biome must carry its deny-warnings flag       | [0007](0007-what-the-gate-checks.md)                   |
+| 103 | The gate refuses tag-deleting regex replaces and unescaped RegExp text in tests       | [0007](0007-what-the-gate-checks.md)                   |
