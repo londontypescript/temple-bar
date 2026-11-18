@@ -1,12 +1,11 @@
-# temple-bar
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/temple-bar-dark-band-bottom-a936a88e.svg">
+    <img alt="London TypeScript: Temple Bar" src="docs/images/temple-bar-light-band-bottom-ea0cc1a3.svg" width="100%">
+  </picture>
+</p>
 
-**The London TypeScript workflow, enforced on AI coding agents via git hooks, a quality gate and GitHub rules.**
-
-> A rule that exists only as prose is a rule that will eventually be violated.
-
-Agents drift. After a long session or a context reset, the agent that used branches all day commits straight to `main`, and an agent chasing a goal will bend a rule to reach it. Written instructions don't stop that, so temple-bar enforces the rules instead: git hooks refuse commits to `main`, a quality gate refuses changes that fail their checks, and GitHub only accepts changes through pull requests.
-
-The workflow is opinionated on purpose, and every [London TypeScript](https://github.com/londontypescript) repository runs on it. Any TypeScript project on GitHub using pnpm in a GitHub organisation can adopt it as it is.
+Temple Bar is the London TypeScript workflow, enforced on AI coding agents via git hooks, a quality gate and GitHub rules. Agents drift: after a long session or a context reset, the agent that used branches all day commits straight to `main`. Written instructions don't stop that, so Temple Bar refuses the change instead. Every London TypeScript repository runs on it, and any TypeScript project using pnpm in a GitHub organisation can adopt it as it is.
 
 > **Pre-release.** Setup, the git hooks and the gate work today; more is on the way. Progress: [GitHub issues](https://github.com/londontypescript/temple-bar/issues).
 
@@ -16,7 +15,6 @@ The workflow is opinionated on purpose, and every [London TypeScript](https://gi
 - [Getting started](#getting-started)
 - [For AI agents](#for-ai-agents)
 - [Why? Prose != Enforcement](#why-prose--enforcement)
-- [What setup does](#what-setup-does)
 - [Built for London TypeScript](#built-for-london-typescript)
 - [Why "Temple Bar"](#why-temple-bar)
 - [Contributing](#contributing)
@@ -27,8 +25,8 @@ The workflow is opinionated on purpose, and every [London TypeScript](https://gi
 - a public **GitHub** repository owned by an organisation (other hosts, personal accounts and private repositories aren't supported)
 - the **GitHub CLI** (`gh`), installed and signed in (`gh auth login`). Your agent can't install this for you.
 - **Node.js** 24 or newer, and **git**
-- **pnpm**, the only supported package manager (npm, yarn and bun aren't supported). Don't have it? See [pnpm's install guide](https://pnpm.io/installation): it's one command. Any of its installs works: npm (`npm install --global pnpm`), corepack, `pnpm/action-setup` in GitHub Actions, or pnpm's standalone installer. A pnpm reached only through a `.cmd` or `.bat` shim doesn't: the gate starts pnpm again without a shell, and says so when it can't.
-- The gate also checks that every TypeScript file is type-checked and every test file is run, by asking `tsc`, Vitest or Node's test runner; a project whose scripts use other tools, such as `svelte-check` (SvelteKit), `vue-tsc`, Jest or `bun test`, can't adopt temple-bar yet (see [#443](https://github.com/londontypescript/temple-bar/issues/443)).
+- **pnpm**, the only supported package manager (npm, yarn and bun aren't supported). Don't have it? See [pnpm's install guide](https://pnpm.io/installation): it's one command. Any of its installs works: npm (`npm install --global pnpm`), corepack, `pnpm/action-setup` in GitHub Actions, or pnpm's standalone installer. A pnpm reached only through a `.cmd` or `.bat` shim doesn't ([why](docs/what-setup-does.md#pnpm-through-a-shim)).
+- type checks and tests that run through `tsc`, Vitest or Node's test runner ([why, and what isn't supported yet](docs/what-setup-does.md#type-checkers-and-test-runners))
 
 Setup stops and tells you what's missing if any of these aren't in place.
 
@@ -52,13 +50,13 @@ https://github.com/londontypescript/temple-bar#for-ai-agents
 
 ### What happens next
 
-1. **For something new, your agent asks you what you're building** and scaffolds the project first, with the framework's own tool (Vite, Next.js, Astro and the like) using its pnpm option, or by hand. temple-bar comes second, because a scaffolder run afterwards can delete or replace what setup wrote.
-2. Your agent runs temple-bar's setup. If the folder isn't on GitHub yet, **it asks you** before creating the repository.
+1. **For something new, your agent asks you what you're building** and scaffolds the project first, with the framework's own tool (Vite, Next.js, Astro and the like) using its pnpm option, or by hand. Temple Bar comes second, because a scaffolder run afterwards can delete or replace what setup wrote.
+2. Your agent runs Temple Bar's setup. If the folder isn't on GitHub yet, **it asks you** before creating the repository.
 3. Setup writes the rules (`AGENTS.md`), installs the git hooks and asks whether to switch on `main`'s protection on GitHub.
 4. Your agent points the gate's four checks at the project's own tools, then writes a **plan**. Nothing is built until you approve it.
 5. From then on, work happens on branches, every change passes the gate, and you approve every merge to `main`.
 
-### Cloned a repo that already uses temple-bar?
+### Cloned a repo that already uses Temple Bar?
 
 Nothing to do: `pnpm install` switches the hooks on. A fresh clone has no hooks until you install.
 
@@ -73,11 +71,19 @@ pnpm create @londontypescript/temple-bar@latest
 
 In a project that's already a git repo, run just the last line. Every command takes `--help`, which shows the usage and changes nothing.
 
-A project that installs with npm, Yarn or Bun has to move to pnpm before setup, which refuses a folder with another package manager's lockfile and never makes the switch for you. First change any `packageManager` field in `package.json` to pnpm, which refuses to run until it does. In a workspace, list its packages in `pnpm-workspace.yaml`, since pnpm ignores the `workspaces` field. Then run `pnpm import` (it reads npm's and Yarn's lockfiles; for Bun, run `pnpm install`) and delete the old lockfile. Check the project still installs, builds and tests, commit the switch, then run setup.
+A project that installs with npm, Yarn or Bun moves to pnpm first: [switching to pnpm](docs/what-setup-does.md#switching-to-pnpm).
 
 Then point the gate's four checks at your project's tools: `typecheck`, `lint`, `format:check` and `test` in `package.json`'s `scripts` (for example `tsc --noEmit`, `eslint .`, `prettier --check .` and `vitest run`). `pnpm gate` runs them all, and fails one that's missing or does nothing (`true`, `echo ok`), so set real commands, even for a small project.
 
 Don't run a scaffolder after setup: some delete or replace `AGENTS.md` and `package.json` (Vite with `--overwrite`, Nuxt with `--force`), others refuse a folder that isn't empty or quietly create a subfolder.
+
+### What setup does
+
+Setup writes the rules into `AGENTS.md`, installs the git hooks, and adds the gate and three CI workflows. With your yes, it also switches on `main`'s protection and CodeQL code scanning on GitHub.
+
+It never deletes files, rewrites history, or creates or pushes anything on GitHub without asking, and running it twice changes nothing. Installing it runs no install scripts.
+
+Every step in detail: [what setup does](docs/what-setup-does.md).
 
 ## For AI agents
 
@@ -93,23 +99,25 @@ You've been asked to set up temple-bar. Follow these steps exactly.
 
 ## Why? Prose != Enforcement
 
+> A rule that exists only as prose is a rule that will eventually be violated.
+
 AI coding agents follow written rules most of the time, then drift. After a long session, a context reset or a usage-limit pause, the agent that carefully used branches for six phases commits straight to `main` in the seventh. Nothing noticed, because the rule was only ever words in a file.
 
-temple-bar turns those words into mechanisms. The model's judgement is never what enforces a rule: a script is, and it gives the same answer every time.
+Temple Bar turns those words into mechanisms. The model's judgement is never what enforces a rule: a script is, and it gives the same answer every time.
 
 ### A deterministic workflow around a non-deterministic agent
 
-An agent's output will never be deterministic: ask twice and you get two different answers. The workflow around it can be. temple-bar fixes the parts that must not vary and leaves the agent free inside them:
+An agent's output will never be deterministic: ask twice and you get two different answers. The workflow around it can be. Temple Bar fixes the parts that must not vary and leaves the agent free inside them:
 
 - **The same path every time.** Plan, approve, branch, commit, gate, pull request, merge. The steps don't depend on which agent is running, how long the session has been, or what it remembers.
 - **The same verdict every time.** The gate runs the full suite on every merge, whatever changed. The same code always gets the same answer, locally and in CI.
 - **The same limits every time.** What an agent may never do (commit to `main`, merge its own work, weaken a check to make it pass) is refused by a mechanism, not left to the agent to remember.
 
-The agent decides _how_ to build something. temple-bar decides _what counts as done_, and makes that the same on every run.
+The agent decides _how_ to build something. Temple Bar decides _what counts as done_, and makes that the same on every run.
 
 ### How strongly each rule is held
 
-Where a rule _can't_ be enforced by a script, temple-bar says so. Every rule is labelled with how strongly it's actually held:
+Where a rule _can't_ be enforced by a script, Temple Bar says so. Every rule is labelled with how strongly it's actually held:
 
 | Strength       | Meaning                                                               |
 | -------------- | --------------------------------------------------------------------- |
@@ -124,36 +132,16 @@ When a rule is found to be prose-only and still being broken, the fix is a scrip
 
 > **In progress.** This part is still being designed. The outline below is the intent, not a finished feature.
 
-Every rule in temple-bar exists because something went wrong in a real project, and new ones arrive the same way:
+Every rule in Temple Bar exists because something went wrong in a real project, and new ones arrive the same way:
 
 1. **Capture.** When something goes wrong during a project, your agent proposes an incident. **You** decide which ones to keep.
-2. **Report upstream.** Kept incidents that are about temple-bar itself are filed as issues on this repository, with private project details left out.
+2. **Report upstream.** Kept incidents that are about Temple Bar itself are filed as issues on this repository, with private project details left out.
 3. **Fix and release.** The fix lands here, through the same gate as everything else, and the release notes name the incidents it fixes.
 4. **Upgrade.** Your projects pick up the fix by upgrading the package, instead of each project patching its own copy.
 
-## What setup does
-
-- Checks the requirements: a git repo, `gh` signed in, and `origin` pointing at a public GitHub repository owned by an organisation. A personal account's repository, or one that isn't public, is refused before anything is written: on a personal repository its owner merges past the checks without being asked. If one is missing, it stops with the exact fix, or offers to create the public repository under the organisation you name, listing every commit identity its first push makes public, and waits for your yes.
-- Offers to switch on `main`'s protection rules on GitHub: pull request required, no force-pushes, and `main` can't be deleted. If it can't (for example, you're not an admin of the repo), it prints the settings to switch on by hand. Under the same yes, it sets squash merges to default to the pull request's title and description, then reads the setting back.
-- Writes the judge workflow, `temple-bar-judge.yml` in `.github/workflows/`. A pull request runs its own copy of your CI, so it could weaken that CI and still pass. The judge runs from `main` instead, reads each pull request without running it, and fails one that changes a workflow, the pinned temple-bar, any script in any package's `package.json`, a package added with scripts or removed, pnpm's install settings at any depth (`pnpm-workspace.yaml`, a pnpmfile, `.npmrc`), except a change to the root `pnpm-workspace.yaml` that only changes versions in its default catalog or adds entries there, when no `.npmrc`, pnpmfile, config dependency or catalog-reading override could carry it into temple-bar's install, or `temple-bar.config.json`. Once the workflow is on `main`, running setup again offers a second ruleset that requires the judge's check (one yes covers both rulesets when they're created together). Such a change is then yours to review and merge as a repository admin; `temple-bar merge` refuses it.
-- Writes two more workflows beside it: `temple-bar-gate.yml` runs the gate on every pull request, and `temple-bar-pr-title.yml` checks the pull request's title, and that its description ends with every co-author and reviewer the branch's commits credit. It checks again whenever the pull request is edited. The gate fails if either differs from the copy temple-bar writes, so keep your own jobs in a workflow of your own. They install the pnpm version `package.json` names, so if nothing names one, setup adds `packageManager` with the pnpm running it. Once the workflows are on `main`, running setup again requires their checks in the `main` ruleset, so a pull request whose gate or title check failed or never reported can't merge.
-- Turns on CodeQL code scanning, under the same yes as the rulesets, and once CodeQL has analysed `main`, running setup again requires its results before a pull request merges. Code scanning is free on public repositories, the only kind setup works on.
-- In a folder with no commits yet, makes the first commit, creates the GitHub repository and pushes it, once you say yes. A public repository with no licence file gets a note: nobody else may reuse its code until you add one, and the licence is your choice.
-- Adds `@londontypescript/temple-bar` as a dev dependency, creating `package.json` if there isn't one, and keeps your `package.json` formatting when it adds scripts. It also sets `engines.node` to `>=24`, or raises a lower `>=` your scaffold wrote, since temple-bar won't run on an older Node.
-- Writes a sensible `.gitignore` for a TypeScript project (dependencies, build output, logs, `.env` files but not their `.example` templates, OS files, personal harness settings, the `.claude/worktrees/` folder where Claude Code puts its worktrees, and `.temple-bar/`, the local working folder), adding only lines you don't already have. Agents put worktrees wherever their tool does; one inside the repo stays out of your checks only if they follow `.gitignore`. Prettier already does; ESLint needs `includeIgnoreFile` from `eslint/config` in its config, and a test runner should look only in your source folders.
-- Writes the rules into `AGENTS.md`, as a block between two marker comments. With no `AGENTS.md` it writes a new one; with one already there (a framework's, or your own), it adds the block at the end and leaves the rest of the file as it was. A later run, after an upgrade, rewrites the block in place, but only a block temple-bar wrote: if the markers are broken or the block was edited by hand, setup leaves the file alone and says how to move your edits out of the block. It warns when the file is over the gate's limits (200 lines, 32 KiB), and the gate fails a repo whose block is missing or changed. Beside it, setup writes `CLAUDE.md` and the docs the rules link to, each only where it's missing, and adds a heading and the `@AGENTS.md` import to a `CLAUDE.md` that lacks them.
-- Adds `pnpm-lock.yaml` to `.prettierignore`, creating the file if needed, so Prettier leaves the lockfile as pnpm writes it: the judge reads the lockfile as text and refuses YAML pnpm never writes, which is what Prettier makes of its long lines.
-- Installs the git hooks, and adds a `prepare` script so they come back on every install. Installing also sets `pull.ff=only` in the repo's git config, so a pull never creates a merge commit on your default branch.
-- Adds `gate`, `ready` and `merge` scripts: `pnpm gate` is the merge check, `pnpm ready` runs it and marks the commit ready to push, and `pnpm merge <N>` merges pull request N once its checks pass. It keeps the branch's worktree and local branch, and deletes the remote branch only while it is still the merged commit; `temple-bar leftovers` lists what is left, and `temple-bar leftovers --remove` removes it once the session there has released it. Run `pnpm merge` from the default-branch checkout, never inside a pull request's worktree: pnpm runs whatever the current folder's `package.json` says, and there that is the pull request's own. The gate needs `typecheck`, `lint`, `format:check` and `test` scripts, and in a pnpm workspace it runs them in every package too, so each package needs all four. Unused code is checked once across the whole workspace, and a failure names the packages that hold it. It lists each check with its result.
-- Guards your default branch (`main`, `master` or whatever GitHub says): locally it can only move to commits that are already on GitHub.
-- Sets up every new worktree, whichever tool runs `git worktree add`: copies your `.env` files in from the main checkout (never over one that's there), names any keys their `.example` templates list that are missing (never printing a value), and runs `pnpm install --frozen-lockfile`. First it checks that the pnpm it would run is the version `package.json` pins: a tool can hand git a PATH where an old pnpm comes first. If it isn't, nothing is installed, and the message says which pnpm it found and how to fix it.
-- **Never** deletes files or rewrites history, and never creates or pushes anything on GitHub without asking. Running it twice changes nothing.
-
-temple-bar has no install scripts: installing it never changes your repo by itself.
-
 ## Built for London TypeScript
 
-temple-bar is the foundation every repository in the [London TypeScript](https://github.com/londontypescript) organisation is built on: our meetup's websites, tools and experiments are all developed by AI agents working under these rules. It's public, and you're welcome to use it, but it's shaped around how we work rather than configured for everyone's. Its decisions, and the reasons for them, are in [docs/adr/](docs/adr/README.md).
+Temple Bar is the foundation every repository in the [London TypeScript](https://github.com/londontypescript) organisation is built on: our meetup's websites, tools and experiments are all developed by AI agents working under these rules. It's public, and you're welcome to use it, but it's shaped around how we work rather than configured for everyone's. Its decisions, and the reasons for them, are in [docs/adr/](docs/adr/README.md).
 
 ## Why "Temple Bar"
 
@@ -163,7 +151,7 @@ Temple Bar is the ceremonial gateway into the City of London. By tradition, even
 
 ## Contributing
 
-Contributions are welcome, from London TypeScript members and anyone else. Like every London TypeScript repo, temple-bar is developed with pnpm only: `pnpm install`, then `pnpm check` runs the same gate CI runs. Changes reach `main` through pull requests, and [AGENTS.md](AGENTS.md) holds the rules for people and agents alike.
+The plans, issues and decisions are all public, so feel free to look around. Contributors will be invited in once the platforms are ready.
 
 ## Licence
 

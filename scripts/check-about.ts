@@ -1,5 +1,6 @@
 // Checks that the GitHub repository's About text is the README's one-line
-// description, word for word. The other copies of that sentence are checked
+// description, word for word: the first sentence of the paragraph the README
+// opens with, under its header band. The other copies of that sentence are checked
 // offline by package-metadata.test.ts; this one lives on GitHub, so CI runs
 // this script with its token:
 //
@@ -12,11 +13,47 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** The README's description: its first line after the title, in bold;
- * undefined when that line isn't a bold line of its own. */
+/** The README's opening paragraph, its lines joined by spaces: the first
+ * block of text after an optional header band (a `<p>` block holding a
+ * `<picture>`), with no title before it. Undefined when the README opens
+ * with anything else, such as a heading, a quote or a list: then there is
+ * no plain paragraph to read the description from. */
+export function readmeOpening(readme: string): string | undefined {
+  const lines = readme.replaceAll("\r\n", "\n").split("\n");
+  let index = 0;
+  if (lines[0]?.trim() === "<p>") {
+    const close = lines.findIndex((line) => line.trim() === "</p>");
+    if (close < 0 || !lines.slice(0, close).join("\n").includes("<picture>")) {
+      return undefined;
+    }
+    index = close + 1;
+  }
+  while (lines[index]?.trim() === "") {
+    index += 1;
+  }
+  const paragraph: string[] = [];
+  for (; index < lines.length; index += 1) {
+    const line = lines[index]?.trim() ?? "";
+    if (line === "") {
+      break;
+    }
+    paragraph.push(line);
+  }
+  const text = paragraph.join(" ");
+  if (text === "" || /^[#>*<|`-]/.test(text)) {
+    return undefined;
+  }
+  return text;
+}
+
+/** The README's one-line description: the first sentence of its opening
+ * paragraph, up to and including the first full stop followed by a space
+ * or the paragraph's end; undefined when there's no opening paragraph or
+ * it has no full stop. */
 export function readmeDescription(readme: string): string | undefined {
-  const firstLine = readme.replaceAll("\r\n", "\n").split("\n")[2] ?? "";
-  return /^\*\*(.+)\*\*$/.exec(firstLine)?.[1];
+  const opening = readmeOpening(readme);
+  const end = opening === undefined ? null : /\.(?= |$)/.exec(opening);
+  return end === null ? undefined : opening?.slice(0, end.index + 1);
 }
 
 /** What's wrong, in words a maintainer can act on; undefined when the About
@@ -27,16 +64,16 @@ export function aboutProblem(
 ): string | undefined {
   const description = readmeDescription(readme);
   if (description === undefined) {
-    return "README.md's first line after the title isn't the one-line description in bold, so there is nothing to compare the About text with.";
+    return "README.md doesn't open with a plain paragraph (after the header band, with no title) whose first sentence is the one-line description, so there is nothing to compare the About text with.";
   }
   if (about === description) {
     return undefined;
   }
   return [
-    "The repository's About text differs from README.md's first line.",
+    "The repository's About text differs from the first sentence of README.md's opening paragraph.",
     `  About:  ${about ?? "(none)"}`,
     `  README: ${description}`,
-    "Set the About text to the README's line (gh repo edit --description), or change every copy together.",
+    "Set the About text to the README's first sentence (gh repo edit --description), or change every copy together.",
   ].join("\n");
 }
 
@@ -76,7 +113,9 @@ async function main(): Promise<void> {
     console.error(problem);
     process.exit(1);
   }
-  console.log("check-about: the About text matches README.md's first line.");
+  console.log(
+    "check-about: the About text matches README.md's one-line description.",
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
