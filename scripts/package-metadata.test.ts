@@ -1,5 +1,5 @@
 // temple-bar describes itself in one sentence, and that sentence appears in
-// several places: the README's first line, temple-bar's npm description and
+// several places: the first sentence of the README, temple-bar's npm description and
 // package README, and create-temple-bar's, which name temple-bar by the same
 // sentence. They drifted apart once, unnoticed, so this test reads the
 // sentence from the README and fails when any copy differs. The GitHub
@@ -14,6 +14,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+
+import { readmeDescription, readmeOpeningBlock } from "./check-about.ts";
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -35,41 +37,70 @@ function manifest(dir: string): Manifest {
   return JSON.parse(read(`${dir}/package.json`)) as Manifest;
 }
 
-/** The README's description: its first line after the title, in bold. */
+/** The README's description: the first sentence of the paragraph it opens
+ * with, under the header band. check-about.ts reads it the same way, so the
+ * About text and these copies are compared with one sentence. */
 function readmeSentence(): string {
-  const firstLine = read("README.md").split("\n")[2] ?? "";
-  const match = /^\*\*(.+)\*\*$/.exec(firstLine);
+  const sentence = readmeDescription(read("README.md"));
   assert.ok(
-    match?.[1] !== undefined,
-    `README.md's first line after the title must be the one-line description in bold, alone on its line. It is: ${firstLine}`,
+    sentence !== undefined,
+    "README.md must open with a plain paragraph, after the header band and with no title, whose first sentence is the one-line description.",
   );
-  return match[1];
+  return sentence;
 }
 
-/** The quote that follows the description in the README. */
+/** The quote that follows the opening paragraph in the README, and the
+ * description in temple-bar's package README. */
 const QUOTE =
   "> A rule that exists only as prose is a rule that will eventually be violated.";
 
+/** How the description starts: it names the project, then says what it is. */
+const SUBJECT = "Temple Bar is ";
+
 /** The sentence as a name for temple-bar ("Sets up temple-bar, the London
- * TypeScript workflow enforced on ..."): lower-case first letter, and the
+ * TypeScript workflow enforced on ..."): without "Temple Bar is ", and the
  * first comma dropped, since the phrase after it now describes the name. */
 function asAppositive(sentence: string): string {
-  const comma = sentence.indexOf(", ");
+  assert.ok(
+    sentence.startsWith(SUBJECT),
+    `the description must start with "${SUBJECT}" to name temple-bar by the rest of it: ${sentence}`,
+  );
+  const rest = sentence.slice(SUBJECT.length);
+  const comma = rest.indexOf(", ");
   assert.ok(
     comma > 0,
     `the description needs a comma to name temple-bar by it: ${sentence}`,
   );
-  const head = sentence.slice(0, comma);
-  const tail = sentence.slice(comma + 2);
-  return `${head.charAt(0).toLowerCase()}${head.slice(1)} ${tail}`;
+  return `${rest.slice(0, comma)} ${rest.slice(comma + 2)}`;
 }
+
+/** Whether the quote comes right after the README's real opening paragraph,
+ * after a blank line and with a blank line after it, wherever that
+ * paragraph wraps. */
+function quoteFollowsOpening(readme: string): boolean {
+  const block = readmeOpeningBlock(readme);
+  if (block === undefined) {
+    return false;
+  }
+  const lines = readme.replaceAll("\r\n", "\n").split("\n");
+  const after = lines.slice(block.end, block.end + 3);
+  return (
+    after.length === 3 && after.every((line, i) => line === ["", QUOTE, ""][i])
+  );
+}
+
+void test("the quote must follow the real opening paragraph, however it wraps", () => {
+  const wrapped = `Temple Bar is a\nworkflow. More.\n\n${QUOTE}\n\n## Next\n`;
+  assert.equal(quoteFollowsOpening(wrapped), true);
+  const elsewhere = `Temple Bar is a workflow. More.\n\nOther text.\n\nTemple Bar is a workflow. More.\n\n${QUOTE}\n\n`;
+  assert.equal(quoteFollowsOpening(elsewhere), false);
+});
 
 void test("the README opens with the description, then the quote", () => {
   readmeSentence();
-  assert.equal(
-    read("README.md").split("\n")[4],
-    QUOTE,
-    "README.md's description must be followed, after a blank line, by the quote.",
+  assert.ok(
+    quoteFollowsOpening(read("README.md")),
+    `README.md's opening paragraph must be followed, after a blank line, by the quote on its own: ${QUOTE}`,
   );
 });
 
@@ -78,13 +109,13 @@ void test("temple-bar's npm description and package README match the README", ()
   assert.equal(
     manifest("packages/temple-bar").description,
     sentence,
-    "packages/temple-bar/package.json's description must be the README's first line, word for word.",
+    "packages/temple-bar/package.json's description must be the README's first sentence, word for word.",
   );
   const lines = read("packages/temple-bar/README.md").split("\n");
   assert.equal(
     lines[2],
     `**${sentence}**`,
-    "packages/temple-bar/README.md must open with the README's first line, in bold.",
+    "packages/temple-bar/README.md must open with the README's first sentence, in bold.",
   );
   assert.equal(
     lines[4],
@@ -98,7 +129,7 @@ void test("create-temple-bar names temple-bar by the same description", () => {
   assert.equal(
     manifest("packages/create-temple-bar").description,
     `Sets up temple-bar, ${appositive}`,
-    "packages/create-temple-bar/package.json's description must be \"Sets up temple-bar, \" followed by the README's first line, lower-cased and without its first comma.",
+    'packages/create-temple-bar/package.json\'s description must be "Sets up temple-bar, " followed by the README\'s first sentence, without its opening "Temple Bar is " or its first comma.',
   );
   assert.equal(
     read("packages/create-temple-bar/README.md").split("\n")[2],

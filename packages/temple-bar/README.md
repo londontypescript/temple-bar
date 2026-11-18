@@ -1,6 +1,6 @@
 # @londontypescript/temple-bar
 
-**The London TypeScript workflow, enforced on AI coding agents via git hooks, a quality gate and GitHub rules.**
+**Temple Bar is the London TypeScript workflow, enforced on AI coding agents via git hooks, a quality gate and GitHub rules.**
 
 > A rule that exists only as prose is a rule that will eventually be violated.
 
@@ -16,6 +16,6 @@ temple-bar works with pnpm only: [install it](https://pnpm.io/installation) firs
 
 Once the repo has files of its own, beyond the ones it starts with, `temple-bar gate` needs `typecheck`, `lint`, `format:check` and `test` scripts in `package.json`, and fails one that does nothing. It runs every one that exists, then the file-length cap and the AGENTS.md size limit (200 lines, 32 KiB), and lists each check with its result. Setup adds `gate`, `ready` and `merge` scripts, so the commands run through pnpm, which a workspace needs: `pnpm merge <N>` merges a pull request, run from the default-branch checkout and never inside a pull request's worktree, since pnpm runs whatever the current folder's `package.json` says. Every command takes `--help`.
 
-What setup does, and how to use it with an AI agent: [the full README](https://github.com/londontypescript/temple-bar#readme).
+[What setup does](https://github.com/londontypescript/temple-bar/blob/main/docs/what-setup-does.md), step by step. How to use it with an AI agent: [the full README](https://github.com/londontypescript/temple-bar#readme).
 
 MIT licence.
