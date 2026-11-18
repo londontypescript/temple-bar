@@ -54,7 +54,7 @@ When a rule is found to be prose-only and still being broken, the fix is a scrip
 Every rule in Temple Bar exists because something went wrong in a real project, and new ones arrive the same way:
 
 1. **Capture.** When something goes wrong during a project, your agent proposes an incident. **You** decide which ones to keep.
-2. **Report upstream.** Kept incidents that are about Temple Bar itself are filed as issues on this repository, with private project details left out: [about 30 so far](https://github.com/londontypescript/temple-bar/issues?q=label%3Aincident).
+2. **Report upstream.** Kept incidents that are about Temple Bar itself are [filed as issues on this repository](https://github.com/londontypescript/temple-bar/issues?q=label%3Aincident), with private project details left out.
 3. **Fix and release.** The fix lands here, through the same gate as everything else, and each release's notes list the incidents it fixes.
 4. **Upgrade.** Your projects pick up the fix by upgrading the package, instead of each project patching its own copy.
 
