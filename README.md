@@ -11,14 +11,54 @@ Temple Bar is the London TypeScript workflow, enforced on AI coding agents via g
 
 ## Contents
 
+- [Why? Prose != Enforcement](#why-prose--enforcement)
 - [You need](#you-need)
 - [Getting started](#getting-started)
 - [For AI agents](#for-ai-agents)
-- [Why? Prose != Enforcement](#why-prose--enforcement)
 - [Built for London TypeScript](#built-for-london-typescript)
 - [Why "Temple Bar"](#why-temple-bar)
 - [Contributing](#contributing)
 - [Licence](#licence)
+
+## Why? Prose != Enforcement
+
+AI coding agents follow written rules most of the time, then drift. After a long session, a context reset or a usage-limit pause, the agent that carefully used branches for six phases commits straight to `main` in the seventh. Nothing noticed, because the rule was only ever words in a file.
+
+Temple Bar turns those words into mechanisms. The model's judgement is never what enforces a rule: a script is, and it gives the same answer every time.
+
+### A deterministic workflow around a non-deterministic agent
+
+An agent's output will never be deterministic: ask twice and you get two different answers. The workflow around it can be. Temple Bar fixes the parts that must not vary and leaves the agent free inside them:
+
+- **The same path every time.** Plan, approve, branch, commit, gate, pull request, merge. The steps don't depend on which agent is running, how long the session has been, or what it remembers.
+- **The same verdict every time.** The gate runs the full suite on every merge, whatever changed. The same code always gets the same answer, locally and in CI.
+- **The same limits every time.** What an agent may never do (commit to `main`, merge its own work, weaken a check to make it pass) is refused by a mechanism, not left to the agent to remember.
+
+The agent decides _how_ to build something. Temple Bar decides _what counts as done_, and makes that the same on every run.
+
+### How strongly each rule is held
+
+Where a rule _can't_ be enforced by a script, Temple Bar says so. Every rule is labelled with how strongly it's actually held:
+
+| Strength       | Meaning                                                               |
+| -------------- | --------------------------------------------------------------------- |
+| **Blocked**    | A hook, the gate or GitHub refuses it outright.                       |
+| **Detected**   | Something notices afterwards and says so.                             |
+| **Prompted**   | You're asked at the right moment; nothing checks the answer.          |
+| **Prose only** | Written down, and nothing more. The weakest kind, and listed as such. |
+
+When a rule is found to be prose-only and still being broken, the fix is a script, not stronger wording.
+
+### Getting better from real incidents
+
+Every rule in Temple Bar exists because something went wrong in a real project, and new ones arrive the same way:
+
+1. **Capture.** When something goes wrong during a project, your agent proposes an incident. **You** decide which ones to keep.
+2. **Report upstream.** Kept incidents that are about Temple Bar itself are filed as issues on this repository, with private project details left out: [about 30 so far](https://github.com/londontypescript/temple-bar/issues?q=label%3Aincident).
+3. **Fix and release.** The fix lands here, through the same gate as everything else, and each release's notes list the incidents it fixes.
+4. **Upgrade.** Your projects pick up the fix by upgrading the package, instead of each project patching its own copy.
+
+Capture is prompted by the rules, not enforced: nothing checks that an agent proposes an incident when something goes wrong.
 
 ## You need
 
@@ -96,46 +136,6 @@ You've been asked to set up temple-bar. Follow these steps exactly.
 5. Don't install the package on its own (`pnpm add -D …`). That leaves the repo unprotected.
 6. Set the gate's four scripts in `package.json`, `typecheck`, `lint`, `format:check` and `test`, to the right commands for what's in the folder: the framework's own type checker, linter, formatter and test runner where it has them. Never a command that does nothing (`true`, `echo ok`): the gate fails those. If the project has no tool for one of them yet, ask the user which to add. In a workspace, every package needs the four scripts too: the gate runs them in each package's folder.
 7. When setup finishes, `main` refuses direct commits, so land the setup and the scripts through a pull request, as setup's output describes. Then read `AGENTS.md` and follow it: write a plan, and don't write code before the user approves it.
-
-## Why? Prose != Enforcement
-
-AI coding agents follow written rules most of the time, then drift. After a long session, a context reset or a usage-limit pause, the agent that carefully used branches for six phases commits straight to `main` in the seventh. Nothing noticed, because the rule was only ever words in a file.
-
-Temple Bar turns those words into mechanisms. The model's judgement is never what enforces a rule: a script is, and it gives the same answer every time.
-
-### A deterministic workflow around a non-deterministic agent
-
-An agent's output will never be deterministic: ask twice and you get two different answers. The workflow around it can be. Temple Bar fixes the parts that must not vary and leaves the agent free inside them:
-
-- **The same path every time.** Plan, approve, branch, commit, gate, pull request, merge. The steps don't depend on which agent is running, how long the session has been, or what it remembers.
-- **The same verdict every time.** The gate runs the full suite on every merge, whatever changed. The same code always gets the same answer, locally and in CI.
-- **The same limits every time.** What an agent may never do (commit to `main`, merge its own work, weaken a check to make it pass) is refused by a mechanism, not left to the agent to remember.
-
-The agent decides _how_ to build something. Temple Bar decides _what counts as done_, and makes that the same on every run.
-
-### How strongly each rule is held
-
-Where a rule _can't_ be enforced by a script, Temple Bar says so. Every rule is labelled with how strongly it's actually held:
-
-| Strength       | Meaning                                                               |
-| -------------- | --------------------------------------------------------------------- |
-| **Blocked**    | A hook, the gate or GitHub refuses it outright.                       |
-| **Detected**   | Something notices afterwards and says so.                             |
-| **Prompted**   | You're asked at the right moment; nothing checks the answer.          |
-| **Prose only** | Written down, and nothing more. The weakest kind, and listed as such. |
-
-When a rule is found to be prose-only and still being broken, the fix is a script, not stronger wording.
-
-### Getting better from real incidents
-
-> **In progress.** This part is still being designed. The outline below is the intent, not a finished feature.
-
-Every rule in Temple Bar exists because something went wrong in a real project, and new ones arrive the same way:
-
-1. **Capture.** When something goes wrong during a project, your agent proposes an incident. **You** decide which ones to keep.
-2. **Report upstream.** Kept incidents that are about Temple Bar itself are filed as issues on this repository, with private project details left out.
-3. **Fix and release.** The fix lands here, through the same gate as everything else, and the release notes name the incidents it fixes.
-4. **Upgrade.** Your projects pick up the fix by upgrading the package, instead of each project patching its own copy.
 
 ## Built for London TypeScript
 

@@ -22,7 +22,7 @@ Settled before the numbering began:
 
 | #   | Decision                                                                              | ADR                                                    |
 | --- | ------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| 1   | The README opens with the header band and one paragraph, then setup, then background  | [0009](0009-readme-and-agents-md.md)                   |
+| 1   | The README opens with the header band and one paragraph, then why, then setup         | [0009](0009-readme-and-agents-md.md)                   |
 | 2   | Public, highly opinionated, 0.x: a planned release bumps the minor, a fix the patch   | [0002](0002-what-temple-bar-is-for.md)                 |
 | 3   | GitHub only: a git repo, `gh` signed in, `origin` on GitHub                           | [0002](0002-what-temple-bar-is-for.md)                 |
 | 4   | `main` changes only through merged pull requests; hooks guard local `main`            | [0003](0003-how-a-change-reaches-main.md)              |
