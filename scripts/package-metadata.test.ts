@@ -49,12 +49,10 @@ function readmeSentence(): string {
   return sentence;
 }
 
-/** The quote that opens the README's "Why" section, and follows the
+/** The quote that follows the opening paragraph in the README, and the
  * description in temple-bar's package README. */
 const QUOTE =
   "> A rule that exists only as prose is a rule that will eventually be violated.";
-
-const WHY_HEADING = "## Why? Prose != Enforcement";
 
 /** How the description starts: it names the project, then says what it is. */
 const SUBJECT = "Temple Bar is ";
@@ -76,15 +74,17 @@ function asAppositive(sentence: string): string {
   return `${rest.slice(0, comma)} ${rest.slice(comma + 2)}`;
 }
 
-void test("the README opens with the description, and its Why section with the quote", () => {
-  readmeSentence();
+void test("the README opens with the description, then the quote", () => {
+  const sentence = readmeSentence();
   const lines = read("README.md").split("\n");
-  const heading = lines.indexOf(WHY_HEADING);
-  assert.ok(heading >= 0, `README.md must have the heading "${WHY_HEADING}".`);
+  // The opening paragraph runs from the line the description starts on to
+  // the first blank line after it.
+  const start = lines.findIndex((line) => line.startsWith(sentence));
+  const end = lines.indexOf("", start);
   assert.deepEqual(
-    lines.slice(heading + 1, heading + 3),
-    ["", QUOTE],
-    `The first thing under README.md's "${WHY_HEADING}" heading, after a blank line, must be the quote: ${QUOTE}`,
+    start >= 0 && end > start ? lines.slice(end, end + 3) : [],
+    ["", QUOTE, ""],
+    `README.md's opening paragraph must be followed, after a blank line, by the quote on its own: ${QUOTE}`,
   );
 });
 

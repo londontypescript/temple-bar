@@ -7,7 +7,7 @@
 
 Temple Bar is the London TypeScript workflow, enforced on AI coding agents via git hooks, a quality gate and GitHub rules. Agents drift: after a long session or a context reset, the agent that used branches all day commits straight to `main`. Written instructions don't stop that, so Temple Bar refuses the change instead. Every London TypeScript repository runs on it, and any TypeScript project using pnpm in a GitHub organisation can adopt it as it is.
 
-> **Pre-release.** Setup, the git hooks and the gate work today; more is on the way. Progress: [GitHub issues](https://github.com/londontypescript/temple-bar/issues).
+> A rule that exists only as prose is a rule that will eventually be violated.
 
 ## Contents
 
@@ -98,8 +98,6 @@ You've been asked to set up temple-bar. Follow these steps exactly.
 7. When setup finishes, `main` refuses direct commits, so land the setup and the scripts through a pull request, as setup's output describes. Then read `AGENTS.md` and follow it: write a plan, and don't write code before the user approves it.
 
 ## Why? Prose != Enforcement
-
-> A rule that exists only as prose is a rule that will eventually be violated.
 
 AI coding agents follow written rules most of the time, then drift. After a long session, a context reset or a usage-limit pause, the agent that carefully used branches for six phases commits straight to `main` in the seventh. Nothing noticed, because the rule was only ever words in a file.
 

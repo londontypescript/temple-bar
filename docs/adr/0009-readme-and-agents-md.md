@@ -15,13 +15,14 @@ and who writes the README.
 **Decision 1: what the README says.** The README opens with the London
 TypeScript header band, then one plain paragraph whose first sentence is the
 one-line description, the same sentence as the GitHub About text and the npm
-descriptions; the rest of the paragraph says why it exists. Then come the
+descriptions; the rest of the paragraph says why it exists. The quote "A
+rule that exists only as prose is a rule that will eventually be violated."
+follows it and closes the intro; there is no pre-release note. Then come the
 requirements, getting started and the steps for agents, and after them the
-background, opened by the quote "A rule that exists only as prose is a rule
-that will eventually be violated.": the deterministic workflow around a
-non-deterministic agent, the blocked / detected / prompted / prose-only
-labels for how strongly each rule is held, London TypeScript, and the story
-of the name. The incident loop appears as an "in progress" outline. The
+background: the deterministic workflow around a non-deterministic agent, the
+blocked / detected / prompted / prose-only labels for how strongly each rule
+is held, London TypeScript, and the story of the name. The incident loop
+appears as an "in progress" outline. The
 decision first had the README open with the slogan "Prose != Enforcement";
 the slogan was dropped on 2026-10-01, when the README was restructured at the
 maintainer's direction to put a plain intro first. On 2026-10-05 the intro
@@ -29,9 +30,9 @@ became one bold line, the same sentence as the npm and GitHub descriptions,
 followed by the quote. On 2026-11-18
 ([#528](https://github.com/londontypescript/temple-bar/issues/528)) the README
 took the header band and one-paragraph opening of London TypeScript's other
-repositories, the description became that paragraph's first sentence, the
-quote moved to open the "Why" section, and the full list of what setup does
-moved to [docs/what-setup-does.md](../what-setup-does.md).
+repositories, the description became that paragraph's first sentence with
+the quote after it, the pre-release note was dropped, and the full list of
+what setup does moved to [docs/what-setup-does.md](../what-setup-does.md).
 
 **Decision 12: the TypeScript trademark.** temple-bar's README and packages
 carry no trademark disclaimer, because the name temple-bar doesn't use the
