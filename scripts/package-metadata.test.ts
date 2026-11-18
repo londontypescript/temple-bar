@@ -15,7 +15,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { readmeDescription } from "./check-about.ts";
+import { readmeDescription, readmeOpeningBlock } from "./check-about.ts";
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -74,16 +74,32 @@ function asAppositive(sentence: string): string {
   return `${rest.slice(0, comma)} ${rest.slice(comma + 2)}`;
 }
 
+/** Whether the quote comes right after the README's real opening paragraph,
+ * after a blank line and with a blank line after it, wherever that
+ * paragraph wraps. */
+function quoteFollowsOpening(readme: string): boolean {
+  const block = readmeOpeningBlock(readme);
+  if (block === undefined) {
+    return false;
+  }
+  const lines = readme.replaceAll("\r\n", "\n").split("\n");
+  const after = lines.slice(block.end, block.end + 3);
+  return (
+    after.length === 3 && after.every((line, i) => line === ["", QUOTE, ""][i])
+  );
+}
+
+void test("the quote must follow the real opening paragraph, however it wraps", () => {
+  const wrapped = `Temple Bar is a\nworkflow. More.\n\n${QUOTE}\n\n## Next\n`;
+  assert.equal(quoteFollowsOpening(wrapped), true);
+  const elsewhere = `Temple Bar is a workflow. More.\n\nOther text.\n\nTemple Bar is a workflow. More.\n\n${QUOTE}\n\n`;
+  assert.equal(quoteFollowsOpening(elsewhere), false);
+});
+
 void test("the README opens with the description, then the quote", () => {
-  const sentence = readmeSentence();
-  const lines = read("README.md").split("\n");
-  // The opening paragraph runs from the line the description starts on to
-  // the first blank line after it.
-  const start = lines.findIndex((line) => line.startsWith(sentence));
-  const end = lines.indexOf("", start);
-  assert.deepEqual(
-    start >= 0 && end > start ? lines.slice(end, end + 3) : [],
-    ["", QUOTE, ""],
+  readmeSentence();
+  assert.ok(
+    quoteFollowsOpening(read("README.md")),
     `README.md's opening paragraph must be followed, after a blank line, by the quote on its own: ${QUOTE}`,
   );
 });

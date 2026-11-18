@@ -13,37 +13,64 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** The README's opening paragraph, its lines joined by spaces: the first
- * block of text after an optional header band (a `<p>` block holding a
- * `<picture>`), with no title before it. Undefined when the README opens
- * with anything else, such as a heading, a quote or a list: then there is
- * no plain paragraph to read the description from. */
-export function readmeOpening(readme: string): string | undefined {
+/** Whether the lines between a band's `<p>` and `</p>` are a real picture:
+ * an opening `<picture>`, an `<img`, and a closing `</picture>`, with no
+ * HTML comment, which could hide any of them from the page. */
+function isBand(inside: readonly string[]): boolean {
+  const has = (pattern: RegExp) => inside.some((line) => pattern.test(line));
+  return (
+    has(/^\s*<picture>\s*$/) &&
+    has(/^\s*<img\s/) &&
+    has(/^\s*<\/picture>\s*$/) &&
+    !inside.some((line) => line.includes("<!--"))
+  );
+}
+
+/** The README's opening paragraph: its lines joined by spaces, and where it
+ * sits, from its first line (`start`) to the blank line or end of file
+ * after it (`end`, exclusive), as indices into the README's lines. It is
+ * the first block of text after an optional header band (a `<p>` block
+ * holding a `<picture>`), with no title before it. Undefined when the
+ * README opens with anything else, such as a heading (an underlined one
+ * too), a quote or a list: then there is no plain paragraph to read the
+ * description from. */
+export function readmeOpeningBlock(
+  readme: string,
+):
+  | { readonly text: string; readonly start: number; readonly end: number }
+  | undefined {
   const lines = readme.replaceAll("\r\n", "\n").split("\n");
-  let index = 0;
+  let start = 0;
   if (lines[0]?.trim() === "<p>") {
     const close = lines.findIndex((line) => line.trim() === "</p>");
-    if (close < 0 || !lines.slice(0, close).join("\n").includes("<picture>")) {
+    if (close < 0 || !isBand(lines.slice(1, close))) {
       return undefined;
     }
-    index = close + 1;
+    start = close + 1;
   }
-  while (lines[index]?.trim() === "") {
-    index += 1;
+  while (lines[start]?.trim() === "") {
+    start += 1;
   }
-  const paragraph: string[] = [];
-  for (; index < lines.length; index += 1) {
-    const line = lines[index]?.trim() ?? "";
-    if (line === "") {
-      break;
-    }
-    paragraph.push(line);
+  let end = start;
+  while (end < lines.length && lines[end]?.trim() !== "") {
+    end += 1;
+  }
+  const paragraph = lines.slice(start, end).map((line) => line.trim());
+  // A line of only = or - under text makes the text a heading.
+  if (paragraph.slice(1).some((line) => /^(=+|-+)$/.test(line))) {
+    return undefined;
   }
   const text = paragraph.join(" ");
   if (text === "" || /^[#>*<|`-]/.test(text)) {
     return undefined;
   }
-  return text;
+  return { text, start, end };
+}
+
+/** The README's opening paragraph, its lines joined by spaces; undefined
+ * when it doesn't open with one (see readmeOpeningBlock). */
+function readmeOpening(readme: string): string | undefined {
+  return readmeOpeningBlock(readme)?.text;
 }
 
 /** The README's one-line description: the first sentence of its opening

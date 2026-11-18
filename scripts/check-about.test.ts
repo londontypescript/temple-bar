@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { aboutProblem, readmeDescription } from "./check-about.ts";
+import {
+  aboutProblem,
+  readmeDescription,
+  readmeOpeningBlock,
+} from "./check-about.ts";
 
 const BAND = [
   "<p>",
@@ -49,6 +53,46 @@ void test("a README that opens with anything but a plain paragraph has no descri
   ]) {
     assert.equal(readmeDescription(readme), undefined, readme);
   }
+});
+
+void test("a band is only a band when it holds a real picture, with no comment", () => {
+  for (const band of [
+    "<p>\n<picture>\n</p>",
+    "<p>\n  <!-- <picture> -->\n</p>",
+    "<p>\n  <picture>\n    <img src='x.svg'>\n</p>",
+    "<p>\n  <picture>\n  </picture>\n</p>",
+    `<p>\n  <!-- old band -->\n${BAND.split("\n").slice(1).join("\n")}`,
+  ]) {
+    assert.equal(
+      readmeDescription(`${band}\n\nOne line about it.\n`),
+      undefined,
+      band,
+    );
+  }
+});
+
+void test("a paragraph underlined with = or - is a heading, not the opening", () => {
+  for (const underline of ["===", "---", "  -  "]) {
+    assert.equal(
+      readmeDescription(`${BAND}\n\nOne line about it.\n${underline}\n`),
+      undefined,
+      underline,
+    );
+  }
+  assert.equal(
+    readmeDescription("One line about it.\nSecond line.\n===\n"),
+    undefined,
+  );
+});
+
+void test("the opening paragraph's bounds are its own lines, however it wraps", () => {
+  const readme = `${BAND}\n\nOne line\nabout it. More.\n\nOne line about it.\n`;
+  assert.deepEqual(readmeOpeningBlock(readme), {
+    text: "One line about it. More.",
+    start: 7,
+    end: 9,
+  });
+  assert.equal(readmeOpeningBlock("# Title\n\nOne line.\n"), undefined);
 });
 
 void test("an About text equal to the README's sentence passes", () => {
